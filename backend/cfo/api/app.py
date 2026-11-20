@@ -14,6 +14,7 @@ from cfo.api.errors import install_error_handlers
 from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, llm_usage, rules, sim
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
+from cfo.observability import init_tracing
 
 VERSION = "0.1.0"
 
@@ -44,6 +45,7 @@ TAGS = [
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """With `AGENT_IN_API=1` the API process builds its own agent (approvals, `POST /v1/sim:step`); see `cfo.run`."""
+    init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
     try:
         from cfo.run import attach_api
 

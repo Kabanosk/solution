@@ -35,6 +35,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
+from cfo import observability as obs
 from cfo.agent.documents import collect_text
 from cfo.agent.investigate import build_investigation_graph
 from cfo.agent.llm_tasks import alternative_queries, explain, extract_invoice, parse_amount
@@ -109,7 +110,7 @@ class Deps:
                  config: AgentConfig):
         self.gw = Gateway(tools)
         self.repo_factory = repo_factory
-        self.llm = llm
+        self.llm = obs.traced_llm(llm)  # every chat call is a span under the node that made it (T027)
         self.notifier = notifier
         self.cfg = config
 
@@ -462,7 +463,7 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                      ("attach", attach), ("ask", ask), ("propose_credit_line", propose_credit_line),
                      ("request_approval", request_approval), ("await_approval", await_approval),
                      ("investigate", investigate), ("alert", alert)]:
-        g.add_node(name, fn)
+        g.add_node(name, obs.traced_node(name, fn))  # one MLflow span per visited node (no-op when off)
     g.add_conditional_edges(START, route, ["load_txn", "propose_credit_line", "investigate", "ignore"])
     g.add_edge("ignore", END)
     g.add_conditional_edges("load_txn", lambda s: "find_docs" if s.get("txn") else END, ["find_docs", END])
@@ -490,6 +491,12 @@ class Agent:
 
     def handle(self, event: Event) -> HandleResult:
         """Process one event. Returns `awaiting_approval` (with the approval id) when it stopped at an interrupt."""
+        with obs.span("agent.handle", inputs=event) as sp:  # one MLflow trace per event (no-op when tracing is off)
+            return self._traced(sp, self._handle(event), {
+                "cfo.event_kind": event.kind.value, "cfo.event_id": event.id,
+                "cfo.transaction_id": event.payload.get("transaction_id")})
+
+    def _handle(self, event: Event) -> HandleResult:
         if event.kind == EventKind.INVOICE_DOCUMENT and not event.payload.get("transaction_id"):
             # a document appeared somewhere: re-check every payment still missing its invoice
             merged = HandleResult()
@@ -510,6 +517,12 @@ class Agent:
     def resume_approval(self, approval_id: str, approved: bool, by: str) -> HandleResult:
         """Answer a pending approval. `by` must be the approver (PermissionError otherwise). Idempotent: a repeated
         call (double click, Slack retry) returns `already_resolved` without doing anything twice."""
+        inputs = {"approval_id": approval_id, "approved": approved, "by": by}
+        with obs.span("agent.resume_approval", inputs=inputs) as sp:
+            return self._traced(sp, self._resume_approval(approval_id, approved, by), {
+                "cfo.event_kind": "approval_answer", "cfo.approval_id": approval_id, "cfo.approved": approved})
+
+    def _resume_approval(self, approval_id: str, approved: bool, by: str) -> HandleResult:
         with self._lock:
             with self._d.repo_factory() as repo:
                 req = repo.get_approval_request(approval_id)
@@ -523,6 +536,23 @@ class Agent:
             config = {"configurable": {"thread_id": dec.payload["thread_id"]}}
             self._graph.invoke(Command(resume={"approved": approved, "by": by}), config)
             return self._result(config)
+
+    def _traced(self, sp: obs.Span, res: HandleResult, tags: dict[str, Any]) -> HandleResult:
+        """Tag the current trace with what happened: outcome, final policy level, simulated execution."""
+        if not obs.enabled():
+            return res
+        try:
+            with self._d.repo_factory() as repo:
+                decs = [x for x in (_get_decision(repo, i) for i in res.decision_ids) if x is not None]
+            levels = [x.level for x in decs]
+            final = max(levels, key=list(PolicyLevel).index).value if levels else "NONE"  # APPROVAL > NOTIFY > AUTO
+            obs.set_trace_tags({**tags, "cfo.outcome": res.status, "cfo.policy_level": final,
+                                "cfo.simulated": "yes" if any(x.executed_simulated for x in decs) else "no",
+                                "cfo.actions": ",".join(dict.fromkeys(x.action_type for x in decs)) or None})
+            sp.set_outputs(res)
+        except Exception:  # noqa: BLE001 - tracing must never break event handling
+            log.warning("could not tag the MLflow trace", exc_info=True)
+        return res
 
     def _result(self, config: dict[str, Any]) -> HandleResult:
         snap = self._graph.get_state(config)

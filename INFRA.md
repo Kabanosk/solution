@@ -135,6 +135,7 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `SOURCE_CSV` | auto-detect | bank CSV for `cfo generate` |
 | `FORECAST_MODEL_PATH` | `models/liquidity_xgb.json` | path to the saved XGBoost model |
 | `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024). Read from the process environment only (not from `.env`), like every other `MLFLOW_*` variable |
+| `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event when `MLFLOW_TRACKING_URI` is set (`cfo/observability.py`, T027) |
 | `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error falls back to `FORECAST_MODEL_PATH` |
 | `MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_NAME` | unset | standard MLflow client variables, the code sets none of them. RHOAI MLflow: `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` (+ `MLFLOW_WORKSPACE=<project>` from another namespace). Suggested for the API pod: `MLFLOW_HTTP_REQUEST_MAX_RETRIES=1`, `MLFLOW_HTTP_REQUEST_TIMEOUT=10` |
 | `LLM_VERIFY_TLS` | `true` | `true`, `false` (self-signed certificate) or a CA bundle path for an https `LLM_BASE_URL`; the Granite service on the cluster is https with a self-signed certificate |

@@ -1,4 +1,6 @@
 .env*
+*.env
+*.env.*
 !.env.example
 .worktrees/
 node_modules/
@@ -10,3 +12,20 @@ data/generated/
 models/
 mlruns/
 mlflow.db
+
+# Dashboard build output and generated assets
+/dashboard/.next/
+/dashboard/out/
+/dashboard/public/fonts/
+/dashboard/next-env.d.ts
+/dashboard/**/*.tsbuildinfo
+
+# Dashboard credentials and confidential records
+/dashboard/**/*.pem
+/dashboard/**/*.key
+/dashboard/**/*.csv
+/dashboard/**/*.docx
+/dashboard/confidential/
+/dashboard/private-data/
+/dashboard/data/*
+!/dashboard/data/README.md

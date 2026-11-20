@@ -1,9 +1,9 @@
 ---
 id: T047
 title: "CEO asks data questions: LLM tool calling over read-only MCP tools"
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T047-ceo-ask-mcp-tools
 depends_on: ["T041"]
 capabilities: []
 acceptance:

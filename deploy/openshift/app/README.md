@@ -1,6 +1,6 @@
 # App manifests (`deploy/openshift/app/`)
 
-Part of `oc apply -k deploy/` (the root kustomization lists this directory). Namespace `cfo-agent-uwur`.
+Part of `oc apply -k deploy/` (the root kustomization lists this directory). Uses the selected OpenShift project.
 
 | File | What |
 |---|---|

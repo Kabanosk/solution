@@ -11,13 +11,13 @@ acceptance:
     run: "test -s docs/mlflow.md && grep -q FORECAST_MODEL_URI docs/mlflow.md && grep -q MLFLOW_TRACKING_URI docs/mlflow.md"
     timeout: 600
   - id: AC-2
-    manual: "On the team cluster: workbench in project cfo-agent-uwur ran notebooks/forecast.ipynb; MLflow UI shows the training run and model liquidity-forecast@champion; API /v1/forecast/liquidity reports that mlflow_run_id; at least one agent trace in experiment cfo-agent. Judge records screenshots/URLs."
+    manual: "On the team cluster: workbench in project <selected-project> ran notebooks/forecast.ipynb; MLflow UI shows the training run and model liquidity-forecast@champion; API /v1/forecast/liquidity reports that mlflow_run_id; at least one agent trace in experiment cfo-agent. Judge records screenshots/URLs."
 protected: []
 ---
 ## Objective
 `docs/mlflow.md`: the click-by-click (and `oc`) path a teammate follows on the cluster, then a human or the
 coordinator does it once and records evidence for the bonus:
-1. Make `cfo-agent-uwur` a Data Science Project (if not already) and create a workbench (Jupyter Data Science
+1. Make the selected project a Data Science Project (if not already) and create a workbench (Jupyter Data Science
    image, small size, no GPU: the L4 belongs to vLLM) with env `MLFLOW_TRACKING_URI` (+ auth vars if the RHOAI
    MLflow needs them) and `DATABASE_URL` from Secret `postgres`; clone the repo; `uv`/`pip install -e backend[mlflow]`.
 2. Run `notebooks/forecast.ipynb` → training run + registered model `liquidity-forecast@champion`.

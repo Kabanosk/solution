@@ -821,7 +821,7 @@ replay is finished.
 
 ## `GET /v1/llm/usage` and `GET /v1/llm/usage/live`
 
-What running the agent costs on the cluster (T032, D-016). Two data sources:
+What running the agent costs on the cluster (T032, D-019). Two data sources:
 
 * **`llm_usage`**: one row per LLM call made through `cfo/llm.py` (time, model, prompt and completion tokens from the
   server's `usage` field, latency, and which agent step it belonged to: event id and type, purpose such as
@@ -1053,8 +1053,8 @@ curl -s http://localhost:8080/v1/llm/usage/live
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `VLLM_METRICS_URL` | unset (sampler off) | in-cluster `https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc.cluster.local:8000/metrics`; locally `oc port-forward svc/modelcar-granite-4-0-h-tiny-kserve-workload-svc 8000:8000 -n my-first-model` then `https://localhost:8000/metrics` |
-| `VLLM_METRICS_VERIFY` | `true` | TLS check: `true`, `false` (self-signed certificate, as on the cluster now) or a CA bundle path |
+| `VLLM_METRICS_URL` | unset (sampler off) | in-cluster `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics` (plain HTTP since Granite runs as a KServe InferenceService, D-020); locally `oc port-forward svc/modelcar-granite-4-0-h-tiny-predictor 8080:80 -n my-first-model` (headless service, port 80 → pod 8080) then `http://localhost:8080/metrics` |
+| `VLLM_METRICS_VERIFY` | `true` | TLS check for an `https://` URL: `true`, `false` (self-signed certificate) or a CA bundle path; ignored for `http://` |
 | `VLLM_METRICS_BEARER_TOKEN` | unset | only if the endpoint needs a bearer token |
 | `VLLM_METRICS_TIMEOUT` / `VLLM_METRICS_STALE_SECONDS` | `5` / `300` | scrape timeout, staleness limit of `/live` |
 | `GPU_HOURLY_COST_EUR` / `NODE_HOURLY_COST_EUR` | `0.70` / `0` | rates, see above |

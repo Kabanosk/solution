@@ -46,6 +46,14 @@
       "output_tail": "usage: cfo smoke [-h] [--llm-timeout LLM_TIMEOUT]\n\nCluster smoke check: LLM tool calling, the three MCP servers, Postgres seed,\nMLflow. Prints one PASS/FAIL line per check; exit status 1 on any FAIL.\n\noptions:\n  -h, --help            show this help message and exit\n  --llm-timeout LLM_TIMEOUT\n                        seconds per LLM request (default 60.0)",
       "ran_at": "2026-11-20T18:54:05+01:00",
       "commit": "878734b157a847259b40960748ebb3ef87c81676"
+    },
+    "AC-3": {
+      "id": "AC-3",
+      "passes": true,
+      "exit": null,
+      "output_tail": "evidence: /home/wojciech.fiolka/house/contests/collabothon-2026/.house/reports/T048.md",
+      "ran_at": "2026-11-20T22:21:20+01:00",
+      "commit": null
     }
   },
   "reverted": {

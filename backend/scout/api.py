@@ -169,6 +169,42 @@ def audit(conn: Conn, task_id: str | None = None, decision: str | None = None,
     return {"items": [_jsonable(r) for r in rows]}
 
 
+# -- invoices -----------------------------------------------------------------------------------------------
+@router.get("/transactions/{transaction_id}/invoice", tags=["invoices"],
+            summary="The invoice filed for a bank booking: header, line items and the document text Scout read")
+def transaction_invoice(transaction_id: str, conn: Conn) -> dict[str, Any]:
+    """Read-only, like the other Scout reads. `document` is the latest filing step of an agent task for this
+    invoice (text excerpt of the PDF/mail Scout read, its evidence); null when the invoice came from the
+    invoicing system without a document."""
+    txn = conn.execute(
+        "SELECT id, booking_date, type, reference, counterparty, amount, currency, invoice_number, category,"
+        " documented, invoice_id FROM transactions WHERE id = %s", (transaction_id,)).fetchone()
+    if txn is None:
+        raise ApiError(404, "not_found", f"No transaction {transaction_id}.")
+    inv = conn.execute(
+        "SELECT id, number, supplier, issue_date, due_date, total, currency, source, category, transaction_id"
+        " FROM invoices WHERE id = %s OR transaction_id = %s ORDER BY (id = %s) DESC LIMIT 1",
+        (txn["invoice_id"], transaction_id, txn["invoice_id"])).fetchone()
+    if inv is None:
+        raise ApiError(404, "no_invoice", f"No invoice is filed for transaction {transaction_id}.")
+    lines = conn.execute(
+        "SELECT position, description, quantity, unit_price, amount, category FROM invoice_lines"
+        " WHERE invoice_id = %s ORDER BY position, id", (inv["id"],)).fetchall()
+    step = conn.execute(
+        "SELECT s.task_id, s.ts, s.source, s.detail->>'text_excerpt' AS text_excerpt, s.evidence"
+        " FROM agent_task_steps s WHERE s.detail->>'invoice_id' = %s ORDER BY s.id DESC LIMIT 1",
+        (inv["id"],)).fetchone()
+    task = conn.execute("SELECT id FROM agent_tasks WHERE transaction_id = %s ORDER BY updated_at DESC LIMIT 1",
+                        (transaction_id,)).fetchone()
+    document = None
+    if step:
+        document = {"task_id": step["task_id"], "filed_at": _jsonable({"ts": step["ts"]})["ts"],
+                    "source": step["source"], "text_excerpt": step["text_excerpt"] or None, "evidence": step["evidence"]}
+    return {"transaction": _jsonable(dict(txn)), "invoice": _jsonable(dict(inv)),
+            "lines": [_jsonable(dict(line)) for line in lines], "document": document,
+            "task_id": task["id"] if task else (step["task_id"] if step else None)}
+
+
 # -- connections --------------------------------------------------------------------------------------------
 _slack_cache: dict[str, Any] = {}
 

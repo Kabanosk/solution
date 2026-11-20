@@ -36,6 +36,7 @@ TAGS = [
     {"name": "tasks", "description": "Scout's agent tasks, their step log and a live stream of changes."},
     {"name": "approvals", "description": "Requests waiting for a person; approve or reject (the worker resumes the task)."},
     {"name": "audit", "description": "Every connector read, DM and access decision."},
+    {"name": "invoices", "description": "The invoice filed for a bank booking, with line items and document text."},
     {"name": "connections", "description": "Systems Scout reads (bank, mail, files, Slack) and their status."},
     {"name": "demo", "description": "Demo triggers (bank mock payments)."},
     {"name": "chat", "description": "Ask Scout in the dashboard (tools, streamed steps)."},

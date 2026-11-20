@@ -62,6 +62,7 @@ log = logging.getLogger(__name__)
 LIQUIDITY_ACTIONS = {
     "request_credit_line": {
         "key": "credit_line", "label": "credit line", "summary": "Request a credit line of {amount} before {month}",
+        "summary_from": "Request a credit line of {amount} from {start}",  # the proposal's start date, when known
         "instruction": "Explain why the company should ask the bank for a credit line now.",
         "fallback": "The forecast shows the balance dropping to {low} EUR around {month}; a credit line of "
                     "{amount} would cover the gap."},
@@ -114,12 +115,29 @@ class Deps:
         self.notifier = notifier
         self.cfg = config
 
-    def dm(self, employee_id: str, text: str, level: PolicyLevel | str, actions: Sequence[ActionButton] = ()) -> str | None:
+    def send(self, employee_id: str, text: str, level: PolicyLevel | str,
+             actions: Sequence[ActionButton] = ()) -> tuple[bool, str | None]:
+        """(delivered, channel reference). A failing channel never raises: the decision is already recorded."""
         try:
-            return self.notifier.send_dm(employee_id, text, level, actions)
+            return True, self.notifier.send_dm(employee_id, text, level, actions)
         except Exception:  # noqa: BLE001 - a Slack hiccup must not lose the decision that was already recorded
             log.exception("DM to %s failed", employee_id)
-            return None
+            return False, None
+
+    def dm(self, employee_id: str, text: str, level: PolicyLevel | str, actions: Sequence[ActionButton] = ()) -> str | None:
+        ok, ref = self.send(employee_id, text, level, actions)
+        return ref if ok else None
+
+    def decisions_for_transaction(self, txn_id: str) -> list[Decision]:
+        """Everything the agent decided about one payment, oldest first (not a global last-N window)."""
+        with self.repo_factory() as repo:
+            rows = repo._all("SELECT * FROM decisions WHERE payload->>'transaction_id' = %s ORDER BY ts", (txn_id,))
+        return [Decision(**r) for r in rows]
+
+    def decisions_of_type(self, action_type: str) -> list[Decision]:
+        with self.repo_factory() as repo:
+            rows = repo._all("SELECT * FROM decisions WHERE action_type = %s ORDER BY ts", (action_type,))
+        return [Decision(**r) for r in rows]
 
     def save_decision(self, dec: Decision) -> str:
         with self.repo_factory() as repo:
@@ -147,12 +165,24 @@ def _eur(v: Decimal | str) -> str:
     return f"{Decimal(v):,.2f} EUR"
 
 
+def _day(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except ValueError:
+        return None
+
+
 def _event(state: AgentState) -> Event:
     return Event(**state["event"])
 
 
 def _txn(state: AgentState) -> Transaction:
     return Transaction(**state["txn"])
+
+
+def approval_buttons(approval_id: str) -> list[ActionButton]:
+    return [ActionButton(action_id="approve", label="Approve", value=approval_id),
+            ActionButton(action_id="reject", label="Reject", value=approval_id)]
 
 
 def _get_decision(repo: Repository, decision_id: str) -> Decision | None:
@@ -212,6 +242,8 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
             ex = extract_invoice(d.llm, c["text"])
             if ex is None:
                 continue
+            if not ex.number or _norm(ex.number) != _norm(txn.invoice_number):
+                continue  # a document that merely mentions this number is another invoice (review item 12)
             note = None
             lines = ex.lines
             if lines and sum((ln.amount for ln in lines), Decimal(0)) != ex.total:
@@ -272,7 +304,7 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
         res = gw.escalation_chain(owner, day)
         chain = res["chain"] if res.get("ok") else [
             {"id": owner, "name": owner, "on_vacation": False}, {"id": cfg.ceo_id, "name": cfg.ceo_id, "on_vacation": False}]
-        asks = [x for x in reversed(gw.decisions()) if x.payload.get("transaction_id") == txn.id]
+        asks = d.decisions_for_transaction(txn.id)
         history = [x for x in asks if x.action_type in ASK_TYPES]
         if any(x.action_type == EXHAUSTED for x in asks):
             return {"steps": ["escalation already exhausted"]}
@@ -311,7 +343,9 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
         else:
             last = history[-1]
             last_to = last.payload.get("recipient")
-            if last.action_type in ("remind_invoice",):
+            asked = next((c for c in chain if c["id"] == last_to), None)
+            away = bool(asked and asked["on_vacation"])  # went on vacation after being asked
+            if last.action_type in ("remind_invoice",) or away:
                 ids = [c["id"] for c in chain]
                 i = ids.index(last_to) if last_to in ids else len(ids) - 1
                 nxt = [c for c in chain[i + 1:] if not c["on_vacation"]]
@@ -319,8 +353,11 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                     return _exhausted(txn, last_to, chain, day)
                 target, action = nxt[0], "escalate_invoice"
                 prev_name = d.name(last_to, day)
-                text = (f"{prev_name} has not resolved this after {cfg.reminder_after_hours:g} h, so I am escalating to "
-                        f"you. {what} {request} {why}")
+                if last.action_type in ("remind_invoice",):
+                    text = (f"{prev_name} has not resolved this after {cfg.reminder_after_hours:g} h, so I am "
+                            f"escalating to you. {what} {request} {why}")
+                else:
+                    text = f"{prev_name} is on vacation, so I am escalating to you. {what} {request} {why}"
             else:
                 target = next((c for c in chain if c["id"] == last_to), chain[-1])
                 action = "remind_invoice"
@@ -374,7 +411,12 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
         else:
             explanation = explain(d.llm, what["instruction"], facts, what["fallback"].format(
                 amount=_eur(amount), month=month, low=low))
-        summary = what["summary"].format(amount=_eur(amount), month=month)
+        start = _day(p.get("period_start"))
+        if start and "summary_from" in what:  # the line is needed from its start date, not from the deepest gap's month
+            summary = what["summary_from"].format(amount=_eur(amount), start=f"{start.day} {start:%B %Y}")
+            facts["period_start"] = start.isoformat()
+        else:
+            summary = what["summary"].format(amount=_eur(amount), month=month)
         pending = {"action_type": action, "kind": "simulate", "args": {"amount": str(amount)},
                    "reason": pol.reason, "summary": summary, "facts": facts,
                    "question": f"{summary}. {explanation}"}
@@ -393,16 +435,15 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
         apr_id, dec_id = new_id("apr"), new_id("dec")
         dec = Decision(id=dec_id, action_type=pending["action_type"], summary=pending["summary"],
                        level=PolicyLevel.APPROVAL, reason=pending["reason"], status=DecisionStatus.PENDING,
-                       approval_request_id=apr_id, payload={"thread_id": f"evt:{ev.id}", "pending": pending})
+                       approval_request_id=apr_id,
+                       payload={**pending.get("payload", {}), "thread_id": f"evt:{ev.id}", "pending": pending})
         req = ApprovalRequest(id=apr_id, decision_id=dec_id, approver_id=cfg.ceo_id, question=pending["question"])
         d.save_decision(dec)
         with d.repo_factory() as repo:
             repo.add_approval_request(req)
-        ref = d.dm(cfg.ceo_id, pending["question"], PolicyLevel.APPROVAL, [
-            ActionButton(action_id="approve", label="Approve", value=apr_id),
-            ActionButton(action_id="reject", label="Reject", value=apr_id)])
-        if ref:
-            req.channel_ref = ref
+        ok, ref = d.send(cfg.ceo_id, pending["question"], PolicyLevel.APPROVAL, approval_buttons(apr_id))
+        if ok:  # not delivered: channel_ref stays empty and the agent re-sends it on its next event (`redeliver`)
+            req.channel_ref = ref or "sent"
             with d.repo_factory() as repo:
                 repo.add_approval_request(req)
         return {"approval": {"approval_id": apr_id, "decision_id": dec_id}, "decision_ids": [dec_id],
@@ -416,15 +457,36 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
             dec = _get_decision(repo, ids["decision_id"])
             assert dec is not None
             dec.actor = by
+            failure = None
             if approved:
                 simulated = pending["kind"] == "simulate"
                 if pending["kind"] == "attach_invoice":
                     res = gw.attach_invoice(**pending["args"])
                     if not res.get("ok"):
-                        dec.summary += f" Approved by {by}, but attaching failed: {res.get('error')}."
-                dec.status, dec.executed_simulated = DecisionStatus.EXECUTED, simulated
-                dec.summary += f" Approved by {by}." + (" Execution is SIMULATED." if simulated else "")
-                msg = f"Approved. {pending['summary']}." + (" Execution is SIMULATED (nothing was sent to a bank)." if simulated else "")
+                        failure = str(res.get("error") or "refused")
+                if failure:  # the tool refused the approved action: it did not happen, so it is not EXECUTED
+                    dec.status, dec.executed_simulated = DecisionStatus.ESCALATED, False
+                    dec.payload = {**dec.payload, "failed": True, "error": failure}
+                    dec.summary += f" Approved by {by}, but NOT executed: attaching failed ({failure})."
+                    msg = (f"You approved: {pending['summary']}. It was NOT done: the database refused it "
+                           f"({failure}). Nothing was changed; please look at the payment.")
+                else:
+                    dec.status, dec.executed_simulated = DecisionStatus.EXECUTED, simulated
+                    dec.summary += f" Approved by {by}." + (" Execution is SIMULATED." if simulated else "")
+                    msg = f"Approved. {pending['summary']}." + (" Execution is SIMULATED (nothing was sent to a bank)." if simulated else "")
+                if pending["kind"] == "alert":
+                    recipients = pending["args"]["recipients"]
+                    reached = [w for w in recipients if d.send(w, pending["args"]["text"], PolicyLevel.NOTIFY)[0]]
+                    if reached:
+                        msg = "" if by in reached else f"Approved. The alert was sent to {', '.join(reached)}."
+                    else:  # nobody got it: not EXECUTED, and the month is asked about again on a later run
+                        failure = "the alert could not be delivered to anyone"
+                        dec.status, dec.executed_simulated = DecisionStatus.ESCALATED, False
+                        dec.payload = {**dec.payload, "failed": True, "error": failure}
+                        dec.summary = dec.summary.removesuffix(f" Approved by {by}.") + (
+                            f" Approved by {by}, but NOT executed: {failure}.")
+                        msg = (f"You approved this cost alert, but I could not deliver it to anyone ({failure}). "
+                               "I will ask again at the next check.")
             else:
                 dec.status = DecisionStatus.REJECTED
                 dec.summary += f" Rejected by {by}."
@@ -432,8 +494,10 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
             repo.add_decision(dec)
             repo.resolve_approval(ids["approval_id"], ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED)
         # the confirmation of a simulated execution carries the SIMULATED label (demo-flow step 6)
-        d.dm(by, msg, "SIMULATED" if approved and pending["kind"] == "simulate" else PolicyLevel.APPROVAL)
-        return {"steps": [f"approval {'approved' if approved else 'rejected'} by {by}"]}
+        if msg:
+            d.dm(by, msg, "SIMULATED" if approved and not failure and pending["kind"] == "simulate" else PolicyLevel.APPROVAL)
+        steps = f"approval {'approved' if approved else 'rejected'} by {by}" + (f", failed: {failure}" if failure else "")
+        return {"steps": [steps]}
 
     # -- cost anomalies (sub-agent) ------------------------------------------------------------
     def investigate(state: AgentState) -> AgentState:
@@ -441,22 +505,36 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
         return {"findings": out.get("findings", []), "steps": [f"sub-agent found {len(out.get('findings', []))} anomaly(ies)"]}
 
     def alert(state: AgentState) -> AgentState:
-        done = {(x.payload.get("kind"), x.payload.get("month")) for x in gw.decisions() if x.action_type == "alert_cost_anomaly"}
+        # pending and rejected alerts count as decided: a month is asked about once
+        done = {(x.payload.get("kind"), x.payload.get("month")) for x in d.decisions_of_type("alert_cost_anomaly")
+                if not x.payload.get("failed")}  # an alert nobody received is retried
         owners = {t["id"]: t.get("owner_id") for t in gw.teams()}
         ids_out: list[str] = []
+        pending: dict[str, Any] | None = None
         for f in state.get("findings", []):
             if (f["kind"], f["month"]) in done:
                 continue
             pol = classify(PolicyAction(action_type="alert_cost_anomaly", category=f["kind"]), d.policy_context())
+            who_gets = [w for w in dict.fromkeys([cfg.ceo_id, owners.get(f.get("team_id"))]) if w]
+            if pol.level == PolicyLevel.APPROVAL:  # a CEO rule: ask before telling anybody (review item 14)
+                if pending is None:  # one question per run; further findings are asked on the next check
+                    pending = {
+                        "action_type": "alert_cost_anomaly", "kind": "alert", "reason": pol.reason,
+                        "args": {"recipients": who_gets, "text": f["explanation"]}, "summary": f["explanation"],
+                        "facts": f["facts"], "payload": {"kind": f["kind"], "month": f["month"], "facts": f["facts"]},
+                        "question": f"May I send this cost alert? {f['explanation']}"}
+                continue
             level = PolicyLevel.NOTIFY if pol.level == PolicyLevel.AUTO else pol.level  # an alert always informs
             dec = Decision(action_type="alert_cost_anomaly", level=level, reason=(
                 "A cost rose without its metric; informing is the agent's job, no money moves (D-006)."),
                 summary=f["explanation"], payload={"kind": f["kind"], "month": f["month"], "facts": f["facts"]})
             ids_out.append(d.save_decision(dec))
-            for who in dict.fromkeys([cfg.ceo_id, owners.get(f.get("team_id"))]):
-                if who:
-                    d.dm(who, f["explanation"], level)
-        return {"decision_ids": ids_out, "steps": [f"{len(ids_out)} alert(s)"]}
+            for who in who_gets:
+                d.dm(who, f["explanation"], level)
+        out: AgentState = {"decision_ids": ids_out, "steps": [f"{len(ids_out)} alert(s)"], "pending": pending}
+        if pending:
+            out["steps"].append("cost alert needs approval")
+        return out
 
     g = StateGraph(AgentState)
     for name, fn in [("ignore", ignore), ("load_txn", load_txn), ("find_docs", find_docs), ("match", match),
@@ -476,7 +554,8 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
     g.add_edge("request_approval", "await_approval")
     g.add_edge("await_approval", END)
     g.add_edge("investigate", "alert")
-    g.add_edge("alert", END)
+    g.add_conditional_edges("alert", lambda s: "request_approval" if s.get("pending") else END,
+                            ["request_approval", END])
     return g.compile(checkpointer=checkpointer)
 
 
@@ -496,7 +575,29 @@ class Agent:
                 "cfo.event_kind": event.kind.value, "cfo.event_id": event.id,
                 "cfo.transaction_id": event.payload.get("transaction_id")})
 
+    def redeliver_approvals(self) -> int:
+        """Re-send approval questions whose DM failed (pending and no channel reference). Called before every
+        event; a scheduler may call it on its own tick too. Returns how many were delivered now."""
+        d = self._d
+        with self._lock:
+            with d.repo_factory() as repo:
+                rows = repo._all("SELECT * FROM approval_requests WHERE status = %s AND channel_ref IS NULL "
+                                 "ORDER BY created_at", (ApprovalStatus.PENDING.value,))
+            sent = 0
+            for req in (ApprovalRequest(**r) for r in rows):
+                ok, ref = d.send(req.approver_id, req.question, PolicyLevel.APPROVAL, approval_buttons(req.id))
+                if ok:
+                    req.channel_ref = ref or "sent"
+                    with d.repo_factory() as repo:
+                        repo.add_approval_request(req)
+                    sent += 1
+            return sent
+
     def _handle(self, event: Event) -> HandleResult:
+        try:
+            self.redeliver_approvals()
+        except Exception:  # noqa: BLE001 - a retry problem must never lose the event in front of us
+            log.exception("could not re-send undelivered approval requests")
         if event.kind == EventKind.INVOICE_DOCUMENT and not event.payload.get("transaction_id"):
             # a document appeared somewhere: re-check every payment still missing its invoice
             merged = HandleResult()

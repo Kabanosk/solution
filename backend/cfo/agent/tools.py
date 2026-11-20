@@ -21,7 +21,7 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any, Protocol
 
-from cfo.domain import CostMetricKind, Decision, Rule, Transaction
+from cfo.domain import CostMetricKind, Decision, Invoice, Rule, Transaction
 
 COMPANY_DB = "company-db"
 WORKSTATIONS = "workstations"
@@ -124,6 +124,10 @@ class Gateway:
 
     def rules(self) -> list[Rule]:
         return [Rule(**r) for r in self.tools.call(COMPANY_DB, "list_rules")]
+
+    def invoice(self, number: str) -> Invoice | None:
+        raw = self.tools.call(COMPANY_DB, "get_invoice", number=number)
+        return Invoice(**raw) if raw else None
 
     def teams(self) -> list[dict[str, Any]]:
         return self.tools.call(COMPANY_DB, "list_teams")

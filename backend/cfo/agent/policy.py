@@ -39,7 +39,7 @@ STRATEGIC_ACTION_TYPES = frozenset(
 
 
 def _norm(value: str | None) -> str | None:
-    value = (value or "").strip().casefold()
+    value = " ".join((value or "").split()).casefold()  # case and spacing do not make a different name
     return value or None
 
 
@@ -139,7 +139,7 @@ def classify(action: PolicyAction, context: PolicyContext) -> PolicyDecision:
     if not known:
         return PolicyDecision(
             level=PolicyLevel.APPROVAL,
-            reason=f"New supplier {who}: first payments above 1% of monthly inflows need the CEO's approval.",
+            reason=f"New supplier {who}: first payments of at least 1% of monthly inflows need the CEO's approval.",
         )
     return PolicyDecision(
         level=PolicyLevel.NOTIFY,
@@ -161,12 +161,15 @@ def context_from_transactions(transactions: Iterable[Transaction], rules: Sequen
     months = (last.year - first.year) * 12 + last.month - first.month + 1
     inflows = sum((t.amount for t in txns if t.amount > 0), Decimal(0))
     outflows: dict[str, list[Decimal]] = defaultdict(list)
+    names: dict[str, str] = {}  # normalised name -> first spelling seen
     for t in txns:
         if t.amount < 0:
-            outflows[t.counterparty].append(-t.amount)
+            key = _norm(t.counterparty) or t.counterparty
+            names.setdefault(key, t.counterparty)
+            outflows[key].append(-t.amount)
     return PolicyContext(
         avg_monthly_inflows=inflows / months,
-        typical_amounts={name: statistics.median(amounts) for name, amounts in outflows.items()},
+        typical_amounts={names[key]: statistics.median(amounts) for key, amounts in outflows.items()},
         rules=list(rules),
     )
 

@@ -7,6 +7,8 @@ at the same URL). Everything depends on the small `LLM` protocol, so tests use `
 from __future__ import annotations
 
 import json
+import logging
+import re
 from collections.abc import Callable, Sequence
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -14,6 +16,34 @@ from pydantic import BaseModel, Field
 
 from cfo.config import Settings, get_settings
 from cfo.usage import recorder
+
+
+log = logging.getLogger(__name__)
+
+
+def _tools_rejected(error: Exception) -> bool:
+    """HTTP 400 about tools/tool choice (vLLM started without `--enable-auto-tool-choice`)."""
+    return getattr(error, "status_code", None) == 400 and "tool" in str(error).lower()
+
+
+def _calls_from_text(content: str | None, tools: Sequence[ToolSpec]) -> list[ToolCall]:
+    """The JSON object in a plain-text answer as a tool call; [] when there is none."""
+    m = re.search(r"\{.*\}", content or "", re.DOTALL)
+    try:
+        data = json.loads(m.group(0)) if m else None
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, dict):
+        return []
+    names = {t.name for t in tools}
+    name = data.get("name")
+    if "name" in data and not isinstance(name, str):
+        return []  # a list / object / number as the function name is not a call
+    if name in names and isinstance(data.get("arguments"), dict):
+        return [ToolCall(id="call_text", name=name, arguments=data["arguments"])]
+    if len(tools) == 1:
+        return [ToolCall(id="call_text", name=tools[0].name, arguments=data)]
+    return []
 
 
 class ToolSpec(BaseModel):
@@ -93,6 +123,7 @@ class OpenAICompatLLM:
         from openai import OpenAI
 
         self.model = model
+        self._tools_ok: bool | None = None  # None: not known yet; False: the endpoint rejects `tools`
         self._client = OpenAI(
             base_url=base_url,
             api_key=api_key or "EMPTY",
@@ -133,25 +164,59 @@ class OpenAICompatLLM:
                 for t in tools
             ]
         started = recorder.perf_counter()
+        use_tools = bool(tools) and self._tools_ok is not False
+        if tools and not use_tools:
+            kwargs.pop("tools", None)
+            kwargs["messages"] = self._json_in_text_messages(kwargs["messages"], tools)
         try:
-            completion = self._client.chat.completions.create(**kwargs)
+            try:
+                completion = self._client.chat.completions.create(**kwargs)
+            except Exception as e:
+                if not (tools and use_tools and self._tools_ok is None and _tools_rejected(e)):
+                    raise
+                # vLLM without --enable-auto-tool-choice answers 400 to any request with `tools`: ask for JSON in text
+                log.warning("endpoint rejected `tools` (%s); using the JSON-in-text path from now on", e)
+                self._tools_ok = False
+                kwargs.pop("tools", None)
+                kwargs["messages"] = self._json_in_text_messages(kwargs["messages"], tools)
+                use_tools = False
+                completion = self._client.chat.completions.create(**kwargs)
         except Exception:
             recorder.record_call(model=self.model, messages=messages, tools=tools, response=None, started=started,
                                  success=False)
             raise
+        if use_tools:
+            self._tools_ok = True
         msg = completion.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
             try:
                 args = json.loads(c.function.arguments or "{}")
             except json.JSONDecodeError:
-                args = {"_raw": c.function.arguments}  # small models emit broken JSON; let the caller decide
+                args = None
+            if not isinstance(args, dict):  # small models emit broken JSON or `[]` / `null`: no usable arguments
+                args = {"_raw": c.function.arguments}
             calls.append(ToolCall(id=c.id, name=c.function.name, arguments=args))
+        if tools and not use_tools and not calls:
+            calls = _calls_from_text(msg.content, tools)
         raw = getattr(completion, "usage", None)
         usage = TokenUsage(prompt_tokens=raw.prompt_tokens or 0, completion_tokens=raw.completion_tokens or 0) if raw else None
         response = LLMResponse(content=msg.content, tool_calls=calls, usage=usage)
         recorder.record_call(model=self.model, messages=messages, tools=tools, response=response, started=started)
         return response
+
+    @staticmethod
+    def _json_in_text_messages(wire: list[dict[str, Any]], tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
+        """Describe the tools in a system message: the model answers with one JSON object instead of a tool call."""
+        if len(tools) == 1:
+            t = tools[0]
+            how = (f"Answer with only one JSON object: the arguments of the function `{t.name}` ({t.description}). "
+                   f"Its JSON schema: {json.dumps(t.parameters)}")
+        else:
+            listing = "; ".join(f"`{t.name}` ({t.description}) schema {json.dumps(t.parameters)}" for t in tools)
+            how = ('Answer with only one JSON object {"name": <function>, "arguments": {...}} calling exactly one of '
+                   f"these functions: {listing}")
+        return [{"role": "system", "content": how}, *wire]
 
 
 class FakeLLM:

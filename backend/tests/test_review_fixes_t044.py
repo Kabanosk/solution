@@ -331,3 +331,16 @@ def test_start_without_speed_validates_the_stored_speed(sim, bad):
     with pytest.raises(ValueError):
         sim.start()
     assert sim.status().paused
+
+
+# ---------------------------------------------------------------------------------------------------
+# third Codex review of T044
+def test_employee_directory_symlink_to_another_workstation_is_denied_and_logged(ws):
+    tools, log, g = ws
+    (g.parent / "bob").symlink_to(g)  # bob -> ann
+    for call in (lambda: tools.read_file("bob", "Documents/ok.txt"), lambda: tools.list_files("bob", "Documents"),
+                 lambda: tools.search_files("bob", "fine")):
+        assert call()["error"] == "access_denied"
+    assert [e[1] for e in log.entries] == ["DENIED read_file", "DENIED list_files", "DENIED search_files"]
+    assert [w["employee"] for w in tools.list_workstations()] == ["ann"]
+    assert tools.read_file("ann", "Documents/ok.txt")["ok"]

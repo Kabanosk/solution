@@ -76,11 +76,13 @@ class WorkstationTools:
     def _employee_dir(self, employee: str) -> Path:
         if not isinstance(employee, str) or not _SLUG.fullmatch(employee):
             raise AccessDenied(f"unknown employee {employee!r}")
+        entry = self.root / employee
         try:
-            d = (self.root / employee).resolve()
+            d = entry.resolve()
         except (RuntimeError, OSError):
             raise AccessDenied(f"unknown employee {employee!r}") from None
-        if d.parent != self.root or not d.is_dir():
+        # the workstation directory must be its own real path: a symlink to another workstation is not this one
+        if d != entry or d.parent != self.root or not d.is_dir():
             raise AccessDenied(f"unknown employee {employee!r}")
         return d
 
@@ -141,7 +143,7 @@ class WorkstationTools:
                 real_dir = d.resolve()
             except (RuntimeError, OSError):
                 continue
-            if real_dir.parent != self.root:  # a symlinked workstation directory is not reachable by the other tools
+            if real_dir != d or real_dir.parent != self.root:  # a symlinked workstation dir is not reachable by the tools
                 continue
             folders = [f for f in self.company_folders
                        if (real := self._real_company_folder(real_dir, f)) is not None and real.is_dir()]

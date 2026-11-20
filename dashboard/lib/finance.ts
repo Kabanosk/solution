@@ -21,7 +21,25 @@ function database() {
   return pool;
 }
 
-async function forecast(): Promise<Forecast | null> {
+// The forecast is the same for every viewer and only moves when bookings change, but the API runs the model on
+// every call (100-250 ms). Cache it in-process: fresh for 60 s, then served stale while one refresh runs.
+const FORECAST_FRESH_MS = 60_000;
+const FORECAST_STALE_MS = 15 * 60_000;
+let forecastCache: { value: Forecast | null; at: number } | undefined;
+let forecastInFlight: Promise<Forecast | null> | undefined;
+
+function forecast(): Promise<Forecast | null> {
+  const age = forecastCache ? Date.now() - forecastCache.at : Infinity;
+  if (age < FORECAST_FRESH_MS) return Promise.resolve(forecastCache!.value);
+  forecastInFlight ??= fetchForecast().then(value => {
+    // A failed refresh keeps the last good forecast until it is too old to show.
+    if (value || !forecastCache || Date.now() - forecastCache.at > FORECAST_STALE_MS) forecastCache = { value, at: Date.now() };
+    return forecastCache?.value ?? value;
+  }).finally(() => { forecastInFlight = undefined; });
+  return age < FORECAST_STALE_MS && forecastCache?.value ? Promise.resolve(forecastCache.value) : forecastInFlight;
+}
+
+async function fetchForecast(): Promise<Forecast | null> {
   try {
     const response = await fetch(`${process.env.CFO_API_URL ?? "http://api:8000"}/v1/forecast/liquidity?horizon_days=90&granularity=day`, {
       cache: "no-store", signal: AbortSignal.timeout(15000),
@@ -46,6 +64,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Enforce access at the data boundary too, including RSC and route requests.
   if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
   if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewData();
+  // The forecast comes from the API, the rest from Postgres: run both at once instead of one after the other.
+  const forecastPromise = forecast();
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });
@@ -108,7 +128,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   } finally {
     client.release();
   }
-  return { ...result, forecast: await forecast() };
+  return { ...result, forecast: await forecastPromise };
 }
 
 /** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */

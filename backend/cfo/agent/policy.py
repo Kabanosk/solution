@@ -6,7 +6,7 @@
 2. Strategic actions (credit, deposit, investment, FX hedge, team budget change): APPROVAL, any amount.
 3. No money moves: AUTO.
 4. Routine (known supplier, amount within +-20% of that supplier's typical amount): AUTO, any amount.
-5. Amount < 1% of average monthly inflows: AUTO (also for a new supplier or an unusual amount).
+5. Amount < 1% of average monthly inflows: AUTO, except a new supplier, which is NOTIFY (never AUTO).
 6. Amount > 5% of average monthly inflows (or inflows unknown): APPROVAL.
 7. New supplier: APPROVAL.
 8. Otherwise (known supplier, unusual amount, 1%..5% inclusive): NOTIFY.
@@ -115,6 +115,11 @@ def classify(action: PolicyAction, context: PolicyContext) -> PolicyDecision:
 
     inflows = context.avg_monthly_inflows
     share = amount / inflows if inflows and inflows > 0 else None
+    if share is not None and share < AUTO_SHARE and not known:
+        return PolicyDecision(
+            level=PolicyLevel.NOTIFY,
+            reason=f"New supplier {who}: {_eur(amount)} is below 1% of monthly inflows, so the agent acts and informs.",
+        )
     if share is not None and share < AUTO_SHARE:
         return PolicyDecision(
             level=PolicyLevel.AUTO,

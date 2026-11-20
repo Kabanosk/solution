@@ -63,8 +63,10 @@ def test_below_one_percent_is_auto_even_when_unusual():
     assert "1%" in d.reason
 
 
-def test_below_one_percent_is_auto_even_for_new_supplier():
-    assert classify(pay("-50", supplier="Fresh Newcomer"), ctx()).level == PolicyLevel.AUTO
+def test_new_supplier_below_one_percent_is_notify_never_auto():
+    d = classify(pay("-50", supplier="Fresh Newcomer"), ctx())
+    assert d.level == PolicyLevel.NOTIFY
+    assert "new supplier" in d.reason.lower()
 
 
 # --- unusual -> NOTIFY, big -> APPROVAL

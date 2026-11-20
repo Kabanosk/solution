@@ -1,0 +1,26 @@
+{
+  "task": "T002",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_data.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "SOURCE_CSV=/home/wojciech.fiolka/house/contests/collabothon-2026/challenge/sample-data/pizzeria-amalfi-bank-statement-2025-v6.csv uv run --project backend python -m cfo.data.generate --out data/generated --seed 42 && test -d data/generated/workstations/grazyna",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T13:52:22+01:00",
+  "results": {}
+}

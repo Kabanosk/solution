@@ -45,17 +45,19 @@ The `sample-data` PVC starts empty. The seed job (`cfo-seed`, part of `oc apply 
 404, the job fails and Postgres stays empty. Upload it once, from the machine that has the organizer CSV
 (never commit it):
 
+On a fresh namespace the file server and its PVC do not exist yet: apply only them first (this does not
+create the seed job), then stream the file into the volume:
+
 ```sh
+oc apply -f deploy/files.yaml
 oc rollout status deploy/files
-oc cp ./pizzeria-amalfi-bank-statement-2025-v6.csv deploy/files:/data/pizzeria-amalfi-bank-statement-2025-v6.csv
+oc exec -i deploy/files -- sh -c 'cat > /data/pizzeria-amalfi-bank-statement-2025-v6.csv' < ./pizzeria-amalfi-bank-statement-2025-v6.csv
 ```
 Check that the file is on the volume and that the file server serves it (the second command must print `200`):
 ```sh
 oc exec deploy/files -- ls -l /data
 oc exec deploy/files -- python -c "import urllib.request as u; print(u.urlopen('http://localhost:8080/pizzeria-amalfi-bank-statement-2025-v6.csv').status)"
 ```
-If `oc cp` complains about `tar`, stream the file instead:
-`oc exec -i deploy/files -- sh -c 'cat > /data/pizzeria-amalfi-bank-statement-2025-v6.csv' < ./pizzeria-amalfi-bank-statement-2025-v6.csv`.
 
 ## 7. Seed the database
 ```sh

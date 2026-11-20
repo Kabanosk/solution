@@ -1,9 +1,9 @@
 ---
 id: T003
 title: Autonomy policy engine (AUTO / NOTIFY / APPROVAL)
-status: todo
-owner: null
-branch: null
+status: done
+owner: coder
+branch: task/T003-policy-engine
 depends_on: ["T001"]
 capabilities: []
 acceptance:

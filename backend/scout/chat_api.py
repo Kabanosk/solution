@@ -2,6 +2,7 @@
 write token stands for the dashboard owner). Streams NDJSON so the page can show each tool call as it happens:
 
     {"type": "step", "text": "Looked at missing invoices(days=30): 1 result(s)"}
+    {"type": "file", "name": "invoices-2026-11-21.csv", "mime": "text/csv", "data_b64": "...", "sent_to_slack": true}
     {"type": "delta", "text": "<the answer>"}
     {"type": "done", "truncated": false, "task_id": "SC-123"}
     {"type": "error", "message": "..."}
@@ -62,9 +63,19 @@ def build_context(settings: ScoutSettings) -> JobContext:
 
         slack = WebClient(token=settings.slack_bot_token, timeout=10)
         names = _names(slack, settings.slack_user_map, user_map)
-    return JobContext(conn_factory=cf, recorder=TaskRecorder(cf), audit=audit,
-                      connectors=registry.build(cf, settings, slack, audit), llm=get_llm(), notifier=LogNotifier(),
-                      jobs=JobQueue(cf), settings=settings, hr=HR(cf, user_map, names))
+    recorder, jobs = TaskRecorder(cf), JobQueue(cf)
+    notifier: Any = LogNotifier()
+    if slack is not None:  # files and messages Scout sends from the dashboard chat land in the asker's Slack DM
+        from scout.slack_ui import SlackUI
+
+        icon = settings.scout_icon_url or (f"{settings.dashboard_url.rstrip('/')}/scout-icon.png"
+                                           if settings.dashboard_url.startswith("https://") else None)
+        notifier = SlackUI(slack, user_map, jobs, recorder, conn_factory=cf, audit=audit,
+                           bot_token=settings.slack_bot_token, dashboard_url=settings.dashboard_url, icon_url=icon,
+                           names=names)
+    return JobContext(conn_factory=cf, recorder=recorder, audit=audit,
+                      connectors=registry.build(cf, settings, slack, audit), llm=get_llm(), notifier=notifier,
+                      jobs=jobs, settings=settings, hr=HR(cf, user_map, names))
 
 
 _NAMES: dict[str, dict[str, str]] = {}
@@ -111,9 +122,16 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
     ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked in the dashboard chat", source="dashboard")
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
+    files: list[dict[str, Any]] = []
+
     def on_step(t: Any, step: Any) -> None:
-        if t.id == task.id and step.kind == "looked_up":
+        if t.id != task.id:
+            return
+        if step.kind == "looked_up":
             events.put({"type": "step", "text": step.text})
+        elif step.kind == "sent_file" and step.detail:
+            files.append({"type": "file", **{k: step.detail.get(k) for k in ("name", "mime", "data_b64",
+                                                                              "sent_to_slack")}})
 
     ctx.recorder.add_listener(on_step)
 
@@ -123,6 +141,8 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
             ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
             ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
                                     level="AUTO")
+            for f in files:  # sent before the answer that mentions them
+                events.put(f)
             events.put({"type": "delta", "text": reply})
             events.put({"type": "done", "truncated": False, "task_id": task.id})
         except Exception as e:  # noqa: BLE001

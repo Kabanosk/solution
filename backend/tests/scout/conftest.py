@@ -94,6 +94,10 @@ class FakeSlack:
     def chat_getPermalink(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
         return {"ok": True, "permalink": f"https://slack.test/{kw['channel']}/{kw['message_ts']}"}
 
+    def files_upload_v2(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
+        self._rec("files_upload_v2", **kw)
+        return {"ok": True, "file": {"id": "F1", "permalink": "https://slack.test/files/F1"}}
+
     def users_info(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
         return {"ok": True, "user": {"id": kw["user"], "real_name": kw["user"]}}
 

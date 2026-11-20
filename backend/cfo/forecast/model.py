@@ -209,12 +209,33 @@ def _training_table(transactions: pd.DataFrame, excluded: Iterable[str]) -> pd.D
     return table.dropna(subset=["net_cash_flow"])
 
 
-def _backtest(table: pd.DataFrame, params: dict[str, Any], holdout_days: int) -> dict[str, float]:
-    """Fit on all but the last `holdout_days`, score on them. One year of history cannot be cross-validated by
-    year (the shutdown occurs once), so the check is a time holdout of ordinary days, against a naive mean."""
+def backtest_split(transactions: pd.DataFrame, holdout_days: int,
+                   exclude_categories: Iterable[str] = EXCLUDED_CATEGORIES) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(train, test) feature tables of a time holdout: the last `holdout_days` calendar days are the test set.
+
+    Shutdown windows and due days are inferred from the bookings **before** the first test day only, and that
+    inference builds the features of both parts: what the holdout bookings look like cannot reach the training
+    features (T045; the old split inferred from the full history and scored optimistically). The targets are the
+    real daily cash flows of each part. Columns: `net_cash_flow` + `FEATURE_COLUMNS`, indexed by `date`.
+    """
+    table = _training_table(transactions, exclude_categories)
+    first_test = table.index[-holdout_days]
+    seen = transactions[transactions["booking_date"] < first_test]
+    shutdown = feat.infer_shutdown_days(seen)
+    due = feat.infer_due_days(seen)
+    features = feat.calendar_features(table.index, shutdown_days=shutdown, due_days=due)[FEATURE_COLUMNS]
+    split = features.join(table["net_cash_flow"])[["net_cash_flow", *FEATURE_COLUMNS]]
+    return split.iloc[:-holdout_days], split.iloc[-holdout_days:]
+
+
+def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str, Any], holdout_days: int,
+              exclude_categories: Iterable[str]) -> dict[str, float]:
+    """Fit on all but the last `holdout_days`, score on them (see `backtest_split` for what the model may see).
+    One year of history cannot be cross-validated by year (the shutdown occurs once), so the check is a time
+    holdout of ordinary days, against a naive mean."""
     if holdout_days <= 0 or len(table) < 2 * holdout_days:
         return {}
-    train, test = table.iloc[:-holdout_days], table.iloc[-holdout_days:]
+    train, test = backtest_split(transactions, holdout_days, exclude_categories)
     regressor = XGBRegressor(**params).fit(train[FEATURE_COLUMNS], train["net_cash_flow"])
     pred = regressor.predict(test[FEATURE_COLUMNS])
     err = pred - test["net_cash_flow"].to_numpy()
@@ -247,7 +268,7 @@ def train(
     excluded = tuple(exclude_categories)
     merged = {**DEFAULT_PARAMS, **(params or {})}
     table = _training_table(transactions, excluded)
-    metrics = _backtest(table, merged, holdout_days)
+    metrics = _backtest(transactions, table, merged, holdout_days, excluded)
     regressor = XGBRegressor(**merged).fit(table[FEATURE_COLUMNS], table["net_cash_flow"])
     fitted = regressor.predict(table[FEATURE_COLUMNS])
     metrics["train_mae"] = float(np.abs(fitted - table["net_cash_flow"].to_numpy()).mean())

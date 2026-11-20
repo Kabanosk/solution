@@ -26,10 +26,15 @@ RESET_TABLES = ["access_log", "approval_requests", "decisions", "rules", "events
 def reset(repo: Repository) -> None:
     """Empty all demo tables, including the simulator cursor (`sim_state`, created by the simulator on first use),
     so a reseed replays December from the start. Commits unless called inside `repo.transaction()`."""
-    tables = list(RESET_TABLES)
-    if repo.conn.execute("SELECT to_regclass('sim_state') AS t").fetchone()["t"]:
-        tables.append("sim_state")
+    from cfo.sim.engine import LOCK_KEY  # lazy: the simulator imports this module
+
     with repo.transaction():
+        # The simulator's replay lock (tick/step/jump hold it for the whole cycle): wait for a running tick and
+        # keep new ones out until the reseed commits, so no event is written from a stale cursor. Held to commit.
+        repo.conn.execute("SELECT pg_advisory_xact_lock(%s)", (LOCK_KEY,))
+        tables = list(RESET_TABLES)
+        if repo.conn.execute("SELECT to_regclass('sim_state') AS t").fetchone()["t"]:
+            tables.append("sim_state")
         repo.conn.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
 
 
@@ -91,13 +96,21 @@ def load_events(data_dir: Path) -> list[Event]:
 
 def ingest_transaction(repo: Repository, txn: Transaction) -> Transaction:
     """Book a new bank line. If an invoice with the payment's number is already in the database and its total
-    equals the payment, link it (the payment becomes documented); otherwise the payment stays undocumented."""
-    repo.add_transaction(txn)
-    if txn.invoice_number:
-        inv = repo.get_invoice_by_number(txn.invoice_number)
-        if inv and inv.total == -txn.amount and not inv.transaction_id:
-            inv.transaction_id = txn.id
-            repo.add_invoice(inv)
+    equals the payment, link it (the payment becomes documented); otherwise the payment stays undocumented.
+
+    Replay-safe: a payment that is already documented is never relinked, and the "invoice is still unlinked"
+    check runs under the invoice-number lock (taken first, then the payment row: the order used everywhere)."""
+    with repo.transaction():
+        if txn.invoice_number:
+            repo.lock_invoice_number(txn.invoice_number)
+        repo.add_transaction(txn)
+        if txn.invoice_number:
+            current = repo.lock_transaction(txn.id)
+            inv = repo.get_invoice_by_number(txn.invoice_number)
+            if (current and not current.documented and inv and not inv.transaction_id
+                    and inv.total == -current.amount):
+                inv.transaction_id = txn.id
+                repo.add_invoice(inv)
     return repo.get_transaction(txn.id)
 
 

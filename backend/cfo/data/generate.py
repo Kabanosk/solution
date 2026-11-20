@@ -21,8 +21,10 @@ import csv
 import io
 import json
 import math
+import os
 import random
 import shutil
+import tempfile
 from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -119,33 +121,56 @@ def _distractors(ws: Path) -> None:
                  b"Private: gift ideas for the family, flight booking for Christmas. Not company data.\n")
 
 
-# Everything `generate` writes directly under `--out`; nothing else in that directory is ever deleted.
-OWN_PATHS = ("hr", "teams.json", "bank", "metrics", "events", "invoices", "cloud", "workstations", "scenario.json")
-
-
-def _clean_own_output(out: Path) -> None:
-    """Remove the paths of an earlier run (marked by scenario.json) so no stale files survive; leave the rest."""
-    if not (out / "scenario.json").is_file():
-        return
-    for name in OWN_PATHS:
-        path = out / name
+def _previous_files(out: Path) -> list[Path]:
+    """Files an earlier run listed in the manifest of its scenario.json (nothing else is ever deleted)."""
+    try:
+        listed = json.loads((out / "scenario.json").read_text(encoding="utf-8")).get("files", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    root = out.resolve()
+    found: list[Path] = []
+    for rel in listed if isinstance(listed, list) else []:
+        if not isinstance(rel, str) or not rel or Path(rel).is_absolute():
+            continue
+        path = out / rel
+        if root not in path.resolve().parents:  # `..` or a symlink leading out of the output directory
+            continue
         if path.is_symlink() or path.is_file():
-            path.unlink()
-        elif path.is_dir():
-            shutil.rmtree(path)
+            found.append(path)
+    return found
 
 
 def generate(out: Path, seed: int = 42, source: Path | None = None) -> dict:
-    # Validate the source first: a bad CSV must not cost the previous output.
+    """Write the dataset into `out`.
+
+    Everything is built in a staging directory inside `out` first; only when generation succeeded are the files
+    of the previous run (the manifest `files` in its scenario.json) removed and the new ones moved into place.
+    A failing run leaves `out` as it was, and files that are not in the manifest are never touched.
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix=".generate-", dir=out))
+    try:
+        scenario = _generate(stage, seed, source)
+        scenario["files"] = sorted(p.relative_to(stage).as_posix() for p in stage.rglob("*") if p.is_file())
+        _write_json(stage / "scenario.json", scenario)
+        for old in _previous_files(out):
+            old.unlink()
+        for rel in scenario["files"]:
+            dest = out / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(stage / rel, dest)
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)  # our own temporary directory
+    return scenario
+
+
+def _generate(out: Path, seed: int, source: Path | None) -> dict:
     txns = load_bank_csv(source)
     history = [t for t in txns if t.booking_date.month <= HISTORY_LAST_MONTH]
     december = [t for t in txns if t.booking_date.month > HISTORY_LAST_MONTH]
     months = build_months(txns, seed)
     by_number = {t.invoice_number: t for t in txns if t.invoice_number}
     assert DEC_WORKSTATION_INVOICE in by_number and DEC_MISSING_INVOICE in by_number
-
-    _clean_own_output(out)
-    out.mkdir(parents=True, exist_ok=True)
 
     # --- which payments end up where ----------------------------------------------------------------------
     rng = random.Random(f"{seed}:scenario")

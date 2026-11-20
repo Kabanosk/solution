@@ -131,8 +131,10 @@ class CompanyDbTools:
         except (InvalidOperation, ValueError, TypeError) as e:
             return {"ok": False, "error": "invalid_input", "detail": str(e)}
         with self._repo_factory() as repo:
-            # One transaction: the payment row and the invoice number are locked while we check and write, so
+            # One transaction: the invoice number and the payment row are locked while we check and write, so
             # concurrent attaches cannot both succeed (any early `return` leaves it uncommitted = rolled back).
+            # Lock order everywhere: invoice number first, then payment row (add_invoice does the same).
+            repo.lock_invoice_number(number)
             txn = repo.lock_transaction(transaction_id)
             if txn is None:
                 return {"ok": False, "error": "unknown_transaction", "transaction_id": transaction_id}
@@ -141,7 +143,6 @@ class CompanyDbTools:
             if abs(total_d) != abs(txn.amount):
                 return {"ok": False, "error": "amount_mismatch", "invoice_total": str(abs(total_d)),
                         "payment_amount": str(abs(txn.amount)), "difference": str(abs(total_d) - abs(txn.amount))}
-            repo.lock_invoice_number(number)
             inv = Invoice(number=number, supplier=supplier, issue_date=issued, total=abs(total_d),
                           lines=inv_lines, transaction_id=transaction_id, source=source)
             existing = repo.get_invoice_by_number(number)

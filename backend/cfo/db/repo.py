@@ -181,6 +181,9 @@ class Repository:
         previous_txn = prev[0]["transaction_id"] if prev else None
         if inv.transaction_id is None and previous_txn:
             inv = inv.model_copy(update={"transaction_id": previous_txn})
+        touched = sorted({t for t in (previous_txn, inv.transaction_id) if t})
+        if touched:  # payment rows in id order, after the invoice lock: one lock order, no deadlocks
+            self.conn.execute("SELECT id FROM transactions WHERE id = ANY(%s) ORDER BY id FOR UPDATE", (touched,))
         sql, params = _insert("invoices", inv.model_dump(exclude={"lines"}))
         self.conn.execute(sql, params)
         self.conn.execute("DELETE FROM invoice_lines WHERE invoice_id = %s", (inv.id,))

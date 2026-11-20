@@ -39,3 +39,12 @@ def apply_schema(conn: psycopg.Connection) -> None:
 
 def notify(conn: psycopg.Connection, channel: str, payload: str) -> None:
     conn.execute("SELECT pg_notify(%s, %s)", (channel, payload))
+
+
+def postgres_checkpointer(url: str | None = None, schema: str | None = None):  # noqa: ANN201
+    """LangGraph Postgres saver: a pending approval survives a worker restart (thread id = task id)."""
+    from langgraph.checkpoint.postgres import PostgresSaver
+
+    saver = PostgresSaver(connect(url, schema, autocommit=True))
+    saver.setup()
+    return saver

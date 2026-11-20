@@ -30,6 +30,7 @@ class ScoutSettings(BaseSettings):
     connections_key: str = ""  # Fernet key (urlsafe base64, 32 bytes)
     oauth_state_secret: str = ""
     dashboard_url: str = "http://127.0.0.1:3000"
+    scout_icon_url: str = ""  # public PNG for the Slack avatar; default: <dashboard_url>/scout-icon.png on https
     ceo_id: str = "vincenzo"
     document_owner_id: str = "grazyna"
     workstations_root: str = "data/generated/workstations"

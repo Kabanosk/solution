@@ -1,8 +1,8 @@
 """MLflow tracing of the agent (T027).
 
 The MLflow tests need the optional extra (`uv run --extra mlflow ...`) and are skipped without it; they log to a
-temporary `sqlite:///` store. The agent tests also need the compose Postgres (fixture `make_env` of test_agent).
-The first two tests run in every install: without `MLFLOW_TRACKING_URI` nothing imports mlflow.
+temporary `sqlite:///` store. The first two tests run in every install: without `MLFLOW_TRACKING_URI` nothing
+imports mlflow. (The traces of the old December agent went with it.)
 """
 
 from __future__ import annotations
@@ -16,10 +16,6 @@ from pathlib import Path
 import pytest
 
 from cfo import observability as obs
-from cfo.domain import Event, EventKind
-
-import test_agent
-from test_agent import DOC, TS, bank, make_env  # noqa: F401  (make_env is a fixture)
 
 BACKEND = Path(__file__).resolve().parents[1]
 HAS_MLFLOW = importlib.util.find_spec("mlflow") is not None
@@ -29,7 +25,7 @@ EXPERIMENT = "cfo-agent-test"
 NO_MLFLOW_SCRIPT = """
 import sys
 from cfo import observability as obs
-import cfo.agent.graph, cfo.agent.investigate, cfo.api.app
+import cfo.api.app, scout.worker
 assert obs.init_tracing() is False
 assert obs.enabled() is False
 with obs.span("x", inputs={"a": 1}) as s:
@@ -81,14 +77,6 @@ def tracing(tmp_path):
     assert obs.init_tracing(settings) is True
     yield mlflow
     obs.reset_tracing()
-
-
-@pytest.fixture
-def agent_env(monkeypatch, request):
-    """`make_env` of test_agent in a schema of its own: other test runs (the full suite, other worktrees) use
-    test_agent's schema on the same Postgres at the same time."""
-    monkeypatch.setattr(test_agent, "SCHEMA", f"t027_test_{os.getpid()}")
-    return request.getfixturevalue("make_env")
 
 
 def traces(mlflow):
@@ -153,61 +141,3 @@ def test_init_never_raises(monkeypatch):
         assert not obs.enabled()
     finally:
         obs.reset_tracing()
-
-
-@needs_mlflow
-def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, agent_env):
-    env = agent_env(files={"Downloads/AS-69664.txt": DOC})
-    res = env.agent.handle(bank("txn_0"))
-    assert res.status == "done"
-
-    (trace,) = traces(tracing)
-    tags = trace.info.tags
-    assert tags["cfo.event_kind"] == "bank_transaction"
-    assert tags["cfo.transaction_id"] == "txn_0"
-    assert tags["cfo.policy_level"] == "AUTO"
-    assert tags["cfo.outcome"] == "done"
-    assert tags["cfo.simulated"] == "no"
-
-    spans = trace.data.spans
-    (root,) = [s for s in spans if s.parent_id is None]
-    assert root.name == "agent.handle"
-    node_names = [s.name for s in children(trace, "agent.handle")]
-    assert node_names == ["load_txn", "find_docs", "match", "attach"]  # one child span per visited node
-    # the LLM call (invoice extraction) sits under the node that made it
-    llm_spans = children(trace, "match")
-    assert [s.name for s in llm_spans] == ["llm.chat"]
-    assert "submit_invoice" in str(llm_spans[0].outputs)
-    assert env.llm.calls  # the FakeLLM itself was called through the tracing proxy
-
-
-@needs_mlflow
-def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, agent_env):
-    env = agent_env()
-    ev = Event(ts=TS, kind=EventKind.METRIC, payload={
-        "signal": "liquidity_forecast", "month": "2026-02", "min_balance": "-5000", "requested_amount": "20000"})
-    res = env.agent.handle(ev)
-    assert res.status == "awaiting_approval"
-    done = env.agent.resume_approval(res.approval_id, True, "vincenzo")
-    assert done.status == "done"
-
-    by_root = {next(s.name for s in t.data.spans if s.parent_id is None): t for t in traces(tracing)}
-    assert set(by_root) == {"agent.handle", "agent.resume_approval"}
-    first, second = by_root["agent.handle"], by_root["agent.resume_approval"]
-    assert first.info.tags["cfo.outcome"] == "awaiting_approval"
-    assert first.info.tags["cfo.policy_level"] == "APPROVAL"
-    assert first.info.tags["cfo.simulated"] == "no"
-    assert {s.name: s.status.status_code.value for s in first.data.spans}["await_approval"] == "OK"
-    assert second.info.tags["cfo.approval_id"] == res.approval_id
-    assert second.info.tags["cfo.policy_level"] == "APPROVAL"
-    assert second.info.tags["cfo.simulated"] == "yes"
-    assert second.info.tags["cfo.outcome"] == "done"
-
-
-@needs_mlflow
-def test_sub_agent_investigation_spans_are_children_of_the_investigate_node(tracing, agent_env):
-    env = agent_env()
-    env.agent.handle(Event(ts=TS, kind=EventKind.METRIC, payload={"signal": "cost_metrics_updated"}))
-    (trace,) = traces(tracing)
-    assert [s.name for s in children(trace, "agent.handle")] == ["investigate", "alert"]
-    assert [s.name for s in children(trace, "investigate")][:2] == ["investigate.gather", "investigate.detect"]

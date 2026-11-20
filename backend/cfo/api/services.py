@@ -21,8 +21,6 @@ from cfo.analysis.cost_metrics import load_series, to_api_series
 from cfo.api.errors import ApiError
 from cfo.api.schemas import (
     CostsByTeam,
-    ApprovalOut,
-    DecisionOut,
     ForecastGap,
     ForecastModelInfo,
     ForecastPoint,
@@ -30,7 +28,6 @@ from cfo.api.schemas import (
     Kpis,
     LiquidityForecast,
     MonthlyCost,
-    RuleOut,
     TeamCosts,
     UndocumentedPayments,
     eur,
@@ -38,7 +35,6 @@ from cfo.api.schemas import (
 from cfo.api.settings import get_api_settings
 from cfo.config import get_settings
 from cfo.db.repo import Repository
-from cfo.domain import ApprovalRequest, Decision, Rule
 from cfo.forecast import features as feat
 from cfo.forecast import model as fmodel
 
@@ -268,6 +264,13 @@ def forecast_summary(tx: pd.DataFrame, horizon_days: int = KPI_HORIZON_DAYS) -> 
 # --- kpis -----------------------------------------------------------------------------------------------
 
 
+def _count_if_table(repo: Repository, table: str, where: str) -> int | None:
+    """Rows of a Scout table (`scout/schema.sql`) matching `where`; None when the table does not exist here."""
+    if repo.conn.execute("SELECT to_regclass(%s) AS t", (table,)).fetchone()["t"] is None:
+        return None
+    return int(repo.conn.execute(f"SELECT count(*) AS n FROM {table} WHERE {where}").fetchone()["n"])
+
+
 def kpis(repo: Repository) -> Kpis:
     tx = _transactions(repo)
     amounts = tx["amount"].map(_dec)
@@ -287,7 +290,8 @@ def kpis(repo: Repository) -> Kpis:
     outflows = sum((a for a in in_scope if a < 0), Decimal(0))
 
     undocumented = repo.list_transactions(undocumented_only=True)
-    pending = repo.conn.execute("SELECT count(*) AS n FROM approval_requests WHERE status = 'pending'").fetchone()
+    pending = _count_if_table(repo, "approvals", "status = 'pending'")
+    open_tasks = _count_if_table(repo, "agent_tasks", "status IN ('waiting', 'escalated')")
     alerts = sum(1 for s in load_series(repo) if s.points and s.points[-1].anomaly is not None)
     return Kpis(
         stub=False,
@@ -299,7 +303,8 @@ def kpis(repo: Repository) -> Kpis:
         forecast=forecast_summary(tx),
         undocumented_payments=UndocumentedPayments(
             count=len(undocumented), total=eur(sum((-t.amount for t in undocumented), Decimal(0)))),
-        pending_approvals=int(pending["n"]),
+        pending_approvals=pending or 0,
+        open_tasks=open_tasks,
         open_cost_alerts=alerts,
     )
 
@@ -375,66 +380,8 @@ def costs_by_team(repo: Repository, start: date | None, end: date | None) -> Cos
     return CostsByTeam(stub=False, **{"from": start}, to=end, total=eur(grand), items=items)
 
 
-# --- decisions, rules, cost metrics -----------------------------------------------------------------------
-
-
-def _decision_out(d: Decision) -> DecisionOut:
-    return DecisionOut(**{**d.model_dump(), "ts": _utc(d.ts)})
-
-
-def list_decisions(repo: Repository, *, level: str | None, status: str | None, action_type: str | None,
-                   limit: int, offset: int) -> tuple[list[DecisionOut], int]:
-    where, params = ["TRUE"], []
-    for column, value in (("level", level), ("status", status), ("action_type", action_type)):
-        if value is not None:
-            where.append(f"{column} = %s")
-            params.append(value)
-    clause = " AND ".join(where)
-    total = repo.conn.execute(f"SELECT count(*) AS n FROM decisions WHERE {clause}", params).fetchone()["n"]
-    rows = repo._all(f"SELECT * FROM decisions WHERE {clause} ORDER BY ts DESC, id LIMIT %s OFFSET %s",
-                     [*params, limit, offset])
-    return [_decision_out(Decision(**r)) for r in rows], int(total)
-
-
-def get_decision(repo: Repository, decision_id: str) -> DecisionOut | None:
-    rows = repo._all("SELECT * FROM decisions WHERE id = %s", [decision_id])
-    return _decision_out(Decision(**rows[0])) if rows else None
-
-
-def list_rules(repo: Repository, *, active: bool | None) -> list[RuleOut]:
-    rules: list[Rule] = repo.list_rules(active_only=False)
-    return [RuleOut(**{**r.model_dump(), "created_at": _utc(r.created_at)}) for r in rules
-            if active is None or r.active == active]
+# --- cost metrics -----------------------------------------------------------------------------------------
 
 
 def cost_metric_series(repo: Repository, kind: str | None) -> list:
     return [s for s in to_api_series(load_series(repo)) if kind is None or s.kind == kind]
-
-
-# --- approvals ----------------------------------------------------------------------------------------------
-
-APPROVAL_FILTERS = {  # `state` query value -> SQL condition on approval_requests.status
-    "pending": "status = 'pending'",
-    "resolved": "status <> 'pending'",
-    "approved": "status = 'approved'",
-    "rejected": "status = 'rejected'",
-}
-
-
-def approval_out(repo: Repository, req: ApprovalRequest) -> ApprovalOut:
-    decision = get_decision(repo, req.decision_id)
-    return ApprovalOut(**{**req.model_dump(), "created_at": _utc(req.created_at),
-                          "resolved_at": _utc(req.resolved_at) if req.resolved_at else None, "decision": decision})
-
-
-def list_approvals(repo: Repository, *, state: str | None, limit: int, offset: int) -> tuple[list[ApprovalOut], int]:
-    clause = APPROVAL_FILTERS[state] if state else "TRUE"
-    total = repo.conn.execute(f"SELECT count(*) AS n FROM approval_requests WHERE {clause}").fetchone()["n"]
-    rows = repo._all(f"SELECT * FROM approval_requests WHERE {clause} ORDER BY created_at DESC, id LIMIT %s OFFSET %s",
-                     [limit, offset])
-    return [approval_out(repo, ApprovalRequest(**r)) for r in rows], int(total)
-
-
-def get_approval(repo: Repository, approval_id: str) -> ApprovalOut | None:
-    req = repo.get_approval_request(approval_id)
-    return approval_out(repo, req) if req else None

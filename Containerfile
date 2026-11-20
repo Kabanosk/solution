@@ -25,8 +25,9 @@ RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-install
 
 # Project code.
 COPY backend/cfo /app/backend/cfo
+COPY backend/scout /app/backend/scout
 RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-editable \
-    && rm -rf /app/backend/cfo
+    && rm -rf /app/backend/cfo /app/backend/scout
 
 COPY deploy/cfo-entrypoint.sh /usr/local/bin/cfo
 

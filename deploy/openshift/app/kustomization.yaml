@@ -7,6 +7,7 @@ resources:
   - llm-service-ca.yaml
   - pvc.yaml
   - api.yaml
-  - worker.yaml
+  - scout-worker.yaml
+  - bank-mock.yaml
   - mcp.yaml
   - usage-sampler.yaml

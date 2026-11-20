@@ -8,7 +8,7 @@
 changes. `detect_anomalies` flags a month where the cost grew by at least `cost_growth_pct` while the metric grew
 by less than `metric_growth_max_pct` (cost growth without metric growth), names the invoice or bill lines that
 contribute most to the increase and words one sentence about it. All maths is code (Decimal); the sentence is
-a template, the agent may let the LLM rephrase it (`cfo.agent.investigate`).
+a template, the agent may let the LLM rephrase it.
 
 The series shape matches `GET /v1/cost-metrics` (`cfo.api.schemas.CostMetricSeries`); `to_api_series` converts.
 

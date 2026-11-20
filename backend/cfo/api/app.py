@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,15 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from cfo.api.errors import install_error_handlers
-from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, llm_usage, rules, sim
+from cfo.api.routers import cost_metrics, costs, forecast, kpis, llm_usage
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
 from cfo.observability import init_tracing
+from scout.api import router as scout_router
+from scout.chat_api import router as scout_chat_router
 
 VERSION = "0.1.0"
 
 DESCRIPTION = """
-REST API of the Autonomous CFO for Pizzeria Amalfi (dashboard backend).
+REST API of Scout, the finance agent of Pizzeria Amalfi (dashboard backend).
 
 * Versioned under `/v1`. Money is `{"amount": "1234.50", "currency": "EUR"}`, dates are ISO 8601, timestamps UTC.
 * Errors always look like `{"error": {"code": "...", "message": "..."}}`.
@@ -32,11 +33,12 @@ TAGS = [
     {"name": "dashboard", "description": "Headline numbers."},
     {"name": "forecast", "description": "Liquidity forecast."},
     {"name": "costs", "description": "Costs per team and cost-vs-metric pairs."},
-    {"name": "decisions", "description": "What the agent decided or did, by autonomy level."},
-    {"name": "rules", "description": "CEO overrides of the default policy."},
-    {"name": "approvals", "description": "Requests waiting for the CEO; approve or reject."},
-    {"name": "events", "description": "Live Server-Sent Events stream."},
-    {"name": "simulator", "description": "Control of the December replay."},
+    {"name": "tasks", "description": "Scout's agent tasks, their step log and a live stream of changes."},
+    {"name": "approvals", "description": "Requests waiting for a person; approve or reject (the worker resumes the task)."},
+    {"name": "audit", "description": "Every connector read, DM and access decision."},
+    {"name": "connections", "description": "Systems Scout reads (bank, mail, files, Slack) and their status."},
+    {"name": "demo", "description": "Demo triggers (bank mock payments)."},
+    {"name": "chat", "description": "Ask Scout in the dashboard (tools, streamed steps)."},
     {"name": "llm-usage", "description": "What the LLM costs: usage per call and the vLLM server's load."},
     {"name": "system", "description": "Liveness."},
 ]
@@ -44,19 +46,13 @@ TAGS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """With `AGENT_IN_API=1` the API process builds its own agent (approvals, `POST /v1/sim:step`); see `cfo.run`."""
+    """The API runs no agent code: Scout's worker pool (`python -m scout.worker`) does."""
     init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
-    try:
-        from cfo.run import attach_api
-
-        attach_api()
-    except Exception:  # noqa: BLE001 - the read endpoints must come up even when the agent cannot be built
-        logging.getLogger(__name__).exception("could not attach the agent to the API process")
     yield
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
+    app = FastAPI(title="Scout API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
                   lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
@@ -66,8 +62,10 @@ def create_app() -> FastAPI:
         expose_headers=["X-Stub"],
     )
     install_error_handlers(app)
-    for module in (kpis, forecast, costs, cost_metrics, decisions, rules, approvals, events, sim, llm_usage):
+    for module in (kpis, forecast, costs, cost_metrics, llm_usage):
         app.include_router(module.router)
+    app.include_router(scout_router)
+    app.include_router(scout_chat_router)
 
     @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")
     def healthz() -> Health:

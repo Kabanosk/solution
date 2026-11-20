@@ -1,9 +1,9 @@
 """Write protection: a shared bearer token for the endpoints that change state.
 
 `API_WRITE_TOKEN` unset (or empty) leaves the API open, which is what local development and the dashboard team's
-mock setups rely on. When it is set, approve/reject and the simulator controls need
+mock setups rely on. When it is set, the write endpoints (Scout approvals, connections, demo) need
 `Authorization: Bearer <API_WRITE_TOKEN>`; reads, `/healthz` and the SSE stream stay open. Slack approvals do not
-go through the API (the agent receives them directly), so they are not affected.
+go through the API (the worker receives them directly), so they are not affected.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def require_write_token(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)] = None,
 ) -> str | None:
     """Router dependency of the write endpoints. Returns the employee id the token stands for (the CEO), or None
-    when no token is configured (the caller then names itself, see `ApprovalAnswer.by`)."""
+    when no token is configured (the caller then names itself in the request body)."""
     settings = get_api_settings()
     expected = settings.api_write_token
     if not expected:

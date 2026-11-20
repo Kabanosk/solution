@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAT_MODELS, ChatInputError, conversationForRequest, parseChatRequest, readChatBody, readJsonLines, type ChatTurn } from "../lib/chat-model.ts";
+import { CHAT_MODELS, ChatInputError, conversationForRequest, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
 import { completionEvents } from "../lib/chat-stream.ts";
 
 const model = CHAT_MODELS[0].id;
@@ -57,4 +57,26 @@ test("empty and broken provider streams fail; length limits and JSON fallback ar
 test("browser framing handles split JSON and a final line without newline", async () => {
   const text = '{"type":"delta","text":"Cześć"}\n{"type":"done","truncated":false}';
   assert.deepEqual(await collect(readJsonLines(stream(text))), [{ type: "delta", text: "Cześć" }, { type: "done", truncated: false }]);
+});
+
+test("Scout NDJSON: tool steps, the answer and the task id pass through in order", async () => {
+  const text = '{"type":"step","text":"Looked at missing invoices(days=30): 1 result(s)"}\n{"type":"step","text":"Checked the cash forecast"}\n'
+    + '{"type":"delta","text":"One payment is missing an invoice."}\n{"type":"done","truncated":false,"task_id":"SC-123"}\n';
+  const events = (await collect(readJsonLines(stream(text)))).map(sanitizeChatEvent);
+  assert.deepEqual(events, [
+    { type: "step", text: "Looked at missing invoices(days=30): 1 result(s)" },
+    { type: "step", text: "Checked the cash forecast" },
+    { type: "delta", text: "One payment is missing an invoice." },
+    { type: "done", truncated: false, task_id: "SC-123" },
+  ]);
+});
+
+test("Scout events are validated before reaching the browser", () => {
+  assert.equal(sanitizeChatEvent({ type: "tool_call", name: "secret" }), null);
+  assert.equal(sanitizeChatEvent({ type: "step", text: "  " }), null);
+  assert.equal(sanitizeChatEvent(null), null);
+  assert.deepEqual(sanitizeChatEvent({ type: "done", truncated: false, task_id: "../etc" }), { type: "done", truncated: false });
+  assert.deepEqual(sanitizeChatEvent({ type: "done" }), { type: "done", truncated: false });
+  assert.deepEqual(sanitizeChatEvent({ type: "error" }), { type: "error", message: "Scout could not answer. Try again." });
+  assert.equal((sanitizeChatEvent({ type: "step", text: "x".repeat(900) }) as { text: string }).text.length, 500);
 });

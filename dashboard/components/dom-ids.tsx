@@ -9,7 +9,7 @@ export function DomIds() {
     const assignIds = () => {
       document.querySelectorAll<Element>(":not([id]), [id='']").forEach((element) => {
         let candidate: string;
-        do { candidate = `lantern-${element.localName}-${nextId++}`; }
+        do { candidate = `scout-${element.localName}-${nextId++}`; }
         while (document.getElementById(candidate));
         element.id = candidate;
       });

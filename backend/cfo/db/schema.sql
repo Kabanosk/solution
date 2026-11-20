@@ -82,40 +82,6 @@ CREATE TABLE IF NOT EXISTS cost_metrics (
     UNIQUE (kind, month)
 );
 
-CREATE TABLE IF NOT EXISTS events (
-    id       TEXT PRIMARY KEY,
-    ts       TIMESTAMPTZ NOT NULL,
-    kind     TEXT NOT NULL,
-    payload  JSONB NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS events_ts_idx ON events (ts);
-
-CREATE TABLE IF NOT EXISTS decisions (
-    id                   TEXT PRIMARY KEY,
-    ts                   TIMESTAMPTZ NOT NULL,
-    action_type          TEXT NOT NULL,
-    summary              TEXT NOT NULL,
-    level                TEXT NOT NULL CHECK (level IN ('AUTO', 'NOTIFY', 'APPROVAL')),
-    reason               TEXT NOT NULL,
-    status               TEXT NOT NULL,
-    actor                TEXT NOT NULL,
-    payload              JSONB NOT NULL DEFAULT '{}',
-    executed_simulated   BOOLEAN NOT NULL DEFAULT FALSE,
-    approval_request_id  TEXT
-);
-CREATE INDEX IF NOT EXISTS decisions_ts_idx ON decisions (ts);
-
-CREATE TABLE IF NOT EXISTS approval_requests (
-    id           TEXT PRIMARY KEY,
-    decision_id  TEXT NOT NULL REFERENCES decisions(id),
-    approver_id  TEXT NOT NULL,
-    question     TEXT NOT NULL,
-    status       TEXT NOT NULL,
-    created_at   TIMESTAMPTZ NOT NULL,
-    resolved_at  TIMESTAMPTZ,
-    channel_ref  TEXT
-);
-
 CREATE TABLE IF NOT EXISTS rules (
     id           TEXT PRIMARY KEY,
     text         TEXT NOT NULL,

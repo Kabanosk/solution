@@ -1,8 +1,30 @@
 export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 4.0 H Tiny" }] as const;
 export const MAX_MESSAGE_LENGTH = 16000;
 export type ChatMessage = { role: "user" | "assistant"; content: string };
-export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error" };
-export type ChatEvent = { type: "delta"; text: string } | { type: "done"; truncated: boolean } | { type: "error"; message: string };
+/** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it. */
+export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string };
+export type ChatEvent =
+  | { type: "step"; text: string }
+  | { type: "delta"; text: string }
+  | { type: "done"; truncated: boolean; task_id?: string }
+  | { type: "error"; message: string };
+
+const TASK_ID = /^[A-Z]{2,5}-\d{1,9}$/;
+
+/** Validates one NDJSON event from the Scout API before it is forwarded to the browser; unknown shapes are dropped. */
+export function sanitizeChatEvent(value: unknown): ChatEvent | null {
+  if (!value || typeof value !== "object") return null;
+  const event = value as Record<string, unknown>;
+  const text = typeof event.text === "string" ? event.text : null;
+  switch (event.type) {
+    case "step": return text?.trim() ? { type: "step", text: text.slice(0, 500) } : null;
+    case "delta": return text !== null ? { type: "delta", text } : null;
+    case "done": return typeof event.task_id === "string" && TASK_ID.test(event.task_id)
+      ? { type: "done", truncated: event.truncated === true, task_id: event.task_id } : { type: "done", truncated: event.truncated === true };
+    case "error": return { type: "error", message: typeof event.message === "string" && event.message.trim() ? event.message.slice(0, 500) : "Scout could not answer. Try again." };
+    default: return null;
+  }
+}
 
 export class ChatInputError extends Error {}
 

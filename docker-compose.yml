@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: cfo
       POSTGRES_DB: cfo
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - cfo-db:/var/lib/postgresql/data
     healthcheck:
@@ -16,7 +16,7 @@ services:
       retries: 30
   files:
     build: .
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     volumes: ["./data:/data:ro"]
 
 volumes:

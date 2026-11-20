@@ -6,7 +6,7 @@ Part of `oc apply -k deploy/` (the root kustomization lists this directory). Nam
 |---|---|
 | `imagestream.yaml`, `buildconfig.yaml` | Image `cfo-backend:latest`, built in the cluster from `https://github.com/Kabanosk/solution` (`main`, `Containerfile`) |
 | `configmap.yaml` | `cfo-config`: `LLM_BASE_URL`, `LLM_MODEL` (placeholders), MCP URLs, `SIM_SPEED`, `CORS_ORIGINS` |
-| `pvc.yaml` | `cfo-data` (1Gi), mounted at `/app/data` by `mcp-workstations` and by the seed Job (T022) |
+| `pvc.yaml` | `cfo-data` (1Gi), mounted at `/app/data` by `api`, `worker`, `mcp-workstations` (read-only) and by the seed Job (T022, writes) |
 | `api.yaml` | Deployment + Service + edge TLS Route `api` (`cfo api`, port 8000) |
 | `worker.yaml` | Deployment `worker` (`cfo worker` = `python -m cfo.run`: simulator, agent, Slack socket; no Service; mounts `cfo-data` read-only for the December replay) |
 | `mcp.yaml` | `mcp-company-db` :8001, `mcp-workstations` :8002, `mcp-hr` :8003 (Deployment + Service each, internal only) |

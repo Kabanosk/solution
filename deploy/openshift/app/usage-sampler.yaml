@@ -19,7 +19,7 @@ spec:
           configMap: {name: llm-service-ca}
       containers:
         - name: sampler
-          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          image: cfo-backend:latest
           args: [python, -m, cfo.usage, sample, --every, "60"]
           volumeMounts:
             - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}

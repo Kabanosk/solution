@@ -756,7 +756,7 @@ not true for writes.
 
 ### 6.3 Deployment topology
 
-Namespace `cfo-agent-uwur`, one node. Everything carries `app.kubernetes.io/part-of=cfo`; one command applies
+The selected OpenShift project, one node. Everything carries `app.kubernetes.io/part-of=cfo`; one command applies
 it: `oc apply -k deploy/`.
 
 | Object | Kind | Who | State |

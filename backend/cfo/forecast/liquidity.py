@@ -10,9 +10,9 @@
 * `find_surplus` + `propose_investment(surplus)`: when the balance stays well above the buffer but a weak month
   (June: shutdown) is ahead, park a sum in a money market fund / deposit sized so that the rest of the horizon,
   June included, still stays above the buffer.
-* Both proposals are classified by `cfo.agent.policy.classify` (credit line and investment: always APPROVAL unless
-  a CEO rule says otherwise) and convert to the METRIC event `cfo.agent.graph.Agent.handle` consumes
-  (`LiquidityProposal.to_event()`), which raises the approval interrupt. Execution is simulated by the agent.
+* Both proposals are classified by `scout.policy.classify` (credit line and investment: always APPROVAL unless
+  a CEO rule says otherwise); Scout's liquidity loop (`scout.loops.liquidity`) turns them into tasks and approvals.
+  `LiquidityProposal.to_event()` still offers the proposal as a METRIC event payload.
 
 Amounts in the public models are `Decimal` EUR; the pandas forecast underneath is float.
 """
@@ -29,10 +29,10 @@ import pandas as pd
 import psycopg
 from pydantic import BaseModel, Field
 
-from cfo.agent.policy import PolicyAction, PolicyContext, classify
 from cfo.domain import Event, EventKind, PolicyLevel
 from cfo.forecast import features as feat
 from cfo.forecast import model as fm
+from scout.policy import PolicyAction, PolicyContext, classify
 
 FIXED_COST_CATEGORIES = tuple(feat.DEFAULT_DUE_DAYS)  # payroll, rent, tax, social_security, utilities
 DEFAULT_HORIZON_DAYS = 240  # from the end of the history to about the end of July of the following year

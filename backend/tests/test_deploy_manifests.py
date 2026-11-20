@@ -1,7 +1,8 @@
 """Guards for the cluster manifests (T042): render `kubectl kustomize deploy/` and check the runtime wiring.
 
-Findings guarded: simulator routes / worker need the `cfo-data` PVC at /app/data; every `cfo <command>` the
-Deployments run must resolve to a module that exists in backend/cfo; the seed Job must tolerate the image build.
+Findings guarded: api / Scout worker need the `cfo-data` PVC at /app/data; every `cfo <command>` the
+Deployments run must resolve to a module that exists in backend/cfo or backend/scout; the seed Job must tolerate
+the image build.
 """
 
 import re
@@ -13,7 +14,7 @@ import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
-CFO = REPO / "backend" / "cfo"
+BACKEND = REPO / "backend"
 
 pytestmark = pytest.mark.skipif(shutil.which("kubectl") is None, reason="kubectl not installed")
 
@@ -44,7 +45,7 @@ def _mounts_of_pvc(workload: dict, container: dict, claim: str) -> list[dict]:
     return [m for m in container.get("volumeMounts", []) if m["name"] in volumes]
 
 
-@pytest.mark.parametrize("deployment,container", [("api", "api"), ("worker", "worker")])
+@pytest.mark.parametrize("deployment,container", [("api", "api"), ("scout-worker", "worker")])
 def test_cfo_data_mounted_read_only_at_app_data(docs, deployment, container):
     workload = _by_kind(docs, "Deployment")[deployment]
     mounts = _mounts_of_pvc(workload, _container(workload, container), "cfo-data")
@@ -63,15 +64,20 @@ def test_seed_job_writes_cfo_data(docs):
     assert [(m["mountPath"], m.get("readOnly", False)) for m in mounts] == [("/app/data", False)]
 
 
-def test_agent_runs_inside_api_process(docs):
+def test_api_runs_no_agent_and_the_bank_mock_has_a_service(docs):
     env = {e["name"]: e.get("value") for e in _container(_by_kind(docs, "Deployment")["api"], "api")["env"]}
-    assert env["AGENT_IN_API"] == "1"
+    assert "AGENT_IN_API" not in env
+    assert "worker" not in _by_kind(docs, "Deployment")  # the December replay worker is gone
+    (port,) = _by_kind(docs, "Service")["bank-mock"]["spec"]["ports"]
+    assert port["port"] == 8010
+    config = _by_kind(docs, "ConfigMap")["cfo-config"]["data"]
+    assert config["BANK_API_URL"] == "http://bank-mock:8010" and config["SCOUT_WORKERS"] == "4"
 
 
 def _entrypoint_modules() -> dict[str, str]:
     """`cfo <command>` -> module, parsed from deploy/cfo-entrypoint.sh (`cmd) ... exec python -m <module>`)."""
     text = (REPO / "deploy" / "cfo-entrypoint.sh").read_text()
-    modules = dict(re.findall(r"^    (\w+)\)\n\s+(?:[^\n]*\n\s+)*?exec python -m ([\w.]+)", text, re.M))
+    modules = dict(re.findall(r"^    ([\w-]+)\)\n\s+(?:[^\n]*\n\s+)*?[^\n]*?exec python -m ([\w.]+)", text, re.M))
     # `api` runs `python -m uvicorn cfo.api.app:app`: the module that matters is the ASGI app's.
     app = re.search(r"python -m uvicorn (cfo[\w.]*):\w+", text)
     if modules.get("api") == "uvicorn" and app:
@@ -80,16 +86,18 @@ def _entrypoint_modules() -> dict[str, str]:
 
 
 def _module_exists(module: str) -> bool:
-    assert module.split(".")[0] == "cfo", module
-    rel = CFO.joinpath(*module.split(".")[1:])
+    assert module.split(".")[0] in ("cfo", "scout"), module
+    rel = BACKEND.joinpath(*module.split("."))
     return rel.with_suffix(".py").is_file() or (rel / "__init__.py").is_file()
 
 
 def test_entrypoint_commands_resolve_to_existing_modules():
     modules = _entrypoint_modules()
-    assert {"api", "mcp", "worker", "migrate", "generate", "load"} <= set(modules)
+    assert {"api", "mcp", "worker", "bank-mock", "seed", "migrate", "generate", "load"} <= set(modules)
+    assert (modules["worker"], modules["bank-mock"], modules["seed"]) == ("scout.worker", "scout.mock_bank",
+                                                                         "scout.seed")
     for command, module in modules.items():
-        assert _module_exists(module), f"`cfo {command}` runs python -m {module}, which is not in backend/cfo"
+        assert _module_exists(module), f"`cfo {command}` runs python -m {module}, which is not in backend/"
 
 
 def test_workloads_run_known_cfo_commands(docs):
@@ -102,11 +110,12 @@ def test_workloads_run_known_cfo_commands(docs):
             for c in _pod_spec(workload)["containers"]:
                 if c.get("args") and "command" not in c:
                     seen[f"{name}/{c['name']}"] = c["args"]
-    assert seen["worker/worker"] == ["worker"]
+    assert seen["scout-worker/worker"] == ["worker"]
+    assert seen["bank-mock/bank-mock"] == ["bank-mock"]
     assert seen["api/api"] == ["api"]
     for who, args in seen.items():
         if args[:2] == ["python", "-m"]:
-            assert _module_exists(args[2]), f"{who} runs python -m {args[2]}, which is not in backend/cfo"
+            assert _module_exists(args[2]), f"{who} runs python -m {args[2]}, which is not in backend/"
         else:
             assert args[0] in modules, f"{who} runs `cfo {args[0]}`, not handled by cfo-entrypoint.sh"
 

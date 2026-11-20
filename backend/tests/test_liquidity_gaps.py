@@ -1,7 +1,7 @@
 """Liquidity gaps, what-if and proposals (T016, D-013).
 
 Mechanics run on a synthetic restaurant (always); the numbers of D-013 run on the organizer's statement and are
-skipped without the CSV. The agent hand-off needs the compose Postgres and uses its own schema `t016_test`.
+skipped without the CSV. The hand-off to Scout's liquidity loop is tested in `tests/scout/`.
 """
 
 from __future__ import annotations
@@ -9,25 +9,14 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-import os
 import pandas as pd
-import psycopg
 import pytest
 
-from cfo.agent.graph import AgentConfig, build_agent
-from cfo.agent.policy import PolicyContext
-from cfo.config import get_settings
 from cfo.data.source import SourceNotFound, find_source_csv, load_bank_csv
-from cfo.db.migrate import SCHEMA_PATH
-from cfo.db.repo import Repository
-from cfo.domain import DecisionStatus, Employee, EventKind, PolicyLevel, Rule
+from cfo.domain import EventKind, PolicyLevel, Rule
 from cfo.forecast import liquidity as liq
 from cfo.forecast import model as fm
-from cfo.llm import FakeLLM
-from cfo.mcp_servers.common import make_repo_factory
-from cfo.mcp_servers.company_db import CompanyDbTools
-from cfo.mcp_servers.hr import HrTools
-from cfo.mcp_servers.workstations import WorkstationTools
+from scout.policy import PolicyContext
 
 HISTORY_END = "2025-11-30"
 SYNTHETIC_FIXED = Decimal("16700.00")  # payroll 8600 + rent 3800 + social security 2650 + tax 1000 + utilities 650
@@ -306,83 +295,3 @@ def test_statement_oven_of_25k_only_just_touches_the_buffer(statement, statement
     oven = liq.Outflow(on=date(2026, 3, 15), amount=Decimal("25000"), label="oven")
     review = liq.review_liquidity([oven], model=statement_model, transactions=statement)
     assert sum(g.shortfall for g in review.gaps) < Decimal("1000")
-
-
-# -- hand-off to the agent graph (needs Postgres) ------------------------------------------------------------
-SCHEMA = f"t016_test_{os.getpid()}"
-
-
-class _Notifier:
-    def __init__(self):
-        self.sent: list[dict] = []
-
-    def send_dm(self, employee_id, text, level, actions=()):
-        self.sent.append({"to": employee_id, "text": text, "level": level, "actions": list(actions)})
-        return f"ref-{len(self.sent)}"
-
-
-class _Log:
-    def log(self, *args):
-        pass
-
-
-@pytest.fixture
-def agent_env(tmp_path):
-    from cfo.agent.tools import InProcessToolBox
-
-    url = get_settings().database_url
-    try:
-        psycopg.connect(url, connect_timeout=2).close()
-    except psycopg.OperationalError:
-        pytest.skip("Postgres not reachable")
-    admin = Repository.connect(url)
-    admin.conn.execute(f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE")
-    admin.conn.execute(f"CREATE SCHEMA {SCHEMA}")
-    admin.conn.execute(f"SET search_path TO {SCHEMA}")
-    admin.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
-    admin.add_employee(Employee(id="vincenzo", name="Vincenzo", role="CEO"))
-    admin.conn.commit()
-    factory = make_repo_factory(url, schema=SCHEMA)
-    tools = InProcessToolBox(CompanyDbTools(factory), WorkstationTools(tmp_path, _Log()), HrTools(factory))
-    notifier = _Notifier()
-    agent = build_agent(tools, factory, FakeLLM(handler=lambda m, t: "should not be used"), notifier, AgentConfig())
-    yield agent, notifier, factory
-    admin.conn.rollback()
-    admin.conn.execute(f"DROP SCHEMA {SCHEMA} CASCADE")
-    admin.conn.commit()
-    admin.conn.close()
-
-
-def _decisions(factory, action_type):
-    with factory() as repo:
-        return [d for d in repo.list_decisions() if d.action_type == action_type]
-
-
-def test_credit_line_proposal_goes_through_the_approval_interrupt(oven_review, agent_env):
-    review, _ = oven_review
-    (proposal,) = review.proposals
-    agent, notifier, factory = agent_env
-    res = agent.handle(proposal.to_event())
-    assert res.status == "awaiting_approval" and res.approval_id
-    (dec,) = _decisions(factory, "request_credit_line")
-    assert dec.level == PolicyLevel.APPROVAL and dec.status == DecisionStatus.PENDING
-    (dm,) = notifier.sent
-    assert dm["to"] == "vincenzo" and proposal.reason in dm["text"] and f"{proposal.amount:,.2f} EUR" in dm["text"]
-    assert [a.action_id for a in dm["actions"]] == ["approve", "reject"]
-    agent.resume_approval(res.approval_id, True, "vincenzo")
-    (dec,) = _decisions(factory, "request_credit_line")
-    assert dec.status == DecisionStatus.EXECUTED and dec.executed_simulated
-
-
-def test_investment_proposal_goes_through_the_same_interrupt(model, history, agent_env):
-    review = liq.review_liquidity(model=model, transactions=history, start_balance=START_BALANCE)
-    (proposal,) = review.proposals
-    agent, notifier, factory = agent_env
-    res = agent.handle(proposal.to_event())
-    assert res.status == "awaiting_approval"
-    (dec,) = _decisions(factory, "make_investment")
-    assert dec.level == PolicyLevel.APPROVAL and dec.status == DecisionStatus.PENDING
-    assert "Invest" in dec.summary and proposal.reason in notifier.sent[0]["text"]
-    agent.resume_approval(res.approval_id, False, "vincenzo")
-    (dec,) = _decisions(factory, "make_investment")
-    assert dec.status == DecisionStatus.REJECTED

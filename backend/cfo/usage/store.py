@@ -85,8 +85,15 @@ def usage_total(conn: Any, start: datetime, end: datetime) -> dict[str, Any]:
     ).fetchone() or {}
 
 
+def _has_decisions(conn: Any) -> bool:
+    """The old agent's `decisions` table; Scout's schema drops it, so cost per action is then empty."""
+    return conn.execute("SELECT to_regclass('decisions') AS t").fetchone()["t"] is not None
+
+
 def usage_by_action(conn: Any, start: datetime, end: datetime) -> list[dict[str, Any]]:
     """LLM usage attributed to decisions (`llm_usage.decision_id`), grouped by the decision's action type."""
+    if not _has_decisions(conn):
+        return []
     return conn.execute(
         """SELECT d.action_type AS action_type,
                   count(*) AS requests,
@@ -102,6 +109,8 @@ def usage_by_action(conn: Any, start: datetime, end: datetime) -> list[dict[str,
 
 
 def decisions_per_action(conn: Any, start: datetime, end: datetime) -> dict[str, int]:
+    if not _has_decisions(conn):
+        return {}
     rows = conn.execute(
         "SELECT action_type, count(*) AS n FROM decisions WHERE ts >= %s AND ts < %s GROUP BY action_type",
         (start, end),

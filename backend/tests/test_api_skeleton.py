@@ -60,12 +60,6 @@ def test_cost_metrics_bad_kind(client):
     assert_error(client.get("/v1/cost-metrics", params={"kind": "nope"}), 422, "validation_error")
 
 
-def test_decisions_bad_params(client):
-    assert_error(client.get("/v1/decisions", params={"limit": 0}), 422, "validation_error")
-    assert_error(client.get("/v1/decisions", params={"limit": 1000}), 422, "validation_error")
-    assert_error(client.get("/v1/decisions", params={"level": "MAYBE"}), 422, "validation_error")
-
-
 def test_unknown_route_and_method_use_error_model(client):
     assert_error(client.get("/v1/nothing"), 404, "not_found")
     assert_error(client.post("/v1/kpis"), 405, "method_not_allowed")
@@ -90,7 +84,7 @@ def test_unreachable_database_is_503_envelope():
 
     app = create_app()
     app.dependency_overrides[get_repo] = down
-    r = TestClient(app, raise_server_exceptions=False).get("/v1/rules")
+    r = TestClient(app, raise_server_exceptions=False).get("/v1/kpis")
     assert_error(r, 503, "database_unavailable")
     assert "10.0.0.1" not in r.text
 
@@ -125,6 +119,8 @@ def test_openapi_document(tmp_path):
     doc = json.loads(out.read_text())
     paths = set(doc["paths"])
     assert {"/healthz", "/v1/kpis", "/v1/forecast/liquidity", "/v1/costs/by-team", "/v1/cost-metrics",
-            "/v1/decisions", "/v1/decisions/{decision_id}", "/v1/rules"} <= paths
+            "/v1/tasks", "/v1/tasks/{task_id}", "/v1/approvals", "/v1/audit", "/v1/connections"} <= paths
+    assert not paths & {"/v1/decisions", "/v1/rules", "/v1/events", "/v1/sim"}
+    assert doc["info"]["title"] == "Scout API"
     assert "ErrorResponse" in doc["components"]["schemas"]
     assert export_main([]) == 2

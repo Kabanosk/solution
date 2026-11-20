@@ -1,0 +1,49 @@
+# Mock bank API for the demo (`cfo bank-mock` -> python -m scout.mock_bank on port 8010). The worker polls it
+# (BANK_API_URL) and the API posts demo payments to it (POST /v1/demo/play/...). Its transactions live in
+# Postgres (table bank_mock_transactions), so a restart loses nothing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-mock
+  labels: {app: bank-mock, app.kubernetes.io/component: bank-mock}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"bank-mock\")].image"}]'
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: bank-mock}}
+  template:
+    metadata: {labels: {app: bank-mock, app.kubernetes.io/component: bank-mock}}
+    spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
+      containers:
+        - name: bank-mock
+          image: cfo-backend:latest
+          args: [bank-mock]
+          ports: [{containerPort: 8010}]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          env:
+            # Same DATABASE_URL composition as api.yaml (Secret `postgres`, never in git).
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+            - {name: BANK_HOST, value: 0.0.0.0}
+            - {name: BANK_PORT, value: "8010"}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: 8010}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bank-mock
+  labels: {app: bank-mock}
+spec:
+  selector: {app: bank-mock}
+  ports: [{name: http, port: 8010, targetPort: 8010}]

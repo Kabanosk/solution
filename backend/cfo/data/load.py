@@ -1,10 +1,9 @@
-"""Seed Postgres from generated data, and apply simulator events.
+"""Seed Postgres from generated data.
 
     python -m cfo.data.load --data data/generated [--reset]
 
 `seed` loads history 01-11.2025: teams, employees + vacations (from the HR CSV), bank transactions, invoices
-(payments with a matching invoice become documented), cost/metric pairs. December lives in
-`events/december.jsonl`; the simulator feeds each event to `apply_event`.
+(payments with a matching invoice become documented), cost/metric pairs. Scout's own demo seed is `scout.seed`.
 """
 
 from __future__ import annotations
@@ -17,25 +16,16 @@ from cfo.config import get_settings
 from cfo.data.people import parse_hr_csv
 from cfo.db.migrate import apply_schema
 from cfo.db.repo import Repository
-from cfo.domain import CostMetric, Event, EventKind, Invoice, Team, Transaction
+from cfo.domain import CostMetric, Invoice, Team, Transaction
 
-RESET_TABLES = ["access_log", "approval_requests", "decisions", "rules", "events", "cost_metrics", "invoice_lines",
-                "transactions", "invoices", "vacations", "employees", "teams"]
+RESET_TABLES = ["access_log", "rules", "cost_metrics", "invoice_lines", "transactions", "invoices", "vacations",
+                "employees", "teams"]
 
 
 def reset(repo: Repository) -> None:
-    """Empty all demo tables, including the simulator cursor (`sim_state`, created by the simulator on first use),
-    so a reseed replays December from the start. Commits unless called inside `repo.transaction()`."""
-    from cfo.sim.engine import LOCK_KEY  # lazy: the simulator imports this module
-
+    """Empty all company tables. Commits unless called inside `repo.transaction()`."""
     with repo.transaction():
-        # The simulator's replay lock (tick/step/jump hold it for the whole cycle): wait for a running tick and
-        # keep new ones out until the reseed commits, so no event is written from a stale cursor. Held to commit.
-        repo.conn.execute("SELECT pg_advisory_xact_lock(%s)", (LOCK_KEY,))
-        tables = list(RESET_TABLES)
-        if repo.conn.execute("SELECT to_regclass('sim_state') AS t").fetchone()["t"]:
-            tables.append("sim_state")
-        repo.conn.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
+        repo.conn.execute(f"TRUNCATE {', '.join(RESET_TABLES)} CASCADE")
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -90,10 +80,6 @@ def _seed(repo: Repository, data_dir: Path) -> dict[str, int]:
             "invoices": len(invoices), "cost_metrics": len(metrics)}
 
 
-def load_events(data_dir: Path) -> list[Event]:
-    return [Event(**row) for row in _jsonl(data_dir / "events" / "december.jsonl")]
-
-
 def ingest_transaction(repo: Repository, txn: Transaction) -> Transaction:
     """Book a new bank line. If an invoice with the payment's number is already in the database and its total
     equals the payment, link it (the payment becomes documented); otherwise the payment stays undocumented.
@@ -112,17 +98,6 @@ def ingest_transaction(repo: Repository, txn: Transaction) -> Transaction:
                 inv.transaction_id = txn.id
                 repo.add_invoice(inv)
     return repo.get_transaction(txn.id)
-
-
-def apply_event(repo: Repository, event: Event) -> None:
-    """Apply what a simulator event means for the database (the agent reacts to the event separately)."""
-    repo.add_event(event)
-    if event.kind == EventKind.BANK_TRANSACTION:
-        ingest_transaction(repo, Transaction(**event.payload["transaction"]))
-    elif event.kind == EventKind.METRIC:
-        if "invoice" in event.payload:
-            repo.add_invoice(Invoice(**event.payload["invoice"]))
-        repo.add_cost_metric(CostMetric(**event.payload["cost_metric"]))
 
 
 def main(argv: list[str] | None = None) -> int:

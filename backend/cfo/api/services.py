@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 
 from cfo.analysis.cost_metrics import load_series, to_api_series
+from cfo.api.errors import ApiError
 from cfo.api.schemas import (
     CostsByTeam,
     DecisionOut,
@@ -52,8 +53,12 @@ def _dec(value: Any) -> Decimal:
     return Decimal(str(value))
 
 
-def _transactions(repo: Repository) -> pd.DataFrame:
-    return feat.fetch_transactions(repo.conn)
+def _transactions(repo: Repository, *, required: bool = True) -> pd.DataFrame:
+    tx = feat.fetch_transactions(repo.conn)
+    if required and tx.empty:
+        raise ApiError(503, "no_data", "The database has no transactions yet; seed it with "
+                                       "`python -m cfo.data.load --data data/generated`.")
+    return tx
 
 
 # --- safety buffer (D-013) ----------------------------------------------------------------------------
@@ -175,8 +180,6 @@ def forecast_summary(tx: pd.DataFrame, horizon_days: int = KPI_HORIZON_DAYS) -> 
 
 def kpis(repo: Repository) -> Kpis:
     tx = _transactions(repo)
-    if tx.empty:
-        raise ValueError("no transactions in the database; seed it with `python -m cfo.data.load`")
     amounts = tx["amount"].map(_dec)
     as_of = tx["booking_date"].max().normalize()
     balance = sum(amounts, Decimal(0))
@@ -228,7 +231,7 @@ def costs_by_team(repo: Repository, start: date | None, end: date | None) -> Cos
     Defaults: first day of the first booking month to the last booking day. Months whose first day lies in
     `[from, to]` are included, plus the month containing `from`.
     """
-    tx = _transactions(repo)
+    tx = _transactions(repo, required=False)
     invoices = feat.fetch_invoices(repo.conn)
     first = tx["booking_date"].min().date() if not tx.empty else date.today()
     last = tx["booking_date"].max().date() if not tx.empty else date.today()

@@ -119,7 +119,7 @@ def test_reply_pdf_resolves_waiting_task(conn_factory, tmp_path):
     out = chat.run(ctx, dm("grazyna", files=[{"name": "FLV-42026.pdf", "data_b64": b64(tmp_path / "demo" / "FLV-42026.pdf")}]))
     assert out.id == t.id and out.status == "done" and out.resolved_via == "slack_dm"
     assert ctx.notifier.tracked[t.id] == "D_grazyna:s10"
-    assert ctx.notifier.updates[-1]["text"].startswith("Resolved · €1,840.00 filed as FLV-42026")
+    assert ctx.notifier.updates[-1]["text"].startswith("Resolved · €869.62 filed as FLV-42026")
 
 
 def test_reply_pdf_mismatch_keeps_waiting(conn_factory, tmp_path):
@@ -175,7 +175,7 @@ def test_question_from_waitstaff_denied_ceo_answered(conn_factory, tmp_path):
             return FakeLLM.tool_call("route_message", intent="question")
         if "search_payments" in names and not any(m.role == "tool" for m in messages):
             return FakeLLM.tool_call("search_payments", counterparty="Fattoria")
-        return "You paid Fattoria La Vino €1,840.00 today; Scout is waiting for the invoice."
+        return "You paid Fattoria La Vino €869.62 today; Scout is waiting for the invoice."
 
     ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
     pay(ctx, "nowhere")

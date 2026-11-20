@@ -29,7 +29,7 @@ from cfo.db.repo import Repository
 from cfo.domain import CostMetric, Employee, Invoice, Transaction, Vacation
 from scout import db as scout_db
 from scout.config import REPO_ROOT, get_scout_settings
-from scout.demo_data import SCENARIOS
+from scout.demo_data import LIVE_INVOICE_NUMBERS, SCENARIOS
 from scout.mock_bank.store import BankStore, week_shift
 
 COMPANY_TABLES = ["audit_log", "agent_task_steps", "approvals", "expected_cash_events", "agent_jobs", "agent_tasks",
@@ -127,7 +127,7 @@ def seed(conn_factory, *, data_dir: Path, csv: Path | None = None, reset: bool =
     csv = csv or find_source_csv()
     raw = load_bank_csv(csv)
     weeks = week_shift(raw[-1].booking_date, today)
-    txns = load_bank_csv(csv, shift_weeks=weeks)
+    txns = [t for t in load_bank_csv(csv, shift_weeks=weeks) if t.invoice_number not in LIVE_INVOICE_NUMBERS]
     months = build_months(raw, 42)
 
     conn = conn_factory()

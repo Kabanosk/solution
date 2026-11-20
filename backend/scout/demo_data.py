@@ -35,8 +35,8 @@ SCENARIOS: dict[str, Scenario] = {
                  chat_message="Pasta Fresca Bologna cancelled our Christmas pasta order (PFB-2611). They will refund "
                               "the deposit of 1,250.00 EUR in full by the end of next week.",
                  chat_author="grazyna"),
-        Scenario("nowhere", "Nowhere, so Scout asks on Slack", "Fattoria La Vino GmbH", Decimal("-1840.00"),
-                 "Invoice FLV-42026 Fattoria La Vino", "FLV-42026", where="nowhere"),
+        Scenario("nowhere", "Nowhere, so Scout asks on Slack", "Fattoria La Vino GmbH", Decimal("-869.62"),
+                 "Invoice FLV-42026 Italian Wine & Fine Beverages", "FLV-42026", where="nowhere"),
         Scenario("overspend_chat", "Ads over budget, approved in chat", "Meta Platforms Ireland",
                  Decimal("-900.00"), "Facebook Ads campaign Christmas menu", None, type="card_payment",
                  holder_employee_id="vanessa", card_last4="4417", where="chat",
@@ -45,3 +45,8 @@ SCENARIOS: dict[str, Scenario] = {
                  chat_author="vincenzo"),
     ]
 }
+
+
+# Payments of the organizer's statement that the live cases replay: kept out of the seeded history (the deck's
+# FLV-42026 is a real line of the statement), so they arrive live instead of being "already documented".
+LIVE_INVOICE_NUMBERS = frozenset(s.invoice_number for s in SCENARIOS.values() if s.invoice_number)

@@ -182,7 +182,7 @@ def test_nothing_found_asks_owner_then_waiting(conn_factory, tmp_path):
                                    "asked_person"]
     assert texts(ctx, task.id)[-1] == "Asked the document owner, Grazyna, on Slack"
     dm = ctx.notifier.sent[-1]
-    assert dm["to"] == "grazyna" and "€1,840.00" in dm["text"] and "FLV-42026" in dm["text"]
+    assert dm["to"] == "grazyna" and "€869.62" in dm["text"] and "FLV-42026" in dm["text"]
     assert task.slack_ref == "D_grazyna:1.0"
     with conn_factory() as conn:
         rem = conn.execute("SELECT * FROM agent_jobs WHERE kind='reminder'").fetchall()
@@ -204,7 +204,7 @@ def test_reply_with_pdf_resolves(conn_factory, tmp_path):
                                                       "data_b64": base64.b64encode(pdf).decode()}]}, 2))
     assert out.status == "done" and out.resolved_via == "slack_dm"
     assert "Grazyna sent FLV-42026.pdf" in texts(ctx, task.id)
-    assert ctx.notifier.sent[-1]["text"].startswith("Thanks! I filed €1,840.00 as FLV-42026")
+    assert ctx.notifier.sent[-1]["text"].startswith("Thanks! I filed €869.62 as FLV-42026")
 
 
 def test_reply_text_explains_and_promise(conn_factory, tmp_path):

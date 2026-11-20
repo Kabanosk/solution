@@ -116,8 +116,14 @@ def _rung_system(ctx: JobContext, task: Task, number: str | None, day: date) -> 
                  inv.find(supplier=task.counterparty, amount=task.amount, around=day, task_id=task.id), [])
     usable = [d for d in docs if d.total == abs(task.amount) and d.transaction_id in (None, task.transaction_id)]
     n = len(docs)
-    ctx.recorder.step(task.id, "checked_system", f"Searched the invoicing system: {n} match{'es' if n != 1 else ''}",
-                      source="invoicing_pg", result_count=n)
+    text = f"Searched the invoicing system: {n} match{'es' if n != 1 else ''}"
+    other = [d for d in docs if d not in usable]
+    if other and not usable:
+        d = other[0]
+        why = ("belongs to another payment" if d.transaction_id not in (None, task.transaction_id)
+               else f"is for {eur(d.total)}")
+        text += f", but {d.number} {why}"
+    ctx.recorder.step(task.id, "checked_system", text, source="invoicing_pg", result_count=n)
     for d in usable:
         if d.transaction_id == task.transaction_id:
             outcome = f"Resolved · {eur(d.total)} already on file as {d.number}"

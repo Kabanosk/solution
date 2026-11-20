@@ -80,9 +80,9 @@ export function Staffing({ data, onBack }: StaffingProps) {
       new Blob(["\uFEFF", csv, "\r\n"], { type: "text/csv;charset=utf-8;" }),
     );
     const link = document.createElement("a");
-    link.id = "lantern-payroll-download-link";
+    link.id = "scout-payroll-download-link";
     link.href = url;
-    link.download = "lantern-payroll.csv";
+    link.download = "scout-payroll.csv";
     link.hidden = true;
     document.body.appendChild(link);
     link.click();
@@ -94,10 +94,10 @@ export function Staffing({ data, onBack }: StaffingProps) {
   };
 
   return (
-    <div id="lantern-staffing" className="space-y-6">
+    <div id="scout-staffing" className="space-y-6">
       <section
-        id="lantern-staffing-heading"
-        aria-labelledby="lantern-staffing-title"
+        id="scout-staffing-heading"
+        aria-labelledby="scout-staffing-title"
         className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
       >
         <div className="space-y-2">
@@ -105,7 +105,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
             People operations
           </p>
           <h1
-            id="lantern-staffing-title"
+            id="scout-staffing-title"
             className="text-2xl font-medium tracking-tight md:text-3xl"
           >
             Staffing &amp; payroll
@@ -114,13 +114,13 @@ export function Staffing({ data, onBack }: StaffingProps) {
             A current view of people, responsibilities and recurring salary commitments.
           </p>
         </div>
-        <Button id="lantern-staffing-back" type="button" variant="outline" className="min-h-11 shrink-0" onClick={onBack}>
+        <Button id="scout-staffing-back" type="button" variant="outline" className="min-h-11 shrink-0" onClick={onBack}>
           Back to overview
         </Button>
       </section>
 
       <section
-        id="lantern-staffing-summary"
+        id="scout-staffing-summary"
         aria-label="Staffing summary"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
@@ -150,7 +150,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
             note: "Latest bank booking date",
           },
         ].map((metric) => (
-          <Card id={`lantern-payroll-metric-${metric.id}`} key={metric.id}>
+          <Card id={`scout-payroll-metric-${metric.id}`} key={metric.id}>
             <CardContent className="space-y-2 pt-5">
               <p className="text-sm text-muted-foreground">{metric.label}</p>
               <p className="break-words font-mono text-2xl tracking-tight">{metric.value}</p>
@@ -160,10 +160,10 @@ export function Staffing({ data, onBack }: StaffingProps) {
         ))}
       </section>
 
-      <Card id="lantern-staff-directory" aria-labelledby="lantern-team-title" className="min-w-0">
+      <Card id="scout-staff-directory" aria-labelledby="scout-team-title" className="min-w-0">
         <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1.5">
-            <CardTitle id="lantern-team-title" className="text-base font-medium">
+            <CardTitle id="scout-team-title" className="text-base font-medium">
               Team directory
             </CardTitle>
             <CardDescription>
@@ -172,22 +172,22 @@ export function Staffing({ data, onBack }: StaffingProps) {
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative min-w-0 sm:w-56">
-              <label htmlFor="lantern-team-search" className="sr-only">
+              <label htmlFor="scout-team-search" className="sr-only">
                 Search team by name, role or team
               </label>
               <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden="true" />
               <Input
-                id="lantern-team-search"
+                id="scout-team-search"
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search people"
-                aria-controls="lantern-payroll-table"
+                aria-controls="scout-payroll-table"
                 className="min-h-11 pl-9 text-base sm:text-sm"
               />
             </div>
             <Button
-              id="lantern-payroll-export"
+              id="scout-payroll-export"
               type="button"
               variant="secondary"
               className="min-h-11 shrink-0"
@@ -201,12 +201,12 @@ export function Staffing({ data, onBack }: StaffingProps) {
 
         <CardContent className="min-w-0 space-y-3 px-0 pb-0">
           {exportNotice && (
-            <p id="lantern-payroll-export-status" role="status" className="px-6 text-sm leading-6 text-success">
+            <p id="scout-payroll-export-status" role="status" className="px-6 text-sm leading-6 text-success">
               {exportNotice}
             </p>
           )}
-          <div id="lantern-payroll-table-scroll" className="max-w-full overflow-x-auto">
-            <Table id="lantern-payroll-table" className="min-w-[680px]">
+          <div id="scout-payroll-table-scroll" className="max-w-full overflow-x-auto">
+            <Table id="scout-payroll-table" className="min-w-[680px]">
               <TableCaption className="sr-only">Latest recorded monthly salary payments in EUR. Missing payments are not recorded.</TableCaption>
               <TableHeader>
                 <TableRow className="bg-muted/25 hover:bg-muted/25">
@@ -218,7 +218,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
               </TableHeader>
               <TableBody>
                 {people.length > 0 ? people.map((employee) => (
-                  <TableRow id={`lantern-employee-${employee.id}`} key={employee.id}>
+                  <TableRow id={`scout-employee-${employee.id}`} key={employee.id}>
                     <TableCell className="py-5 pl-6">
                       <div className="flex items-center gap-3">
                         <Avatar className="size-10 shrink-0" aria-hidden="true">
@@ -242,10 +242,10 @@ export function Staffing({ data, onBack }: StaffingProps) {
                     </TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow id="lantern-team-empty">
+                  <TableRow id="scout-team-empty">
                     <TableCell colSpan={4} className="h-32 px-6 text-center">
                       <p className="text-sm">No team members match “{search.trim()}”.</p>
-                      <Button id="lantern-team-clear-search" type="button" variant="ghost" onClick={() => setSearch("")} className="mt-2 min-h-10">Clear search</Button>
+                      <Button id="scout-team-clear-search" type="button" variant="ghost" onClick={() => setSearch("")} className="mt-2 min-h-10">Clear search</Button>
                     </TableCell>
                   </TableRow>
                 )}
@@ -255,27 +255,27 @@ export function Staffing({ data, onBack }: StaffingProps) {
         </CardContent>
         <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-xs leading-5 text-muted-foreground">
           <p className="flex items-center gap-2"><Lock className="size-3.5 shrink-0" aria-hidden="true" />Protected company workspace · Read-only records</p>
-          <p id="lantern-team-result-count" role="status" aria-atomic="true">
+          <p id="scout-team-result-count" role="status" aria-atomic="true">
             {people.length} of {data.employees.length} people
           </p>
         </CardFooter>
       </Card>
 
-      <Card id="lantern-payroll-insight" className="border-success-border bg-success-muted" aria-labelledby="lantern-payroll-insight-title">
+      <Card id="scout-payroll-insight" className="border-success-border bg-success-muted" aria-labelledby="scout-payroll-insight-title">
         <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <CardTitle id="lantern-payroll-insight-title" className="text-base font-medium">CFO insight</CardTitle>
+            <CardTitle id="scout-payroll-insight-title" className="text-base font-medium">CFO insight</CardTitle>
             <CardDescription className="max-w-3xl leading-6">
               The latest salary month contains {currency.format(data.monthlyPayroll)} in monthly net payroll.
               Review these recorded payments alongside other operating expenses.
             </CardDescription>
           </div>
-          <Button id="lantern-payroll-analysis-toggle" type="button" variant="ghost" className="min-h-11 shrink-0" aria-expanded={analysisOpen} aria-controls="lantern-payroll-analysis" onClick={() => setAnalysisOpen(!analysisOpen)}>
+          <Button id="scout-payroll-analysis-toggle" type="button" variant="ghost" className="min-h-11 shrink-0" aria-expanded={analysisOpen} aria-controls="scout-payroll-analysis" onClick={() => setAnalysisOpen(!analysisOpen)}>
             {analysisOpen ? "Close analysis" : "Open analysis"}
           </Button>
         </CardHeader>
         {analysisOpen && (
-          <CardContent id="lantern-payroll-analysis" className="space-y-2 text-sm leading-6 text-muted-foreground">
+          <CardContent id="scout-payroll-analysis" className="space-y-2 text-sm leading-6 text-muted-foreground">
             <p>Individual payments are matched to employee names in the bank records. A missing match is shown as “Not recorded”; it is not treated as a zero salary.</p>
             <p>Employer social contributions of {currency.format(data.monthlyContributions)} are separate from the {currency.format(data.monthlyPayroll)} monthly net payroll above. These are recorded payments, not a scheduled payroll forecast.</p>
           </CardContent>

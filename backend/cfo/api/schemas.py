@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Annotated, Any, Generic, Literal, TypeVar
+from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
-from cfo.domain import ApprovalStatus, CostMetricKind, DecisionStatus, EventKind, PolicyLevel
+from cfo.domain import CostMetricKind
 
 DecimalStr = Annotated[str, Field(pattern=r"^-?\d+(\.\d+)?$", examples=["50.0"])]
 Stub = Annotated[bool, Field(description="True while the data is a stub, not computed from the database.")]
@@ -129,8 +129,9 @@ class Kpis(BaseModel):
     avg_monthly_outflows: Money
     forecast: ForecastSummary
     undocumented_payments: UndocumentedPayments
-    pending_approvals: int
+    pending_approvals: int = Field(description="Scout approvals waiting for an answer.")
     open_cost_alerts: int = Field(description="Cost-vs-metric pairs currently flagged as an anomaly (D-006).")
+    open_tasks: int | None = Field(default=None, description="Scout tasks waiting for someone or escalated.")
 
 
 # --- /v1/costs/by-team --------------------------------------------------------------------------------
@@ -193,111 +194,6 @@ class CostMetricSeries(BaseModel):
     team_id: str
     unit: Literal["order", "new_customer", "online_order"] = Field(description="What `cost_per_unit` is per.")
     points: list[CostMetricPoint]
-
-
-# --- /v1/decisions ------------------------------------------------------------------------------------
-
-
-class DecisionOut(BaseModel):
-    """Mirror of `cfo.domain.Decision`."""
-
-    id: str = Field(examples=["dec_6f1c0a7e2b11"])
-    ts: datetime
-    action_type: str = Field(examples=["attach_invoice"])
-    summary: str
-    level: PolicyLevel
-    reason: str = Field(description="Why the policy engine chose this level.")
-    status: DecisionStatus
-    actor: str = Field(description="'agent' or the employee id who decided (e.g. 'vincenzo').")
-    payload: dict[str, Any]
-    executed_simulated: bool = Field(description="True: executed, but only simulated (D-005); show as SIMULATED.")
-    approval_request_id: str | None = None
-
-
-# --- /v1/rules ----------------------------------------------------------------------------------------
-
-
-class RuleOut(BaseModel):
-    """Mirror of `cfo.domain.Rule`."""
-
-    id: str = Field(examples=["rule_9a41c3d05e77"])
-    text: str = Field(description="The CEO's own sentence.")
-    level: PolicyLevel
-    category: str | None = None
-    supplier: str | None = None
-    action_type: str | None = None
-    created_by: str
-    created_at: datetime
-    active: bool
-
-
-# --- /v1/approvals --------------------------------------------------------------------------------------
-
-
-class ApprovalOut(BaseModel):
-    """Mirror of `cfo.domain.ApprovalRequest`, with the decision it is about embedded (for the Approve/Reject card)."""
-
-    id: str = Field(examples=["apr_8e2f6b3a1c47"])
-    decision_id: str
-    approver_id: str = Field(description="Employee id who may answer (normally the CEO).", examples=["vincenzo"])
-    question: str = Field(description="What the approver is asked, in one or two sentences.")
-    status: ApprovalStatus
-    created_at: datetime
-    resolved_at: datetime | None = None
-    channel_ref: str | None = Field(default=None, description="Slack message reference, if the DM was sent.")
-    decision: DecisionOut | None = Field(
-        default=None, description="The pending (or, after the answer, resolved) decision: action_type, summary, payload.")
-
-
-class ApprovalAnswer(BaseModel):
-    """Body of `POST /v1/approvals/{id}:approve` and `:reject`."""
-
-    by: str = Field(
-        min_length=1, examples=["vincenzo"],
-        description="Employee id of the person answering; must be the approver. Ignored when the server has "
-                    "`API_WRITE_TOKEN` set: the token then stands for the CEO.")
-
-
-class ApprovalResult(ApprovalOut):
-    """State of the approval after the call."""
-
-    already_resolved: bool = Field(
-        description="True when the approval had been answered before; nothing was executed by this call.")
-
-
-# --- /v1/events (SSE) and /v1/sim -----------------------------------------------------------------------
-
-
-class EventOut(BaseModel):
-    """Mirror of `cfo.domain.Event` (simulator event: bank transaction, invoice document, metric, ...)."""
-
-    id: str = Field(examples=["evt_3b1c9f0a2d44"])
-    ts: datetime
-    kind: EventKind
-    payload: dict[str, Any]
-
-
-class SimStatusOut(BaseModel):
-    """Mirror of `cfo.sim.SimStatus`: state of the December replay."""
-
-    sim_time: datetime = Field(description="Current simulated time (UTC).")
-    paused: bool
-    speed: float = Field(description="Simulated seconds per real second.")
-    emitted: int = Field(description="Events written so far.")
-    total: int = Field(description="Events in the replay.")
-    next_event_ts: datetime | None = Field(description="Null when everything was replayed.")
-    finished: bool
-
-
-class SimStart(BaseModel):
-    """Optional body of `POST /v1/sim:start`."""
-
-    speed: float | None = Field(default=None, gt=0, description="New speed (sim seconds per real second); keeps the current one when omitted.")
-
-
-class SimStepResult(BaseModel):
-    event: EventOut | None = Field(description="The event that was emitted, null when the replay is finished.")
-    status: SimStatusOut
 
 
 # --- /healthz -----------------------------------------------------------------------------------------

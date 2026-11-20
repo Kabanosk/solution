@@ -1,5 +1,5 @@
-# Non-secret settings shared by api, worker and the MCP servers (envFrom).
-# After changing a value:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/worker
+# Non-secret settings shared by api, scout-worker, bank-mock and the MCP servers (envFrom).
+# After changing a value:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/scout-worker
 # (see README.md in this directory). Slack tokens live in Secret `slack` (created by the team), not here.
 apiVersion: v1
 kind: ConfigMap
@@ -14,12 +14,13 @@ data:
   # TLS check for an https endpoint: true | false | CA bundle path. The OpenShift service CA is injected into
   # ConfigMap llm-service-ca and mounted at /etc/llm-ca (use it for an https in-cluster model endpoint).
   LLM_VERIFY_TLS: "/etc/llm-ca/service-ca.crt"
-  # MCP servers (streamable HTTP, endpoint /mcp). Read by the worker (T011).
+  # MCP servers (streamable HTTP, endpoint /mcp).
   MCP_COMPANY_DB_URL: "http://mcp-company-db:8001/mcp"
   MCP_WORKSTATIONS_URL: "http://mcp-workstations:8002/mcp"
   MCP_HR_URL: "http://mcp-hr:8003/mcp"
-  # Simulator speed: 1 = real time, 3600 = one simulated hour per second (demo).
-  SIM_SPEED: "1"
+  # Scout: the mock bank the worker polls (and the API posts demo payments to), and the job-queue threads.
+  BANK_API_URL: "http://bank-mock:8010"
+  SCOUT_WORKERS: "4"
   # Browser origins allowed by the API; `*` until the dashboard has a fixed URL.
   CORS_ORIGINS: "*"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.

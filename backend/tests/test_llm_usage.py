@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,7 +21,6 @@ from cfo.api.app import create_app
 from cfo.api.deps import get_repo
 from cfo.api.routers.llm_usage import get_clock, get_usage_config
 from cfo.config import get_settings
-from cfo.domain import Decision, PolicyLevel
 from cfo.llm import FakeLLM, LLMResponse, Message, OpenAICompatLLM, TokenUsage
 from cfo.usage import cost, recorder, report, sampler, store
 from cfo.usage.recorder import DbSink, UsageRecord, usage_context
@@ -476,10 +475,10 @@ def seeded(repo):
                                              estimated=estimated, event_id=event, event_type=etype, purpose=purpose,
                                              decision_id=decision))
 
-    repo.add_decision(Decision(id="d1", ts=at(20, 10, 6), action_type="attach_invoice", summary="Attached AS-1",
-                               level=PolicyLevel.AUTO, reason="routine"))
-    repo.add_decision(Decision(id="d2", ts=at(20, 11, 1), action_type="alert_cost_anomaly", summary="Cloud cost up",
-                               level=PolicyLevel.NOTIFY, reason="anomaly"))
+    # the old agent's `decisions` table (Scout drops it); the report attributes cost per action only when it exists
+    conn.execute("CREATE TABLE decisions (id TEXT PRIMARY KEY, ts TIMESTAMPTZ NOT NULL, action_type TEXT NOT NULL)")
+    conn.execute("INSERT INTO decisions VALUES ('d1', %s, 'attach_invoice'), ('d2', %s, 'alert_cost_anomaly')",
+                 (at(20, 10, 6), at(20, 11, 1)))
     usage(at(20, 10), "e1", "bank_transaction", "extract_invoice", 1000, 200, 4000, "d1")
     usage(at(20, 10, 5), "e1", "bank_transaction", "explain", 500, 100, 2000, "d1")
     usage(at(20, 11), "e2", "metric", "explain", 800, 150, 3000, "d2", estimated=True)
@@ -575,6 +574,14 @@ class TestReport:
         assert abs(amount(att["cost_per_action_busy_time"]) - Decimal(6) / 3600 * Decimal("0.70")) < Decimal("0.000001")
         assert r["per_event"]["events"] == 3
         assert abs(amount(r["per_event"]["cost_per_event_busy_time"]) - amount(r["total"]["cost_busy_time"]) / 3) < Decimal("0.000001")
+
+    def test_cost_per_action_is_empty_without_the_decisions_table(self, seeded):
+        seeded.conn.execute("ALTER TABLE decisions RENAME TO decisions_hidden")
+        try:
+            r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)
+            assert r["per_action"] == [] and r["total"]["requests"] == 4
+        finally:
+            seeded.conn.rollback()
 
     def test_hosted_comparison(self, seeded):
         r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)

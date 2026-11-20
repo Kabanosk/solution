@@ -10,7 +10,6 @@ Reads the bank statement (see `cfo.data.source`) and writes, under `--out`:
     hr/hr.csv, teams.json         people, managers, vacations (Grazyna away 24.12.2025-02.01.2026)
     metrics/cost_metrics.json     the three cost/metric pairs per month, Jan-Nov
     workstations/grazyna/...      Downloads, Mail, Documents (company folders) and Private (negative example)
-    events/december.jsonl         everything December 2025 as simulator events, sorted by time
     scenario.json                 answer key: which payments are documented, on a workstation, mismatched, missing
 """
 
@@ -25,7 +24,6 @@ import os
 import random
 import shutil
 import tempfile
-from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -37,7 +35,7 @@ from cfo.data.invoices import build_invoice, invoice_eml, invoice_pdf, supplier_
 from cfo.data.metrics import MonthData, build_months, equipment_invoice
 from cfo.data.pdf import render_pdf
 from cfo.data.source import load_bank_csv
-from cfo.domain import Event, EventKind, Invoice, Transaction
+from cfo.domain import Invoice, Transaction
 
 HISTORY_LAST_MONTH = 11
 DEC_WORKSTATION_INVOICE = "AS-69664"  # demo step 2: found in Grazyna's Downloads, amount matches
@@ -167,7 +165,6 @@ def generate(out: Path, seed: int = 42, source: Path | None = None) -> dict:
 def _generate(out: Path, seed: int, source: Path | None) -> dict:
     txns = load_bank_csv(source)
     history = [t for t in txns if t.booking_date.month <= HISTORY_LAST_MONTH]
-    december = [t for t in txns if t.booking_date.month > HISTORY_LAST_MONTH]
     months = build_months(txns, seed)
     by_number = {t.invoice_number: t for t in txns if t.invoice_number}
     assert DEC_WORKSTATION_INVOICE in by_number and DEC_MISSING_INVOICE in by_number
@@ -262,33 +259,6 @@ def _generate(out: Path, seed: int, source: Path | None) -> dict:
         "previous_online_orders": months[10].online_orders, "line_that_exploded": "Log ingestion and retention",
     }
 
-    # --- December events --------------------------------------------------------------------------------------
-    events: list[Event] = []
-    per_day: dict = {}
-    for t in december:
-        n = per_day[t.booking_date] = per_day.get(t.booking_date, -1) + 1
-        ts = datetime.combine(t.booking_date, time(8, 0), tzinfo=timezone.utc) + timedelta(minutes=7 * n)
-        events.append(Event(ts=ts, kind=EventKind.BANK_TRANSACTION, payload={"transaction": _dump(t)}))
-    dec = months[11]
-    day = dec.month.replace(day=31)
-
-    def at(hour: int) -> datetime:
-        return datetime.combine(day, time(hour, 0), tzinfo=timezone.utc)
-
-    events += [
-        Event(ts=at(7), kind=EventKind.METRIC, payload={
-            "metric": "ad_spend", "invoice": _dump(dec.ads_invoice), "cost_metric": _dump(dec.cost_metrics[1])}),
-        Event(ts=at(8), kind=EventKind.METRIC, payload={
-            "metric": "cloud_invoice", "invoice": _dump(dec.cloud_invoice), "focus": dec.focus_rows,
-            "cost_metric": _dump(dec.cost_metrics[2])}),
-        Event(ts=at(9), kind=EventKind.METRIC, payload={
-            "metric": "monthly_orders", "orders": dec.orders, "online_orders": dec.online_orders,
-            "new_customers": dec.new_customers, "cost_metric": _dump(dec.cost_metrics[0])}),
-    ]
-    events.sort(key=lambda e: (e.ts, e.payload.get("transaction", {}).get("id", "")))
-    for i, e in enumerate(events, start=1):
-        e.id = f"evt_dec_{i:03d}"
-    _write_jsonl(out / "events" / "december.jsonl", events)
     _write_json(out / "scenario.json", scenario)
     return scenario
 

@@ -1,15 +1,13 @@
 """Read endpoints against real data: an isolated Postgres schema seeded from data/generated.
 
-Two schemas, both dropped afterwards (the shared public schema is never touched): `t019_nov` is the statement
-as delivered (Jan-Nov 2025), `t019_dec` additionally has the December replay applied. Skips cleanly when
-Postgres or the generated data is missing. The repo is replaced through FastAPI's dependency override.
+The schema `t019_nov` (dropped afterwards; the shared public schema is never touched) is the statement as
+delivered (Jan-Nov 2025). Skips cleanly when Postgres or the generated data is missing. The repo is replaced through FastAPI's dependency override.
 """
 
 from __future__ import annotations
 
 import os
 import re
-from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,10 +19,9 @@ from cfo.api import services
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo
 from cfo.config import REPO_ROOT, get_settings
-from cfo.domain import ApprovalRequest, Decision, DecisionStatus, PolicyLevel, Rule, utcnow
 
 NOV = f"t019_nov_{os.getpid()}"
-DEC = f"t019_dec_{os.getpid()}"
+SCOUT = f"t019_scout_{os.getpid()}"
 EMPTY = f"t019_empty_{os.getpid()}"
 
 MONEY = re.compile(r"^-?\d+\.\d{2}$")
@@ -38,7 +35,7 @@ def _generated_dir() -> Path | None:
     return None
 
 
-def _seeded_schema(name: str, *, december: bool, tmp: Path):
+def _seeded_schema(name: str):
     url = get_settings().database_url
     try:
         psycopg.connect(url, connect_timeout=2).close()
@@ -47,7 +44,7 @@ def _seeded_schema(name: str, *, december: bool, tmp: Path):
     data = _generated_dir()
     if data is None:
         pytest.skip("generated data missing (python -m cfo.data.generate)")
-    from cfo.data.load import apply_event, load_events, seed
+    from cfo.data.load import seed
     from cfo.db.migrate import SCHEMA_PATH
     from cfo.db.repo import Repository
 
@@ -59,9 +56,6 @@ def _seeded_schema(name: str, *, december: bool, tmp: Path):
     repo.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
     repo.conn.commit()
     seed(repo, data)
-    if december:
-        for event in load_events(data):
-            apply_event(repo, event)
     return repo
 
 
@@ -87,26 +81,8 @@ def model_in_tmp(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def nov_repo(tmp_path_factory):
-    repo = _seeded_schema(NOV, december=False, tmp=tmp_path_factory.mktemp("nov"))
-    now = utcnow()
-    repo.add_decision(Decision(id="dec_old", ts=now - timedelta(hours=3), action_type="attach_invoice",
-                               summary="Found AS-1", level=PolicyLevel.AUTO, reason="routine"))
-    repo.add_decision(Decision(id="dec_mid", ts=now - timedelta(hours=2), action_type="request_credit_line",
-                               summary="Credit line", level=PolicyLevel.APPROVAL, reason="always asks",
-                               status=DecisionStatus.EXECUTED, actor="vincenzo", executed_simulated=True,
-                               payload={"amount": "25000.00"}, approval_request_id="apr_1"))
-    repo.add_decision(Decision(id="dec_new", ts=now - timedelta(hours=1), action_type="pay_invoice",
-                               summary="Pay oven", level=PolicyLevel.APPROVAL, reason="equipment rule",
-                               status=DecisionStatus.PENDING, approval_request_id="apr_2"))
-    repo.add_approval_request(ApprovalRequest(id="apr_2", decision_id="dec_new", approver_id="vincenzo",
-                                              question="Pay?"))
-    repo.add_approval_request(ApprovalRequest(id="apr_1", decision_id="dec_mid", approver_id="vincenzo",
-                                              question="Credit?", status="approved"))
-    repo.add_rule(Rule(id="rule_a", text="I always approve equipment myself", level=PolicyLevel.APPROVAL,
-                       category="equipment", created_by="vincenzo", created_at=now - timedelta(days=1)))
-    repo.add_rule(Rule(id="rule_b", text="Tell me about ads", level=PolicyLevel.NOTIFY, category="advertising",
-                       created_by="vincenzo", created_at=now - timedelta(days=2), active=False))
+def nov_repo():
+    repo = _seeded_schema(NOV)
     yield repo
     repo.conn.rollback()
     repo.conn.execute(f"DROP SCHEMA {NOV} CASCADE")
@@ -115,23 +91,8 @@ def nov_repo(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def dec_repo(tmp_path_factory):
-    repo = _seeded_schema(DEC, december=True, tmp=tmp_path_factory.mktemp("dec"))
-    yield repo
-    repo.conn.rollback()
-    repo.conn.execute(f"DROP SCHEMA {DEC} CASCADE")
-    repo.conn.commit()
-    repo.conn.close()
-
-
-@pytest.fixture(scope="module")
 def nov(nov_repo):
     return _client(nov_repo)
-
-
-@pytest.fixture(scope="module")
-def dec(dec_repo):
-    return _client(dec_repo)
 
 
 def assert_money(m):
@@ -146,7 +107,7 @@ def amount(m) -> Decimal:
 
 
 @pytest.mark.parametrize("path", [
-    "/v1/kpis", "/v1/forecast/liquidity", "/v1/costs/by-team", "/v1/cost-metrics", "/v1/decisions", "/v1/rules",
+    "/v1/kpis", "/v1/forecast/liquidity", "/v1/costs/by-team", "/v1/cost-metrics",
 ])
 def test_no_endpoint_is_a_stub(nov, path):
     r = nov.get(path)
@@ -167,7 +128,7 @@ def test_kpis_from_the_statement(nov):
     assert amount(k["avg_monthly_inflows"]) > 0 > amount(k["avg_monthly_outflows"])
     assert k["undocumented_payments"]["count"] >= 6  # 3+2+1 history invoices only on the workstation or nowhere
     assert amount(k["undocumented_payments"]["total"]) > 0
-    assert k["pending_approvals"] == 1  # apr_1 is approved, apr_2 pending
+    assert k["pending_approvals"] == 0 and k["open_tasks"] is None  # no Scout tables in this schema
     assert k["open_cost_alerts"] == 0  # the cloud spike arrives in December
 
 
@@ -179,14 +140,6 @@ def test_kpis_forecast_summary_and_buffer(nov):
     assert f["first_negative_date"] is None  # D-013: the real forecast stays above zero
     assert amount(f["lowest_balance"]) > amount(f["safety_buffer"])
     assert f["first_below_buffer_date"] is None
-
-
-def test_kpis_after_december_replay(dec):
-    k = dec.get("/v1/kpis").json()
-    assert k["as_of"] == "2025-12-31"
-    assert k["balance"]["amount"] == "32945.51"  # closing balance of the whole statement (T002); the T018 stub added December twice
-    assert k["open_cost_alerts"] == 1  # cloud +50 % vs online orders +2.9 %
-    assert_money(k["balance_change_30d"])
 
 
 def test_kpis_without_data_is_a_clean_error():
@@ -211,6 +164,41 @@ def test_kpis_without_data_is_a_clean_error():
     finally:
         repo.conn.rollback()
         repo.conn.execute(f"DROP SCHEMA {EMPTY} CASCADE")
+        repo.conn.commit()
+        repo.conn.close()
+
+
+def test_kpis_count_scout_approvals_and_open_tasks():
+    url = get_settings().database_url
+    try:
+        psycopg.connect(url, connect_timeout=2).close()
+    except psycopg.OperationalError:
+        pytest.skip("Postgres not reachable")
+    from cfo.db.migrate import SCHEMA_PATH
+    from cfo.db.repo import Repository
+    from scout.db import SCOUT_SCHEMA
+
+    repo = Repository.connect(url)
+    try:
+        repo.conn.execute(f"DROP SCHEMA IF EXISTS {SCOUT} CASCADE")
+        repo.conn.execute(f"CREATE SCHEMA {SCOUT}")
+        repo.conn.execute(f"SET search_path TO {SCOUT}")
+        repo.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+        repo.conn.commit()
+        assert services._count_if_table(repo, "approvals", "status = 'pending'") is None
+        repo.conn.execute(SCOUT_SCHEMA.read_text(encoding="utf-8"))
+        for i, status in enumerate(["waiting", "escalated", "done", "in_progress", "waiting"]):
+            repo.conn.execute("INSERT INTO agent_tasks (id, dedupe_key, loop, title, status) "
+                              "VALUES (%s, %s, 'invoicing', 't', %s)", (f"SC-{i}", f"k{i}", status))
+        for i, status in enumerate(["pending", "approved", "pending"]):
+            repo.conn.execute("INSERT INTO approvals (id, task_id, approver_id, question, status) "
+                              "VALUES (%s, 'SC-0', 'vincenzo', 'q', %s)", (f"apr_{i}", status))
+        repo.conn.commit()
+        assert services._count_if_table(repo, "approvals", "status = 'pending'") == 2
+        assert services._count_if_table(repo, "agent_tasks", "status IN ('waiting', 'escalated')") == 3
+    finally:
+        repo.conn.rollback()
+        repo.conn.execute(f"DROP SCHEMA {SCOUT} CASCADE")
         repo.conn.commit()
         repo.conn.close()
 
@@ -323,68 +311,7 @@ def test_cost_metrics_november_has_no_anomaly(nov):
     assert items[0]["points"][5]["cost_per_unit"] is None  # June shutdown
 
 
-def test_cost_metrics_december_cloud_anomaly(dec):
-    items = dec.get("/v1/cost-metrics").json()["items"]
-    flagged = [(s["kind"], p["month"]) for s in items for p in s["points"] if p["anomaly"]]
-    assert flagged == [("cloud_per_order", "2025-12-01")]
-    cloud = items[2]["points"][-1]
-    assert cloud["cost_change_pct"] == "50.0" and cloud["metric_change_pct"] == "2.9"
-    assert cloud["cost"]["amount"] == "366.02"
-    assert cloud["anomaly"]["drivers"][0]["label"] == "Log ingestion and retention"
-    assert_money(cloud["cost_per_unit"])
-
-
 def test_cost_metrics_filter(nov):
     items = nov.get("/v1/cost-metrics", params={"kind": "ads_cac"}).json()["items"]
     assert [s["kind"] for s in items] == ["ads_cac"]
     assert nov.get("/v1/cost-metrics", params={"kind": "nope"}).status_code == 422
-
-
-# --- decisions -------------------------------------------------------------------------------------------
-
-
-def test_decisions_newest_first_with_pagination(nov):
-    page = nov.get("/v1/decisions", params={"limit": 2}).json()
-    assert page["total"] == 3 and page["limit"] == 2 and page["offset"] == 0
-    assert [d["id"] for d in page["items"]] == ["dec_new", "dec_mid"]
-    nxt = nov.get("/v1/decisions", params={"limit": 2, "offset": 2}).json()
-    assert [d["id"] for d in nxt["items"]] == ["dec_old"]
-    assert all(d["ts"].endswith("Z") for d in page["items"] + nxt["items"])
-
-
-def test_decisions_filters_and_simulated(nov):
-    appr = nov.get("/v1/decisions", params={"level": "APPROVAL"}).json()
-    assert appr["total"] == 2 and {d["status"] for d in appr["items"]} == {"pending", "executed"}
-    assert any(d["executed_simulated"] for d in appr["items"])
-    pend = nov.get("/v1/decisions", params={"status": "pending"}).json()
-    assert pend["total"] == 1 and pend["items"][0]["approval_request_id"] == "apr_2"
-    assert nov.get("/v1/decisions", params={"action_type": "attach_invoice"}).json()["total"] == 1
-
-
-def test_decisions_bad_params(nov):
-    for params in ({"limit": 0}, {"limit": 1000}, {"level": "MAYBE"}):
-        r = nov.get("/v1/decisions", params=params)
-        assert r.status_code == 422 and r.json()["error"]["code"] == "validation_error"
-
-
-def test_decision_by_id_and_404(nov):
-    d = nov.get("/v1/decisions/dec_mid")
-    assert d.status_code == 200 and d.json()["payload"] == {"amount": "25000.00"}
-    r = nov.get("/v1/decisions/dec_nope")
-    assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
-
-
-# --- rules -----------------------------------------------------------------------------------------------
-
-
-def test_rules(nov):
-    page = nov.get("/v1/rules").json()
-    assert page["total"] == 2 and page["limit"] == 50
-    assert [r["id"] for r in page["items"]] == ["rule_a", "rule_b"]  # newest first
-    assert page["items"][0]["text"] == "I always approve equipment myself" and page["items"][0]["level"] == "APPROVAL"
-    assert page["items"][0]["created_at"].endswith("Z")
-    active = nov.get("/v1/rules", params={"active": "true"}).json()
-    assert active["total"] == 1 and all(r["active"] for r in active["items"])
-    inactive = nov.get("/v1/rules", params={"active": "false"}).json()
-    assert [r["id"] for r in inactive["items"]] == ["rule_b"]
-    assert len(nov.get("/v1/rules", params={"limit": 1, "offset": 1}).json()["items"]) == 1

@@ -14,7 +14,7 @@ done
 
 node "${DASHBOARD_DIR}/scripts/prepare-assets.mjs"
 
-printf 'Starting Lantern with automatic reload...\n'
+printf 'Starting Scout with automatic reload...\n'
 printf 'Local URL: http://127.0.0.1:3000\n'
 printf 'Press Ctrl+C to stop.\n\n'
 

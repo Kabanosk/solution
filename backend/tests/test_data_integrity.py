@@ -1,4 +1,4 @@
-"""T040: data integrity of replay, reset and invoice attachment (findings of the Codex review).
+"""T040: data integrity of re-ingesting payments, reset and invoice attachment (findings of the Codex review).
 
 Runs against the compose Postgres in a per-process schema; skipped when it is not reachable.
 """
@@ -21,10 +21,9 @@ from cfo.data.generate import generate
 from cfo.data.source import SourceNotFound, find_source_csv
 from cfo.db.migrate import SCHEMA_PATH
 from cfo.db.repo import Repository
-from cfo.domain import Event, EventKind, Invoice, InvoiceLine, Team, Transaction
+from cfo.domain import Invoice, InvoiceLine, Team, Transaction
 from cfo.mcp_servers.common import make_repo_factory
 from cfo.mcp_servers.company_db import CompanyDbTools
-from cfo.sim.engine import SCHEMA_SQL as SIM_SCHEMA_SQL
 
 SCHEMA = f"t040_test_{os.getpid()}"
 
@@ -80,16 +79,13 @@ def test_readding_a_transaction_keeps_documented_and_invoice(repo: Repository):
     assert got.documented is True and got.invoice_id == "inv_1"
 
 
-def test_replayed_event_keeps_reconciliation(repo: Repository):
+def test_reingested_payment_keeps_reconciliation(repo: Repository):
     t = txn("t1")
     repo.add_invoice(invoice(id="inv_1"))  # invoice first, payment arrives later
     first = load.ingest_transaction(repo, t)
     assert first.documented is True
     again = load.ingest_transaction(repo, t)
     assert again.documented is True and again.invoice_id == "inv_1"
-    event = Event(kind=EventKind.BANK_TRANSACTION, payload={"transaction": t.model_dump(mode="json")})
-    load.apply_event(repo, event)
-    load.apply_event(repo, event)
     assert repo.get_transaction("t1").documented is True
 
 
@@ -197,30 +193,18 @@ def test_concurrent_attach_of_one_number_to_two_payments(factory):
             assert documented == [next(r["transaction_id"] for r in res if r["ok"])]
 
 
-# -- item 10: reset also resets the simulator cursor -----------------------------------------------------------
-def test_reset_clears_the_simulator_cursor(repo: Repository):
-    repo.conn.execute(SIM_SCHEMA_SQL)
-    repo.conn.execute(
-        "INSERT INTO sim_state (id, sim_time, paused, speed, last_tick, next_index)"
-        " VALUES (1, now(), FALSE, 60, 0, 42)")
-    repo.conn.commit()
+# -- reset ------------------------------------------------------------------------------------------------------
+def test_reset_empties_the_company_tables(repo: Repository):
+    repo.add_team(Team(id="kitchen", name="Kitchen"))
+    repo.add_transaction(txn("t1"))
     load.reset(repo)
-    assert repo.conn.execute("SELECT count(*) AS n FROM sim_state").fetchone()["n"] == 0
-
-
-def test_reset_without_a_simulator_table(repo: Repository):
-    load.reset(repo)  # sim_state was never created: nothing to clear, no error
+    assert repo.list_teams() == [] and repo.list_transactions() == []
 
 
 # -- item 25: reset + load in one transaction ------------------------------------------------------------------
 def test_failed_reseed_keeps_the_old_data(repo: Repository, tmp_path: Path):
     repo.add_team(Team(id="kitchen", name="Kitchen"))
     repo.add_transaction(txn("t1"))
-    repo.conn.execute(SIM_SCHEMA_SQL)
-    repo.conn.execute(
-        "INSERT INTO sim_state (id, sim_time, paused, speed, last_tick, next_index)"
-        " VALUES (1, now(), FALSE, 60, 0, 7)")
-    repo.conn.commit()
 
     broken = tmp_path / "broken"
     broken.mkdir()
@@ -230,7 +214,6 @@ def test_failed_reseed_keeps_the_old_data(repo: Repository, tmp_path: Path):
 
     assert [t.id for t in repo.list_teams()] == ["kitchen"]
     assert repo.get_transaction("t1") is not None
-    assert repo.conn.execute("SELECT next_index FROM sim_state").fetchone()["next_index"] == 7
 
 
 def test_reseed_in_one_transaction_replaces_the_data(repo: Repository, tmp_path: Path):
@@ -354,29 +337,6 @@ def test_replay_never_changes_the_invoice_of_a_documented_payment(repo: Reposito
     again = load.ingest_transaction(repo, t)
     assert again.documented is True and again.invoice_id == "inv_0"
     assert repo.get_invoice_by_number("AS-1").transaction_id is None
-
-
-def test_reset_waits_for_the_simulator_replay_lock(factory):
-    from cfo.sim.engine import LOCK_KEY
-
-    holder = psycopg.connect(get_settings().database_url, autocommit=True)
-    holder.execute("SELECT pg_advisory_lock(%s)", (LOCK_KEY,))  # what Simulator._locked() holds during a tick
-    done = threading.Event()
-
-    def run():
-        with factory() as r:
-            load.reset(r)
-        done.set()
-
-    th = threading.Thread(target=run)
-    th.start()
-    try:
-        assert not done.wait(0.7), "reset must wait for the replay lock"
-    finally:
-        holder.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
-        holder.close()
-    th.join(timeout=15)
-    assert done.is_set()
 
 
 def test_attach_takes_the_invoice_lock_before_the_payment_row(factory):

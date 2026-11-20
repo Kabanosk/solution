@@ -21,10 +21,11 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 | Postgres 16 | `docker compose up -d db` | Deployment `postgres`, svc `postgres:5432`, PVC `postgres-data` (5Gi), Secret `postgres` | ✅ |
 | Sample data (organizer CSV etc.) | `data/` (git-ignored) | Deployment `files`, svc `http://files:8080` (read-only), PVC `sample-data` | ✅ |
 | Backend image | `Containerfile` → `cfo-backend` | ImageStream + BuildConfig `cfo-backend` (`deploy/openshift/app/`), built from GitHub `main` | ✅ |
-| Seed Job (migrate + generate + load) | `cfo migrate/generate/load` | Job `cfo-seed` (`deploy/openshift/db/`) | ✅ |
+| Seed Job (Scout seed: company + Scout tables + bank mock + demo evidence) | `cfo seed --reset` | Job `cfo-seed` (`deploy/openshift/db/`) | 🟡 Scout |
 | API (FastAPI) | `:8080` dev / `:8000` in image | Deployment + Service + Route `api` | ✅ |
 | MCP servers company-db / workstations / hr | `:8001` / `:8002` / `:8003` | Deployments + Services `mcp-*` (internal only) | ✅ |
-| Agent worker (sim + agent + Slack) | `cfo worker` | Deployment `worker` (`cfo.run`) | ✅ |
+| Scout worker pool (watchers + job queue + Slack) | `cfo worker` | Deployment `scout-worker` (`scout.worker`) | 🟡 Scout |
+| Bank mock (Revolut-shaped API) | `cfo bank-mock` | Deployment + Service `bank-mock:8010` | 🟡 Scout |
 | LLM usage sampler | `python -m cfo.usage` | Deployment `usage-sampler` (vLLM `/metrics` → Postgres, T032) | ✅ |
 | Dashboard (Next.js) | `dashboard/` | Deployment + Route `dashboard`, own build (`deploy/openshift/dashboard/`), Basic login | ✅ |
 | LLM (vLLM, Granite 4.0 H Tiny) | n/a | InferenceService `modelcar-granite-4-0-h-tiny` in project `my-first-model` (L4, one GPU); args in §8 | ✅ |
@@ -51,12 +52,13 @@ uv run --project backend uvicorn cfo.api.app:app --port 8080 --reload   # API, d
 uv run --project backend python -m cfo.mcp_servers hr --transport streamable-http   # MCP over HTTP (:8003)
 ```
 
-Simulator (December 2025, shared state in Postgres):
+Scout, locally (Postgres from `.env`; the LLM through `oc port-forward`):
 
 ```sh
-uv run --project backend python -m cfo.sim status
-uv run --project backend python -m cfo.sim start --speed 3600 --run   # 1 simulated hour per second, foreground
-uv run --project backend python -m cfo.sim pause | step | jump 2025-12-15 | reset
+uv run --project backend python -m scout.seed --reset      # company + Scout tables, shifted statement, demo evidence
+uv run --project backend python -m scout.mock_bank         # bank mock on 127.0.0.1:8010
+uv run --project backend python -m scout.worker            # worker pool + watchers + Slack Socket Mode
+uv run --project backend python -m scout.demo play nowhere # post a live demo payment (files|email|chat_refund|nowhere|overspend_chat)
 ```
 
 Tests and lint:
@@ -66,25 +68,6 @@ python3 -m unittest discover -s backend/tests -t backend       # or: uv run --pr
 uvx ruff check backend                                         # ruff is not a project dep
 ```
 
-Agent evaluation (T028; needs the `mlflow` extra, Postgres and an MLflow tracking URI):
-
-```sh
-MLFLOW_TRACKING_URI=sqlite:///mlflow.db uv run --project backend --extra mlflow python -m cfo.eval              # scripted model
-MLFLOW_TRACKING_URI=... LLM_BASE_URL=... LLM_MODEL=... uv run --project backend --extra mlflow python -m cfo.eval --llm real
-```
-
-It plays the 15 scenarios of `backend/cfo/eval/scenarios.yaml` (golden path + autonomy rules D-005/D-011/D-013)
-through the real agent graph and policy engine and logs one run to the MLflow experiment `cfo-agent-eval`:
-metrics `policy_level_correct/mean`, `action_correct/mean`, `no_execution_without_approval/mean`,
-`explanation_cites_amount/mean`, `latency_s/mean|max`, `pass_rate`; tags `llm_model`, `llm_mode`, `git_sha`; one
-trace per scenario with its scores (run page, tab Traces) and the table `eval_scenarios.json` (tab Artifacts).
-The scenario company lives in a Postgres schema of its own (`cfo_eval_<pid>`, created and dropped; the database
-user needs `CREATE` on the database) and the LLM calls are not written to `llm_usage`. Options: `--only id,id`,
-`--scenarios FILE`, `--judge` (one extra LLM-as-judge score from the same endpoint), `--strict` (exit 1 on a
-failed scenario), `--tracking-uri`, `--schema`. In an image without a git checkout set `GIT_SHA`. On the cluster
-run it where `LLM_BASE_URL` resolves (e.g. `oc exec deploy/<worker> -- python -m cfo.eval --llm real`, with
-`MLFLOW_TRACKING_URI` and the `MLFLOW_TRACKING_AUTH` settings of §5), or locally through `oc port-forward` to the
-model pod. The backend image installs the `mlflow` extra since T042; an older image stops with a message.
 
 ## 3. Backend image
 
@@ -100,9 +83,11 @@ The image entrypoint is the `cfo` dispatcher (`deploy/cfo-entrypoint.sh`):
 |---|---|
 | `cfo api` (default) | uvicorn on `0.0.0.0:${API_PORT:-8000}` |
 | `cfo mcp <company-db\|workstations\|hr> [port]` | MCP server, streamable HTTP on 8001/8002/8003, endpoint `/mcp` |
-| `cfo worker` | `python -m cfo.run` (agent worker, T011) |
+| `cfo worker` | `python -m scout.worker` (Scout worker pool) |
+| `cfo bank-mock` | `python -m scout.mock_bank` on port 8010 |
+| `cfo seed [--reset]` | `python -m scout.seed` (demo company, Scout tables, bank mock) |
 | `cfo migrate` / `generate` / `load` | same as the modules in §2 |
-| `cfo <anything>` | exec'd as is: `cfo sh`, `cfo python -m cfo.sim status` |
+| `cfo <anything>` | exec'd as is: `cfo sh`, `cfo python -m scout.demo list` |
 
 The image has no data: `data/generated` and the source CSV come from a volume or from `cfo generate` with
 the CSV mounted (`SOURCE_CSV`). Healthcheck: `GET /healthz` → `{"status":"ok"}`.

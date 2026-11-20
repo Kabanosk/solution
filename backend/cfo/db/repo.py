@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Self
 
 import psycopg
@@ -20,19 +20,14 @@ from psycopg.types.json import Jsonb
 
 from cfo.config import get_settings
 from cfo.domain import (
-    ApprovalRequest,
-    ApprovalStatus,
     CostMetric,
-    Decision,
     Employee,
-    Event,
     Invoice,
     InvoiceLine,
     Rule,
     Team,
     Transaction,
     Vacation,
-    utcnow,
 )
 
 
@@ -225,56 +220,7 @@ class Repository:
         sql = "SELECT * FROM cost_metrics" + (" WHERE kind = %s" if kind else "") + " ORDER BY month"
         return [CostMetric(**r) for r in self._all(sql, [kind] if kind else [])]
 
-    def add_event(self, event: Event) -> None:
-        self._write("events", event.model_dump(mode="json"))
-
-    def list_events(self, since: datetime | None = None) -> list[Event]:
-        sql = "SELECT * FROM events" + (" WHERE ts >= %s" if since else "") + " ORDER BY ts"
-        return [Event(**r) for r in self._all(sql, [since] if since else [])]
-
-    # -- decisions, approvals, rules -----------------------------------------------------------
-    def add_decision(self, dec: Decision) -> None:
-        self._write("decisions", dec.model_dump(mode="json"))
-
-    def merge_decision_job_log(self, decision_ids: list[str], entries: list[dict[str, str]]) -> None:
-        """Merge checkpoint entries atomically, retaining failures outside a checkpoint.
-
-        Each emitted entry has a stable ID. Replayed snapshots therefore do not
-        duplicate earlier entries, while genuinely repeated actions stay distinct.
-        """
-        self.conn.execute(
-            """UPDATE decisions d SET payload = jsonb_set(d.payload, '{job_log}', (
-                SELECT coalesce(jsonb_agg(entry ORDER BY first_seen), '[]'::jsonb)
-                FROM (
-                    SELECT entry, min(position) AS first_seen
-                    FROM jsonb_array_elements(
-                        CASE WHEN jsonb_typeof(d.payload->'job_log') = 'array'
-                            THEN d.payload->'job_log' ELSE '[]'::jsonb END || %s::jsonb
-                    ) WITH ORDINALITY AS history(entry, position)
-                    GROUP BY entry ORDER BY min(position) DESC LIMIT 500
-                ) bounded
-            ), true) WHERE d.id = ANY(%s)""",
-            (Jsonb(entries), decision_ids),
-        )
-        self.conn.commit()
-
-    def list_decisions(self, limit: int = 100) -> list[Decision]:
-        return [Decision(**r) for r in self._all("SELECT * FROM decisions ORDER BY ts DESC LIMIT %s", (limit,))]
-
-    def add_approval_request(self, req: ApprovalRequest) -> None:
-        self._write("approval_requests", req.model_dump(mode="json"))
-
-    def get_approval_request(self, request_id: str) -> ApprovalRequest | None:
-        rows = self._all("SELECT * FROM approval_requests WHERE id = %s", (request_id,))
-        return ApprovalRequest(**rows[0]) if rows else None
-
-    def resolve_approval(self, request_id: str, status: ApprovalStatus) -> None:
-        self.conn.execute(
-            "UPDATE approval_requests SET status = %s, resolved_at = %s WHERE id = %s",
-            (status.value, utcnow(), request_id),
-        )
-        self._commit()
-
+    # -- rules -----------------------------------------------------------------------------------
     def add_rule(self, rule: Rule) -> None:
         self._write("rules", rule.model_dump(mode="json"))
 

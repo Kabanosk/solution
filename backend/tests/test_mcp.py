@@ -260,15 +260,10 @@ def test_attach_invoice_and_mismatch(factory):
     assert t.attach_invoice("t2", "AS-3", "Asimex", "not-a-date", "40")["error"] == "invalid_input"
 
 
-def test_record_decision(factory):
+def test_rules_are_listed_and_no_decision_tools_remain(factory):
     t = CompanyDbTools(factory)
-    res = t.record_decision("attach_invoice", "Took AS-69664 from Downloads", "AUTO", "known supplier",
-                            payload={"invoice": "AS-69664"}, executed_simulated=True)
-    assert res["ok"]
-    [d] = t.list_decisions()
-    assert d["id"] == res["decision_id"] and d["level"] == "AUTO" and d["executed_simulated"] is True
-    assert t.record_decision("x", "y", "LOUD", "z")["error"] == "invalid_input"
     assert t.list_rules() == []
+    assert not hasattr(t, "record_decision") and not hasattr(t, "list_decisions")
 
 
 def test_hr(factory):
@@ -304,8 +299,8 @@ def test_db_servers_build_and_expose_tools(factory):
     s1 = company_db.build_server(factory)
     s2 = hr.build_server(factory)
     n1 = {t.name for t in asyncio.run(s1.list_tools())}
-    assert {"attach_invoice", "record_decision", "list_transactions"} <= n1
-    assert not n1 & {"delete_transaction", "execute_sql"}  # only the two narrow writes exist
+    assert {"attach_invoice", "list_transactions"} <= n1 and "record_decision" not in n1
+    assert not n1 & {"delete_transaction", "execute_sql"}  # only the narrow write exists
     assert {t.name for t in asyncio.run(s2.list_tools())} >= {"org_chart", "manager_of", "is_on_vacation"}
     out = asyncio.run(s2.call_tool("is_on_vacation", {"employee_id": "grazyna", "on": "2025-12-25"}))
     assert "true" in json.dumps(out, default=str).lower()

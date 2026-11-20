@@ -40,6 +40,7 @@ class ScoutSettings(BaseSettings):
     slack_user_map: str = ""
     api_write_token: str = ""
     scout_demo: bool = False
+    ksef_api_url: str = "https://api-test.ksef.mf.gov.pl/v2"  # KSeF test environment (self-signed seals allowed)
 
     @field_validator("chat_channels", mode="before")
     @classmethod

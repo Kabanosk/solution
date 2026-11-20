@@ -35,6 +35,8 @@ SCENARIOS: dict[str, Scenario] = {
                  chat_message="Pasta Fresca Bologna cancelled our Christmas pasta order (PFB-2611). They will refund "
                               "the deposit of 1,250.00 EUR in full by the end of next week.",
                  chat_author="grazyna"),
+        Scenario("ksef", "Invoice only in KSeF (e-invoice)", "Hurtownia Mazur Sp. z o.o.", Decimal("-1509.84"),
+                 "Faktura HMZ-20417 Hurtownia Mazur", "HMZ-20417", where="ksef"),
         Scenario("nowhere", "Nowhere, so Scout asks on Slack", "Fattoria La Vino GmbH", Decimal("-869.62"),
                  "Invoice FLV-42026 Italian Wine & Fine Beverages", "FLV-42026", where="nowhere"),
         Scenario("overspend_chat", "Ads over budget, approved in chat", "Meta Platforms Ireland",

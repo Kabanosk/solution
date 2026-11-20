@@ -10,6 +10,7 @@ Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company re
 - Payroll and social contributions: latest month with salary bookings. These are historical records, not a future schedule.
 - Agent tasks (`agent_tasks`, grouped by status), task detail at `/tasks/SC-123` (activity log from `agent_task_steps`, approvals, audit rows), Audit log, Connections and Access policies; see `backend/scout/schema.sql`. The old `#investigations` hash opens Agent tasks.
 - Approve / Reject, Connect Google and the dev demo panel (`SCOUT_DEMO=1`) call the API server-side through `/api/approve`, `/api/google` and `/api/demo` with `API_WRITE_TOKEN`; the token never reaches the browser.
+- **Connect KSeF** (Connections page) posts to `/api/ksef` -> `POST ${CFO_API_URL}/v1/connections/ksef:connect` (write token server-side, not gated by `SCOUT_DEMO`) and polls the `ksef` connection row (`config.phase`, steps, invoices) while it runs.
 - `/scout-icon.svg` and `/scout-icon.png` (512×512) are public, for the Slack bot avatar.
 - Liquidity forecast: the documented `GET /v1/forecast/liquidity` on the internal CFO API. If unavailable, the chart shows a message; no invented forecast is substituted.
 

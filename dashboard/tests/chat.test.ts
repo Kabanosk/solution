@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAT_MODELS, ChatInputError, conversationForRequest, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
+import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
 import { completionEvents } from "../lib/chat-stream.ts";
 
 const model = CHAT_MODELS[0].id;
@@ -20,7 +20,7 @@ test("chat accepts only the configured model and bounded user/assistant conversa
   }
   const messages = [user, { role: "assistant", content: "Hello" }, { ...user, content: "Continue" }];
   assert.deepEqual(parseChatRequest({ model, messages }).messages, messages);
-  const huge = Array.from({ length: 7 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x".repeat(10000) }));
+  const huge = Array.from({ length: 13 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x".repeat(10000) }));
   assert.throws(() => parseChatRequest({ model, messages: huge }), /too long/);
 });
 
@@ -36,7 +36,7 @@ test("request bodies are byte-bounded and malformed JSON is rejected", async () 
   const request = new Request("http://localhost/api/chat", { method: "POST", body: JSON.stringify({ model, messages: [user] }) });
   assert.deepEqual(await readChatBody(request), { model, messages: [user] });
   await assert.rejects(readChatBody(new Request("http://localhost", { method: "POST", body: "invalid" })), ChatInputError);
-  await assert.rejects(readChatBody(new Request("http://localhost", { method: "POST", body: "x".repeat(262145) })), /too long/);
+  await assert.rejects(readChatBody(new Request("http://localhost", { method: "POST", body: "x".repeat(524289) })), /too long/);
 });
 
 test("Granite SSE survives split UTF-8/chunks, CRLF and metadata; hidden reasoning is not forwarded", async () => {
@@ -89,4 +89,50 @@ test("file events are validated; unknown events stay dropped", () => {
   assert.equal(sanitizeChatEvent({ type: "file", name: "x.csv", mime: "text/csv", data_b64: "not base64!" }), null);
   assert.equal(sanitizeChatEvent({ type: "file", name: "x.csv", mime: "text/csv" }), null);
   assert.equal(sanitizeChatEvent({ type: "surprise", text: "x" }), null);
+});
+
+const t = (id: string, role: ChatTurn["role"], content = id, status: ChatTurn["status"] = "complete"): ChatTurn => ({ id, role, content, status });
+
+test("compacted events are validated", () => {
+  assert.deepEqual(sanitizeChatEvent({ type: "compacted", summary: " Paid Asimex €612. ", replaced: 6 }), { type: "compacted", summary: "Paid Asimex €612.", replaced: 6 });
+  assert.equal(sanitizeChatEvent({ type: "compacted", summary: "", replaced: 6 }), null);
+  assert.equal(sanitizeChatEvent({ type: "compacted", summary: "x", replaced: 0 }), null);
+  assert.equal(sanitizeChatEvent({ type: "compacted", summary: "x", replaced: 2.5 }), null);
+});
+
+test("compaction replaces the summarized turns with one summary item, which is sent as an assistant message", () => {
+  const turns = [t("u1", "user"), t("a1", "assistant"), t("u2", "user"), t("a2", "assistant", "", "error"), t("u3", "user"), t("a3", "assistant"),
+    t("u4", "user"), t("a4", "assistant"), t("u5", "user")];
+  const { messages, sources } = requestFor(turns);
+  assert.deepEqual(sources, ["u1", "a1", "u3", "a3", "u4", "a4", "u5"], "the failed u2 exchange is not sent");
+  assert.equal(messages.length, 7);
+  const pending = [...turns, t("p", "assistant", "", "pending")];
+  const compacted = applyCompaction(pending, sources, { summary: "Earlier: **€612** to Asimex.", replaced: 4 }, "s1");
+  assert.deepEqual(compacted.map(turn => turn.id), ["s1", "u4", "a4", "u5", "p"]);
+  assert.equal(compacted[0].kind, "summary");
+  assert.equal(compacted[0].replaced, 4);
+  const next = requestFor([...compacted.slice(0, 4), t("p", "assistant", "ok"), t("u6", "user")]);
+  assert.deepEqual(next.messages[0], { role: "assistant", content: `${SUMMARY_PREFIX}\nEarlier: **€612** to Asimex.` });
+  assert.deepEqual(next.messages.slice(1).map(message => message.role), ["user", "assistant", "user", "assistant", "user"]);
+  assert.doesNotThrow(() => parseChatRequest({ model, messages: next.messages }), "the route accepts a leading summary");
+  // A second compaction folds the old summary in and keeps counting the original messages.
+  const again = applyCompaction([...compacted.slice(0, 4), t("p", "assistant", "ok"), t("u6", "user")], next.sources, { summary: "All of it.", replaced: 4 }, "s2");
+  assert.deepEqual(again.map(turn => turn.id), ["s2", "p", "u6"]);
+  assert.equal(again[0].replaced, 4 - 1 + 4);
+  assert.equal(applyCompaction(turns, [], { summary: "x", replaced: 2 }, "s3"), turns, "nothing known: unchanged");
+});
+
+test("a leading assistant message must be a summary", () => {
+  assert.throws(() => parseChatRequest({ model, messages: [{ role: "assistant", content: "Hi" }, user] }), ChatInputError);
+});
+
+test("very long uncompacted chats send only the newest exchanges that fit", () => {
+  const turns: ChatTurn[] = [];
+  for (let i = 0; i < 40; i++) turns.push(t(`u${i}`, "user", "q"), t(`a${i}`, "assistant", "a"));
+  turns.push(t("last", "user", "now"));
+  const { messages, sources } = requestFor(turns);
+  assert.ok(messages.length <= 62);
+  assert.equal(messages[0].role, "user");
+  assert.equal(sources.at(-1), "last");
+  assert.doesNotThrow(() => parseChatRequest({ model, messages }));
 });

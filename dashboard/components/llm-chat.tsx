@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpRight, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
-import { CHAT_MODELS, MAX_MESSAGE_LENGTH, conversationForRequest, readJsonLines, type ChatFile, type ChatTurn } from "@/lib/chat-model";
+import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -46,9 +46,10 @@ export function LlmChat({ active }: { active: boolean }) {
     const files: ChatFile[] = [];
     let completed = false;
     let failure = "Could not reach Scout. Try again.";
+    const request_ = requestFor(history);
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: conversationForRequest(history) }), signal: controller.signal });
+        body: JSON.stringify({ model, messages: request_.messages }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         if (typeof body?.error === "string") failure = body.error;
@@ -60,6 +61,11 @@ export function LlmChat({ active }: { active: boolean }) {
         if (controller.signal.aborted) break;
         if (event.type === "step" && typeof event.text === "string") { steps.push(event.text); update({ steps: [...steps] }); }
         else if (event.type === "delta" && typeof event.text === "string") { content += event.text; update({ content }); }
+        else if (event.type === "compacted") {
+          const summaryId = crypto.randomUUID();
+          setMessages(current => applyCompaction(current, request_.sources, event, summaryId));
+          setNotice("Earlier messages were summarized to fit the model.");
+        }
         else if (event.type === "file") { files.push({ name: event.name, mime: event.mime, dataB64: event.data_b64, sentToSlack: event.sent_to_slack }); update({ files: [...files] }); }
         else if (event.type === "error") { failure = event.message; throw new Error("Model stream failed"); }
         else if (event.type === "done") { completed = true; setTruncated(event.truncated); if (event.task_id) update({ taskId: event.task_id }); }
@@ -124,7 +130,9 @@ export function LlmChat({ active }: { active: boolean }) {
             onClick={() => { setDraft(suggestion); input.current?.focus(); }}>{suggestion}</Button>)}
         </div>
       </div> : <ol id="scout-chat-messages" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        {messages.map(turn => turn.role === "user"
+        {messages.map(turn => turn.kind === "summary"
+          ? <li key={turn.id} id={`scout-chat-message-${turn.id}`}><SummaryDivider turn={turn} /></li>
+          : turn.role === "user"
           ? <li key={turn.id} id={`scout-chat-message-${turn.id}`} className="flex justify-end">
               <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap text-primary-foreground [overflow-wrap:anywhere]"><span className="sr-only">You: </span>{turn.content}</div>
             </li>
@@ -147,7 +155,10 @@ export function LlmChat({ active }: { active: boolean }) {
                     </li>)}
                   </ul>
                 </details>}
-                {turn.files?.map((file, index) => <FileChip key={index} file={file} />)}
+                {turn.files?.length ? <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-2">{turn.files.map((file, index) => <FileChip key={index} file={file} />)}</div>
+                  {turn.files.some(file => file.sentToSlack) && <p className="flex items-center gap-1.5 pl-1 text-[11px] text-muted-foreground"><Send className="size-3" aria-hidden="true" />{turn.files.length === 1 ? "Also sent to your Slack DM" : `All ${turn.files.length} files also sent to your Slack DM`}</p>}
+                </div> : null}
                 {turn.content ? <Markdown source={turn.content} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
                   : turn.files?.length ? null : turn.status === "pending" ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />Working…</span>
                   : <span className="text-sm text-muted-foreground">No response received.</span>}
@@ -209,12 +220,24 @@ function FileChip({ file }: { file: ChatFile }) {
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  return <div className="w-fit max-w-full space-y-1">
-    <div data-chat-file={file.name} className="flex max-w-full items-center gap-3 rounded-lg border bg-background px-3 py-2">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-success-border bg-success-muted text-success"><Icon className="size-4" aria-hidden="true" /></span>
-      <span className="min-w-0"><span className="block truncate text-[13px] font-medium">{file.name}</span><span className="block text-[11px] text-muted-foreground">{file.mime === "text/csv" ? "CSV" : file.mime.split("/").pop()} · {size < 1024 ? `${size} B` : `${(size / 1024).toFixed(1)} KB`}</span></span>
-      <Button type="button" variant="outline" size="sm" className="ml-2 h-8 shrink-0 gap-1.5" onClick={download} aria-label={`Download ${file.name}`}><Download className="size-3.5" aria-hidden="true" />Download</Button>
-    </div>
-    {file.sentToSlack && <p className="flex items-center gap-1.5 pl-1 text-[11px] text-muted-foreground"><Send className="size-3" aria-hidden="true" />Also sent to your Slack DM</p>}
+  return <div data-chat-file={file.name} className="flex w-72 max-w-full items-center gap-3 rounded-lg border bg-background px-3 py-2">
+    <span className={`flex size-8 shrink-0 items-center justify-center rounded-md border ${file.mime === "application/pdf" ? "border-danger-border text-danger" : "border-success-border bg-success-muted text-success"}`}><Icon className="size-4" aria-hidden="true" /></span>
+    <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium" title={file.name}>{file.name}</span><span className="block text-[11px] text-muted-foreground">{file.mime === "text/csv" ? "CSV" : file.mime === "application/pdf" ? "PDF" : file.mime.split("/").pop()} · {size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB`}</span></span>
+    <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" onClick={download} aria-label={`Download ${file.name}`} title="Download"><Download className="size-4" aria-hidden="true" /></Button>
+  </div>;
+}
+
+/** Scout compacted the earlier conversation: a thin divider that opens the summary. */
+function SummaryDivider({ turn }: { turn: ChatTurn }) {
+  const [open, setOpen] = useState(false);
+  const count = turn.replaced ?? 0;
+  return <div className="space-y-2">
+    <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)} data-chat-summary
+      className="group flex w-full items-center gap-3 text-[11px] text-muted-foreground hover:text-foreground">
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1"><History className="size-3" aria-hidden="true" />Earlier messages summarized · {count} {count === 1 ? "message" : "messages"}<ChevronDown aria-hidden="true" className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} /></span>
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+    </button>
+    {open && <div className="rounded-lg border bg-muted/40 px-4 py-3"><p className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Summary Scout keeps as context</p><Markdown source={turn.content} className="text-[13px] leading-6" /></div>}
   </div>;
 }

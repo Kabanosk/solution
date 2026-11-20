@@ -73,8 +73,10 @@ def test_disabled_helpers_are_transparent():
 def tracing(tmp_path):
     import mlflow
 
-    settings = obs.TracingSettings(_env_file=None, mlflow_tracking_uri=f"sqlite:///{tmp_path / 'mlflow.db'}",
-                                   mlflow_agent_experiment=EXPERIMENT)
+    uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    mlflow.set_tracking_uri(uri)  # keep trace artifacts in tmp_path too (the default is ./mlruns in the cwd)
+    mlflow.create_experiment(EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri())
+    settings = obs.TracingSettings(_env_file=None, mlflow_tracking_uri=uri, mlflow_agent_experiment=EXPERIMENT)
     assert obs.init_tracing(settings) is True
     yield mlflow
     obs.reset_tracing()

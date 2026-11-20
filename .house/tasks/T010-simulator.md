@@ -1,7 +1,7 @@
 ---
 id: T010
 title: December event simulator with speed control
-status: review
+status: done
 owner: coder
 branch: task/T010-simulator
 depends_on: ["T002"]

@@ -2,6 +2,29 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decimalCents, displayCents, financePeriod } from "../lib/finance-model.ts";
 import { authorized } from "../lib/auth.ts";
+import { isDevelopmentPreview } from "../lib/development-preview.ts";
+
+test("sample-data access is opt-in and never bypasses production authentication", () => {
+  const environment: Record<string, string | undefined> = process.env;
+  const original = { nodeEnv: environment.NODE_ENV, preview: process.env.DASHBOARD_PREVIEW };
+  try {
+    process.env.DASHBOARD_PREVIEW = "1";
+    environment.NODE_ENV = "production";
+    assert.equal(isDevelopmentPreview(), false);
+    assert.equal(authorized(null), false);
+    environment.NODE_ENV = "test";
+    assert.equal(isDevelopmentPreview(), false);
+    environment.NODE_ENV = "development";
+    assert.equal(isDevelopmentPreview(), true);
+    assert.equal(authorized(null), true);
+    process.env.DASHBOARD_PREVIEW = "0";
+    assert.equal(isDevelopmentPreview(), false);
+    assert.equal(authorized(null), false);
+  } finally {
+    if (original.nodeEnv === undefined) delete environment.NODE_ENV; else environment.NODE_ENV = original.nodeEnv;
+    if (original.preview === undefined) delete process.env.DASHBOARD_PREVIEW; else process.env.DASHBOARD_PREVIEW = original.preview;
+  }
+});
 
 test("money aggregation preserves cents, categories and inflows", () => {
   const period = financePeriod([

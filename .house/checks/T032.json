@@ -1,0 +1,26 @@
+{
+  "task": "T032",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_llm_usage.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.api.export_openapi docs/openapi.json && grep -q \"/v1/llm/usage\" docs/openapi.json && grep -q \"/v1/llm/usage/live\" docs/openapi.json",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:47:10+01:00",
+  "results": {}
+}

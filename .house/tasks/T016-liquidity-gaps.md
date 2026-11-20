@@ -1,7 +1,7 @@
 ---
 id: T016
 title: Liquidity gaps and credit line proposal
-status: review
+status: done
 owner: coder
 branch: task/T016-liquidity-gaps
 depends_on: ["T015", "T003"]

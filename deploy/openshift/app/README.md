@@ -34,19 +34,18 @@ To go through NeMo Guardrails, point `LLM_BASE_URL` at the proxy instead (D-009)
 
 ## Secrets (never commit values; the repo is public)
 
-One Secret `cfo-secrets`, read by the worker (`optional`, so pods start without it, the Slack channel and
-LLM key are then empty):
+Slack tokens live in Secret `slack` (keys `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_USER_MAP`), read by the worker
+and the api (`optional`, so pods start without it). Created once by the team, never committed:
 
 ```sh
-oc create secret generic cfo-secrets \
+oc create secret generic slack \
   --from-literal=SLACK_BOT_TOKEN='xoxb-...' \
   --from-literal=SLACK_APP_TOKEN='xapp-...' \
-  --from-literal=LLM_API_KEY='...'          # drop if the endpoint needs no token (default: EMPTY)
-oc rollout restart deploy/worker
+  --from-literal=SLACK_USER_MAP='vincenzo=U...,grazyna=U...'
+oc rollout restart deploy/worker deploy/api
 ```
 
-Change one key later: `oc create secret generic cfo-secrets --from-literal=... --dry-run=client -o yaml | oc apply -f -`
-(this replaces all keys, so repeat all of them). Where the Slack tokens come from: `docs/slack-setup.md`.
+The vLLM endpoint needs no API key (LLM_API_KEY defaults to EMPTY). Where the Slack tokens come from: `docs/slack-setup.md`.
 
 ## Database
 
@@ -64,7 +63,7 @@ daily cost-vs-metric check and the liquidity review (when the replay has finishe
 `COST_CHECK_HOURS`, `LIQUIDITY_CHECK_HOURS`, `REMINDER_AFTER_HOURS` change the intervals.
 
 The api pod runs with `AGENT_IN_API=1`: it builds its own agent on the same Postgres checkpointer, so Approve /
-Reject from the dashboard and events emitted by `POST /v1/sim:step` are handled there. It reads `cfo-secrets`
+Reject from the dashboard and events emitted by `POST /v1/sim:step` are handled there. It reads Secret `slack`
 too (it sends DMs with `SLACK_BOT_TOKEN`; only the worker opens the Slack socket). After changing the secret:
 `oc rollout restart deploy/api deploy/worker`.
 

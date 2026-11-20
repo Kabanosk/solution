@@ -1,0 +1,1554 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Autonomous CFO API",
+    "description": "\nREST API of the Autonomous CFO for Pizzeria Amalfi (dashboard backend).\n\n* Versioned under `/v1`. Money is `{\"amount\": \"1234.50\", \"currency\": \"EUR\"}`, dates are ISO 8601, timestamps UTC.\n* Errors always look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`.\n* Responses with `\"stub\": true` (and header `X-Stub: true`) carry sample data in the final shape.\n\nExamples for every endpoint: `docs/api.md`.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/kpis": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Headline numbers for the dashboard",
+        "description": "Balance, average monthly cash flow, the lowest forecast balance of the next 12 months, undocumented\npayments (tax risk), pending approvals and open cost anomalies.",
+        "operationId": "get_kpis_v1_kpis_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Kpis"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/forecast/liquidity": {
+      "get": {
+        "tags": [
+          "forecast"
+        ],
+        "summary": "Predicted bank balance with prediction interval and negative-balance gaps",
+        "description": "`gaps` and `lowest_point` always describe the whole horizon, whatever the granularity.",
+        "operationId": "get_liquidity_forecast_v1_forecast_liquidity_get",
+        "parameters": [
+          {
+            "name": "horizon_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 7,
+              "description": "Days ahead. 90 for the dashboard chart, 365 to see the June gap.",
+              "default": 90,
+              "title": "Horizon Days"
+            },
+            "description": "Days ahead. 90 for the dashboard chart, 365 to see the June gap."
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "day",
+                "week"
+              ],
+              "type": "string",
+              "description": "Spacing of `points`.",
+              "default": "week",
+              "title": "Granularity"
+            },
+            "description": "Spacing of `points`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiquidityForecast"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/costs/by-team": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "Costs per team over a date range, with monthly breakdown",
+        "description": "Teams are sorted by total cost, highest first. Months are included when their first day is in range.",
+        "operationId": "get_costs_by_team_v1_costs_by_team_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day, ISO date. Default 2025-01-01.",
+              "title": "From"
+            },
+            "description": "First day, ISO date. Default 2025-01-01."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, ISO date. Default 2025-12-31.",
+              "title": "To"
+            },
+            "description": "Last day, ISO date. Default 2025-12-31."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostsByTeam"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cost-metrics": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "The three cost-vs-metric pairs as monthly series",
+        "description": "Food cost vs orders, ads vs new customers (CAC), app cloud vs online orders (D-006). Months where cost\ngrew with no matching metric growth carry an `anomaly` explanation.",
+        "operationId": "get_cost_metrics_v1_cost_metrics_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CostMetricKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this pair.",
+              "title": "Kind"
+            },
+            "description": "Only this pair."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection_CostMetricSeries_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "History of everything the agent decided or did, newest first",
+        "operationId": "list_decisions_v1_decisions_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Page size.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of items to skip.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Number of items to skip."
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PolicyLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "AUTO, NOTIFY or APPROVAL.",
+              "title": "Level"
+            },
+            "description": "AUTO, NOTIFY or APPROVAL."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DecisionStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "action_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. attach_invoice.",
+              "title": "Action Type"
+            },
+            "description": "e.g. attach_invoice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DecisionOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/{decision_id}": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "One decision",
+        "operationId": "get_decision_v1_decisions__decision_id__get",
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rules": {
+      "get": {
+        "tags": [
+          "rules"
+        ],
+        "summary": "Policy rules the CEO set with a sentence, newest first",
+        "operationId": "list_rules_v1_rules_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Page size.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of items to skip.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Number of items to skip."
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only active (true) or only switched-off (false) rules.",
+              "title": "Active"
+            },
+            "description": "Only active (true) or only switched-off (false) rules."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RuleOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness probe (no database access)",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Anomaly": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "drivers": {
+            "items": {
+              "$ref": "#/components/schemas/AnomalyDriver"
+            },
+            "type": "array",
+            "title": "Drivers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "drivers"
+        ],
+        "title": "Anomaly"
+      },
+      "AnomalyDriver": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "current": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "previous",
+          "current"
+        ],
+        "title": "AnomalyDriver"
+      },
+      "Collection_CostMetricSeries_": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database.",
+            "default": false
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CostMetricSeries"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Collection[CostMetricSeries]"
+      },
+      "CostMetricKind": {
+        "type": "string",
+        "enum": [
+          "food_cost",
+          "ads_cac",
+          "cloud_per_order"
+        ],
+        "title": "CostMetricKind",
+        "description": "The three cost-vs-metric pairs (D-006)."
+      },
+      "CostMetricPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month",
+            "description": "First day of the month."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "metric_value": {
+            "type": "string",
+            "title": "Metric Value",
+            "description": "Orders / new customers / online orders in the month (integer string)."
+          },
+          "cost_per_unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost per order / per new customer (CAC) / per online order. Null when the metric is zero."
+          },
+          "cost_change_pct": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "50.0"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Change Pct",
+            "description": "Cost change vs previous month in percent."
+          },
+          "metric_change_pct": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "50.0"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Change Pct",
+            "description": "Metric change vs previous month in percent."
+          },
+          "anomaly": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Anomaly"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when cost grew with no matching metric growth."
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "cost",
+          "metric_value",
+          "cost_per_unit",
+          "cost_change_pct",
+          "metric_change_pct"
+        ],
+        "title": "CostMetricPoint"
+      },
+      "CostMetricSeries": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CostMetricKind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "order",
+              "new_customer",
+              "online_order"
+            ],
+            "title": "Unit",
+            "description": "What `cost_per_unit` is per."
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CostMetricPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "team_id",
+          "unit",
+          "points"
+        ],
+        "title": "CostMetricSeries"
+      },
+      "CostsByTeam": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database."
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "title": "From",
+            "description": "First day included."
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "title": "To",
+            "description": "Last day included."
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TeamCosts"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stub",
+          "from",
+          "to",
+          "total",
+          "items"
+        ],
+        "title": "CostsByTeam"
+      },
+      "DecisionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "dec_6f1c0a7e2b11"
+            ]
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ts"
+          },
+          "action_type": {
+            "type": "string",
+            "title": "Action Type",
+            "examples": [
+              "attach_invoice"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "level": {
+            "$ref": "#/components/schemas/PolicyLevel"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why the policy engine chose this level."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DecisionStatus"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor",
+            "description": "'agent' or the employee id who decided (e.g. 'vincenzo')."
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "executed_simulated": {
+            "type": "boolean",
+            "title": "Executed Simulated",
+            "description": "True: executed, but only simulated (D-005); show as SIMULATED."
+          },
+          "approval_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ts",
+          "action_type",
+          "summary",
+          "level",
+          "reason",
+          "status",
+          "actor",
+          "payload",
+          "executed_simulated"
+        ],
+        "title": "DecisionOut",
+        "description": "Mirror of `cfo.domain.Decision`."
+      },
+      "DecisionStatus": {
+        "type": "string",
+        "enum": [
+          "executed",
+          "pending",
+          "rejected",
+          "escalated"
+        ],
+        "title": "DecisionStatus"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "not_found"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "examples": [
+              "Decision 'dec_x' does not exist."
+            ]
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Only present for validation errors."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc",
+            "description": "Where the problem is, e.g. ['query', 'limit']."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Validator type, e.g. 'less_than_equal'."
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "message",
+          "type"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "ForecastGap": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "lowest_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Lowest Date"
+          },
+          "lowest_balance": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "lowest_date",
+          "lowest_balance"
+        ],
+        "title": "ForecastGap",
+        "description": "A stretch of days with a predicted negative balance: the reason for a credit line (D-005)."
+      },
+      "ForecastModelInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "mlflow_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mlflow Run Id"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ForecastModelInfo"
+      },
+      "ForecastPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money",
+            "description": "Predicted end-of-day balance."
+          },
+          "lower": {
+            "$ref": "#/components/schemas/Money",
+            "description": "Lower bound of the 80 % prediction interval."
+          },
+          "upper": {
+            "$ref": "#/components/schemas/Money",
+            "description": "Upper bound of the 80 % prediction interval."
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "balance",
+          "lower",
+          "upper"
+        ],
+        "title": "ForecastPoint"
+      },
+      "ForecastSummary": {
+        "properties": {
+          "horizon_days": {
+            "type": "integer",
+            "title": "Horizon Days"
+          },
+          "lowest_balance": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "lowest_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Lowest Date"
+          },
+          "first_negative_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Negative Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "horizon_days",
+          "lowest_balance",
+          "lowest_date"
+        ],
+        "title": "ForecastSummary"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "Health"
+      },
+      "Kpis": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "balance_change_30d": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "avg_monthly_inflows": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "avg_monthly_outflows": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/ForecastSummary"
+          },
+          "undocumented_payments": {
+            "$ref": "#/components/schemas/UndocumentedPayments"
+          },
+          "pending_approvals": {
+            "type": "integer",
+            "title": "Pending Approvals"
+          },
+          "open_cost_alerts": {
+            "type": "integer",
+            "title": "Open Cost Alerts",
+            "description": "Cost-vs-metric pairs currently flagged as an anomaly (D-006)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stub",
+          "as_of",
+          "balance",
+          "balance_change_30d",
+          "avg_monthly_inflows",
+          "avg_monthly_outflows",
+          "forecast",
+          "undocumented_payments",
+          "pending_approvals",
+          "open_cost_alerts"
+        ],
+        "title": "Kpis"
+      },
+      "LiquidityForecast": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "Last day with actual data; the forecast starts the day after."
+          },
+          "horizon_days": {
+            "type": "integer",
+            "title": "Horizon Days"
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week"
+            ],
+            "title": "Granularity"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "opening_balance": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "lowest_point": {
+            "$ref": "#/components/schemas/ForecastPoint",
+            "description": "Lowest predicted balance within the horizon."
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastGap"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ForecastModelInfo"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stub",
+          "as_of",
+          "horizon_days",
+          "granularity",
+          "currency",
+          "opening_balance",
+          "lowest_point",
+          "gaps",
+          "model",
+          "points"
+        ],
+        "title": "LiquidityForecast"
+      },
+      "Money": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{2}$",
+            "title": "Amount",
+            "description": "String decimal, two places, negative = outflow.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "ISO 4217 code.",
+            "default": "EUR",
+            "examples": [
+              "EUR"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "title": "Money"
+      },
+      "MonthlyCost": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month",
+            "description": "First day of the month."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "cost"
+        ],
+        "title": "MonthlyCost"
+      },
+      "Page_DecisionOut_": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database.",
+            "default": false
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Number of items matching the filters, across all pages."
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[DecisionOut]"
+      },
+      "Page_RuleOut_": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database.",
+            "default": false
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RuleOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Number of items matching the filters, across all pages."
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[RuleOut]"
+      },
+      "PolicyLevel": {
+        "type": "string",
+        "enum": [
+          "AUTO",
+          "NOTIFY",
+          "APPROVAL"
+        ],
+        "title": "PolicyLevel",
+        "description": "Autonomy level of an action (D-005)."
+      },
+      "RuleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "rule_9a41c3d05e77"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The CEO's own sentence."
+          },
+          "level": {
+            "$ref": "#/components/schemas/PolicyLevel"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier"
+          },
+          "action_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Type"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "level",
+          "created_by",
+          "created_at",
+          "active"
+        ],
+        "title": "RuleOut",
+        "description": "Mirror of `cfo.domain.Rule`."
+      },
+      "TeamCosts": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id",
+            "examples": [
+              "kitchen"
+            ]
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id",
+            "description": "Employee who owns these costs."
+          },
+          "monthly_budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "avg_monthly": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "share": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Share",
+            "description": "Share of all teams' costs, 0..1, four decimals.",
+            "examples": [
+              "0.6153"
+            ]
+          },
+          "by_month": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyCost"
+            },
+            "type": "array",
+            "title": "By Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "owner_id",
+          "monthly_budget",
+          "total",
+          "avg_monthly",
+          "share",
+          "by_month"
+        ],
+        "title": "TeamCosts"
+      },
+      "UndocumentedPayments": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Paid invoices without a document in the database (Belegpflicht risk, D-003)."
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "total"
+        ],
+        "title": "UndocumentedPayments"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "dashboard",
+      "description": "Headline numbers."
+    },
+    {
+      "name": "forecast",
+      "description": "Liquidity forecast."
+    },
+    {
+      "name": "costs",
+      "description": "Costs per team and cost-vs-metric pairs."
+    },
+    {
+      "name": "decisions",
+      "description": "What the agent decided or did, by autonomy level."
+    },
+    {
+      "name": "rules",
+      "description": "CEO overrides of the default policy."
+    },
+    {
+      "name": "system",
+      "description": "Liveness."
+    }
+  ]
+}

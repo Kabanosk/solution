@@ -1,5 +1,6 @@
 """API-only settings (same `.env` as cfo.config, kept separate so other tasks do not collide on config.py)."""
 
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic import Field
@@ -13,11 +14,16 @@ class ApiSettings(BaseSettings):
         env_file=(REPO_ROOT / ".env", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
+        env_ignore_empty=True,
     )
 
     # Comma-separated list of allowed browser origins, or "*" (the default, fine for the hackathon demo:
     # the API has no cookies or credentials). Env var: CORS_ORIGINS.
     cors_origins: str = Field(default="*")
+
+    # Safety buffer for the liquidity forecast in EUR (D-013). Empty = the largest monthly fixed cost in the data.
+    # Env var: SAFETY_BUFFER_EUR.
+    safety_buffer_eur: Decimal | None = Field(default=None)
 
     @property
     def cors_origin_list(self) -> list[str]:

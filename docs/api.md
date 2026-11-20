@@ -4,9 +4,10 @@ REST API behind the dashboard (Pizzeria Amalfi). Interactive docs: `http://local
 contract: [`docs/openapi.json`](openapi.json), also served at `/openapi.json` (generate TypeScript types from it,
 e.g. `npx openapi-typescript docs/openapi.json -o api.d.ts`).
 
-**Status: all endpoints below return STUB data** (realistic Pizzeria Amalfi numbers, final response shapes).
-Build the dashboard against them now; the shapes will not change when real data replaces the stubs, only the
-values. Every stub response has `"stub": true` in the body and the header `X-Stub: true`.
+**Status: all endpoints below return real data from the database** (`"stub": false`, no `X-Stub` header; the
+`stub` field stays in every body for compatibility). The shapes are those of the former stubs, with two additive
+fields for the safety buffer (see the forecast section); the example values below come from the seeded year after
+the December replay (as of 2025-12-31).
 
 ## Run it
 
@@ -14,7 +15,7 @@ values. Every stub response has `"stub": true` in the body and the header `X-Stu
 uv run --project backend uvicorn cfo.api.app:app --port 8080 --reload
 ```
 
-No database is needed for the stubs. Allowed browser origins: env `CORS_ORIGINS` (comma-separated, default `*`).
+The read endpoints need the seeded Postgres (`DATABASE_URL`, `python -m cfo.data.load --data data/generated --reset`); `/healthz` does not. Allowed browser origins: env `CORS_ORIGINS` (comma-separated, default `*`).
 Regenerate the contract after API changes: `uv run --project backend python -m cfo.api.export_openapi docs/openapi.json`.
 
 ## Conventions
@@ -50,6 +51,8 @@ Regenerate the contract after API changes: `uv run --project backend python -m c
 | 409 | `conflict` | state does not allow the action (used by approvals, coming) |
 | 422 | `validation_error` | bad query parameter; `error.details[]` lists `loc`, `message`, `type` |
 | 500 | `internal_error` | bug on our side; no internal details are leaked |
+| 503 | `database_unavailable` | the database cannot be reached |
+| 503 | `no_data` | the database has no transactions yet (not seeded) |
 
 Validation error example (`GET /v1/decisions?limit=1000`):
 
@@ -96,112 +99,164 @@ Liveness probe, no database access.
 Headline tiles: balance, average monthly cash flow, the lowest forecast balance of the next 12 months, paid
 invoices without a document (Belegpflicht risk), pending approvals and open cost-vs-metric anomalies.
 
+* `balance` is the running sum of all bookings (the statement has no opening balance), `as_of` the last booking day.
+  `balance_change_30d` is the net of the bookings in the 30 days up to `as_of`.
+* `avg_monthly_inflows` / `avg_monthly_outflows` average whole calendar months of bookings (a month still running at
+  `as_of` is left out; all bank lines count, including the partner tranches).
+* `forecast`: `lowest_balance`/`lowest_date` are the lowest point of the next 365 days (usually right after `as_of`,
+  the June dip is a local minimum). `first_negative_date` is the first day below zero (null on the real data, D-013).
+  **New:** `safety_buffer` and `first_below_buffer_date` (first day below the buffer, null if none).
+* `pending_approvals` counts approval requests with status `pending`; `open_cost_alerts` counts pairs whose latest
+  month is an anomaly.
+
 ```bash
 curl -s http://localhost:8080/v1/kpis
 ```
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "as_of": "2025-12-31",
   "balance": {
-    "amount": "42338.93",
+    "amount": "32945.51",
     "currency": "EUR"
   },
   "balance_change_30d": {
-    "amount": "9393.42",
+    "amount": "9582.66",
     "currency": "EUR"
   },
   "avg_monthly_inflows": {
-    "amount": "44474.52",
+    "amount": "45368.69",
     "currency": "EUR"
   },
   "avg_monthly_outflows": {
-    "amount": "-42333.42",
+    "amount": "-42623.23",
     "currency": "EUR"
   },
   "forecast": {
     "horizon_days": 365,
     "lowest_balance": {
-      "amount": "-20430.00",
+      "amount": "28905.14",
       "currency": "EUR"
     },
-    "lowest_date": "2026-06-27",
-    "first_negative_date": "2026-06-06"
+    "lowest_date": "2026-01-01",
+    "first_negative_date": null,
+    "safety_buffer": {
+      "amount": "17730.00",
+      "currency": "EUR"
+    },
+    "first_below_buffer_date": null
   },
   "undocumented_payments": {
-    "count": 8,
+    "count": 9,
     "total": {
-      "amount": "6571.98",
+      "amount": "7333.21",
       "currency": "EUR"
     }
   },
-  "pending_approvals": 1,
+  "pending_approvals": 0,
   "open_cost_alerts": 1
 }
 ```
 
 ## `GET /v1/forecast/liquidity`
 
-Predicted end-of-day bank balance with an 80 % prediction interval, plus the stretches where the balance is
-predicted negative (`gaps`, the reason for a credit line). `lowest_point` and `gaps` always cover the whole
-horizon.
+Predicted end-of-day bank balance (XGBoost on calendar features, T015) with an 80 % prediction interval, the
+**safety buffer line** and the stretches where the balance is predicted below it. `lowest_point` and `gaps`
+always cover the whole horizon.
+
+**Changed vs the stub (D-013):**
+* New field `safety_buffer` (Money): draw it as a horizontal line. Default one month of fixed costs, the largest
+  month of payroll + rent + tax + social security + utilities in the data (17,730.00 EUR on the seeded year);
+  override with the env var `SAFETY_BUFFER_EUR`.
+* `gaps` are now stretches **below `safety_buffer`**, not below zero. On the real data the balance stays above
+  the buffer, so `gaps` is empty and the June 2026 shutdown shows as a dip of about 14k (the balance falls from about
+  60k to about 46k). The credit-line story is a what-if scenario (later), not the base case.
+* `opening_balance` is the balance at `as_of` (the last booking day); the forecast starts the day after.
+* The interval is an approximation: 1.28 x the model's holdout RMSE x sqrt(days ahead), i.e. day errors are treated
+  as independent. `model.version` is `trained-until-<date>`, `model.trained_at` the time the model file was saved.
+* The model file (`models/liquidity_xgb.json`, or `FORECAST_MODEL_PATH`) is trained on the first request if missing
+  (takes about a second) and reused afterwards.
 
 | Query | Default | Meaning |
 |---|---|---|
-| `horizon_days` | `90` | 7..365. Use 90 for the dashboard chart, 365 to see the June 2026 gap |
+| `horizon_days` | `90` | 7..365. Use 90 for the dashboard chart, 365 to see the June 2026 dip |
 | `granularity` | `week` | `day` or `week`; spacing of `points` (weekly points are the last day of each 7-day block; the lowest day is always included) |
 
 ```bash
 curl -s "http://localhost:8080/v1/forecast/liquidity?horizon_days=365"
 ```
 
-Response (points shortened; the 90-day default has `"gaps": []`):
+Response (points shortened):
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "as_of": "2025-12-31",
   "horizon_days": 365,
   "granularity": "week",
   "currency": "EUR",
   "opening_balance": {
-    "amount": "42338.93",
+    "amount": "32945.51",
+    "currency": "EUR"
+  },
+  "safety_buffer": {
+    "amount": "17730.00",
     "currency": "EUR"
   },
   "lowest_point": {
-    "date": "2026-06-27",
+    "date": "2026-01-01",
     "balance": {
-      "amount": "-20430.00",
+      "amount": "28905.14",
       "currency": "EUR"
     },
     "lower": {
-      "amount": "-24746.00",
+      "amount": "28513.80",
       "currency": "EUR"
     },
     "upper": {
-      "amount": "-16114.00",
+      "amount": "29296.49",
       "currency": "EUR"
     }
   },
-  "gaps": [
-    {
-      "start": "2026-06-06",
-      "end": "2026-07-26",
-      "lowest_date": "2026-06-27",
-      "lowest_balance": {
-        "amount": "-20430.00",
-        "currency": "EUR"
-      }
-    }
-  ],
+  "gaps": [],
   "model": {
     "name": "xgboost-liquidity",
-    "version": "stub",
+    "version": "trained-until-2025-12-31",
     "mlflow_run_id": null,
-    "trained_at": null
+    "trained_at": "2026-11-20T14:00:16.603852Z"
   },
   "points": [
+    {
+      "date": "2026-01-01",
+      "balance": {
+        "amount": "28905.14",
+        "currency": "EUR"
+      },
+      "lower": {
+        "amount": "28513.80",
+        "currency": "EUR"
+      },
+      "upper": {
+        "amount": "29296.49",
+        "currency": "EUR"
+      }
+    },
+    {
+      "date": "2026-01-07",
+      "balance": {
+        "amount": "34365.81",
+        "currency": "EUR"
+      },
+      "lower": {
+        "amount": "33330.41",
+        "currency": "EUR"
+      },
+      "upper": {
+        "amount": "35401.20",
+        "currency": "EUR"
+      }
+    },
     "..."
   ]
 }
@@ -215,22 +270,22 @@ Costs per team over a range, with a monthly breakdown for stacked bars. Teams ar
 
 | Query | Default | Meaning |
 |---|---|---|
-| `from` | `2025-01-01` | first day (ISO date) |
-| `to` | `2025-12-31` | last day (ISO date); `from` after `to` is a 422 |
+| `from` | first day of the first booking month | first day (ISO date) |
+| `to` | last booking day | last day (ISO date); `from` after `to` is a 422 |
 
 ```bash
 curl -s "http://localhost:8080/v1/costs/by-team?from=2025-10-01&to=2025-12-31"
 ```
 
-Response (list shortened; the full list has all 5 teams: kitchen, front, marketing, it, equipment):
+Response (list shortened; the full list has the 5 teams kitchen, front, marketing, it, equipment, plus `company` for costs without a team: tax and social security, `owner_id` and `monthly_budget` null). Bank lines count in the booking month, invoices not yet linked to a payment in their issue month (ads, cloud and the oven are invoices only):
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "from": "2025-10-01",
   "to": "2025-12-31",
   "total": {
-    "amount": "115029.82",
+    "amount": "127738.86",
     "currency": "EUR"
   },
   "items": [
@@ -243,26 +298,26 @@ Response (list shortened; the full list has all 5 teams: kitchen, front, marketi
         "currency": "EUR"
       },
       "total": {
-        "amount": "82321.71",
+        "amount": "83074.05",
         "currency": "EUR"
       },
       "avg_monthly": {
-        "amount": "27440.57",
+        "amount": "27691.35",
         "currency": "EUR"
       },
-      "share": "0.7157",
+      "share": "0.6503",
       "by_month": [
         {
           "month": "2025-10-01",
           "cost": {
-            "amount": "27715.46",
+            "amount": "27714.66",
             "currency": "EUR"
           }
         },
         {
           "month": "2025-11-01",
           "cost": {
-            "amount": "26995.73",
+            "amount": "26994.94",
             "currency": "EUR"
           }
         },
@@ -285,7 +340,7 @@ Response (list shortened; the full list has all 5 teams: kitchen, front, marketi
         "amount": "8600.00",
         "currency": "EUR"
       },
-      "share": "0.2243",
+      "share": "0.2020",
       "by_month": [
         {
           "month": "2025-10-01",
@@ -328,7 +383,7 @@ Response (only the last two of 12 points shown):
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "items": [
     {
       "kind": "cloud_per_order",
@@ -400,7 +455,7 @@ Response (only the last two of 12 points shown):
 
 ## `GET /v1/decisions`
 
-History of everything the agent decided or did, newest first (steps 2 to 7 of the demo). Paginated.
+History of everything the agent decided or did, newest first (steps 2 to 7 of the demo). Paginated. Read from the `decisions` table, which the agent fills while it works: the list is empty on a freshly seeded database. The example below is illustrative.
 
 | Query | Default | Meaning |
 |---|---|---|
@@ -415,7 +470,7 @@ curl -s "http://localhost:8080/v1/decisions?level=APPROVAL&limit=2"
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "items": [
     {
       "id": "dec_5b7e41c0a9d3",
@@ -497,7 +552,7 @@ curl -s http://localhost:8080/v1/decisions/dec_6f1c0a7e2b11
 
 ## `GET /v1/rules`
 
-Policy rules the CEO set by writing a sentence in Slack (demo step 7), newest first. Paginated. A rule applies
+Policy rules the CEO set by writing a sentence in Slack (demo step 7), newest first. Paginated. Read from the `rules` table (empty until a rule is created); the example below is illustrative. A rule applies
 when all its non-null match fields (`category`, `supplier`, `action_type`) match; the newest matching active rule wins.
 
 | Query | Default | Meaning |
@@ -511,7 +566,7 @@ curl -s "http://localhost:8080/v1/rules?limit=1"
 
 ```json
 {
-  "stub": true,
+  "stub": false,
   "items": [
     {
       "id": "rule_3c9d7a1e5f20",
@@ -533,13 +588,12 @@ curl -s "http://localhost:8080/v1/rules?limit=1"
 
 ---
 
-## Coming next (not in the skeleton yet)
+## Coming next
 
 Owned by other tasks, so the shapes below are plans, not contracts:
 
 * `GET /v1/approvals`, `POST /v1/approvals/{id}:approve` and `:reject` (Approve / Reject from the dashboard),
   returning 409 `conflict` when already resolved.
 * `GET /v1/events`: Server-Sent Events stream of new decisions and events.
-* The stubs are replaced by database values endpoint by endpoint; `stub` will turn `false` and `X-Stub` disappears.
 
 Missing something for the dashboard? Open a GitHub issue with the screen and the fields you need (D-010).

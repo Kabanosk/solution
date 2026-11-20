@@ -41,8 +41,8 @@ class Notifier(Protocol):
     def track(self, task_id: str, status_ref: str) -> None:
         """Show this task's steps live in the "Working on it…" message `status_ref`."""
 
-    def upload(self, employee_id: str, name: str, content: bytes, comment: str) -> str | None:
-        """Send a file to the person's DM; returns its link, or None when it could not be sent."""
+    def upload(self, employee_id: str, files: list[tuple[str, bytes]], comment: str) -> str | None:
+        """Send files (name, content) to the person's DM in one message; returns a link, or None if not sent."""
 
 
 class LogNotifier:
@@ -54,9 +54,9 @@ class LogNotifier:
         self.tracked: dict[str, str] = {}
         self.files: list[dict[str, Any]] = []
 
-    def upload(self, employee_id, name, content, comment):  # noqa: ANN001
-        self.files.append({"to": employee_id, "name": name, "content": content, "comment": comment})
-        return f"log://{name}"
+    def upload(self, employee_id, files, comment):  # noqa: ANN001
+        self.files.append({"to": employee_id, "files": list(files), "comment": comment})
+        return f"log://{files[0][0]}" if files else None
 
     def dm(self, employee_id, text, level, *, task_id=None, buttons=(), thread=None):  # noqa: ANN001
         self.sent.append({"to": employee_id, "text": text, "level": level, "task_id": task_id,

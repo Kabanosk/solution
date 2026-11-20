@@ -75,5 +75,6 @@ def test_chat_streams_a_sent_file(conn_factory, tmp_path, monkeypatch):
     events = [json.loads(line) for line in r.text.splitlines()]
     assert [e["type"] for e in events] == ["step", "file", "delta", "done"]
     f = events[1]
-    assert f["name"].endswith(".csv") and f["mime"] == "text/csv" and f["sent_to_slack"] is True and f["data_b64"]
+    assert f["name"] == "Invoice_AS-77012.pdf" and f["mime"] == "application/pdf" and f["sent_to_slack"] is True
+    assert f["data_b64"]
     get_api_settings.cache_clear()

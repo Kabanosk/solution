@@ -125,14 +125,15 @@ class SlackUI:
                                            thread_ts=thread_ts, unfurl_links=False, **self._identity)
         return f"{res['channel']}:{res['ts']}"
 
-    def upload(self, employee_id: str, name: str, content: bytes, comment: str) -> str | None:
+    def upload(self, employee_id: str, files: list[tuple[str, bytes]], comment: str) -> str | None:
         channel = self._channel_for(employee_id)
-        if not channel:
-            log.info("no Slack id for %s; file %s not sent", employee_id, name)
+        if not channel or not files:
+            log.info("no Slack id for %s; %d file(s) not sent", employee_id, len(files))
             return None
-        res = self.client.files_upload_v2(channel=channel, filename=name, title=name, content=content,
-                                          initial_comment=comment)
-        f = res.get("file") or {}
+        res = self.client.files_upload_v2(
+            channel=channel, initial_comment=comment,
+            file_uploads=[{"filename": n, "title": n, "content": c} for n, c in files])
+        f = res.get("file") or (res.get("files") or [{}])[0]
         return f.get("permalink") or "sent"
 
     def update(self, ref: str, text: str, level: str) -> None:

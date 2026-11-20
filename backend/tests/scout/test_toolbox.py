@@ -122,28 +122,35 @@ def test_email_without_words_lists_the_newest_mails(conn_factory, tmp_path):
     assert nothing["mails"] == [] and "empty words" in nothing["hint"]
 
 
-def test_send_invoices_uploads_a_csv_to_the_askers_dm(conn_factory, tmp_path):
+def test_send_invoices_attaches_the_pdfs(conn_factory, tmp_path):
     import base64
-
     from datetime import date
     from decimal import Decimal
 
     from cfo.db.repo import Repository
-    from cfo.domain import Invoice
+    from cfo.domain import Invoice, InvoiceLine
 
     conn = conn_factory()
-    Repository(conn).add_invoice(Invoice(id="inv_as77012", number="AS-77012", supplier="Asimex Wholesale Ltd",
-                                         issue_date=date(2026, 11, 2), total=Decimal("1286.40")))
+    repo = Repository(conn)
+    repo.add_invoice(Invoice(id="inv_as77012", number="AS-77012", supplier="Asimex Wholesale Ltd",
+                             issue_date=date(2026, 11, 2), total=Decimal("1286.40")))
+    repo.add_invoice(Invoice(id="inv_cld", number="CLD-2026-11", supplier="Nimbus Cloud EU",
+                             issue_date=date(2026, 11, 3), total=Decimal("366.02"),
+                             lines=[InvoiceLine(description="Cloud hosting", quantity=Decimal(1),
+                                                unit_price=Decimal("366.02"), amount=Decimal("366.02"))]))
     conn.close()
     ctx = make_world(conn_factory, tmp_path)
     b = box(ctx, "vincenzo")
-    out = b.call("send_invoices", {"supplier": "Asimex", "days": 3650})
-    assert out["invoices"] >= 1 and out["sent_to_slack"] is True and out["file"].endswith(".csv")
+    out = b.call("send_invoices", {"days": 3650})
+    assert out["sent_to_slack"] is True and out["invoices"] == 2
+    assert {f["file"]: f["source"] for f in out["files"]} == {
+        "Invoice_AS-77012.pdf": "original from Grazyna's company folders",
+        "Invoice_CLD-2026-11.pdf": "copy from the invoicing system"}
     [up] = ctx.notifier.files
-    assert up["to"] == "vincenzo" and up["name"] == out["file"]
-    csv_text = up["content"].decode()
-    assert csv_text.splitlines()[0] == "number,supplier,issue_date,due_date,total,currency,paid_by_transaction"
-    assert "Asimex" in csv_text
-    [step] = [s for s in ctx.recorder.steps(b.task.id) if s.kind == "sent_file"]
-    assert base64.b64decode(step.detail["data_b64"]) == up["content"] and step.detail["sent_to_slack"] is True
+    assert up["to"] == "vincenzo" and [n for n, _ in up["files"]] == ["Invoice_CLD-2026-11.pdf", "Invoice_AS-77012.pdf"]
+    assert all(data[:5] == b"%PDF-" for _, data in up["files"])
+    sent = [s for s in ctx.recorder.steps(b.task.id) if s.kind == "sent_file"]
+    assert [s.detail["name"] for s in sent] == ["Invoice_CLD-2026-11.pdf", "Invoice_AS-77012.pdf"]
+    assert sent[0].detail["mime"] == "application/pdf" and base64.b64decode(sent[0].detail["data_b64"])[:5] == b"%PDF-"
+    assert b.call("send_invoices", {"number": "AS-77012"})["invoices"] == 1
     assert box(ctx, "vanessa").call("send_invoices", {})["error"] == "access_denied"

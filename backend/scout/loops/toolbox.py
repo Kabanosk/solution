@@ -19,6 +19,8 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+from cfo.data.invoices import invoice_pdf
+from cfo.domain import Invoice, InvoiceLine
 from cfo.llm import ToolSpec
 from scout.audit import check as access_check
 from scout.documents import document_text
@@ -26,6 +28,7 @@ from scout.loops.context import JobContext, eur, invoice_number_in
 from scout.models import Task
 
 MAX_ROWS = 10
+MAX_PDFS = 10  # files per Slack message
 
 
 def _p(**props: dict[str, Any]) -> dict[str, Any]:
@@ -64,9 +67,9 @@ SPECS: list[ToolSpec] = [
              parameters=_p(words=S, days=I)),
     ToolSpec(name="search_chat", description="Search the authorized Slack channels for a supplier, invoice number "
              "or amount.", parameters=_p(supplier=S, invoice_number=S, amount_eur=S, days=I)),
-    ToolSpec(name="send_invoices", description="Send the asker a CSV list of invoices as a file in Slack (and here). "
-             "Optional: supplier, days back (default 90), unpaid_only.",
-             parameters=_p(supplier=S, days=I, unpaid_only=B)),
+    ToolSpec(name="send_invoices", description="Send the asker the invoice PDFs in Slack (and here), newest first, "
+             "max 10. Optional: number, supplier, days back (default 90), unpaid_only.",
+             parameters=_p(number=S, supplier=S, days=I, unpaid_only=B)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -307,43 +310,97 @@ class Toolbox:
         return {"messages": [{"channel": f"#{h.channel}", "from": h.user_name or h.user, "text": h.text[:300]}
                              for h in hits[:MAX_ROWS]]}
 
-    def t_send_invoices(self, supplier: str = "", days: int = 90, unpaid_only: Any = False,
+    def t_send_invoices(self, supplier: str = "", days: int = 90, unpaid_only: Any = False, number: str = "",
                         **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("invoicing", "invoices")
         if not ok:
             return {"error": "access_denied", "policy": policy}
         since = (self.ctx.now() - timedelta(days=min(max(int(days or 90), 1), 3650))).date()
-        sql, a = ("SELECT number, supplier, issue_date, due_date, total, currency, transaction_id FROM invoices "
-                  "WHERE issue_date >= %s"), [since]
+        sql, a = ("SELECT id, number, supplier, issue_date, due_date, total, currency, transaction_id, category "
+                  "FROM invoices WHERE TRUE"), []
+        if number:
+            sql += " AND upper(number) = upper(%s)"
+            a.append(number.strip())
+        else:
+            sql += " AND issue_date >= %s"
+            a.append(since)
         if supplier:
             sql += " AND supplier ILIKE %s"
             a.append(f"%{supplier}%")
         if str(unpaid_only).casefold() in ("true", "1", "yes"):
             sql += " AND transaction_id IS NULL"
-        rows = self._q(sql + " ORDER BY issue_date DESC, number LIMIT 500", a)
+        rows = self._q(sql + f" ORDER BY issue_date DESC, number LIMIT {MAX_PDFS + 1}", a)
         if not rows:
             return {"invoices": 0, "note": "No invoices match; nothing was sent."}
-        buf = io.StringIO()
-        w = csv.writer(buf, lineterminator="\n")
-        w.writerow(["number", "supplier", "issue_date", "due_date", "total", "currency", "paid_by_transaction"])
+        more, rows = len(rows) > MAX_PDFS, rows[:MAX_PDFS]
+        originals = self._original_pdfs([r["number"] for r in rows])
+        files, listed = [], []
         for r in rows:
-            w.writerow([r["number"], r["supplier"], r["issue_date"], r["due_date"] or "", r["total"], r["currency"],
-                        r["transaction_id"] or ""])
-        content = buf.getvalue().encode()
+            name = f"Invoice_{r['number']}.pdf"
+            if r["number"] in originals:
+                data, source = originals[r["number"]]
+            else:
+                data, source = self._render_invoice(r), "copy from the invoicing system"
+            files.append((name, data))
+            listed.append({"file": name, "supplier": r["supplier"], "total": eur(Decimal(r["total"])),
+                           "date": str(r["issue_date"]), "source": source})
         total = sum((Decimal(r["total"]) for r in rows), Decimal(0))
-        name = f"invoices-{self.ctx.now():%Y-%m-%d}.csv"
-        comment = (f"{len(rows)} invoice(s){' from ' + supplier if supplier else ''} since {since:%d %b %Y}, "
-                   f"total {eur(total)}.")
+        comment = (f"{len(rows)} invoice(s){' from ' + supplier if supplier else ''}, total {eur(total)}"
+                   + (f" (the newest {MAX_PDFS}; ask for a supplier or a shorter period for others)" if more else "")
+                   + ".")
         try:
-            link = self.ctx.notifier.upload(self.requester, name, content, comment)
-        except Exception:  # noqa: BLE001 - the list still reaches the dashboard chat
+            link = self.ctx.notifier.upload(self.requester, files, comment)
+        except Exception:  # noqa: BLE001 - the PDFs still reach the dashboard chat
             link = None
-        self.ctx.recorder.step(self.task.id, "sent_file", f"Sent {name} ({len(rows)} invoices)"
-                               + (" to Slack" if link else ""), source="scout",
-                               detail={"name": name, "mime": "text/csv", "sent_to_slack": bool(link),
-                                       "data_b64": base64.b64encode(content).decode()})
-        return {"invoices": len(rows), "total": eur(total), "file": name, "sent_to_slack": bool(link),
-                "newest": _rows(rows[:5])}
+        for (name, data), item in zip(files, listed, strict=True):
+            self.ctx.recorder.step(self.task.id, "sent_file", f"Sent {name} ({item['source']})"
+                                   + (" to Slack" if link else ""), source="scout",
+                                   detail={"name": name, "mime": "application/pdf", "sent_to_slack": bool(link),
+                                           "data_b64": base64.b64encode(data).decode()})
+        return {"invoices": len(rows), "total": eur(total), "sent_to_slack": bool(link), "files": listed,
+                "more_not_sent": more}
+
+    def _original_pdfs(self, numbers: list[str]) -> dict[str, tuple[bytes, str]]:
+        """Invoice number -> (the original PDF, where it was found), from company folders the asker may see and
+        from the company mailbox. Every lookup is audited by the connectors."""
+        found: dict[str, tuple[bytes, str]] = {}
+
+        def match(name: str) -> str | None:
+            up = name.upper()
+            return next((n for n in numbers if n.upper() in up and n not in found), None)
+
+        for e in self.ctx.hr.all():
+            if len(found) == len(numbers):
+                break
+            if not self._allowed(f"laptop:{e['id']}", "company folders")[0]:
+                continue
+            for f in self.ctx.connectors.files.search(e["id"], numbers, task_id=self.task.id):
+                n = match(f["path"])
+                if n and f["path"].lower().endswith(".pdf"):
+                    data = self.ctx.connectors.files.read(e["id"], f["path"], task_id=self.task.id)
+                    if data and data[:5] == b"%PDF-":
+                        found[n] = (data, f"original from {self.ctx.hr.name(e['id'])}'s company folders")
+        mail = self.ctx.connectors.mail
+        if len(found) < len(numbers) and mail.available() and self._allowed("mail:company", "mailbox")[0]:
+            for hit in mail.search([n for n in numbers if n not in found], self.ctx.now() - timedelta(days=3650),
+                                   task_id=self.task.id):
+                for att in hit.attachments:
+                    n = match(att)
+                    if n and att.lower().endswith(".pdf"):
+                        data = mail.attachment(hit.id, att, task_id=self.task.id)
+                        if data and data[:5] == b"%PDF-":
+                            found[n] = (data, f"original from the email “{hit.subject}”")
+        return found
+
+    def _render_invoice(self, r: dict[str, Any]) -> bytes:
+        """A PDF copy built from the invoicing system's record and its lines."""
+        lines = self._q("SELECT description, quantity, unit_price, amount, category FROM invoice_lines "
+                        "WHERE invoice_id = %s ORDER BY position", [r["id"]])
+        inv = Invoice(id=r["id"], number=r["number"], supplier=r["supplier"], issue_date=r["issue_date"],
+                      due_date=r["due_date"], total=Decimal(r["total"]), currency=r["currency"] or "EUR",
+                      lines=[InvoiceLine(**ln) for ln in lines], transaction_id=r["transaction_id"],
+                      category=r["category"])
+        return invoice_pdf(inv, title_prefix="INVOICE (copy)")
 
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

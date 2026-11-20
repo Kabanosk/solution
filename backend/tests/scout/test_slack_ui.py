@@ -153,12 +153,14 @@ def test_linked_people_show_as_real_slack_people(conn_factory, db, fake_slack):
     assert "Wojciech Fiołka" in post["text"]  # the notification text stays readable
 
 
-def test_upload_sends_the_file_to_the_dm(conn_factory, fake_slack):
+def test_upload_sends_the_files_to_the_dm(conn_factory, fake_slack):
     s, _, _ = ui(conn_factory, fake_slack)
-    assert s.upload("grazyna", "invoices.csv", b"a,b\n", "3 invoices") == "https://slack.test/files/F1"
+    files = [("Invoice_A.pdf", b"%PDF-a"), ("Invoice_B.pdf", b"%PDF-b")]
+    assert s.upload("grazyna", files, "2 invoices") == "https://slack.test/files/F1"
     [up] = fake_slack.named("files_upload_v2")
-    assert up["channel"] == "D_U_GRA" and up["filename"] == "invoices.csv" and up["content"] == b"a,b\n"
-    assert up["initial_comment"] == "3 invoices"
+    assert up["channel"] == "D_U_GRA" and up["initial_comment"] == "2 invoices"
+    assert up["file_uploads"] == [{"filename": "Invoice_A.pdf", "title": "Invoice_A.pdf", "content": b"%PDF-a"},
+                                  {"filename": "Invoice_B.pdf", "title": "Invoice_B.pdf", "content": b"%PDF-b"}]
 
 
 def test_linked_slack_people_are_written_to_hr(conn_factory, db):

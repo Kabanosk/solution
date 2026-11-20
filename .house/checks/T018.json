@@ -27,17 +27,17 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "...........                                                              [100%]\n11 passed in 1.44s",
-      "ran_at": "2026-11-20T16:18:26+01:00",
-      "commit": "067b9c59b0c3d2187d6b77d8670f2efc24d8c3c3"
+      "output_tail": "...........                                                              [100%]\n11 passed in 1.64s",
+      "ran_at": "2026-11-20T16:23:35+01:00",
+      "commit": "7c5aec04cfc12361f923aa913b6f9040e5648ec3"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "wrote docs/openapi.json",
-      "ran_at": "2026-11-20T16:18:27+01:00",
-      "commit": "067b9c59b0c3d2187d6b77d8670f2efc24d8c3c3"
+      "ran_at": "2026-11-20T16:23:37+01:00",
+      "commit": "7c5aec04cfc12361f923aa913b6f9040e5648ec3"
     }
   }
 }

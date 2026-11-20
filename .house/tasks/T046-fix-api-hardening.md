@@ -4,7 +4,7 @@ title: "Review fixes: API write protection, async SSE, HTTP edge cases"
 status: todo
 owner: null
 branch: null
-depends_on: ["T011", "T030", "T032"]
+depends_on: ["T011", "T032"]
 capabilities: []
 acceptance:
   - id: AC-1
@@ -24,7 +24,7 @@ Fix the API findings of the Codex review (`$HOUSE_DIR/reports/review-fixes.md` i
    `to=9999-12-31` returns 422, not 500; by-team costs include unlinked invoices if that is the documented source.
 
 ## Context
-Starts after T011, T030, T032 are merged (they edit the API). Source: `$HOUSE_DIR/reports/review-T018.md`,
+Starts after T011 and T032 are merged (they edit the API; T030 was rejected, D-019). Source: `$HOUSE_DIR/reports/review-T018.md`,
 `review-T019.md`, `review-T020.md`. Confirm each at HEAD first. Keep `docs/api.md` + `openapi.json` in sync.
 
 ## Out of scope

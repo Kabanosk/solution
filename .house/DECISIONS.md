@@ -103,7 +103,7 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Kto:** coordinator (człowiek)
 - **Data:** 2026-11-20 15:45
 
-## D-016 Koszt użycia agenta z metryk vLLM zamiast rozbicia kosztów pizzerii pod dashboard
+## D-019 Koszt użycia agenta z metryk vLLM zamiast rozbicia kosztów pizzerii pod dashboard
 - **Decyzja:** T030/T031 (endpointy kosztów pizzerii i paczka dla Pawła) odrzucone — źle zrozumiałem prośbę; dane firmy są już w Postgresie na klastrze. Zamiast tego T032: szacowanie kosztu działania agenta na klastrze — zapis użycia każdego wywołania LLM (tokeny, czas, który krok agenta) + próbkowanie metryk Prometheus z vLLM, model kosztu (czas GPU wg stawki L4, amortyzacja, porównanie z hostowanym API), endpointy `/v1/llm/usage` i `/v1/llm/usage/live`.
 - **Dlaczego:** prośba Wojtka; pokazuje jury koszt jednej decyzji agenta i przewagę własnego modelu na OpenShift AI.
 - **Kto:** człowiek
@@ -126,7 +126,7 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Kto:** coordinator
 - **Data:** 2026-11-20 17:30
 
-## D-018 Granite jako zwykły InferenceService (HTTP), aktualne adresy
+## D-020 Granite jako zwykły InferenceService (HTTP), aktualne adresy
 - **Decyzja:** Granite 4.0 H Tiny działa teraz jako zwykły KServe InferenceService: `LLM_BASE_URL=http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`, `VLLM_METRICS_URL=http://…:8080/metrics` (bez TLS). Stare adresy https `…-kserve-workload-svc…:8000` z D-017 nie działają. Sekrety Slacka: Secret `slack` (envFrom w worker i api). Próbnik metryk działa jako Deployment `usage-sampler`; `/v1/llm/usage` i `/v1/llm/usage/live` odpowiadają na Route API (sprawdzone 2026-11-20 16:16).
 - **Kto:** człowiek (wdrożenie w sesji forka)
 - **Data:** 2026-11-20 16:20

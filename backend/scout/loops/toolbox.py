@@ -33,6 +33,9 @@ S = {"type": "string"}
 I = {"type": "integer"}
 
 SPECS: list[ToolSpec] = [
+    ToolSpec(name="missing_invoices", description="Outgoing payments that still have no invoice, and what Scout is "
+             "doing about each (task, status, who was asked). Use this for any question about missing invoices.",
+             parameters=_p(days=I)),
     ToolSpec(name="search_payments", description="Bank payments. Filter by counterparty, amount in EUR, days back, "
              "or only those without an invoice.",
              parameters=_p(counterparty=S, amount_eur=S, days=I, undocumented_only={"type": "boolean"})),
@@ -153,6 +156,22 @@ class Toolbox:
         rows = self._q(sql + " ORDER BY booking_date DESC LIMIT 11", a)
         return {"rows": _rows(rows), "more": len(rows) > MAX_ROWS}
 
+    def t_missing_invoices(self, days: int = 60, **_: Any) -> dict[str, Any]:
+        ok, policy = self._allowed("bank", "transactions")
+        if not ok:
+            return {"error": "access_denied", "policy": policy}
+        rows = self._q(
+            "SELECT x.booking_date, x.counterparty, x.amount, x.reference, t.id AS scout_task, t.status AS task_status, "
+            "t.owner_id AS asked FROM transactions x LEFT JOIN agent_tasks t ON t.transaction_id = x.id "
+            "WHERE x.amount < 0 AND NOT x.documented AND x.invoice_number IS NOT NULL AND x.booking_date >= %s "
+            "ORDER BY x.booking_date DESC LIMIT 11",
+            [self.ctx.now().date() - timedelta(days=min(int(days or 60), 400))])
+        for r in rows:
+            r["amount"] = eur(r["amount"])
+            r["asked"] = self.ctx.hr.name(r["asked"]) if r["asked"] else None
+            r["scout_task"] = r["scout_task"] or "none yet"
+        return {"payments_without_invoice": _rows(rows), "more": len(rows) > MAX_ROWS}
+
     def t_search_invoices(self, number: str = "", supplier: str = "", **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("invoicing", "invoices")
         if not ok:
@@ -201,9 +220,11 @@ class Toolbox:
 
     def t_scout_tasks(self, text: str = "", status: str = "", **_: Any) -> dict[str, Any]:
         sql, a = "SELECT id, title, status, outcome, owner_id, updated_at FROM agent_tasks WHERE loop <> 'chat'", []
-        if text:
-            sql += " AND (title ILIKE %s OR outcome ILIKE %s OR counterparty ILIKE %s)"
-            a += [f"%{text}%"] * 3
+        words = [w for w in (text or "").split() if len(w) >= 3][:3]
+        if words:
+            sql += " AND (" + " OR ".join(["(title ILIKE %s OR outcome ILIKE %s OR counterparty ILIKE %s)"] * len(words)) + ")"
+            for w in words:
+                a += [f"%{w}%"] * 3
         if status:
             sql += " AND status = %s"
             a.append(status.lower())

@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 13
+    assert len(SPECS) == 14
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -40,6 +40,10 @@ def test_money_tools(conn_factory, tmp_path):
     rows = b.call("search_payments", {"undocumented_only": True})["rows"]
     assert [r["counterparty"] for r in rows] == ["Fattoria La Vino GmbH"]
     assert b.call("cash_position", {})["money_out_30d"] == "€869.62"
+    asked = run_txn(ctx, pay(ctx, "nowhere", txn_id="tx_flv2"))
+    miss = b.call("missing_invoices", {})["payments_without_invoice"]
+    assert {(m["counterparty"], m["amount"]) for m in miss} == {("Fattoria La Vino GmbH", "€869.62")}
+    assert {m["scout_task"] for m in miss} == {"none yet", asked.id} and "Vincenzo" in {m["asked"] for m in miss}
     done = run_txn(ctx, pay(ctx, "files", txn_id="tx_files2"))
     log = b.call("task_log", {"task_id": done.id.lower()})
     assert log["task"]["status"] == "done" and any("Filed invoice AS-77012" in s for s in log["steps"])

@@ -19,10 +19,7 @@ from dataclasses import dataclass, field
 _LINE = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{(.*)\})?\s+(\S+)(?:\s+-?\d+)?\s*$")
 _LABEL = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"')
 
-KV_CACHE_NAMES = (
-    "vllm:kv_cache_usage_perc",
-    "vllm:gpu_cache_usage_perc",
-)  # newest first
+KV_CACHE_NAMES = ("vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc")  # newest first
 
 
 @dataclass(frozen=True)
@@ -47,10 +44,8 @@ def parse_prometheus_text(text: str) -> list[Sample]:
             value = float(value_text)
         except ValueError:
             continue
-        labels = {
-            k: v.replace('\\"', '"').replace("\\\\", "\\").replace("\\n", "\n")
-            for k, v in _LABEL.findall(label_text or "")
-        }
+        labels = {k: v.replace('\\"', '"').replace("\\\\", "\\").replace("\\n", "\n")
+                  for k, v in _LABEL.findall(label_text or "")}
         out.append(Sample(name, labels, value))
     return out
 
@@ -63,21 +58,13 @@ class VllmSnapshot:
     prompt_tokens_total: float | None = None
     generation_tokens_total: float | None = None
     requests_success_total: float | None = None  # all finished_reason values summed
-    requests_by_reason: dict[str, float] = field(
-        default_factory=dict
-    )  # stop / length / abort / error / ...
-    prompt_tokens_cached_total: float | None = (
-        None  # prompt tokens served from the prefix cache (part of prompt_tokens)
-    )
-    inference_time_sum: float | None = (
-        None  # `vllm:request_inference_time_seconds`: time on the GPU, no queueing
-    )
+    requests_by_reason: dict[str, float] = field(default_factory=dict)  # stop / length / abort / error / ...
+    prompt_tokens_cached_total: float | None = None  # prompt tokens served from the prefix cache (part of prompt_tokens)
+    inference_time_sum: float | None = None  # `vllm:request_inference_time_seconds`: time on the GPU, no queueing
     inference_time_count: float | None = None
     e2e_latency_sum: float | None = None
     e2e_latency_count: float | None = None
-    e2e_latency_buckets: dict[float, float] = field(
-        default_factory=dict
-    )  # upper bound (seconds) -> cumulative count
+    e2e_latency_buckets: dict[float, float] = field(default_factory=dict)  # upper bound (seconds) -> cumulative count
     requests_running: float | None = None
     requests_waiting: float | None = None
     kv_cache_usage: float | None = None  # fraction 0..1
@@ -86,15 +73,9 @@ class VllmSnapshot:
 
 _COUNTERS = {
     "prompt_tokens_total": ("vllm:prompt_tokens_total", "vllm:prompt_tokens"),
-    "generation_tokens_total": (
-        "vllm:generation_tokens_total",
-        "vllm:generation_tokens",
-    ),
+    "generation_tokens_total": ("vllm:generation_tokens_total", "vllm:generation_tokens"),
     "requests_success_total": ("vllm:request_success_total", "vllm:request_success"),
-    "prompt_tokens_cached_total": (
-        "vllm:prompt_tokens_cached_total",
-        "vllm:prompt_tokens_cached",
-    ),
+    "prompt_tokens_cached_total": ("vllm:prompt_tokens_cached_total", "vllm:prompt_tokens_cached"),
 }
 _GAUGES = {
     "requests_running": "vllm:num_requests_running",
@@ -154,9 +135,7 @@ def snapshots_from_text(text: str) -> dict[str, VllmSnapshot]:
             buckets[le] = buckets.get(le, 0.0) + s.value
     out: dict[str, VllmSnapshot] = {}
     for model, d in acc.items():
-        kv_name = next(
-            (n for n in KV_CACHE_NAMES if n in kv_found.get(model, {})), None
-        )
+        kv_name = next((n for n in KV_CACHE_NAMES if n in kv_found.get(model, {})), None)
         out[model] = VllmSnapshot(
             model=model,
             prompt_tokens_total=d.get("prompt_tokens_total"),
@@ -182,8 +161,7 @@ def snapshots_from_text(text: str) -> dict[str, VllmSnapshot]:
 
 def counter_increase(prev: float | None, cur: float | None) -> float:
     """Increase of a cumulative counter between two scrapes. A counter that went down means the server restarted
-    (it started again from zero), so the new value itself is the increase since the restart.
-    """
+    (it started again from zero), so the new value itself is the increase since the restart."""
     if cur is None:
         return 0.0
     if prev is None:
@@ -202,9 +180,7 @@ def counter_increase_series(values: list[float | None]) -> float:
     return total
 
 
-def bucket_increase(
-    prev: dict[float, float], cur: dict[float, float]
-) -> dict[float, float]:
+def bucket_increase(prev: dict[float, float], cur: dict[float, float]) -> dict[float, float]:
     """Per-bucket increase of a histogram between two scrapes (restart: the new cumulative counts)."""
     reset = any(cur.get(le, 0.0) < prev.get(le, 0.0) for le in prev)
     return {le: (c if reset else c - prev.get(le, 0.0)) for le, c in cur.items()}
@@ -223,9 +199,7 @@ def histogram_quantile(q: float, buckets: dict[float, float]) -> float | None:
     for upper, count in items:
         if count >= rank:
             if math.isinf(upper):
-                return (
-                    lower_bound  # the best we can say: at least the last finite bound
-                )
+                return lower_bound  # the best we can say: at least the last finite bound
             span = count - lower_count
             if span <= 0:
                 return upper

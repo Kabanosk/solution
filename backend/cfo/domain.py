@@ -51,16 +51,12 @@ class CostMetricKind(StrEnum):
 
     FOOD_COST = "food_cost"  # food spend vs orders -> food cost %
     ADS_CAC = "ads_cac"  # ad spend vs new customers -> CAC
-    CLOUD_PER_ORDER = (
-        "cloud_per_order"  # app cloud spend vs online orders -> cost per order
-    )
+    CLOUD_PER_ORDER = "cloud_per_order"  # app cloud spend vs online orders -> cost per order
 
 
 class EventKind(StrEnum):
     BANK_TRANSACTION = "bank_transaction"  # simulator: new line on the bank statement
-    INVOICE_DOCUMENT = (
-        "invoice_document"  # simulator: a document appeared on a workstation
-    )
+    INVOICE_DOCUMENT = "invoice_document"  # simulator: a document appeared on a workstation
     METRIC = "metric"  # simulator: monthly metric / cloud invoice
     REMINDER = "reminder"  # agent timers (e.g. no reply after X hours)
     MESSAGE = "message"  # inbound chat message (Slack)
@@ -106,9 +102,7 @@ class Invoice(BaseModel):
     lines: list[InvoiceLine] = Field(default_factory=list)
     transaction_id: str | None = None  # the payment it documents
     source: str = "db"  # "db" or a workstation path the agent found it at
-    category: str | None = (
-        None  # "food", "beverages", "cloud", "advertising", "equipment"
-    )
+    category: str | None = None  # "food", "beverages", "cloud", "advertising", "equipment"
     team_id: str | None = None  # the team whose costs it belongs to
 
 
@@ -171,18 +165,14 @@ class Decision(BaseModel):
 
     id: str = Field(default_factory=lambda: new_id("dec"))
     ts: datetime = Field(default_factory=utcnow)
-    action_type: (
-        str  # e.g. "attach_invoice", "request_credit_line", "alert_cost_anomaly"
-    )
+    action_type: str  # e.g. "attach_invoice", "request_credit_line", "alert_cost_anomaly"
     summary: str  # one human-readable sentence
     level: PolicyLevel
     reason: str  # why that level (from the policy engine)
     status: DecisionStatus = DecisionStatus.EXECUTED
     actor: str = "agent"  # "agent" or an employee id (CEO approvals)
     payload: dict[str, Any] = Field(default_factory=dict)
-    executed_simulated: bool = (
-        False  # execution is never real (D-005): shown as SIMULATED
-    )
+    executed_simulated: bool = False  # execution is never real (D-005): shown as SIMULATED
     approval_request_id: str | None = None
 
 
@@ -196,9 +186,7 @@ class ApprovalRequest(BaseModel):
     status: ApprovalStatus = ApprovalStatus.PENDING
     created_at: datetime = Field(default_factory=utcnow)
     resolved_at: datetime | None = None
-    channel_ref: str | None = (
-        None  # e.g. Slack channel + message ts, for updating the message
-    )
+    channel_ref: str | None = None  # e.g. Slack channel + message ts, for updating the message
 
 
 class Rule(BaseModel):

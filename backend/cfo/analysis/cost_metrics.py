@@ -26,8 +26,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
-from cfo.api.schemas import (Anomaly, AnomalyDriver, CostMetricPoint,
-                             CostMetricSeries, eur, pct)
+from cfo.api.schemas import Anomaly, AnomalyDriver, CostMetricPoint, CostMetricSeries, eur, pct
 from cfo.domain import CostMetric, CostMetricKind, Invoice
 
 COST_GROWTH_PCT = Decimal(20)  # cost up by at least this much vs the previous month ...
@@ -49,29 +48,13 @@ class PairSpec:
 
 PAIRS: dict[CostMetricKind, PairSpec] = {
     CostMetricKind.FOOD_COST: PairSpec(
-        "Food cost vs orders",
-        "kitchen",
-        "order",
-        "Food cost",
-        "orders",
-        "food cost per order",
-    ),
+        "Food cost vs orders", "kitchen", "order", "Food cost", "orders", "food cost per order"),
     CostMetricKind.ADS_CAC: PairSpec(
-        "Advertising vs new customers (CAC)",
-        "marketing",
-        "new_customer",
-        "Ad spend",
-        "new customers",
-        "cost per new customer (CAC)",
-    ),
+        "Advertising vs new customers (CAC)", "marketing", "new_customer", "Ad spend", "new customers",
+        "cost per new customer (CAC)"),
     CostMetricKind.CLOUD_PER_ORDER: PairSpec(
-        "App cloud vs online orders",
-        "it",
-        "online_order",
-        "Cloud cost for the ordering app",
-        "online orders",
-        "cloud cost per online order",
-    ),
+        "App cloud vs online orders", "it", "online_order", "Cloud cost for the ordering app", "online orders",
+        "cloud cost per online order"),
 }
 
 
@@ -95,10 +78,10 @@ class CostAnomaly:
     team_id: str | None
     cost: Decimal
     previous_cost: Decimal
-    cost_change_pct: Decimal
+    cost_change_pct: Decimal | None  # None when the previous cost was zero (a new cost, no percentage)
     metric_value: Decimal
     previous_metric_value: Decimal
-    metric_change_pct: Decimal
+    metric_change_pct: Decimal  # 0 when the metric stayed at zero
     cost_per_unit: Decimal | None
     previous_cost_per_unit: Decimal | None
     cost_per_unit_change_pct: Decimal | None
@@ -112,9 +95,7 @@ class Point:
     cost: Decimal
     metric_value: Decimal
     cost_per_unit: Decimal | None  # None when the metric is zero
-    cost_change_pct: (
-        Decimal | None
-    )  # None for the first month or when the previous cost is zero
+    cost_change_pct: Decimal | None  # None for the first month or when the previous cost is zero
     metric_change_pct: Decimal | None
     cost_per_unit_change_pct: Decimal | None
     anomaly: CostAnomaly | None = None
@@ -137,11 +118,7 @@ def change_pct(new: Decimal | None, old: Decimal | None) -> Decimal | None:
 
 
 def _decimal(value: Any) -> Decimal | None:
-    if (
-        value is None
-        or isinstance(value, bool)
-        or not isinstance(value, (int, float, str, Decimal))
-    ):
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
         return None
     try:
         return Decimal(str(value).strip())
@@ -149,9 +126,7 @@ def _decimal(value: Any) -> Decimal | None:
         return None
 
 
-def _invoice_index(
-    invoices: Iterable[Invoice] | Mapping[str, Invoice] | None,
-) -> dict[str, Invoice]:
+def _invoice_index(invoices: Iterable[Invoice] | Mapping[str, Invoice] | None) -> dict[str, Invoice]:
     if invoices is None:
         return {}
     if isinstance(invoices, Mapping):
@@ -159,9 +134,7 @@ def _invoice_index(
     return {i.number: i for i in invoices}
 
 
-def line_items(
-    metric: CostMetric, invoices: Mapping[str, Invoice] | None = None
-) -> dict[str, Decimal]:
+def line_items(metric: CostMetric, invoices: Mapping[str, Invoice] | None = None) -> dict[str, Decimal]:
     """Named amounts that make up the month's cost (see the module docstring for the sources)."""
     detail = metric.detail if isinstance(metric.detail, dict) else {}
     out: dict[str, Decimal] = {}
@@ -170,21 +143,13 @@ def line_items(
         for it in lines:
             if not isinstance(it, dict):
                 continue
-            name = next(
-                (it[k] for k in ("service", "description", "name") if it.get(k)), None
-            )
-            amount = _decimal(
-                next((it[k] for k in ("cost", "amount") if k in it), None)
-            )
+            name = next((it[k] for k in ("service", "description", "name") if it.get(k)), None)
+            amount = _decimal(next((it[k] for k in ("cost", "amount") if k in it), None))
             if name and amount is not None:
                 out[str(name)] = out.get(str(name), Decimal(0)) + amount
         if out:
             return out
-    flat = (
-        detail.get("by_supplier")
-        if isinstance(detail.get("by_supplier"), dict)
-        else detail
-    )
+    flat = detail.get("by_supplier") if isinstance(detail.get("by_supplier"), dict) else detail
     for k, v in flat.items():
         if k != "invoice_number" and (amount := _decimal(v)) is not None:
             out[str(k)] = amount
@@ -197,9 +162,7 @@ def line_items(
     return out
 
 
-def _drivers(
-    prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice]
-) -> list[Driver]:
+def _drivers(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice]) -> list[Driver]:
     before, now = line_items(prev, invoices), line_items(cur, invoices)
     found = [Driver(k, before.get(k, Decimal(0)), v) for k, v in now.items()]
     found = [d for d in found if d.delta > 0]
@@ -215,14 +178,8 @@ def _p1(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.1")), "f")
 
 
-def _explain(
-    kind: CostMetricKind,
-    cost_pct: Decimal,
-    metric_pct: Decimal,
-    drivers: list[Driver],
-    cpu_prev: Decimal | None,
-    cpu_now: Decimal | None,
-) -> str:
+def _explain(kind: CostMetricKind, cost_pct: Decimal | None, metric_pct: Decimal, drivers: list[Driver],
+             cpu_prev: Decimal | None, cpu_now: Decimal | None, cost_prev: Decimal, cost_now: Decimal) -> str:
     spec = PAIRS[kind]
     if metric_pct > 0:
         metric_phrase = f"grew only {_p1(metric_pct)}%"
@@ -235,48 +192,49 @@ def _explain(
         d = drivers[0]
         parts.append(f"{d.label} went from {_money(d.previous)} to {_money(d.current)}")
     if cpu_prev is not None and cpu_now is not None:
-        parts.append(
-            f"{spec.unit_cost_noun} from {_money(cpu_prev)} to {_money(cpu_now)}"
-        )
+        parts.append(f"{spec.unit_cost_noun} from {_money(cpu_prev)} to {_money(cpu_now)}")
     tail = f": {', '.join(parts)}." if parts else "."
-    return f"{spec.cost_noun} rose {_p1(cost_pct)}% month over month while {spec.metric_noun} {metric_phrase}{tail}"
+    # the cost change always comes with its EUR amounts, also without line items or a per-unit cost (T049)
+    rose = (f"rose {_p1(cost_pct)}% month over month (from {_money(cost_prev)} to {_money(cost_now)})"
+            if cost_pct is not None
+            else f"is a new cost of {_money(cost_now)} (previous month {_money(cost_prev)})")
+    return f"{spec.cost_noun} {rose} while {spec.metric_noun} {metric_phrase}{tail}"
 
 
-def _assess(
-    prev: CostMetric,
-    cur: CostMetric,
-    invoices: Mapping[str, Invoice],
-    cost_growth_pct: Decimal,
-    metric_growth_max_pct: Decimal,
-) -> CostAnomaly | None:
-    cost_pct = change_pct(cur.cost, prev.cost)
-    metric_pct = change_pct(cur.metric_value, prev.metric_value)
-    if (
-        cost_pct is None or metric_pct is None
-    ):  # nothing to compare with (e.g. after the June shutdown)
+def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], cost_growth_pct: Decimal,
+            metric_growth_max_pct: Decimal) -> CostAnomaly | None:
+    if not _consecutive(prev, cur):  # a gap is not month over month
         return None
-    if cost_pct < cost_growth_pct or metric_pct >= metric_growth_max_pct:
+    cost_pct = change_pct(cur.cost, prev.cost)
+    if cost_pct is None:
+        # previous cost was zero: any cost is new growth (never a silent skip on division by zero)
+        if cur.cost <= 0:
+            return None
+    elif cost_pct < cost_growth_pct:
+        return None
+    if prev.metric_value == 0:
+        if cur.metric_value != 0:  # restarting from zero (e.g. after the June shutdown): growth is unbounded
+            return None
+        metric_pct = Decimal(0)  # stayed at zero
+    else:
+        metric_pct = change_pct(cur.metric_value, prev.metric_value)
+        assert metric_pct is not None
+    if metric_pct >= metric_growth_max_pct:
         return None
     cpu_now, cpu_prev = cur.cost_per_unit, prev.cost_per_unit
     drivers = _drivers(prev, cur, invoices)
     return CostAnomaly(
-        kind=cur.kind,
-        month=cur.month,
-        team_id=cur.team_id,
-        cost=cur.cost,
-        previous_cost=prev.cost,
-        cost_change_pct=cost_pct,
-        metric_value=cur.metric_value,
-        previous_metric_value=prev.metric_value,
-        metric_change_pct=metric_pct,
-        cost_per_unit=cpu_now,
-        previous_cost_per_unit=cpu_prev,
-        cost_per_unit_change_pct=change_pct(cpu_now, cpu_prev),
-        drivers=drivers,
-        explanation=_explain(
-            cur.kind, cost_pct, metric_pct, drivers, cpu_prev, cpu_now
-        ),
+        kind=cur.kind, month=cur.month, team_id=cur.team_id, cost=cur.cost, previous_cost=prev.cost,
+        cost_change_pct=cost_pct, metric_value=cur.metric_value, previous_metric_value=prev.metric_value,
+        metric_change_pct=metric_pct, cost_per_unit=cpu_now, previous_cost_per_unit=cpu_prev,
+        cost_per_unit_change_pct=change_pct(cpu_now, cpu_prev), drivers=drivers,
+        explanation=_explain(cur.kind, cost_pct, metric_pct, drivers, cpu_prev, cpu_now, prev.cost, cur.cost),
     )
+
+
+def _consecutive(prev: CostMetric, cur: CostMetric) -> bool:
+    """True when `cur` is the calendar month right after `prev`."""
+    return (cur.month.year * 12 + cur.month.month) - (prev.month.year * 12 + prev.month.month) == 1
 
 
 def _by_kind(metrics: Iterable[CostMetric]) -> dict[CostMetricKind, list[CostMetric]]:
@@ -287,19 +245,11 @@ def _by_kind(metrics: Iterable[CostMetric]) -> dict[CostMetricKind, list[CostMet
 
 
 # -- public API --------------------------------------------------------------------------------------------
-def monthly_series(
-    metrics: Iterable[CostMetric],
-    invoices: Iterable[Invoice] | Mapping[str, Invoice] | None = None,
-    *,
-    cost_growth_pct: Decimal | float = COST_GROWTH_PCT,
-    metric_growth_max_pct: Decimal | float = METRIC_GROWTH_MAX_PCT,
-) -> list[Series]:
+def monthly_series(metrics: Iterable[CostMetric], invoices: Iterable[Invoice] | Mapping[str, Invoice] | None = None,
+                   *, cost_growth_pct: Decimal | float = COST_GROWTH_PCT,
+                   metric_growth_max_pct: Decimal | float = METRIC_GROWTH_MAX_PCT) -> list[Series]:
     """One series per pair present in `metrics` (food, ads, cloud order), months ascending, anomalies attached."""
-    inv, grow, cap = (
-        _invoice_index(invoices),
-        Decimal(str(cost_growth_pct)),
-        Decimal(str(metric_growth_max_pct)),
-    )
+    inv, grow, cap = _invoice_index(invoices), Decimal(str(cost_growth_pct)), Decimal(str(metric_growth_max_pct))
     grouped = _by_kind(metrics)
     out: list[Series] = []
     for kind, spec in PAIRS.items():
@@ -308,58 +258,26 @@ def monthly_series(
             continue
         points: list[Point] = []
         for i, cur in enumerate(rows):
-            prev = rows[i - 1] if i else None
-            points.append(
-                Point(
-                    month=cur.month,
-                    cost=cur.cost,
-                    metric_value=cur.metric_value,
-                    cost_per_unit=cur.cost_per_unit,
-                    cost_change_pct=change_pct(cur.cost, prev.cost) if prev else None,
-                    metric_change_pct=(
-                        change_pct(cur.metric_value, prev.metric_value)
-                        if prev
-                        else None
-                    ),
-                    cost_per_unit_change_pct=(
-                        change_pct(cur.cost_per_unit, prev.cost_per_unit)
-                        if prev
-                        else None
-                    ),
-                    anomaly=_assess(prev, cur, inv, grow, cap) if prev else None,
-                )
-            )
-        out.append(
-            Series(
-                kind=kind,
-                label=spec.label,
-                team_id=rows[-1].team_id or spec.team_id,
-                unit=spec.unit,
-                points=points,
-            )
-        )
+            prev = rows[i - 1] if i and _consecutive(rows[i - 1], cur) else None
+            points.append(Point(
+                month=cur.month, cost=cur.cost, metric_value=cur.metric_value, cost_per_unit=cur.cost_per_unit,
+                cost_change_pct=change_pct(cur.cost, prev.cost) if prev else None,
+                metric_change_pct=change_pct(cur.metric_value, prev.metric_value) if prev else None,
+                cost_per_unit_change_pct=change_pct(cur.cost_per_unit, prev.cost_per_unit) if prev else None,
+                anomaly=_assess(prev, cur, inv, grow, cap) if prev else None,
+            ))
+        out.append(Series(kind=kind, label=spec.label, team_id=rows[-1].team_id or spec.team_id, unit=spec.unit,
+                          points=points))
     return out
 
 
-def detect_anomalies(
-    metrics: Iterable[CostMetric],
-    invoices: Iterable[Invoice] | Mapping[str, Invoice] | None = None,
-    *,
-    cost_growth_pct: Decimal | float = COST_GROWTH_PCT,
-    metric_growth_max_pct: Decimal | float = METRIC_GROWTH_MAX_PCT,
-) -> list[CostAnomaly]:
+def detect_anomalies(metrics: Iterable[CostMetric], invoices: Iterable[Invoice] | Mapping[str, Invoice] | None = None,
+                     *, cost_growth_pct: Decimal | float = COST_GROWTH_PCT,
+                     metric_growth_max_pct: Decimal | float = METRIC_GROWTH_MAX_PCT) -> list[CostAnomaly]:
     """Months where a cost grew without its metric, oldest first (then pair order)."""
-    found = [
-        p.anomaly
-        for s in monthly_series(
-            metrics,
-            invoices,
-            cost_growth_pct=cost_growth_pct,
-            metric_growth_max_pct=metric_growth_max_pct,
-        )
-        for p in s.points
-        if p.anomaly is not None
-    ]
+    found = [p.anomaly for s in monthly_series(metrics, invoices, cost_growth_pct=cost_growth_pct,
+                                               metric_growth_max_pct=metric_growth_max_pct)
+             for p in s.points if p.anomaly is not None]
     order = list(PAIRS)
     return sorted(found, key=lambda a: (a.month, order.index(a.kind)))
 
@@ -372,51 +290,20 @@ def to_api_series(series: Iterable[Series]) -> list[CostMetricSeries]:
         for p in s.points:
             anomaly = None
             if p.anomaly is not None:
-                anomaly = Anomaly(
-                    summary=p.anomaly.explanation,
-                    drivers=[
-                        AnomalyDriver(
-                            label=d.label,
-                            previous=eur(d.previous),
-                            current=eur(d.current),
-                        )
-                        for d in p.anomaly.drivers
-                    ],
-                )
-            points.append(
-                CostMetricPoint(
-                    month=p.month,
-                    cost=eur(p.cost),
-                    metric_value=str(int(p.metric_value)),
-                    cost_per_unit=(
-                        eur(p.cost_per_unit) if p.cost_per_unit is not None else None
-                    ),
-                    cost_change_pct=pct(p.cost_change_pct),
-                    metric_change_pct=pct(p.metric_change_pct),
-                    anomaly=anomaly,
-                )
-            )
-        items.append(
-            CostMetricSeries(
-                kind=s.kind,
-                label=s.label,
-                team_id=s.team_id,
-                unit=s.unit,
-                points=points,
-            )
-        )
+                anomaly = Anomaly(summary=p.anomaly.explanation, drivers=[
+                    AnomalyDriver(label=d.label, previous=eur(d.previous), current=eur(d.current))
+                    for d in p.anomaly.drivers])
+            points.append(CostMetricPoint(
+                month=p.month, cost=eur(p.cost), metric_value=str(int(p.metric_value)),
+                cost_per_unit=eur(p.cost_per_unit) if p.cost_per_unit is not None else None,
+                cost_change_pct=pct(p.cost_change_pct), metric_change_pct=pct(p.metric_change_pct), anomaly=anomaly))
+        items.append(CostMetricSeries(kind=s.kind, label=s.label, team_id=s.team_id, unit=s.unit, points=points))
     return items
 
 
 def load_series(repo: Any, **thresholds: Any) -> list[Series]:
     """Series from a `cfo.db.repo.Repository` (cost metrics plus the invoices their details point at)."""
     metrics = repo.list_cost_metrics()
-    numbers = {
-        str(m.detail["invoice_number"])
-        for m in metrics
-        if isinstance(m.detail, dict) and m.detail.get("invoice_number")
-    }
-    invoices = {
-        n: inv for n in numbers if (inv := repo.get_invoice_by_number(n)) is not None
-    }
+    numbers = {str(m.detail["invoice_number"]) for m in metrics if isinstance(m.detail, dict) and m.detail.get("invoice_number")}
+    invoices = {n: inv for n in numbers if (inv := repo.get_invoice_by_number(n)) is not None}
     return monthly_series(metrics, invoices, **thresholds)

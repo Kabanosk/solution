@@ -19,14 +19,10 @@ from cfo.sim.engine import SimStatus, Simulator
 DEFAULT_DATA_DIR = Path("data/generated")
 
 
-def make_simulator(
-    data_dir: Path | None = None, database_url: str | None = None
-) -> Simulator:
+def make_simulator(data_dir: Path | None = None, database_url: str | None = None) -> Simulator:
     """Simulator on a fresh connection, events from `<data_dir>/events/december.jsonl`, speed from SIM_SPEED."""
     repo = Repository.connect(database_url)
-    return Simulator(
-        repo, load_events(data_dir or DEFAULT_DATA_DIR), speed=get_settings().sim_speed
-    )
+    return Simulator(repo, load_events(data_dir or DEFAULT_DATA_DIR), speed=get_settings().sim_speed)
 
 
 def _with_sim(data_dir: Path | None, fn):

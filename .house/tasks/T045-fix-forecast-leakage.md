@@ -1,7 +1,7 @@
 ---
 id: T045
 title: "Review fixes: forecast backtest without holdout leakage, empty-data guards"
-status: review
+status: done
 owner: coder
 branch: task/T045-fix-forecast-leakage
 depends_on: []

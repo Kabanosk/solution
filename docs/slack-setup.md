@@ -40,8 +40,7 @@ If you change scopes later, click **Reinstall to Workspace** and use the new bot
 
 ## 4. Map employees to Slack users
 
-The bot needs the Slack user id (`U01ABC...`, not the display name) of each employee. Two ways, both work together;
-the environment variable wins.
+The bot needs the Slack user id (`U01ABC...`, not the display name) of each employee. 
 
 **Find the ids**
 - In Slack: open a person's profile, click the three dots, **Copy member ID**.
@@ -51,14 +50,17 @@ the environment variable wins.
     | python3 -c "import sys,json; [print(m['id'], m['name'], m.get('real_name','')) for m in json.load(sys.stdin)['members'] if not m['is_bot']]"
   ```
 
-**Option A: HR data.** Each employee has `slack_user_id` (the `slack_id` column of the HR sheet in the synthetic
-data). Fill it in there.
-
-**Option B: environment variable `SLACK_USER_MAP`** (comma-separated `employee_id=slack_user_id`, employee ids are
-the slugs of the HR sheet):
+**Environment variable `SLACK_USER_MAP`** (comma-separated `employee_id=slack_user_id`, employee ids are the
+slugs of the HR sheet). This is the supported way; the HR sheet carries no Slack ids, and
+`Employee.slack_user_id` can only be set in the database or in code.
 ```
 SLACK_USER_MAP=vincenzo=U01AAAAAAA,grazyna=U02BBBBBBB,rosa=U03CCCCCCC
 ```
+
+Answers to `@Autonomous CFO` mentions in a channel never appear in the channel: the bot sends them to the asker as a
+DM and shows only an ephemeral "I answered you in a DM" in the channel (visible to the asker alone). The bot has to
+be a member of the channel to see the mention. Every bot message, including those ephemeral notes, starts with a
+level label.
 
 Messages from people who are not mapped are never passed to the agent (the bot replies that it only talks to
 registered people), and their button clicks are ignored.
@@ -92,5 +94,5 @@ registered people), and their button clicks are ignored.
   from the manifest again, or enable **App Home, Messages Tab, Allow users to send Slash commands and messages**.
 - Buttons do nothing: check that **Interactivity & Shortcuts** is on (it is in the manifest) and that the bot process
   is running; clicks are delivered over the socket only while it is connected.
-- DMs do not arrive for one person: their Slack user id is missing in HR data and `SLACK_USER_MAP`
+- DMs do not arrive for one person: their Slack user id is missing from `SLACK_USER_MAP` (and `Employee.slack_user_id`)
   (`send_dm` raises `ValueError`).

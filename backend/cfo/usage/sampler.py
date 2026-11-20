@@ -56,17 +56,13 @@ def make_fetch(settings: UsageSettings | None = None) -> Fetch:
 
     def fetch() -> str:
         req = urllib.request.Request(s.vllm_metrics_url, headers=headers)  # type: ignore[arg-type]
-        with urllib.request.urlopen(
-            req, timeout=s.vllm_metrics_timeout, context=context
-        ) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=s.vllm_metrics_timeout, context=context) as resp:  # noqa: S310
             return resp.read().decode("utf-8", errors="replace")
 
     return fetch
 
 
-def sample_once(
-    conn: Any, fetch: Fetch, now: Callable[[], datetime] = utcnow
-) -> list[VllmSnapshot]:
+def sample_once(conn: Any, fetch: Fetch, now: Callable[[], datetime] = utcnow) -> list[VllmSnapshot]:
     """One scrape, stored. Returns the snapshots written (empty when the text had no vLLM metric)."""
     snapshots = list(snapshots_from_text(fetch()).values())
     ts = now()
@@ -76,15 +72,8 @@ def sample_once(
     return snapshots
 
 
-def run(
-    every: float,
-    connect: Callable[[], Any],
-    fetch: Fetch,
-    *,
-    stop: threading.Event | None = None,
-    max_iterations: int | None = None,
-    now: Callable[[], datetime] = utcnow,
-) -> int:
+def run(every: float, connect: Callable[[], Any], fetch: Fetch, *, stop: threading.Event | None = None,
+        max_iterations: int | None = None, now: Callable[[], datetime] = utcnow) -> int:
     """Scrape every `every` seconds until `stop` is set (or `max_iterations` scrapes). Returns the scrapes done.
 
     Waiting is `stop.wait(every)`, so a stop request ends the pause at once and tests never sleep for real
@@ -99,9 +88,7 @@ def run(
                 sample_once(conn, fetch, now)
             finally:
                 conn.close()
-        except (
-            Exception
-        ) as exc:  # noqa: BLE001 - the server may be restarting; keep sampling
+        except Exception as exc:  # noqa: BLE001 - the server may be restarting; keep sampling
             log.warning("vLLM metrics scrape failed: %s", exc)
         done += 1
         if max_iterations is not None and done >= max_iterations:
@@ -110,28 +97,20 @@ def run(
     return done
 
 
-def start_background(
-    every: float = 60.0, settings: UsageSettings | None = None
-) -> threading.Event | None:
+def start_background(every: float = 60.0, settings: UsageSettings | None = None) -> threading.Event | None:
     """Daemon thread running the sampler for a worker process. Returns the stop event, or None when disabled."""
     s = settings or get_usage_settings()
     if not s.vllm_metrics_url:
         log.info("VLLM_METRICS_URL not set: vLLM metrics sampler disabled")
         return None
     import psycopg
+
     from cfo.config import get_settings
 
     stop = threading.Event()
     fetch = make_fetch(s)
     threading.Thread(
-        target=run,
-        args=(
-            every,
-            lambda: psycopg.connect(get_settings().database_url, connect_timeout=5),
-            fetch,
-        ),
-        kwargs={"stop": stop},
-        daemon=True,
-        name="vllm-metrics-sampler",
+        target=run, args=(every, lambda: psycopg.connect(get_settings().database_url, connect_timeout=5), fetch),
+        kwargs={"stop": stop}, daemon=True, name="vllm-metrics-sampler",
     ).start()
     return stop

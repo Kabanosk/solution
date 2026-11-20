@@ -14,11 +14,12 @@ import sys
 from pathlib import Path
 
 import pytest
-import test_agent
+
 from cfo import observability as obs
 from cfo.domain import Event, EventKind
-from test_agent import (DOC, TS, bank,  # noqa: F401  (make_env is a fixture)
-                        make_env)
+
+import test_agent
+from test_agent import DOC, TS, bank, make_env  # noqa: F401  (make_env is a fixture)
 
 BACKEND = Path(__file__).resolve().parents[1]
 HAS_MLFLOW = importlib.util.find_spec("mlflow") is not None
@@ -44,14 +45,8 @@ print("clean")
 # -- off by default ---------------------------------------------------------------------------------
 def test_without_tracking_uri_nothing_imports_mlflow():
     env = {k: v for k, v in os.environ.items() if not k.startswith("MLFLOW_")}
-    out = subprocess.run(
-        [sys.executable, "-c", NO_MLFLOW_SCRIPT],
-        cwd=BACKEND,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    out = subprocess.run([sys.executable, "-c", NO_MLFLOW_SCRIPT], cwd=BACKEND, env=env, capture_output=True,
+                         text=True, timeout=120)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip().endswith("clean")
 
@@ -80,15 +75,9 @@ def tracing(tmp_path):
     import mlflow
 
     uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
-    mlflow.set_tracking_uri(
-        uri
-    )  # keep trace artifacts in tmp_path too (the default is ./mlruns in the cwd)
-    mlflow.create_experiment(
-        EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri()
-    )
-    settings = obs.TracingSettings(
-        mlflow_tracking_uri=uri, mlflow_agent_experiment=EXPERIMENT
-    )
+    mlflow.set_tracking_uri(uri)  # keep trace artifacts in tmp_path too (the default is ./mlruns in the cwd)
+    mlflow.create_experiment(EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri())
+    settings = obs.TracingSettings(mlflow_tracking_uri=uri, mlflow_agent_experiment=EXPERIMENT)
     assert obs.init_tracing(settings) is True
     yield mlflow
     obs.reset_tracing()
@@ -117,15 +106,11 @@ def children(trace, parent_name):
 
 @needs_mlflow
 def test_init_is_idempotent_and_spans_nest(tracing):
-    settings = obs.TracingSettings(
-        mlflow_tracking_uri="sqlite:///ignored-second-call.db"
-    )
+    settings = obs.TracingSettings(mlflow_tracking_uri="sqlite:///ignored-second-call.db")
     assert obs.init_tracing(settings) is True and obs.enabled()
     with obs.span("root", inputs={"q": 1}) as root:
         obs.set_trace_tags({"cfo.outcome": "done", "skipped": None})
-        assert obs.traced_node("child", lambda state: {"steps": ["x"]})(
-            {"event": {}}
-        ) == {"steps": ["x"]}
+        assert obs.traced_node("child", lambda state: {"steps": ["x"]})({"event": {}}) == {"steps": ["x"]}
         root.set_outputs({"a": 2})
     (trace,) = traces(tracing)
     assert trace.info.tags["cfo.outcome"] == "done" and "skipped" not in trace.info.tags
@@ -164,12 +149,7 @@ def test_init_never_raises(monkeypatch):
 
     monkeypatch.setattr(mlflow, "set_experiment", boom)
     try:
-        assert (
-            obs.init_tracing(
-                obs.TracingSettings(mlflow_tracking_uri="sqlite:///:memory:")
-            )
-            is False
-        )
+        assert obs.init_tracing(obs.TracingSettings(mlflow_tracking_uri="sqlite:///:memory:")) is False
         assert not obs.enabled()
     finally:
         obs.reset_tracing()
@@ -193,12 +173,7 @@ def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, agent_e
     (root,) = [s for s in spans if s.parent_id is None]
     assert root.name == "agent.handle"
     node_names = [s.name for s in children(trace, "agent.handle")]
-    assert node_names == [
-        "load_txn",
-        "find_docs",
-        "match",
-        "attach",
-    ]  # one child span per visited node
+    assert node_names == ["load_txn", "find_docs", "match", "attach"]  # one child span per visited node
     # the LLM call (invoice extraction) sits under the node that made it
     llm_spans = children(trace, "match")
     assert [s.name for s in llm_spans] == ["llm.chat"]
@@ -209,33 +184,20 @@ def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, agent_e
 @needs_mlflow
 def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, agent_env):
     env = agent_env()
-    ev = Event(
-        ts=TS,
-        kind=EventKind.METRIC,
-        payload={
-            "signal": "liquidity_forecast",
-            "month": "2026-02",
-            "min_balance": "-5000",
-            "requested_amount": "20000",
-        },
-    )
+    ev = Event(ts=TS, kind=EventKind.METRIC, payload={
+        "signal": "liquidity_forecast", "month": "2026-02", "min_balance": "-5000", "requested_amount": "20000"})
     res = env.agent.handle(ev)
     assert res.status == "awaiting_approval"
     done = env.agent.resume_approval(res.approval_id, True, "vincenzo")
     assert done.status == "done"
 
-    by_root = {
-        next(s.name for s in t.data.spans if s.parent_id is None): t
-        for t in traces(tracing)
-    }
+    by_root = {next(s.name for s in t.data.spans if s.parent_id is None): t for t in traces(tracing)}
     assert set(by_root) == {"agent.handle", "agent.resume_approval"}
     first, second = by_root["agent.handle"], by_root["agent.resume_approval"]
     assert first.info.tags["cfo.outcome"] == "awaiting_approval"
     assert first.info.tags["cfo.policy_level"] == "APPROVAL"
     assert first.info.tags["cfo.simulated"] == "no"
-    assert {s.name: s.status.status_code.value for s in first.data.spans}[
-        "await_approval"
-    ] == "OK"
+    assert {s.name: s.status.status_code.value for s in first.data.spans}["await_approval"] == "OK"
     assert second.info.tags["cfo.approval_id"] == res.approval_id
     assert second.info.tags["cfo.policy_level"] == "APPROVAL"
     assert second.info.tags["cfo.simulated"] == "yes"
@@ -243,16 +205,9 @@ def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, agent
 
 
 @needs_mlflow
-def test_sub_agent_investigation_spans_are_children_of_the_investigate_node(
-    tracing, agent_env
-):
+def test_sub_agent_investigation_spans_are_children_of_the_investigate_node(tracing, agent_env):
     env = agent_env()
-    env.agent.handle(
-        Event(ts=TS, kind=EventKind.METRIC, payload={"signal": "cost_metrics_updated"})
-    )
+    env.agent.handle(Event(ts=TS, kind=EventKind.METRIC, payload={"signal": "cost_metrics_updated"}))
     (trace,) = traces(tracing)
     assert [s.name for s in children(trace, "agent.handle")] == ["investigate", "alert"]
-    assert [s.name for s in children(trace, "investigate")][:2] == [
-        "investigate.gather",
-        "investigate.detect",
-    ]
+    assert [s.name for s in children(trace, "investigate")][:2] == ["investigate.gather", "investigate.detect"]

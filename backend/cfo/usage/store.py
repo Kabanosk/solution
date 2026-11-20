@@ -9,9 +9,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from psycopg.types.json import Jsonb
+
 from cfo.usage.recorder import UsageRecord
 from cfo.usage.vllm_metrics import VllmSnapshot
-from psycopg.types.json import Jsonb
 
 # Bucket keys for `group_by`. day/hour buckets are UTC.
 GROUP_SQL = {
@@ -26,27 +27,14 @@ def insert_usage(conn: Any, r: UsageRecord) -> None:
     conn.execute(
         "INSERT INTO llm_usage (ts, model, prompt_tokens, completion_tokens, latency_ms, estimated, success, "
         "event_id, event_type, purpose, decision_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-        (
-            r.ts,
-            r.model,
-            r.prompt_tokens,
-            r.completion_tokens,
-            r.latency_ms,
-            r.estimated,
-            r.success,
-            r.event_id,
-            r.event_type,
-            r.purpose,
-            r.decision_id,
-        ),
+        (r.ts, r.model, r.prompt_tokens, r.completion_tokens, r.latency_ms, r.estimated, r.success,
+         r.event_id, r.event_type, r.purpose, r.decision_id),
     )
 
 
 def link_decision(conn: Any, event_id: str, decision_id: str) -> None:
-    conn.execute(
-        "UPDATE llm_usage SET decision_id = %s WHERE event_id = %s AND decision_id IS NULL",
-        (decision_id, event_id),
-    )
+    conn.execute("UPDATE llm_usage SET decision_id = %s WHERE event_id = %s AND decision_id IS NULL",
+                 (decision_id, event_id))
 
 
 def insert_sample(conn: Any, ts: datetime, s: VllmSnapshot) -> None:
@@ -55,35 +43,15 @@ def insert_sample(conn: Any, ts: datetime, s: VllmSnapshot) -> None:
         "requests_success_total, requests_by_reason, prompt_tokens_cached_total, inference_time_sum, "
         "inference_time_count, e2e_latency_sum, e2e_latency_count, e2e_latency_buckets, requests_running, "
         "requests_waiting, kv_cache_usage, kv_cache_metric) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-        (
-            ts,
-            s.model,
-            s.prompt_tokens_total,
-            s.generation_tokens_total,
-            s.requests_success_total,
-            Jsonb(s.requests_by_reason),
-            s.prompt_tokens_cached_total,
-            s.inference_time_sum,
-            s.inference_time_count,
-            s.e2e_latency_sum,
-            s.e2e_latency_count,
-            Jsonb(
-                {
-                    ("+Inf" if le == float("inf") else repr(le)): c
-                    for le, c in s.e2e_latency_buckets.items()
-                }
-            ),
-            s.requests_running,
-            s.requests_waiting,
-            s.kv_cache_usage,
-            s.kv_cache_metric,
-        ),
+        (ts, s.model, s.prompt_tokens_total, s.generation_tokens_total, s.requests_success_total,
+         Jsonb(s.requests_by_reason), s.prompt_tokens_cached_total, s.inference_time_sum, s.inference_time_count,
+         s.e2e_latency_sum, s.e2e_latency_count,
+         Jsonb({("+Inf" if le == float("inf") else repr(le)): c for le, c in s.e2e_latency_buckets.items()}),
+         s.requests_running, s.requests_waiting, s.kv_cache_usage, s.kv_cache_metric),
     )
 
 
-def usage_groups(
-    conn: Any, group_by: str, start: datetime, end: datetime
-) -> list[dict[str, Any]]:
+def usage_groups(conn: Any, group_by: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
     key = GROUP_SQL[group_by]
     return conn.execute(
         f"""SELECT {key} AS key,
@@ -101,9 +69,8 @@ def usage_groups(
 
 
 def usage_total(conn: Any, start: datetime, end: datetime) -> dict[str, Any]:
-    return (
-        conn.execute(
-            """SELECT count(*) AS requests,
+    return conn.execute(
+        """SELECT count(*) AS requests,
                   count(*) FILTER (WHERE NOT success) AS failed_requests,
                   count(*) FILTER (WHERE estimated) AS estimated_requests,
                   COALESCE(sum(prompt_tokens), 0)::bigint AS prompt_tokens,
@@ -114,10 +81,8 @@ def usage_total(conn: Any, start: datetime, end: datetime) -> dict[str, Any]:
                   count(DISTINCT event_id) AS events,
                   min(ts) AS first_ts
            FROM llm_usage WHERE ts >= %s AND ts < %s""",
-            (start, end),
-        ).fetchone()
-        or {}
-    )
+        (start, end),
+    ).fetchone() or {}
 
 
 def usage_by_action(conn: Any, start: datetime, end: datetime) -> list[dict[str, Any]]:

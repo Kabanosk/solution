@@ -2,6 +2,7 @@
 # Idempotent: load --reset empties the tables first, generate is deterministic (seed 42).
 # Re-seed: oc delete job cfo-seed && oc apply -k deploy/   (a Job spec is immutable, so delete it first).
 # Needs: Secret `postgres` (deploy/postgres.yaml), PVC `cfo-data` and ImageStream `cfo-backend` (T023).
+# Also needs the bank CSV on the files server: docs/cluster-setup.md step 6 (otherwise the download 404s).
 # WARNING: --reset wipes the simulator state too; do not re-run it during a live demo.
 apiVersion: batch/v1
 kind: Job
@@ -10,7 +11,9 @@ metadata:
   labels: {app: cfo-seed}
 spec:
   backoffLimit: 3
-  activeDeadlineSeconds: 900
+  # Counts from Job creation, including the wait for the first image build (ImagePullBackOff until the
+  # ImageStream tag exists, a few minutes); 3600 leaves room for build + seed.
+  activeDeadlineSeconds: 3600
   template:
     metadata:
       labels: {app: cfo-seed}

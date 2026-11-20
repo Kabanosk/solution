@@ -17,11 +17,12 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Coroutine, Mapping
+from contextlib import asynccontextmanager
 from datetime import date
 from typing import Any, Protocol
 
-from cfo.domain import CostMetricKind, Decision, Rule, Transaction
+from cfo.domain import CostMetricKind, Decision, Invoice, Rule, Transaction
 
 COMPANY_DB = "company-db"
 WORKSTATIONS = "workstations"
@@ -42,41 +43,48 @@ class InProcessToolBox:
 
     def call(self, server: str, tool: str, **arguments: Any) -> Any:
         target = self._servers.get(server)
-        fn = (
-            getattr(target, tool, None)
-            if target is not None and not tool.startswith("_")
-            else None
-        )
+        fn = getattr(target, tool, None) if target is not None and not tool.startswith("_") else None
         if fn is None or not callable(fn):
             raise ToolError(f"unknown tool {server}.{tool}")
         # round-trip through JSON so callers see exactly what an MCP client would
         return json.loads(json.dumps(fn(**arguments), default=str))
 
+    def list_tools(self, server: str) -> list[str]:
+        target = self._servers.get(server)
+        if target is None:
+            raise ToolError(f"unknown server {server!r}")
+        return sorted(n for n in dir(target) if not n.startswith("_") and callable(getattr(target, n)))
+
 
 class McpToolBox:
     """`endpoints` maps a server name to a streamable-HTTP URL (`http://host:8002/mcp`) or to
     `mcp.StdioServerParameters`. One short session per call: simple and robust, fine at demo volume.
-    Safe to call from sync code and from inside a running event loop (runs in a helper thread then).
-    """
+    Safe to call from sync code and from inside a running event loop (runs in a helper thread then)."""
 
     def __init__(self, endpoints: Mapping[str, Any]):
         self._endpoints = dict(endpoints)
 
     def call(self, server: str, tool: str, **arguments: Any) -> Any:
+        return self._run(server, self._acall(server, tool, arguments))
+
+    def list_tools(self, server: str) -> list[str]:
+        """Names of the tools the server offers (used by `cfo smoke`)."""
+        return self._run(server, self._alist(server))
+
+    def _run(self, server: str, coro: Coroutine[Any, Any, Any]) -> Any:
         if server not in self._endpoints:
+            coro.close()
             raise ToolError(f"no endpoint configured for MCP server {server!r}")
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self._acall(server, tool, arguments))
+            return asyncio.run(coro)
         box: dict[str, Any] = {}
 
         def run() -> None:
             try:
-                box["value"] = asyncio.run(self._acall(server, tool, arguments))
-            except (
-                BaseException
-            ) as e:  # noqa: BLE001 - re-raised in the caller's thread
+                box["value"] = asyncio.run(coro)
+            except BaseException as e:  # noqa: BLE001 - re-raised in the caller's thread
                 box["error"] = e
 
         t = threading.Thread(target=run)
@@ -86,7 +94,8 @@ class McpToolBox:
             raise box["error"]
         return box["value"]
 
-    async def _acall(self, server: str, tool: str, arguments: dict[str, Any]) -> Any:
+    @asynccontextmanager
+    async def _session(self, server: str) -> AsyncIterator[Any]:
         from mcp import ClientSession
 
         endpoint = self._endpoints[server]
@@ -101,12 +110,18 @@ class McpToolBox:
         async with transport as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
-                result = await session.call_tool(tool, arguments)
+                yield session
+
+    async def _alist(self, server: str) -> list[str]:
+        async with self._session(server) as session:
+            result = await session.list_tools()
+        return [t.name for t in result.tools]
+
+    async def _acall(self, server: str, tool: str, arguments: dict[str, Any]) -> Any:
+        async with self._session(server) as session:
+            result = await session.call_tool(tool, arguments)
         if result.isError:
-            raise ToolError(
-                f"{server}.{tool}: "
-                + " ".join(getattr(c, "text", "") for c in result.content)
-            )
+            raise ToolError(f"{server}.{tool}: " + " ".join(getattr(c, "text", "") for c in result.content))
         data = result.structuredContent
         if data is not None:
             # FastMCP wraps non-object results (lists, null) as {"result": ...}
@@ -123,34 +138,26 @@ class Gateway:
 
     # company-db
     def transaction(self, transaction_id: str) -> Transaction | None:
-        raw = self.tools.call(
-            COMPANY_DB, "get_transaction", transaction_id=transaction_id
-        )
+        raw = self.tools.call(COMPANY_DB, "get_transaction", transaction_id=transaction_id)
         return Transaction(**raw) if raw else None
 
     def transactions(self, **kwargs: Any) -> list[Transaction]:
-        return [
-            Transaction(**r)
-            for r in self.tools.call(
-                COMPANY_DB, "list_transactions", limit=500, **kwargs
-            )
-        ]
+        return [Transaction(**r) for r in self.tools.call(COMPANY_DB, "list_transactions", limit=500, **kwargs)]
 
     def decisions(self, limit: int = 500) -> list[Decision]:
-        return [
-            Decision(**r)
-            for r in self.tools.call(COMPANY_DB, "list_decisions", limit=limit)
-        ]
+        return [Decision(**r) for r in self.tools.call(COMPANY_DB, "list_decisions", limit=limit)]
 
     def rules(self) -> list[Rule]:
         return [Rule(**r) for r in self.tools.call(COMPANY_DB, "list_rules")]
 
+    def invoice(self, number: str) -> Invoice | None:
+        raw = self.tools.call(COMPANY_DB, "get_invoice", number=number)
+        return Invoice(**raw) if raw else None
+
     def teams(self) -> list[dict[str, Any]]:
         return self.tools.call(COMPANY_DB, "list_teams")
 
-    def cost_metrics(
-        self, kind: CostMetricKind | str | None = None
-    ) -> list[dict[str, Any]]:
+    def cost_metrics(self, kind: CostMetricKind | str | None = None) -> list[dict[str, Any]]:
         args = {"kind": str(kind)} if kind else {}
         return self.tools.call(COMPANY_DB, "list_cost_metrics", **args)
 
@@ -159,37 +166,20 @@ class Gateway:
 
     # hr
     def employee(self, employee_id: str, on: date) -> dict[str, Any] | None:
-        return self.tools.call(
-            HR, "get_employee", employee_id=employee_id, on=on.isoformat()
-        )
+        return self.tools.call(HR, "get_employee", employee_id=employee_id, on=on.isoformat())
 
     def escalation_chain(self, employee_id: str, on: date) -> dict[str, Any]:
-        return self.tools.call(
-            HR, "escalation_chain", employee_id=employee_id, on=on.isoformat()
-        )
+        return self.tools.call(HR, "escalation_chain", employee_id=employee_id, on=on.isoformat())
 
     # workstations (every call is logged by the server, D-004)
-    def search_files(
-        self, employee: str, query: str, reason: str
-    ) -> list[dict[str, Any]]:
-        res = self.tools.call(
-            WORKSTATIONS, "search_files", employee=employee, query=query, reason=reason
-        )
+    def search_files(self, employee: str, query: str, reason: str) -> list[dict[str, Any]]:
+        res = self.tools.call(WORKSTATIONS, "search_files", employee=employee, query=query, reason=reason)
         return res.get("files", []) if res.get("ok") else []
 
     def read_file(self, employee: str, path: str, reason: str) -> dict[str, Any]:
-        return self.tools.call(
-            WORKSTATIONS, "read_file", employee=employee, path=path, reason=reason
-        )
+        return self.tools.call(WORKSTATIONS, "read_file", employee=employee, path=path, reason=reason)
 
-    def read_attachment(
-        self, employee: str, path: str, attachment: str, reason: str
-    ) -> dict[str, Any]:
+    def read_attachment(self, employee: str, path: str, attachment: str, reason: str) -> dict[str, Any]:
         return self.tools.call(
-            WORKSTATIONS,
-            "read_attachment",
-            employee=employee,
-            path=path,
-            attachment=attachment,
-            reason=reason,
+            WORKSTATIONS, "read_attachment", employee=employee, path=path, attachment=attachment, reason=reason
         )

@@ -1,0 +1,26 @@
+{
+  "task": "T051",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "Guardrails configuration and deployment files are in the repo; applying them on the cluster gives a running guardrails service",
+        "timeout": 600
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "On the cluster: an unsafe request is blocked and a normal finance question passes (commands + output in reports/T051.md)",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T16:59:31+01:00",
+  "results": {}
+}

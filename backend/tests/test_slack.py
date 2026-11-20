@@ -5,36 +5,30 @@ from __future__ import annotations
 import json
 
 import pytest
-from cfo.channels.base import (SIMULATED, Action, ActionKind, ApprovalAnswer,
-                               ChatMessage, ChatReply, Notifier,
-                               approval_actions)
-from cfo.channels.slack import SlackNotifier, parse_user_map
-from cfo.domain import Employee, PolicyLevel
 from slack_bolt.request import BoltRequest
 from slack_sdk import WebClient
 from slack_sdk.web import SlackResponse
 
-CEO = Employee(id="vincenzo", name="Vincenzo", role="CEO", slack_user_id="U_CEO")
-GRAZYNA = Employee(
-    id="grazyna",
-    name="Grazyna",
-    role="Office manager",
-    manager_id="vincenzo",
-    slack_user_id="U_GRA",
+from cfo.channels.base import (
+    SIMULATED,
+    Action,
+    ActionKind,
+    ApprovalAnswer,
+    ChatMessage,
+    ChatReply,
+    Notifier,
+    approval_actions,
 )
+from cfo.channels.slack import SlackNotifier, parse_user_map
+from cfo.domain import Employee, PolicyLevel
+
+CEO = Employee(id="vincenzo", name="Vincenzo", role="CEO", slack_user_id="U_CEO")
+GRAZYNA = Employee(id="grazyna", name="Grazyna", role="Office manager", manager_id="vincenzo", slack_user_id="U_GRA")
 NOBODY = Employee(id="nobody", name="No Slack", role="Intern")
 
 
 def _response(data: dict) -> SlackResponse:
-    return SlackResponse(
-        client=None,
-        http_verb="POST",
-        api_url="",
-        req_args={},
-        data=data,
-        headers={},
-        status_code=200,
-    )
+    return SlackResponse(client=None, http_verb="POST", api_url="", req_args={}, data=data, headers={}, status_code=200)
 
 
 class FakeSlackClient(WebClient):
@@ -47,25 +41,11 @@ class FakeSlackClient(WebClient):
         self.ephemeral: list[dict] = []
 
     def auth_test(self, **kwargs):
-        return _response(
-            {
-                "ok": True,
-                "user_id": "U_BOT",
-                "bot_id": "B_BOT",
-                "team_id": "T1",
-                "user": "cfo",
-            }
-        )
+        return _response({"ok": True, "user_id": "U_BOT", "bot_id": "B_BOT", "team_id": "T1", "user": "cfo"})
 
     def chat_postMessage(self, **kwargs):
         self.posted.append(kwargs)
-        return _response(
-            {
-                "ok": True,
-                "channel": "D_" + kwargs["channel"],
-                "ts": f"100.{len(self.posted):03d}",
-            }
-        )
+        return _response({"ok": True, "channel": "D_" + kwargs["channel"], "ts": f"100.{len(self.posted):03d}"})
 
     def chat_update(self, **kwargs):
         self.updated.append(kwargs)
@@ -83,9 +63,7 @@ def client() -> FakeSlackClient:
 
 @pytest.fixture
 def notifier(client) -> SlackNotifier:
-    return SlackNotifier(
-        [CEO, GRAZYNA, NOBODY], client=client, process_before_response=True
-    )
+    return SlackNotifier([CEO, GRAZYNA, NOBODY], client=client, process_before_response=True)
 
 
 def _blocks_text(message: dict) -> str:
@@ -98,32 +76,19 @@ def _dispatch(notifier: SlackNotifier, body: dict):
 
 
 def _message_event(user: str, text: str, **extra) -> dict:
-    event = {
-        "type": "message",
-        "channel_type": "im",
-        "channel": "D1",
-        "user": user,
-        "text": text,
-        "ts": "200.1",
-    }
+    event = {"type": "message", "channel_type": "im", "channel": "D1", "user": user, "text": text, "ts": "200.1"}
     event.update(extra)
     return {"type": "event_callback", "team_id": "T1", "event": event}
 
 
-def _click(
-    user: str, action_id: str, value: str, channel: str = "D_U_CEO", ts: str = "100.001"
-) -> dict:
+def _click(user: str, action_id: str, value: str, channel: str = "D_U_CEO", ts: str = "100.001") -> dict:
     return {
         "type": "block_actions",
         "team": {"id": "T1"},
         "user": {"id": user, "team_id": "T1"},
         "channel": {"id": channel},
         "container": {"type": "message", "channel_id": channel, "message_ts": ts},
-        "message": {
-            "ts": ts,
-            "text": "x",
-            "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "orig"}}],
-        },
+        "message": {"ts": ts, "text": "x", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "orig"}}]},
         "actions": [{"type": "button", "action_id": action_id, "value": value}],
     }
 
@@ -133,18 +98,13 @@ def test_implements_notifier_protocol(notifier):
 
 
 def test_parse_user_map():
-    assert parse_user_map("vincenzo=U1, grazyna = U2,,") == {
-        "vincenzo": "U1",
-        "grazyna": "U2",
-    }
+    assert parse_user_map("vincenzo=U1, grazyna = U2,,") == {"vincenzo": "U1", "grazyna": "U2"}
     assert parse_user_map("") == {}
     with pytest.raises(ValueError):
         parse_user_map("vincenzo")
 
 
-@pytest.mark.parametrize(
-    "level", [PolicyLevel.AUTO, PolicyLevel.NOTIFY, PolicyLevel.APPROVAL, SIMULATED]
-)
+@pytest.mark.parametrize("level", [PolicyLevel.AUTO, PolicyLevel.NOTIFY, PolicyLevel.APPROVAL, SIMULATED])
 def test_send_dm_labels_every_level(notifier, client, level):
     notifier.send_dm(GRAZYNA, "Took invoice AS-69664 from your Downloads folder", level)
     msg = client.posted[0]
@@ -167,12 +127,7 @@ def test_send_dm_escapes_slack_control_characters(notifier, client):
 
 
 def test_send_dm_with_approval_buttons(notifier, client):
-    notifier.send_dm(
-        CEO,
-        "Request a EUR 30k credit line?",
-        PolicyLevel.APPROVAL,
-        approval_actions("apr_1"),
-    )
+    notifier.send_dm(CEO, "Request a EUR 30k credit line?", PolicyLevel.APPROVAL, approval_actions("apr_1"))
     actions = next(b for b in client.posted[0]["blocks"] if b["type"] == "actions")
     buttons = {e["action_id"]: e for e in actions["elements"]}
     assert set(buttons) == {"cfo_approve", "cfo_reject"}
@@ -183,12 +138,7 @@ def test_send_dm_with_approval_buttons(notifier, client):
 
 
 def test_custom_button_label(notifier, client):
-    notifier.send_dm(
-        CEO,
-        "q",
-        PolicyLevel.APPROVAL,
-        [Action(kind=ActionKind.APPROVE, request_id="a", label="Sign it")],
-    )
+    notifier.send_dm(CEO, "q", PolicyLevel.APPROVAL, [Action(kind=ActionKind.APPROVE, request_id="a", label="Sign it")])
     actions = next(b for b in client.posted[0]["blocks"] if b["type"] == "actions")
     assert actions["elements"][0]["text"]["text"] == "Sign it"
 
@@ -199,11 +149,7 @@ def test_send_dm_unmapped_employee_raises(notifier):
 
 
 def test_env_user_map_overrides_and_fills_employee_slack_ids(client):
-    n = SlackNotifier(
-        [CEO, NOBODY],
-        client=client,
-        user_map={"nobody": "U_NEW", "vincenzo": "U_OTHER"},
-    )
+    n = SlackNotifier([CEO, NOBODY], client=client, user_map={"nobody": "U_NEW", "vincenzo": "U_OTHER"})
     n.send_dm(NOBODY, "hi", PolicyLevel.AUTO)
     n.send_dm(CEO, "hi", PolicyLevel.AUTO)
     assert [m["channel"] for m in client.posted] == ["U_NEW", "U_OTHER"]
@@ -215,12 +161,7 @@ def test_approve_click_calls_handler_and_replaces_buttons(notifier, client):
     response = _dispatch(notifier, _click("U_CEO", "cfo_approve", "apr_1"))
     assert response.status == 200
     assert answers == [
-        ApprovalAnswer(
-            request_id="apr_1",
-            approved=True,
-            employee_id="vincenzo",
-            message_ref="D_U_CEO:100.001",
-        )
+        ApprovalAnswer(request_id="apr_1", approved=True, employee_id="vincenzo", message_ref="D_U_CEO:100.001")
     ]
     update = client.updated[0]
     assert update["channel"] == "D_U_CEO" and update["ts"] == "100.001"
@@ -258,9 +199,7 @@ def test_handler_error_is_reported_not_raised(notifier, client):
     notifier.on_approval(boom)
     assert _dispatch(notifier, _click("U_CEO", "cfo_approve", "apr_1")).status == 200
     assert client.updated == []  # buttons stay so the click can be retried
-    assert "graph down" not in json.dumps(
-        client.ephemeral
-    )  # no internals leaked to the user
+    assert "graph down" not in json.dumps(client.ephemeral)  # no internals leaked to the user
     assert client.ephemeral
 
 
@@ -272,19 +211,8 @@ def test_chat_message_routed_and_replied(notifier, client):
         return "Saved the rule."
 
     notifier.on_chat(handler)
-    assert (
-        _dispatch(
-            notifier, _message_event("U_CEO", "equipment: I always approve myself")
-        ).status
-        == 200
-    )
-    assert got == [
-        ChatMessage(
-            employee_id="vincenzo",
-            text="equipment: I always approve myself",
-            message_ref="D1:200.1",
-        )
-    ]
+    assert _dispatch(notifier, _message_event("U_CEO", "equipment: I always approve myself")).status == 200
+    assert got == [ChatMessage(employee_id="vincenzo", text="equipment: I always approve myself", message_ref="D1:200.1")]
     reply = client.posted[0]
     assert reply["channel"] == "D1"
     assert "[AUTO]" in reply["text"] and "Saved the rule." in _blocks_text(reply)
@@ -316,9 +244,7 @@ def test_chat_from_unknown_user_is_not_routed(notifier, client):
     notifier.on_chat(lambda m: got.append(m) or "x")
     _dispatch(notifier, _message_event("U_STRANGER", "hello"))
     assert got == []
-    assert (
-        client.posted and "[NOTIFY]" in client.posted[0]["text"]
-    )  # polite refusal, still labelled
+    assert client.posted and "[NOTIFY]" in client.posted[0]["text"]  # polite refusal, still labelled
 
 
 def test_chat_handler_error_gets_a_generic_reply(notifier, client):
@@ -330,25 +256,17 @@ def test_chat_handler_error_gets_a_generic_reply(notifier, client):
     assert client.posted and "secret internals" not in json.dumps(client.posted)
 
 
-def test_app_mention_is_routed_in_thread_without_mention_text(notifier, client):
+def test_app_mention_is_routed_without_mention_text_and_answered_in_dm(notifier, client):
     got: list[ChatMessage] = []
     notifier.on_chat(lambda m: got.append(m) or "ok")
     body = {
         "type": "event_callback",
         "team_id": "T1",
-        "event": {
-            "type": "app_mention",
-            "channel": "C9",
-            "user": "U_CEO",
-            "text": "<@U_BOT> what is the balance?",
-            "ts": "300.1",
-        },
+        "event": {"type": "app_mention", "channel": "C9", "user": "U_CEO", "text": "<@U_BOT> what is the balance?", "ts": "300.1"},
     }
     _dispatch(notifier, body)
     assert got[0].text == "what is the balance?"
-    assert (
-        client.posted[0]["channel"] == "C9" and client.posted[0]["thread_ts"] == "300.1"
-    )
+    assert client.posted[0]["channel"] == "U_CEO" and "thread_ts" not in client.posted[0]  # private, see test_slack_fixes
 
 
 def test_start_and_stop_use_socket_mode_handler(client):
@@ -364,9 +282,7 @@ def test_start_and_stop_use_socket_mode_handler(client):
         def close(self):
             started.append("close")
 
-    n = SlackNotifier(
-        [CEO], client=client, app_token="xapp-1", socket_handler_factory=FakeHandler
-    )
+    n = SlackNotifier([CEO], client=client, app_token="xapp-1", socket_handler_factory=FakeHandler)
     n.start()
     n.stop()
     assert started == ["xapp-1", "connect", "close"]

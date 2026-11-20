@@ -1,9 +1,9 @@
 ---
 id: T043
 title: "Review fixes: Slack adapter call shape, private answers, level labels"
-status: todo
-owner: null
-branch: null
+status: done
+owner: coder
+branch: task/T043-fix-slack
 depends_on: ["T011"]
 capabilities: []
 acceptance:

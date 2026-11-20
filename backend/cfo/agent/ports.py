@@ -9,8 +9,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
-from cfo.domain import PolicyLevel
 from pydantic import BaseModel
+
+from cfo.domain import PolicyLevel
 
 
 class ActionButton(BaseModel):

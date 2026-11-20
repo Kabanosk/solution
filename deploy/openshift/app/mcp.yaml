@@ -12,6 +12,7 @@ spec:
   template:
     metadata: {labels: {app: mcp-company-db, app.kubernetes.io/component: mcp}}
     spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-company-db
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
@@ -63,6 +64,7 @@ spec:
   template:
     metadata: {labels: {app: mcp-workstations, app.kubernetes.io/component: mcp}}
     spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-workstations
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
@@ -119,6 +121,7 @@ spec:
   template:
     metadata: {labels: {app: mcp-hr, app.kubernetes.io/component: mcp}}
     spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-hr
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest

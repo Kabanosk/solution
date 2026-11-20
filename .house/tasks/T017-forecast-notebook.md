@@ -1,9 +1,9 @@
 ---
 id: T017
 title: Jupyter notebook for RHOAI: train, evaluate, log to MLflow
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T017-forecast-notebook
 depends_on: ["T015", "T026"]
 capabilities: []
 acceptance:

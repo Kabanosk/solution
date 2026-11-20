@@ -27,11 +27,11 @@
   "results": {
     "AC-1": {
       "id": "AC-1",
-      "passes": false,
-      "exit": 1,
-      "output_tail": "        assert by_type[\"request_invoice\"][\"level\"] == \"NOTIFY\"\n        assert by_type[\"alert_cost_anomaly\"][\"level\"] == \"NOTIFY\"\n        assert by_type[\"request_credit_line\"][\"level\"] == \"APPROVAL\"\n>       assert by_type[\"request_credit_line\"][\"executed_simulated\"] is True\nE       assert False is True\n\nbackend/tests/test_golden_path.py:412: AssertionError\n=========================== short test summary info ============================\nFAILED backend/tests/test_golden_path.py::test_routine_december_days_produce_no_decisions\nFAILED backend/tests/test_golden_path.py::test_step3_missing_invoice_goes_to_ceo_because_grazyna_is_on_vacation\nFAILED backend/tests/test_golden_path.py::test_step2_invoice_found_in_downloads_is_attached_on_its_own\nFAILED backend/tests/test_golden_path.py::test_step3_reminder_fires_after_24_simulated_hours\nFAILED backend/tests/test_golden_path.py::test_step4_cloud_cost_anomaly_alerts_the_ceo\nFAILED backend/tests/test_golden_path.py::test_step5_scheduled_forecast_review_proposes_and_waits_for_approval\nFAILED backend/tests/test_golden_path.py::test_step5_ceo_what_if_leads_to_a_credit_line_request\nFAILED backend/tests/test_golden_path.py::test_step6_only_the_approver_can_answer\nFAILED backend/tests/test_golden_path.py::test_step6_approve_executes_simulated_and_shows_in_the_api\nFAILED backend/tests/test_golden_path.py::test_step6_reject_from_the_dashboard_goes_through_the_same_agent\nFAILED backend/tests/test_golden_path.py::test_history_shows_every_level - as...\n11 failed, 7 passed in 6.32s",
-      "ran_at": "2026-11-20T17:18:32+01:00",
-      "commit": "b0b1ec5eb11230e84c3989e9f42ce83279c5123a"
+      "passes": true,
+      "exit": 0,
+      "output_tail": "..................                                                       [100%]\n18 passed in 8.85s",
+      "ran_at": "2026-11-20T17:27:46+01:00",
+      "commit": "98ad128faf7fb1fc07fe8b003153bb017977a4f3"
     }
   }
 }

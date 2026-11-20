@@ -1,0 +1,47 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { decimalCents, displayCents, financePeriod } from "../lib/finance-model.ts";
+import { authorized } from "../lib/auth.ts";
+
+test("money aggregation preserves cents, categories and inflows", () => {
+  const period = financePeriod([
+    { category: "revenue", count: "3", income: "30", expense: "0" },
+    { category: "payroll", count: "2", income: "0", expense: "10" },
+    { category: null, count: "1", income: "0", expense: "20" },
+  ]);
+  assert.equal(period.transactions, 6);
+  assert.equal(period.totalRevenue, 0.30);
+  assert.equal(period.totalExpenses, 0.30);
+  assert.deepEqual(period.expenses.map(item => item.name), ["Payroll", "Other"]);
+  assert.deepEqual(period.expenses.map(item => item.amount), [0.10, 0.20]);
+  assert.equal(financePeriod([]).totalExpenses, 0);
+  assert.deepEqual(financePeriod([]).expenses, []);
+});
+
+test("API decimals handle signs and reject malformed or unsafe money", () => {
+  assert.equal(decimalCents("-0.01"), -1n);
+  assert.equal(displayCents(decimalCents("123456.78")), 123456.78);
+  assert.throws(() => decimalCents("1.001"));
+  assert.throws(() => decimalCents("NaN"));
+  assert.throws(() => displayCents("9007199254740992"));
+});
+
+test("authentication fails closed and checks the full credentials", () => {
+  const username = process.env.DASHBOARD_USERNAME;
+  const password = process.env.DASHBOARD_PASSWORD;
+  try {
+    process.env.DASHBOARD_USERNAME = "unit-test";
+    process.env.DASHBOARD_PASSWORD = "a:password";
+    const basic = (value: string) => `Basic ${Buffer.from(value).toString("base64")}`;
+    assert.equal(authorized(basic("unit-test:a:password")), true);
+    assert.equal(authorized(basic("unit-test:wrong")), false);
+    assert.equal(authorized(basic("unit-test:a:password:extra")), false);
+    assert.equal(authorized(null), false);
+    assert.equal(authorized("Bearer token"), false);
+    delete process.env.DASHBOARD_PASSWORD;
+    assert.equal(authorized(basic("unit-test:a:password")), false);
+  } finally {
+    if (username === undefined) delete process.env.DASHBOARD_USERNAME; else process.env.DASHBOARD_USERNAME = username;
+    if (password === undefined) delete process.env.DASHBOARD_PASSWORD; else process.env.DASHBOARD_PASSWORD = password;
+  }
+});

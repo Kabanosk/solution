@@ -15,7 +15,7 @@ spec:
       enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-company-db
-          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          image: cfo-backend:latest
           args: [mcp, company-db]
           ports: [{containerPort: 8001}]
           envFrom:
@@ -67,7 +67,7 @@ spec:
       enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-workstations
-          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          image: cfo-backend:latest
           args: [mcp, workstations]
           ports: [{containerPort: 8002}]
           envFrom:
@@ -124,7 +124,7 @@ spec:
       enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       containers:
         - name: mcp-hr
-          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          image: cfo-backend:latest
           args: [mcp, hr]
           ports: [{containerPort: 8003}]
           envFrom:

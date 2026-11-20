@@ -1,6 +1,6 @@
 # MLflow tracking server (T024)
 
-Self-hosted MLflow `v3.10.1` in namespace `cfo-agent-uwur`: one pod, SQLite backend store and proxied artifacts on
+Self-hosted MLflow `v3.10.1` in the selected OpenShift project: one pod, SQLite backend store and proxied artifacts on
 PVC `mlflow-data` (2Gi), Service `mlflow:5000`, edge-TLS Route `mlflow`. No extra setup (no Postgres database to create).
 
 - In-cluster tracking URI: `http://mlflow:5000` (`MLFLOW_TRACKING_URI` in ConfigMap `cfo-config`; pods pick it up after

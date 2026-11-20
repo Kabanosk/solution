@@ -14,6 +14,7 @@ buffer), the credit line comes from the CEO's what-if ("oven for 30,000 EUR in M
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 from datetime import UTC, datetime
@@ -22,13 +23,18 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from fastapi.testclient import TestClient
-
 from cfo.agent.tools import InProcessToolBox
 from cfo.api import deps as api_deps
 from cfo.api import services
 from cfo.api.app import create_app
-from cfo.channels.base import SIMULATED, ActionKind, ApprovalAnswer, ChatMessage, ChatReply, Notifier
+from cfo.channels.base import (
+    SIMULATED,
+    ActionKind,
+    ApprovalAnswer,
+    ChatMessage,
+    ChatReply,
+    Notifier,
+)
 from cfo.config import REPO_ROOT, get_settings
 from cfo.data.load import load_events, seed
 from cfo.db.migrate import SCHEMA_PATH
@@ -40,8 +46,9 @@ from cfo.mcp_servers.company_db import CompanyDbTools
 from cfo.mcp_servers.hr import HrTools
 from cfo.mcp_servers.workstations import DbAccessLog, WorkstationTools
 from cfo.sim.engine import Simulator
+from fastapi.testclient import TestClient
 
-SCHEMA = "t011_test"
+SCHEMA = f"t011_test_{os.getpid()}"
 CEO, OFFICE = "vincenzo", "grazyna"
 MISSING_TXN, MISSING_INV = "txn_1116", "FLV-42026"  # paid 29 Dec, no document anywhere
 FOUND_TXN, FOUND_INV, FOUND_FILE = "txn_1120", "AS-69664", "Downloads/AS-69664.pdf"  # paid 30 Dec

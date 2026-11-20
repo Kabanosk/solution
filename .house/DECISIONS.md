@@ -153,3 +153,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Decyzja:** `house merge T048` cofnął merge, bo padł check T011 (golden path). Ten sam commit merge'a przechodzi test sam (18/18); przyczyna: `test_golden_path.py` (i `test_llm_usage.py`) mają stałą nazwę schematu (`t011_test`, `t032_test`), a równolegle chodziła pełna suita codera T047. T048 wrócił revertem reverta (98ad128) jak w D-014; `house check --all` GREEN. Poprawkę nazw schematów robi sesja ed.
 - **Kto:** coordinator
 - **Data:** 2026-11-20 19:30
+
+## D-025 Ostatnie sztywne schematy testów (T011, T032) też z PID
+- **Decyzja:** `test_golden_path.py` (chroniony, T011) i `test_llm_usage.py` (T032) dostają schemat `tNNN_test_<pid>`. Zmieniona tylko nazwa schematu i importy, żadna asercja. Commit z głównego checkoutu, bo hook blokuje zmianę chronionego pliku w worktree.
+- **Dlaczego:** sztywny `t011_test` wywołał fałszywy revert T048 (D-024), gdy pełny zestaw testów leciał równolegle z bramką.
+- **Kto:** coordinator
+- **Data:** 2026-11-20 18:00

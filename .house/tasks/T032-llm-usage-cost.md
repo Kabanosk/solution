@@ -1,9 +1,9 @@
 ---
 id: T032
 title: LLM usage and cost estimation from vLLM metrics (API)
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T032-llm-usage-cost
 depends_on: ["T001", "T005", "T018"]
 capabilities: []
 acceptance:

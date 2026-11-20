@@ -3,17 +3,33 @@
 # Agenci czytają ten plik na starcie każdej sesji.
 
 contest:            # człowiek
-  name: null
+  name: Collabothon 2026 — Autonomous CFO (Red Hat Challenge)
   url: null
-  organizer: null
-  language: null    # język konkursu (pitch/README w tym języku)
+  organizer: Commerzbank (business) + Red Hat (tech); Discord #Commerzbank, #Red-Hat
+  language: en  # proposed    # język konkursu (pitch/README w tym języku)
 
-kind: null          # build | optimize — człowiek
+kind: build          # build | optimize — człowiek
 
-goal: null          # co budujemy / co optymalizujemy — człowiek, coordinator doprecyzowuje
+goal: >-          # człowiek (2026-11-20), coordinator doprecyzowuje
+  RDZEŃ: jeden harness agentowy, który łączy dane z różnych dziedzin firmy (bank, faktury, metryki
+  produktu/userów, pliki i wiadomości z komputerów pracowników) i na tym wnioskuje.
+  AI back-office dla małych i średnich firm, działające na OpenShift AI z open-weights LLM.
+  (1) Agent w pętli: sprawdza transakcje bankowe vs faktury; brak faktury do wpływu/wydatku ->
+  szuka jej na „komputerze pracownika" (symulowany dysk/maile przez MCP), dodaje do bazy faktur i daje
+  znać na Slacku; nie znajdzie -> DM do osoby odpowiedzialnej, ta odpowiada/dosyła.
+  Anomalie kosztów (np. marketing x2) zestawia z metrykami (userzy) -> raport do działu / CEO.
+  (2) CEO rozmawia z agentem (Slack lub harness typu opencode): decyzje, akcje do zatwierdzenia,
+  rekomendacje (np. „kampania działa, warto zwiększyć budżet"). Prognozy kosztów modelem na OpenShift AI.
+  (3) Dashboard (ala Grafana) z prognozami kosztów i płynności per dział.
+  Wymóg wyzwania: min. 1 use case end-to-end (dane -> wyjaśniona rekomendacja -> reakcja użytkownika),
+  rozróżnienie: analizuje sam / rekomenduje / wymaga zgody / wykonanie symulowane.
 
 scoring:            # build: rubryka; optimize: metryka + sprawdzarka — z regulaminu
-  rubric: null      # build: lista kryteriów {name, what, levels 1-5, weight}
+  rubric:           # proposed: z challenge card + prezentacji Red Hat; wag nie podano
+    - {name: hard-gate, what: "apka na ich OpenShift AI + model open-weights wdrożony na RHOAI i używany; bez tego 0 pkt", weight: gate}
+    - {name: use-case, what: "end-to-end use case, wyjaśniona logika biznesowa, właściciel rozumie i reaguje (approve)", weight: high}
+    - {name: ui-ux, what: "application appeal; prosto dla każdego pokolenia (motyw 'Innovations for all generations')", weight: high}
+    - {name: bonus, what: "2-4 z: vLLM, llm-d, MaaS gateway, ogx+MCP, OpenShell/NeMo guardrails, MLflow, Jupyter, Dev Spaces, OSS code assistant, Quarkus+LangChain4J; wagi mniejsze niż w 2025", weight: low}
   metric: null      # optimize: nazwa metryki i kierunek (max/min)
   direction: null   # optimize: max | min (house exp; bez tego bierze max/min ze słów w metric)
   local_scorer: null   # optimize: komenda lokalnej sprawdzarki; drukuje `score: <liczba>`
@@ -21,26 +37,30 @@ scoring:            # build: rubryka; optimize: metryka + sprawdzarka — z regu
   leaderboard: null    # optimize: czy jest, gdzie, jak często się odświeża
 
 timeline:           # z regulaminu
-  start: null
-  end: null
-  milestones: []    # np. {at: "19:00", what: "golden path end-to-end"}, feature freeze
+  start: 2026-11-20T10:00+01:00  # proposed (event 20-22.11, Łódź)
+  end: 2026-11-22T10:00+01:00
+  milestones:
+    - {at: "2026-11-20 22:00", what: "golden path end-to-end lokalnie (mocki LLM/Slack dozwolone)"}
+    - {at: "2026-11-21 14:00", what: "wszystko na OpenShift AI z modelem z vLLM"}
+    - {at: "2026-11-22 07:00", what: "feature freeze"}
+    - {at: "2026-11-22 09:00", what: "wszystko gotowe (cel)"}    # np. {at: "19:00", what: "golden path end-to-end"}, feature freeze
 
 rules:              # sprawdza researcher PRZED startem
-  url: null
-  allowed_ai: null
+  url: challenge/ (PDF-y lokalnie, nie w gicie)
+  allowed_ai: true   # Claude Code/Codex dozwolone lokalnie; OSS agent na OpenShift preferowany
   allowed_autonomous_agents: null
-  notes: null
+  notes: "Repo musi być udostępnione Red Hat, żeby dostać dostęp do klastra. Klaster 1 node 32 CPU/128 GB + GPU, kasowany po evencie. Punkty: zgłosić się do Georga i Karstena przed terminem."
 
 deliverables:       # co trzeba oddać — researcher sprawdza w regulaminie; nie zakładaj niczego (null = nieznane)
   video_required: null
   video_max_seconds: null
   live_demo: null
   slides: null
-  repo_submission: null
+  repo_submission: true  # project card PDF: nazwa, one-liner, stack, overview, link do repo
   starter_code_allowed: null    # czy wolno użyć kodu przygotowanego przed eventem
-  ai_apis_allowed: null
-  external_data_allowed: null
-  cloud_deploy_allowed: null
+  ai_apis_allowed: false  # proposed: model musi być open-weights na RHOAI
+  external_data_allowed: true  # sample data opcjonalne, wolno własne
+  cloud_deploy_allowed: true  # wręcz wymagane: OpenShift AI
   format: null                  # optimize: .py / .onnx / zip / plik wyników …
 
 mode: copilot       # copilot (pytaj o trudne decyzje) | autopilot (decyduj sam, pytaj tylko w końcówce)
@@ -61,16 +81,20 @@ deploy: true        # czy wolno samemu wystawić publiczne demo
 
 languages:
   team: pl          # PROGRESS, QUESTIONS, DECISIONS, briefing
-  public: null      # pitch, README, raporty — domyślnie język konkursu, inaczej en
+  public: en      # pitch, README, raporty — domyślnie język konkursu, inaczej en
 
 tools: see tools.json   # wykrywa `house doctor`; nie edytuj ręcznie
 
 team:               # człowiek — system zajmuje się tylko tematami właściciela
   owner: Wojtek
-  members: []       # {name, role, uses: claude|codex|cursor|grok-bot}
+  members:
+    - {name: Wojtek, role: "backend + OpenShift; NeMo Guardrails sam", uses: claude}
+    - {name: Grzesiu, role: "backend + OpenShift (zna k8s)", uses: null}
+    - {name: Paweł, role: "demo, prezentacja, dashboard", uses: null}
+    - {name: Piotrek, role: "demo, prezentacja, dashboard", uses: null}       # {name, role, uses: claude|codex|cursor|grok-bot}
 
 notify:             # powiadomienia Signal (house notify / ask / inbox); konfiguracja konta: ~/.config/house/notify.env
-  alias: null       # krótki skrót konkursu w wiadomościach, np. fr; unikalny wśród trwających konkursów
+  alias: cb       # krótki skrót konkursu w wiadomościach, np. fr; unikalny wśród trwających konkursów
   signal_group: null  # nazwa grupy Signal drużyny; null = tylko Twoja „Notatka do siebie”
 
 guard:              # ochrona (hooki + house guard diff)

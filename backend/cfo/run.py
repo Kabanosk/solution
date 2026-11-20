@@ -413,7 +413,9 @@ def main(argv: list[str] | None = None) -> int:
 
     settings, run = get_settings(), get_run_settings()
     apply_schema(settings.database_url)
-    # TODO(T027): call cfo.observability.init_tracing(settings) here, before the agent is built.
+    from cfo.observability import init_tracing
+
+    init_tracing(settings)  # MLflow agent traces; a no-op unless MLFLOW_TRACKING_URI is set
     runtime = runtime_from_settings()
     data_dir = args.data or run.data_dir
     simulator = Simulator(Repository.connect(settings.database_url), load_events(data_dir), speed=settings.sim_speed,

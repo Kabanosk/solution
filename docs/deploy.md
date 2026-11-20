@@ -102,8 +102,17 @@ oc rsh deploy/api cfo smoke                      # LLM, tool calling, 3 MCP serv
 oc get route api dashboard
 ```
 `cfo smoke` prints one line per check and exits 1 on any `FAIL`. The last cluster run: 11/11 PASS (2026-11-20).
-API docs: `https://<api route>/docs`. MLflow has no authentication: open it with
-`oc port-forward svc/mlflow 5000:5000` and http://localhost:5000.
+API docs: `https://<api route>/docs`. Open MLflow with `oc port-forward svc/mlflow 5000:5000` and
+http://localhost:5000.
+
+**MLflow security:** the MLflow server has no authentication, and `deploy/openshift/mlflow/mlflow.yaml` also creates
+a public Route `mlflow`: anyone who finds its hostname can read and write runs and models. Using port-forward
+yourself does not close it. Unless the Route is needed for a demo, delete it right after the apply (the app and
+`cfo smoke` use the internal service `http://mlflow:5000`, not the Route):
+```sh
+oc delete route mlflow
+```
+`oc apply -k deploy/` creates it again; delete it again after each apply.
 
 ## 7. Day to day: logs and debugging
 
@@ -123,7 +132,7 @@ More in `INFRA.md` §4.
 |---|---|
 | Code merged to GitHub `main` | `oc start-build cfo-backend --follow`, then `oc rollout restart deploy/api deploy/worker deploy/mcp-company-db deploy/mcp-hr deploy/mcp-workstations deploy/usage-sampler` |
 | Manifests in `deploy/` | `oc apply -k deploy/` |
-| ConfigMap `cfo-config` or a Secret | pods do not restart on their own: `oc rollout restart deploy/api deploy/worker` |
+| ConfigMap `cfo-config` or a Secret | pods do not restart on their own: `oc rollout restart deploy/api deploy/worker deploy/usage-sampler` (the sampler reads `VLLM_METRICS_*` from `cfo-config`) |
 | Fresh demo data (also resets the simulator) | `oc delete job cfo-seed && oc apply -k deploy/`; never during a live demo |
 
 ## 9. Rollback

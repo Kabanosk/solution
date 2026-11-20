@@ -1,6 +1,6 @@
 import "server-only";
 import { financePeriod, type DashboardData } from "./finance-model";
-import type { AgentTask, Approval, AuditRow, ResolvedVia, TaskDetail, TaskStatus, TaskStep, TransactionInfo } from "./scout-model";
+import type { AgentTask, ScoutRecords, Approval, AuditRow, ResolvedVia, TaskDetail, TaskStatus, TaskStep, TransactionInfo } from "./scout-model";
 
 // Invented UI fixtures for Pizzeria Amalfi (deck wording), deliberately independent of private company records.
 type Fixture = {
@@ -207,7 +207,6 @@ export function getPreviewData(): DashboardData {
     ],
     scout: {
       ceoId: "vincenzo", tasks, demo: process.env.SCOUT_DEMO === "1",
-      audit: AUDIT.map((row, index) => ({ ...row, id: index + 1 })).sort((a, b) => b.ts.localeCompare(a.ts)),
       explained: { documented: 310, total: 312 },
       connections: [
         { id: "bank", kind: "bank", provider: "revolut-mock", enabled: true, displayName: "Revolut Business", config: { mocked: true }, status: "connected", lastSyncAt: at("11:02"), lastError: null },
@@ -222,7 +221,18 @@ export function getPreviewData(): DashboardData {
         { id: 3, onDate: "2026-12-01", amount: -3200, label: "Rent · Via Roma 12", taskId: null },
         { id: 4, onDate: "2026-12-05", amount: -1840, label: "Fattoria La Vino · standing order", taskId: null },
       ],
-      transactions: [
+    },
+    forecast: {
+      asOf: DAY, model: "Sample forecast", safetyBuffer: 18000,
+      points: Array.from({ length: 91 }, (_, day) => ({ day, balance: Math.round(38000 - day * 110 + Math.sin(day / 8) * 2300) })),
+    },
+  };
+}
+
+export function getPreviewRecords(): ScoutRecords {
+  return {
+    audit: AUDIT.map((row, index) => ({ ...row, id: index + 1 })).sort((a, b) => b.ts.localeCompare(a.ts)),
+    transactions: [
         { id: "TX-20261120-0042", bookingDate: DAY, counterparty: "Asimex Sp. z o.o.", reference: "AS-2611 mozzarella", amount: -612.4, category: "food", invoiceNumber: "AS-2611", documented: false },
         { id: "TX-20261120-0040", bookingDate: DAY, counterparty: "Card payments · SumUp", reference: "Daily settlement", amount: 2431.5, category: "revenue", invoiceNumber: null, documented: true },
         { id: "TX-20261119-0031", bookingDate: "2026-11-19", counterparty: "Fattoria La Vino", reference: "FLV-42110", amount: -960, category: "beverages", invoiceNumber: "FLV-42110", documented: false },
@@ -230,10 +240,5 @@ export function getPreviewData(): DashboardData {
         { id: "TX-20261117-0009", bookingDate: "2026-11-17", counterparty: "Asimex Sp. z o.o.", reference: "AS-2604", amount: -488.2, category: "food", invoiceNumber: "AS-2604", documented: true },
         { id: "TX-20261116-0004", bookingDate: "2026-11-16", counterparty: "Central Wholesale Market", reference: "CWM-8812", amount: -1275.9, category: "food", invoiceNumber: "CWM-8812", documented: true },
       ],
-    },
-    forecast: {
-      asOf: DAY, model: "Sample forecast", safetyBuffer: 18000,
-      points: Array.from({ length: 91 }, (_, day) => ({ day, balance: Math.round(38000 - day * 110 + Math.sin(day / 8) * 2300) })),
-    },
   };
 }

@@ -18,6 +18,7 @@ spec:
           ports: [{containerPort: 8000}]
           envFrom:
             - configMapRef: {name: cfo-config}
+            - secretRef: {name: cfo-secrets, optional: true}   # SLACK_BOT_TOKEN, LLM_API_KEY for the in-API agent
           env:
             # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
             # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password
@@ -29,9 +30,15 @@ spec:
               value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
             # The liquidity model is trained on the first request when the file is missing; /tmp is writable under any UID.
             - {name: FORECAST_MODEL_PATH, value: /tmp/liquidity_xgb.json}
+            # Agent inside the API process (cfo.run.attach_api): approvals from the dashboard and events of
+            # POST /v1/sim:step are handled here; the worker keeps the clock, reminders and the Slack socket.
+            - {name: AGENT_IN_API, value: "1"}
           resources:
             requests: {cpu: 100m, memory: 384Mi}
             limits: {cpu: "1", memory: 1536Mi}
+          # The December replay for /v1/sim (data/generated/events/december.jsonl) comes from the seed Job's volume.
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
           readinessProbe:
             httpGet: {path: /healthz, port: 8000}
             initialDelaySeconds: 5
@@ -41,6 +48,9 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 20
             failureThreshold: 6
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: cfo-data}
 ---
 apiVersion: v1
 kind: Service

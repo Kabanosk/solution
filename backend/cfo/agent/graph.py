@@ -112,7 +112,7 @@ class Deps:
         self.notifier = notifier
         self.cfg = config
 
-    def dm(self, employee_id: str, text: str, level: PolicyLevel, actions: Sequence[ActionButton] = ()) -> str | None:
+    def dm(self, employee_id: str, text: str, level: PolicyLevel | str, actions: Sequence[ActionButton] = ()) -> str | None:
         try:
             return self.notifier.send_dm(employee_id, text, level, actions)
         except Exception:  # noqa: BLE001 - a Slack hiccup must not lose the decision that was already recorded
@@ -429,7 +429,8 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                 msg = f"Rejected. Nothing was done: {pending['summary']}."
             repo.add_decision(dec)
             repo.resolve_approval(ids["approval_id"], ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED)
-        d.dm(by, msg, PolicyLevel.APPROVAL)
+        # the confirmation of a simulated execution carries the SIMULATED label (demo-flow step 6)
+        d.dm(by, msg, "SIMULATED" if approved and pending["kind"] == "simulate" else PolicyLevel.APPROVAL)
         return {"steps": [f"approval {'approved' if approved else 'rejected'} by {by}"]}
 
     # -- cost anomalies (sub-agent) ------------------------------------------------------------

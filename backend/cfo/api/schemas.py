@@ -70,7 +70,8 @@ class ForecastPoint(BaseModel):
 
 
 class ForecastGap(BaseModel):
-    """A stretch of days with a predicted negative balance: the reason for a credit line (D-005)."""
+    """A stretch of days with a predicted balance below the safety buffer (D-013); the trigger for a proposal
+    (money-market deposit when there is slack, credit line in a what-if scenario)."""
 
     start: date
     end: date
@@ -92,8 +93,11 @@ class LiquidityForecast(BaseModel):
     granularity: Literal["day", "week"]
     currency: str
     opening_balance: Money
+    safety_buffer: Money = Field(description="Safety buffer line to draw (D-013): by default the largest monthly "
+                                             "fixed cost (payroll, rent, tax, social security, utilities), "
+                                             "overridable with SAFETY_BUFFER_EUR.")
     lowest_point: ForecastPoint = Field(description="Lowest predicted balance within the horizon.")
-    gaps: list[ForecastGap]
+    gaps: list[ForecastGap] = Field(description="Stretches of days with a predicted balance below `safety_buffer`.")
     model: ForecastModelInfo
     points: list[ForecastPoint]
 
@@ -111,6 +115,9 @@ class ForecastSummary(BaseModel):
     lowest_balance: Money
     lowest_date: date
     first_negative_date: date | None = None
+    safety_buffer: Money
+    first_below_buffer_date: date | None = Field(default=None, description="First predicted day below the "
+                                                                          "safety buffer (D-013), null if none.")
 
 
 class Kpis(BaseModel):

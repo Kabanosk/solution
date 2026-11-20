@@ -33,8 +33,8 @@ spec:
             - {name: HOME, value: /tmp}   # random UID on OpenShift: HOME must be writable
           ports: [{name: http, containerPort: 5000}]
           resources:
-            requests: {cpu: 50m, memory: 256Mi}
-            limits: {cpu: 500m, memory: 1Gi}
+            requests: {cpu: 100m, memory: 768Mi}
+            limits: {cpu: "1", memory: 3Gi}  # 1Gi was OOMKilled at startup (MLflow 3.x job consumers)
           readinessProbe:
             httpGet: {path: /health, port: 5000}
             initialDelaySeconds: 10

@@ -27,17 +27,20 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "..........................                                               [100%]\n26 passed in 0.15s",
-      "ran_at": "2026-11-20T14:22:57+01:00",
-      "commit": "f2267c1dd052dd3bbbb9068ad8f15fa952a97ffc"
+      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\nUninstalled 1 package in 0.35ms\nInstalled 3 packages in 4ms\n..........................                                               [100%]\n26 passed in 0.34s",
+      "ran_at": "2026-11-20T14:23:26+01:00",
+      "commit": "a47e0ba96be918828318991d0733e6a394133389"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T14:22:57+01:00",
-      "commit": "f2267c1dd052dd3bbbb9068ad8f15fa952a97ffc"
+      "ran_at": "2026-11-20T14:23:26+01:00",
+      "commit": "a47e0ba96be918828318991d0733e6a394133389"
     }
+  },
+  "reverted": {
+    "base": "9bd15c50f85db55dfc5bf33f9abfc146b33d9f95"
   }
 }

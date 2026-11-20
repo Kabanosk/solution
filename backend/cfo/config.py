@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     llm_api_key: str = "EMPTY"  # vLLM accepts any non-empty key
     slack_bot_token: str = ""  # xoxb-...
     slack_app_token: str = ""  # xapp-... (Socket Mode)
+    slack_user_map: str = ""  # employee_id=SLACK_USER_ID pairs, comma separated; overrides HR data
     # Root of the simulated company computers: <root>/<employee>/{Downloads,Mail,...}
     workstations_root: Path = Field(default=Path("data/generated/workstations"))
     # Simulator speed multiplier: 1.0 = simulated time runs at real time, 3600 = one hour per second.

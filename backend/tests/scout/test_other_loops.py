@@ -197,3 +197,25 @@ def test_smalltalk_help(conn_factory, tmp_path):
     ctx = make_world(conn_factory, tmp_path, llm=route_llm("smalltalk"))
     chat.run(ctx, dm("rosa", "hi"))
     assert ctx.notifier.updates[-1]["text"].startswith("I'm Scout")
+
+
+def test_requester_hears_the_approval(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "an oven",
+                                           "from_id": "grazyna", "status_ref": "D_gra:s1"}))
+    assert ctx.notifier.updates[-1]["ref"] == "D_gra:s1" and "Waiting for" in ctx.notifier.updates[-1]["text"]
+    liquidity.resume(ctx, t.approval_id, True, "vincenzo")
+    [mine] = [u for u in ctx.notifier.updates if u["ref"] == "D_gra:s1"][-1:]
+    assert mine["text"].startswith("Resolved · ") and "Vincenzo approved" in mine["text"] and t.id in mine["text"]
+    assert mine["level"] == "NOTIFY"
+
+
+def test_requester_without_status_message_gets_a_dm(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "an oven",
+                                           "from_id": "grazyna"}))
+    liquidity.resume(ctx, t.approval_id, False, "vincenzo")
+    last = ctx.notifier.sent[-1]
+    assert last["to"] == "grazyna" and "rejected" in last["text"] and last["task_id"] == t.id

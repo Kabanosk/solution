@@ -80,8 +80,7 @@ user needs `CREATE` on the database) and the LLM calls are not written to `llm_u
 failed scenario), `--tracking-uri`, `--schema`. In an image without a git checkout set `GIT_SHA`. On the cluster
 run it where `LLM_BASE_URL` resolves (e.g. `oc exec deploy/<worker> -- python -m cfo.eval --llm real`, with
 `MLFLOW_TRACKING_URI` and the `MLFLOW_TRACKING_AUTH` settings of §5), or locally through `oc port-forward` to the
-model pod. The backend image (`Containerfile`) is built without the `mlflow` extra, so inside a pod `cfo.eval`
-stops with a message until the image installs it (`uv sync --extra mlflow`).
+model pod. The backend image installs the `mlflow` extra since T042; an older image stops with a message.
 
 ## 3. Backend image
 

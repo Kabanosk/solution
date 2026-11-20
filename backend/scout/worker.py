@@ -155,25 +155,26 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     conn.close()
     audit, recorder, jobs = Audit(cf), TaskRecorder(cf), JobQueue(cf)
     user_map = parse_user_map(s.slack_user_map)
-    slack_client, socket_handler, notifier = None, None, LogNotifier()
+    slack_client, socket_handler, notifier, names = None, None, LogNotifier(), {}
     if s.slack_bot_token:
         from slack_bolt import App
         from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-        from scout.slack_ui import SlackUI
+        from scout.slack_ui import SlackUI, slack_names
 
         app = App(token=s.slack_bot_token)
         slack_client = app.client
+        names = slack_names(slack_client, user_map)
         icon = s.scout_icon_url or (f"{s.dashboard_url.rstrip('/')}/scout-icon.png"
                                     if s.dashboard_url.startswith("https://") else None)
         notifier = SlackUI(slack_client, user_map, jobs, recorder, conn_factory=cf, audit=audit,
-                           bot_token=s.slack_bot_token, dashboard_url=s.dashboard_url, icon_url=icon)
+                           bot_token=s.slack_bot_token, dashboard_url=s.dashboard_url, icon_url=icon, names=names)
         notifier.register(app)
         if s.slack_app_token:
             socket_handler = SocketModeHandler(app, s.slack_app_token)
     connectors = registry.build(cf, s, slack_client, audit)
     ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=get_llm(),
-                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map),
+                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names),
                      checkpointer=scout_db.postgres_checkpointer(s.database_url))
     bank = BankWatcher(cf, connectors, jobs)
     mail = MailWatcher(cf, connectors, jobs, recorder)

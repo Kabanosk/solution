@@ -53,14 +53,30 @@ def build_context(settings: ScoutSettings) -> JobContext:
 
     cf = scout_db.factory(settings.database_url)
     audit = Audit(cf)
-    slack = None
+    from scout.worker import parse_user_map
+
+    slack, user_map = None, parse_user_map(settings.slack_user_map)
+    names: dict[str, str] = {}
     if settings.slack_bot_token:
         from slack_sdk import WebClient
 
         slack = WebClient(token=settings.slack_bot_token, timeout=10)
+        names = _names(slack, settings.slack_user_map, user_map)
     return JobContext(conn_factory=cf, recorder=TaskRecorder(cf), audit=audit,
                       connectors=registry.build(cf, settings, slack, audit), llm=get_llm(), notifier=LogNotifier(),
-                      jobs=JobQueue(cf), settings=settings, hr=HR(cf))
+                      jobs=JobQueue(cf), settings=settings, hr=HR(cf, user_map, names))
+
+
+_NAMES: dict[str, dict[str, str]] = {}
+
+
+def _names(slack: Any, raw: str, user_map: dict[str, str]) -> dict[str, str]:
+    """Slack names change rarely: look them up once per process, not on every chat question."""
+    if raw not in _NAMES:
+        from scout.slack_ui import slack_names
+
+        _NAMES[raw] = slack_names(slack, user_map)
+    return _NAMES[raw]
 
 
 ContextFactory = Callable[[ScoutSettings], JobContext]

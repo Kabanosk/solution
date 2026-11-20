@@ -1,0 +1,28 @@
+{
+  "task": "T011",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_golden_path.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "Golden path from $HOUSE_DIR/demo-flow.md runs on the cluster with the real model and Slack; judge records evidence",
+        "timeout": 600
+      }
+    ],
+    "protected": {
+      "backend/tests/test_golden_path.py": null
+    }
+  },
+  "frozen_at": "2026-11-20T13:52:23+01:00",
+  "results": {}
+}

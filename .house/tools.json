@@ -1,0 +1,17 @@
+{
+  "claude": true,
+  "codex": true,
+  "cursor": true,
+  "uv": true,
+  "ruff": true,
+  "grok_bot": true,
+  "ollama": {
+    "installed": true,
+    "models": []
+  },
+  "gpu": {
+    "name": "NVIDIA RTX 500 Ada Generation Laptop GPU",
+    "vram_mib": 4094
+  },
+  "checked_at": "2026-11-20T13:52:32+01:00"
+}

@@ -1,0 +1,34 @@
+{
+  "task": "T012",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "for f in deploy/openshift/*.yaml; do python3 -c \"import sys,yaml; list(yaml.safe_load_all(open(sys.argv[1])))\" \"$f\" || exit 1; done",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "test -f docs/deploy.md",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-3",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "oc apply -k deploy/openshift on the team cluster brings up Postgres, the app and MLflow; app reaches the model endpoint; judge records evidence",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T13:52:23+01:00",
+  "results": {}
+}

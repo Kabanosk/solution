@@ -261,7 +261,7 @@ class SlackNotifier:
         channel = event["channel"]
         employee = self._by_slack_id.get(event.get("user", ""))
         if employee is None:
-            self._reply(channel, thread_ts, "I only talk to people registered with the CFO agent.", PolicyLevel.NOTIFY)
+            self._notice(event, thread_ts, "I only talk to people registered with the CFO agent.", private)
             return
         if self._chat_handler is None or not text:
             return
@@ -270,7 +270,7 @@ class SlackNotifier:
             reply = self._chat_handler(message)
         except Exception:  # noqa: BLE001
             log.exception("chat handler failed for message from %s", employee.id)
-            self._reply(channel, thread_ts, "Something went wrong on my side. Please try again.", PolicyLevel.NOTIFY)
+            self._notice(event, thread_ts, "Something went wrong on my side. Please try again.", private)
             return
         if reply is None:
             return
@@ -287,6 +287,13 @@ class SlackNotifier:
             self._ephemeral(channel, asker, "I could not send you a direct message. Please DM me instead.")
             return
         self._ephemeral(channel, asker, "I answered you in a DM.")
+
+    def _notice(self, event: dict[str, Any], thread_ts: str | None, text: str, private: bool) -> None:
+        """Refusal / error note: ephemeral (only the asker sees it) in a shared channel, a labelled reply in a DM."""
+        if private:
+            self._ephemeral(event["channel"], event["user"], text)
+        else:
+            self._reply(event["channel"], thread_ts, text, PolicyLevel.NOTIFY)
 
     def _reply(self, channel: str, thread_ts: str | None, text: str, level: Level) -> None:
         self._post(channel, text, level, [_section(text, level)], thread_ts=thread_ts)

@@ -51,8 +51,8 @@ The bot needs the Slack user id (`U01ABC...`, not the display name) of each empl
   ```
 
 **Environment variable `SLACK_USER_MAP`** (comma-separated `employee_id=slack_user_id`, employee ids are the
-slugs of the HR sheet). This is the supported way. The `slack_id` column of the HR CSV is **not** read by the
-seed job, so filling it in has no effect; `Employee.slack_user_id` can only be set in the database or in code.
+slugs of the HR sheet). This is the supported way; the HR sheet carries no Slack ids, and
+`Employee.slack_user_id` can only be set in the database or in code.
 ```
 SLACK_USER_MAP=vincenzo=U01AAAAAAA,grazyna=U02BBBBBBB,rosa=U03CCCCCCC
 ```

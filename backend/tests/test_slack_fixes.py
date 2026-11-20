@@ -105,14 +105,26 @@ def test_mention_silent_handler_posts_nothing(notifier, client):
     assert client.posted == [] and client.ephemeral == []
 
 
-def test_mention_handler_error_does_not_leak_into_channel_as_data(notifier, client):
+def test_mention_handler_error_is_ephemeral_not_public(notifier, client):
     def boom(msg):
         raise RuntimeError("secret internals")
 
     notifier.on_chat(boom)
     _dispatch(notifier, _mention("U_CEO"))
-    assert "secret internals" not in json.dumps(client.posted) + json.dumps(client.ephemeral)
-    assert client.posted or client.ephemeral
+    assert client.posted == []  # nothing public in the channel
+    assert len(client.ephemeral) == 1
+    note = client.ephemeral[0]
+    assert note["channel"] == "C9" and note["user"] == "U_CEO"
+    assert note["text"].startswith("[NOTIFY]") and "secret internals" not in note["text"]
+
+
+def test_mention_from_unregistered_user_is_refused_ephemerally(notifier, client):
+    got: list[ChatMessage] = []
+    notifier.on_chat(lambda m: got.append(m) or "x")
+    _dispatch(notifier, _mention("U_STRANGER"))
+    assert got == [] and client.posted == []
+    assert client.ephemeral[0]["user"] == "U_STRANGER" and client.ephemeral[0]["channel"] == "C9"
+    assert client.ephemeral[0]["text"].startswith("[NOTIFY]")
 
 
 def test_dm_chat_still_answers_in_the_dm(notifier, client):

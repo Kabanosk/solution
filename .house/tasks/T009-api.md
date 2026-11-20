@@ -1,7 +1,7 @@
 ---
 id: T009
 title: REST API for the dashboard (FastAPI + OpenAPI docs)
-status: todo
+status: split  # -> T018, T019, T020
 owner: null
 branch: null
 depends_on: ["T001", "T002"]

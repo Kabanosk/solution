@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  labels: {app: dashboard, app.kubernetes.io/component: dashboard}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-dashboard:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"dashboard\")].image"}]'
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: dashboard}}
+  template:
+    metadata:
+      labels: {app: dashboard, app.kubernetes.io/component: dashboard}
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: dashboard
+          image: cfo-dashboard:latest
+          ports: [{name: http, containerPort: 3000}]
+          env:
+            - {name: HOSTNAME, value: "0.0.0.0"}
+            - {name: PORT, value: "3000"}
+            - {name: PGHOST, value: postgres}
+            - {name: PGPORT, value: "5432"}
+            - name: PGUSER
+              valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}
+            - name: PGDATABASE
+              valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
+            - {name: CFO_API_URL, value: "http://api:8000"}
+          envFrom:
+            - secretRef: {name: dashboard-auth}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  labels: {app: dashboard}
+spec:
+  selector: {app: dashboard}
+  ports: [{name: http, port: 3000, targetPort: http}]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dashboard
+  labels: {app: dashboard}
+spec:
+  to: {kind: Service, name: dashboard}
+  port: {targetPort: http}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -32,4 +32,4 @@ Format wpisu: nagłówek drugiego poziomu `Q-<kolejny numer, 3 cyfry> [open] <ty
 - **Blokuje:** T012 (seed na klastrze); T002 działa lokalnie z `SOURCE_CSV`
 - **Poziom:** zawsze człowiek
 - **Domyślnie:** B
-- **Odpowiedź:** B — Grzesiu wgrał CSV i resztę sample data na klaster (PVC `sample-data` w `cfo-agent-uwur`, serwowane read-only przez `http://files:8080`; branch `infra`)
+- **Odpowiedź:** B — Grzesiu wgrał CSV i resztę sample data na klaster (PVC `sample-data` w wybranym projekcie, serwowane read-only przez `http://files:8080`; branch `infra`)

@@ -1,0 +1,34 @@
+{
+  "task": "T049",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_cost_alert_wording.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend --extra mlflow pytest -q backend/tests/test_agent_eval.py backend/tests/test_agent.py backend/tests/test_cost_metrics.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-3",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "python -m cfo.eval --llm real --only cloud_cost_up_orders_flat_alert against the cluster Granite passes; coordinator records the run",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T16:58:43+01:00",
+  "results": {}
+}

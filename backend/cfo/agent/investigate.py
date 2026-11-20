@@ -15,18 +15,31 @@ from cfo import observability as obs
 from cfo.agent.llm_tasks import explain
 from cfo.agent.tools import Gateway
 from cfo.analysis.cost_metrics import PAIRS, detect_anomalies
-from cfo.domain import CostMetric
+from cfo.domain import CostMetric, Invoice
 from cfo.llm import LLM
 
 
 class InvState(TypedDict, total=False):
     rows: list[dict[str, Any]]
+    invoices: dict[str, Invoice]
     findings: list[dict[str, Any]]
 
 
 def build_investigation_graph(gw: Gateway, llm: LLM, threshold_pct: float = 20.0):
     def gather(state: InvState) -> InvState:
-        return {"rows": sorted(gw.cost_metrics(), key=lambda r: (r["kind"], r["month"]))}
+        rows = sorted(gw.cost_metrics(), key=lambda r: (r["kind"], r["month"]))
+        # the invoices the metrics point at (ad spend): without them the alert cannot name the contributing lines
+        numbers = {str(r["detail"]["invoice_number"]) for r in rows
+                   if isinstance(r.get("detail"), dict) and r["detail"].get("invoice_number")}
+        invoices: dict[str, Invoice] = {}
+        for number in sorted(numbers):
+            try:
+                inv = gw.invoice(number)
+            except Exception:  # noqa: BLE001 - a missing invoice only means fewer contributing lines
+                inv = None
+            if inv is not None:
+                invoices[number] = inv
+        return {"rows": rows, "invoices": invoices}
 
     def detect(state: InvState) -> InvState:
         # Detection lives in cfo.analysis.cost_metrics (T007); only the newest month of each pair is news.
@@ -35,7 +48,7 @@ def build_investigation_graph(gw: Gateway, llm: LLM, threshold_pct: float = 20.0
         for m in metrics:
             latest[m.kind] = max(latest.get(m.kind, m.month), m.month)
         findings = []
-        for a in detect_anomalies(metrics, cost_growth_pct=threshold_pct):
+        for a in detect_anomalies(metrics, state.get("invoices"), cost_growth_pct=threshold_pct):
             if a.month != latest[a.kind]:
                 continue
             spec = PAIRS[a.kind]

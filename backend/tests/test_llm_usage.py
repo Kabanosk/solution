@@ -7,6 +7,7 @@ schema is never touched). No test sleeps: clocks and the sampler's wait are inje
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -15,8 +16,6 @@ from types import SimpleNamespace
 
 import psycopg
 import pytest
-from fastapi.testclient import TestClient
-
 from cfo import llm as cfo_llm
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo
@@ -35,6 +34,7 @@ from cfo.usage.vllm_metrics import (
     parse_prometheus_text,
     snapshots_from_text,
 )
+from fastapi.testclient import TestClient
 
 UTC = timezone.utc
 
@@ -421,15 +421,14 @@ class TestSampler:
 
 # --- database: report and API -----------------------------------------------------------------------------------
 
-SCHEMA = "t032_test"
+SCHEMA = f"t032_test_{os.getpid()}"
 
 
 @pytest.fixture(scope="module")
 def repo():
-    from psycopg.rows import dict_row
-
     from cfo.db.migrate import SCHEMA_PATH
     from cfo.db.repo import Repository
+    from psycopg.rows import dict_row
 
     url = get_settings().database_url
     try:

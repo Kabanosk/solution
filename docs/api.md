@@ -30,7 +30,7 @@ Regenerate the contract after API changes: `uv run --project backend python -m c
 | Collections | `{"items": [...]}`. Lists that can grow are paginated with `limit` (1..200, default 50) and `offset` (default 0) and return `total`, `limit`, `offset` next to `items` |
 | Enums | autonomy level `AUTO` / `NOTIFY` / `APPROVAL`; decision status `executed` / `pending` / `rejected` / `escalated`; cost pair `food_cost` / `ads_cac` / `cloud_per_order` |
 | Errors | always `{"error": {"code", "message"}}` with the matching HTTP status (see below) |
-| Auth | none (demo) |
+| Auth | none for reads. Write endpoints (approve/reject, `/v1/sim:start`, `:pause`, `:step`) need `Authorization: Bearer <token>` when the server has `API_WRITE_TOKEN` set, see [Write protection](#write-protection) |
 | Unknown fields | ignore them: new fields may be added without a version bump |
 
 ### Errors
@@ -47,11 +47,12 @@ Regenerate the contract after API changes: `uv run --project backend python -m c
 | HTTP | `code` | When |
 |---|---|---|
 | 404 | `not_found` | unknown id, or unknown endpoint (`"No such endpoint."`) |
-| 405 | `method_not_allowed` | wrong HTTP method |
-| 403 | `forbidden` | `by` is not the approver of the approval |
+| 405 | `method_not_allowed` | wrong HTTP method; the `Allow` header lists the right ones |
+| 401 | `unauthorized` | write endpoint without the right bearer token (only when `API_WRITE_TOKEN` is set); `WWW-Authenticate: Bearer` |
+| 403 | `forbidden` | `by` (or the CEO, when a write token is used) is not the approver of the approval |
 | 409 | `conflict` | the approval was already answered the other way |
 | 422 | `validation_error` | bad query parameter; `error.details[]` lists `loc`, `message`, `type` |
-| 500 | `internal_error` | bug on our side; no internal details are leaked |
+| 500 | `internal_error` | bug on our side; no internal details are leaked. Carries the CORS headers like every other response, so the browser can read it |
 | 503 | `database_unavailable` | the database cannot be reached |
 | 503 | `no_data` | the database has no transactions yet (not seeded) |
 | 503 | `agent_unavailable` | no agent runs in this API process (approvals cannot be answered) |
@@ -76,6 +77,26 @@ Validation error example (`GET /v1/decisions?limit=1000`):
   }
 }
 ```
+
+### Write protection
+
+By default the API is open (local development, mocks). When the server runs with the environment variable
+`API_WRITE_TOKEN` set, the endpoints that change state require it:
+
+* `POST /v1/approvals/{id}:approve`, `POST /v1/approvals/{id}:reject`
+* `POST /v1/sim:start`, `POST /v1/sim:pause`, `POST /v1/sim:step`
+
+```bash
+curl -s -X POST http://localhost:8080/v1/sim:pause -H "Authorization: Bearer $API_WRITE_TOKEN"
+```
+
+Without the header, or with a wrong token or another scheme, the answer is `401 unauthorized` with
+`WWW-Authenticate: Bearer` (checked before the body is validated). Reads, `/healthz` and `GET /v1/events` stay open.
+With a token, **`by` in the approval body is ignored**: the token stands for the CEO (`CEO_ID`, default `vincenzo`),
+so it can answer approvals addressed to the CEO and gets 403 for the others. Without a token `by` is still
+the caller's claim. Slack buttons do not use the API (the agent receives them directly) and keep working. In the
+cluster the token is the key `API_WRITE_TOKEN` of the Secret `slack` (the one the api Deployment imports), see `deploy/openshift/app/README.md`. The dashboard must keep the token out of
+the page source if the page is public; a shared secret is a minimum, not a login.
 
 ## Autonomy levels in the UI
 
@@ -273,7 +294,9 @@ Costs per team over a range, with a monthly breakdown for stacked bars. Teams ar
 | Query | Default | Meaning |
 |---|---|---|
 | `from` | first day of the first booking month | first day (ISO date) |
-| `to` | last booking day | last day (ISO date); `from` after `to` is a 422 |
+| `to` | last booking day | last day (ISO date) |
+
+The range is checked after the defaults: `from` after `to` (also when only one of them is given, e.g. `from` after the last booking) and a range longer than 120 months (`to=9999-12-31`) are a 422. Without any bank booking the range follows the unlinked invoices, which are costs too.
 
 ```bash
 curl -s "http://localhost:8080/v1/costs/by-team?from=2025-10-01&to=2025-12-31"
@@ -648,7 +671,7 @@ Demo step 6: the CEO clicks Approve. Calls `Agent.resume_approval`: on approve t
 **SIMULATED**, D-005) and records it in the decision history; on reject nothing is executed and the decision becomes
 `rejected`. The approver also gets a confirmation DM.
 
-Body: `{"by": "<employee id>"}` (the dashboard has no login, so it sends who clicked; `vincenzo` for the CEO).
+Body: `{"by": "<employee id>"}` (the dashboard has no login, so it sends who clicked; `vincenzo` for the CEO). When the server has `API_WRITE_TOKEN` set, send `Authorization: Bearer <token>`; `by` is then ignored and the answer is recorded as the CEO ([Write protection](#write-protection)).
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/approvals/apr_8e2f6b3a1c47:approve \
@@ -686,6 +709,7 @@ curl -s -X POST http://localhost:8080/v1/approvals/apr_8e2f6b3a1c47:reject \
 | same answer again (double click, Slack and dashboard both) | 200, `already_resolved: true`, nothing runs twice, the stored state is returned |
 | the opposite answer after resolution | 409 `conflict`, state unchanged |
 | `by` is not the approver | 403 `forbidden`, nothing happens |
+| token required but missing or wrong | 401 `unauthorized`, nothing happens |
 | unknown id | 404 `not_found` |
 | missing or empty `by` | 422 `validation_error` |
 | API process has no agent | 503 `agent_unavailable` |
@@ -711,6 +735,7 @@ curl -N http://localhost:8080/v1/events
 ```
 
 ```text
+id: decision=2026-11-20T18:02:11.120000+00:00|dec_5d0a91c4e7b2;approval=...;event=...
 retry: 3000
 : connected
 
@@ -733,13 +758,13 @@ data: {"id": "apr_8e2f6b3a1c47", "status": "pending", "decision": {...}, ...}
 
 * **Start:** without `Last-Event-ID` the stream starts from now: nothing is replayed. Load the current state with the
   list endpoints first, then open the stream.
-* **Resume:** every message carries an `id:`, an opaque token (one cursor per table: timestamps of events are
+* **Resume:** every message, the first frame (`: connected`) included, carries an `id:` (`-` when the tables were empty at connect time), an opaque token (one cursor per table: timestamps of events are
   simulated time, those of decisions are wall clock, so there is no single sequence number). `EventSource`
   sends it back as `Last-Event-ID` after a reconnect and receives everything newer, once. Clients that cannot set
   the header can use `?last_event_id=<token>`. An unusable token is ignored (start from now).
 * A decision that changes in place (pending to executed) is not sent again as `decision`; follow the `approval`
   message, which carries the resolved decision.
-* **Mechanics:** the server polls the database about once a second (inside the stream, per connection) and sends
+* **Mechanics:** the stream is an async generator: an idle connection holds no worker thread, the server polls the database about once a second per connection (each poll is a short query) and sends
   `: keepalive` comments after 15 idle polls; `retry: 3000` tells the browser to reconnect after 3 s. Behind a proxy turn
   response buffering off (`X-Accel-Buffering: no` is already sent). CORS is open like for the other endpoints.
 * Poll interval, wait function and connection factory are the injectable dependency
@@ -796,7 +821,7 @@ replay is finished.
 
 ## `GET /v1/llm/usage` and `GET /v1/llm/usage/live`
 
-What running the agent costs on the cluster (T032, D-016). Two data sources:
+What running the agent costs on the cluster (T032, D-019). Two data sources:
 
 * **`llm_usage`**: one row per LLM call made through `cfo/llm.py` (time, model, prompt and completion tokens from the
   server's `usage` field, latency, and which agent step it belonged to: event id and type, purpose such as
@@ -1028,8 +1053,8 @@ curl -s http://localhost:8080/v1/llm/usage/live
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `VLLM_METRICS_URL` | unset (sampler off) | in-cluster `https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc.cluster.local:8000/metrics`; locally `oc port-forward svc/modelcar-granite-4-0-h-tiny-kserve-workload-svc 8000:8000 -n my-first-model` then `https://localhost:8000/metrics` |
-| `VLLM_METRICS_VERIFY` | `true` | TLS check: `true`, `false` (self-signed certificate, as on the cluster now) or a CA bundle path |
+| `VLLM_METRICS_URL` | unset (sampler off) | in-cluster `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics` (plain HTTP since Granite runs as a KServe InferenceService, D-020); locally `oc port-forward svc/modelcar-granite-4-0-h-tiny-predictor 8080:80 -n my-first-model` (headless service, port 80 → pod 8080) then `http://localhost:8080/metrics` |
+| `VLLM_METRICS_VERIFY` | `true` | TLS check for an `https://` URL: `true`, `false` (self-signed certificate) or a CA bundle path; ignored for `http://` |
 | `VLLM_METRICS_BEARER_TOKEN` | unset | only if the endpoint needs a bearer token |
 | `VLLM_METRICS_TIMEOUT` / `VLLM_METRICS_STALE_SECONDS` | `5` / `300` | scrape timeout, staleness limit of `/live` |
 | `GPU_HOURLY_COST_EUR` / `NODE_HOURLY_COST_EUR` | `0.70` / `0` | rates, see above |

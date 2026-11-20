@@ -1,6 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: cfo-agent-uwur
 resources: [postgres.yaml, files.yaml, openshift/db, openshift/app, openshift/mlflow]
 # Label objects and their pod templates, but never the selectors (they are immutable on live Deployments).
 # `fields` instead of `includeTemplates` renders with kubectl's built-in kustomize (v4.5, kubectl 1.24) as well as v5.

@@ -1,18 +1,18 @@
 # Cluster setup (team)
 
 How to get access to our OpenShift AI cluster and the shared base services.
-Namespace: `cfo-agent-uwur`.
+The namespace is selected through your local `oc` context; it is not stored in the manifests.
 
 ## 1. Install `oc`
 Download the CLI from the cluster web console (`?` → Command Line Tools) or from
 https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/ and put `oc` on your `PATH`.
 
 ## 2. Log in
-Web console → your name (top right) → **Copy login command** → **Display Token**, then:
+Web console → your name (top right) → **Copy login command** → **Display Token**. Set `OPENSHIFT_PROJECT` in your local environment, then:
 
 ```sh
 oc login --token=<token> --server=<api-url>
-oc project cfo-agent-uwur
+oc project "${OPENSHIFT_PROJECT:?Set OPENSHIFT_PROJECT to your project name}"
 ```
 
 ## 3. What is running
@@ -79,3 +79,23 @@ oc rollout status deploy/files
 ```
 The app (API, worker, MCP servers, MLflow) is part of the same kustomization; see
 `deploy/openshift/app/README.md`.
+
+## 9. Smoke check (LLM tool calling, MCP servers, seed)
+One command proves the moving parts work. It uses the same environment as the api and worker pods
+(`cfo-config`: `LLM_BASE_URL`, `LLM_MODEL`, `LLM_VERIFY_TLS`, `MCP_*_URL`, `DATABASE_URL`, `MLFLOW_TRACKING_URI`):
+```sh
+oc rsh deploy/api cfo smoke          # or: oc exec deploy/api -- cfo smoke
+```
+It prints one line per check and exits 1 when any check is `FAIL`:
+```
+PASS  llm.models               granite is served
+PASS  llm.tool_calling         tool_calls: get_weather({"city": "Warsaw"}), finish_reason=tool_calls
+PASS  llm.fallback             JSON-in-text call parsed: get_weather(...)
+PASS  mcp.company-db.tools     8 tools at http://mcp-company-db:8001/mcp
+PASS  mcp.company-db.read      list_teams() returned 5 items
+...
+PASS  db.seeded                N transactions
+PASS  mlflow.reachable         http://mlflow:5000/health OK
+```
+`WARN` (fallback only) and `SKIP` (MLflow not configured) do not fail the run. If `llm.tool_calling` fails with
+HTTP 400, the model server lacks `--enable-auto-tool-choice --tool-call-parser=hermes`.

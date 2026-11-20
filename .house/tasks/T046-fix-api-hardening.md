@@ -1,7 +1,7 @@
 ---
 id: T046
 title: "Review fixes: API write protection, async SSE, HTTP edge cases"
-status: review
+status: done
 owner: coder
 branch: task/T046-fix-api-hardening
 depends_on: ["T011", "T032"]

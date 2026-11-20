@@ -21,7 +21,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: seed
-          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          image: cfo-backend:latest
           imagePullPolicy: Always
           command: [python, -c]
           args:

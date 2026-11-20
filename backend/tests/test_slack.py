@@ -256,7 +256,7 @@ def test_chat_handler_error_gets_a_generic_reply(notifier, client):
     assert client.posted and "secret internals" not in json.dumps(client.posted)
 
 
-def test_app_mention_is_routed_in_thread_without_mention_text(notifier, client):
+def test_app_mention_is_routed_without_mention_text_and_answered_in_dm(notifier, client):
     got: list[ChatMessage] = []
     notifier.on_chat(lambda m: got.append(m) or "ok")
     body = {
@@ -266,7 +266,7 @@ def test_app_mention_is_routed_in_thread_without_mention_text(notifier, client):
     }
     _dispatch(notifier, body)
     assert got[0].text == "what is the balance?"
-    assert client.posted[0]["channel"] == "C9" and client.posted[0]["thread_ts"] == "300.1"
+    assert client.posted[0]["channel"] == "U_CEO" and "thread_ts" not in client.posted[0]  # private, see test_slack_fixes
 
 
 def test_start_and_stop_use_socket_mode_handler(client):

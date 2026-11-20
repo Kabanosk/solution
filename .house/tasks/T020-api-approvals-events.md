@@ -1,7 +1,7 @@
 ---
 id: T020
 title: API approvals and live events (SSE)
-status: review
+status: done
 owner: coder
 branch: task/T020-api-approvals-events
 depends_on: ["T018", "T005"]

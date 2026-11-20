@@ -189,3 +189,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** użytkownik zlecił logi na stronie zadania, dopuszczając wykorzystanie istniejącej kolumny, oraz stronę LLM realizowaną przez subagenta. Obecny kontrakt wystarcza; aktywne cykle queued/running pozostają odrębnym rozszerzeniem.
 - **Kto:** człowiek (zakres), codex i subagent (realizacja)
 - **Data:** 2026-11-20
+
+## D-023 LLM jako bezpośredni czat Granite w stylu Linear
+- **Decyzja:** użytkownik skorygował zakres strony LLM: zamiast metryk jest interaktywny czat; najnowsze odniesienie wizualne to Linear. Dropdown zawiera tylko modelcar-granite-4-0-h-tiny. Serwer dashboardu pośredniczy w streamingu do wskazanego endpointu OpenShift; lokalnie używa port-forward poda, bez fikcyjnych odpowiedzi także w podglądzie. Rozmowa pozostaje w pamięci karty, bez bazy i automatycznego dostępu do danych firmy. Dotychczasowy endpoint telemetrii pozostaje dostępny.
+- **Dlaczego:** bezpośrednie polecenie użytkownika i podany działający endpoint modelu; połączenie i kontekst zweryfikowano na rzeczywistym Granite.
+- **Kto:** człowiek (zakres i styl), codex (realizacja)
+- **Data:** 2026-11-20

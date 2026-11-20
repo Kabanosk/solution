@@ -74,10 +74,18 @@ The backend API has a separate existing Route and its own access policy; dashboa
 
 See `THIRD_PARTY_NOTICES.md` and the font licenses under `assets/fonts/`.
 
-## LLM usage page
+## LLM chat
 
-Open `/#llm` or choose **LLM** in the workspace navigation. The page shows recorded requests and tokens, failures, estimated token counts, latency percentiles, busy-time and allocated cost estimates, cost per agent action, hosted-price comparisons and the latest model-server snapshot. Choose 24 hours, 7 days or 30 days and use **Refresh** to load a new snapshot. Times are UTC; costs keep the API's six decimal places. Busy-time includes overlapping requests; allocated cost includes idle time and the backend's token-share assumption. These are estimates, not billed charges.
+Open `/#llm` or choose **LLM** for an interactive chat in the compact Linear-inspired interface. Select the model from the dropdown (currently only `modelcar-granite-4-0-h-tiny`), send with Enter or the arrow button, use Shift+Enter for a new line, and stop or retry a response as needed. Replies stream from the actual model. **New chat** clears the conversation; **Copy response** copies an answer. The conversation stays in memory while switching workspace pages and is cleared by a browser reload. It is not stored in Postgres or local storage. The model receives only the conversation you send, not company database records or CFO tools.
 
-The authenticated dashboard route `GET /api/llm-usage?days=1|7|30` fetches the existing CFO API endpoints `/v1/llm/usage` and `/v1/llm/usage/live` on the server, using `CFO_API_URL`. Optional `CFO_API_TOKEN` supplies a server-only bearer token when the API or its gateway requires one. Never use `NEXT_PUBLIC_` for this token. Responses use `Cache-Control: private, no-store`. Invalid ranges return 400; missing authentication returns 401 (or the existing proxy's unconfigured-auth 503); both upstream sources being unavailable returns 503. One source failing does not hide the other source's data.
+`GET /api/chat` returns the allowed model list. Authenticated `POST /api/chat` accepts `{ "model": "modelcar-granite-4-0-h-tiny", "messages": [{ "role": "user", "content": "hi" }] }`. The server calls the OpenAI-compatible `/chat/completions` endpoint at `LLM_CHAT_BASE_URL` with streaming enabled. The default is `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`. Optional `LLM_CHAT_API_KEY` provides a server-only bearer token; the supplied internal endpoint does not require one. Neither configuration value is exposed to browser code. Preview mode still calls the actual model; no fabricated chat responses are substituted.
 
-The model snapshot displays its sample timestamp and the backend's stale indicator; it is refreshed on demand, not presented as a continuously streaming measurement. Missing gauges display **Not reported**. A successful zero-request report has an explicit empty state, while unavailable or malformed API responses display unavailable/retry states. No production metrics are fabricated. `DASHBOARD_PREVIEW=1` supplies explicitly labelled fictional usage only under `next dev`, using the same development-only guard as the rest of the dashboard.
+Outside OpenShift, port-forward the model pod's port 8080 and set `LLM_CHAT_BASE_URL=http://127.0.0.1:18080/v1` in the ignored `dashboard/.env.local`:
+
+```sh
+oc -n my-first-model port-forward pod/<model-pod-name> 18080:8080
+```
+
+Responses are private/no-store NDJSON events (`delta`, `done`, `error`), adapted from upstream SSE. Invalid models, malformed/oversized histories and client-supplied system/tool roles are rejected. Conversations are limited to 64 messages, 16,000 characters per message and 64,000 total characters, with a 256 KiB request-body cap. Generation uses a 120-second timeout and a 2,048-token output limit; stopping cancels the upstream request. Validation errors return 400; unavailable models return 502; initial upstream timeouts return 504; mid-stream interruptions are reported in the stream and UI. The existing login/preview authentication rules apply. Chat text and provider exception bodies are not written to application logs.
+
+The earlier `GET /api/llm-usage?days=1|7|30` telemetry route remains available to API consumers, using server-only `CFO_API_URL`/`CFO_API_TOKEN`; the LLM page itself now displays chat.

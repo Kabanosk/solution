@@ -20,3 +20,5 @@ data:
   SIM_SPEED: "1"
   # Browser origins allowed by the API; `*` until the dashboard has a fixed URL.
   CORS_ORIGINS: "*"
+  # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
+  MLFLOW_TRACKING_URI: "http://mlflow:5000"

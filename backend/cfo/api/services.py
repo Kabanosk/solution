@@ -18,6 +18,7 @@ from cfo.analysis.cost_metrics import load_series, to_api_series
 from cfo.api.errors import ApiError
 from cfo.api.schemas import (
     CostsByTeam,
+    ApprovalOut,
     DecisionOut,
     ForecastGap,
     ForecastModelInfo,
@@ -33,7 +34,7 @@ from cfo.api.schemas import (
 )
 from cfo.api.settings import get_api_settings
 from cfo.db.repo import Repository
-from cfo.domain import Decision, Rule
+from cfo.domain import ApprovalRequest, Decision, Rule
 from cfo.forecast import features as feat
 from cfo.forecast import model as fmodel
 
@@ -301,3 +302,32 @@ def list_rules(repo: Repository, *, active: bool | None) -> list[RuleOut]:
 
 def cost_metric_series(repo: Repository, kind: str | None) -> list:
     return [s for s in to_api_series(load_series(repo)) if kind is None or s.kind == kind]
+
+
+# --- approvals ----------------------------------------------------------------------------------------------
+
+APPROVAL_FILTERS = {  # `state` query value -> SQL condition on approval_requests.status
+    "pending": "status = 'pending'",
+    "resolved": "status <> 'pending'",
+    "approved": "status = 'approved'",
+    "rejected": "status = 'rejected'",
+}
+
+
+def approval_out(repo: Repository, req: ApprovalRequest) -> ApprovalOut:
+    decision = get_decision(repo, req.decision_id)
+    return ApprovalOut(**{**req.model_dump(), "created_at": _utc(req.created_at),
+                          "resolved_at": _utc(req.resolved_at) if req.resolved_at else None, "decision": decision})
+
+
+def list_approvals(repo: Repository, *, state: str | None, limit: int, offset: int) -> tuple[list[ApprovalOut], int]:
+    clause = APPROVAL_FILTERS[state] if state else "TRUE"
+    total = repo.conn.execute(f"SELECT count(*) AS n FROM approval_requests WHERE {clause}").fetchone()["n"]
+    rows = repo._all(f"SELECT * FROM approval_requests WHERE {clause} ORDER BY created_at DESC, id LIMIT %s OFFSET %s",
+                     [limit, offset])
+    return [approval_out(repo, ApprovalRequest(**r)) for r in rows], int(total)
+
+
+def get_approval(repo: Repository, approval_id: str) -> ApprovalOut | None:
+    req = repo.get_approval_request(approval_id)
+    return approval_out(repo, req) if req else None

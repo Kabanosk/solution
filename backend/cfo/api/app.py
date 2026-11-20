@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from cfo.api.errors import install_error_handlers
-from cfo.api.routers import cost_metrics, costs, decisions, forecast, kpis, rules
+from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, rules, sim
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
 
@@ -29,6 +29,9 @@ TAGS = [
     {"name": "costs", "description": "Costs per team and cost-vs-metric pairs."},
     {"name": "decisions", "description": "What the agent decided or did, by autonomy level."},
     {"name": "rules", "description": "CEO overrides of the default policy."},
+    {"name": "approvals", "description": "Requests waiting for the CEO; approve or reject."},
+    {"name": "events", "description": "Live Server-Sent Events stream."},
+    {"name": "simulator", "description": "Control of the December replay."},
     {"name": "system", "description": "Liveness."},
 ]
 
@@ -43,7 +46,7 @@ def create_app() -> FastAPI:
         expose_headers=["X-Stub"],
     )
     install_error_handlers(app)
-    for module in (kpis, forecast, costs, cost_metrics, decisions, rules):
+    for module in (kpis, forecast, costs, cost_metrics, decisions, rules, approvals, events, sim):
         app.include_router(module.router)
 
     @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")

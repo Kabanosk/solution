@@ -1,0 +1,26 @@
+{
+  "task": "T026",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend --extra mlflow pytest -q backend/tests/test_forecast_registry.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_forecast_model.py backend/tests/test_api_read.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:20:34+01:00",
+  "results": {}
+}

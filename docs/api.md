@@ -48,11 +48,13 @@ Regenerate the contract after API changes: `uv run --project backend python -m c
 |---|---|---|
 | 404 | `not_found` | unknown id, or unknown endpoint (`"No such endpoint."`) |
 | 405 | `method_not_allowed` | wrong HTTP method |
-| 409 | `conflict` | state does not allow the action (used by approvals, coming) |
+| 403 | `forbidden` | `by` is not the approver of the approval |
+| 409 | `conflict` | the approval was already answered the other way |
 | 422 | `validation_error` | bad query parameter; `error.details[]` lists `loc`, `message`, `type` |
 | 500 | `internal_error` | bug on our side; no internal details are leaked |
 | 503 | `database_unavailable` | the database cannot be reached |
 | 503 | `no_data` | the database has no transactions yet (not seeded) |
+| 503 | `agent_unavailable` | no agent runs in this API process (approvals cannot be answered) |
 
 Validation error example (`GET /v1/decisions?limit=1000`):
 
@@ -518,7 +520,7 @@ curl -s "http://localhost:8080/v1/decisions?level=APPROVAL&limit=2"
 ```
 
 `payload` is free-form and depends on `action_type` (do not build UI logic on it beyond showing key/value pairs).
-`approval_request_id` links to an approval (endpoints coming, see below).
+`approval_request_id` links to an approval (`GET /v1/approvals/{id}`).
 
 ### `GET /v1/decisions/{decision_id}`
 
@@ -588,12 +590,213 @@ curl -s "http://localhost:8080/v1/rules?limit=1"
 
 ---
 
+## `GET /v1/approvals`
+
+Approval requests: the CEO decisions the agent waits for (demo step 5), newest first. Each item embeds the decision it
+is about (`action_type`, `summary`, `payload`, `level`), so one call is enough to draw an Approve / Reject card.
+
+| Query | Default | Meaning |
+|---|---|---|
+| `state` | all | `pending` (waiting), `resolved` (approved or rejected), `approved`, `rejected` |
+| `limit`, `offset` | 50, 0 | pagination |
+
+```bash
+curl -s "http://localhost:8080/v1/approvals?state=pending"
+```
+
+```json
+{
+  "stub": false,
+  "items": [
+    {
+      "id": "apr_8e2f6b3a1c47",
+      "decision_id": "dec_5d0a91c4e7b2",
+      "approver_id": "vincenzo",
+      "question": "Apply for a credit line of 7,000 EUR from 1 Mar to 5 Aug 2026? The forecast falls 5,203 EUR below the safety buffer on 2 Jul.",
+      "status": "pending",
+      "created_at": "2026-11-20T18:02:11Z",
+      "resolved_at": null,
+      "channel_ref": "D01ABCDEF:1763661731.000200",
+      "decision": {
+        "id": "dec_5d0a91c4e7b2",
+        "ts": "2026-11-20T18:02:11Z",
+        "action_type": "request_credit_line",
+        "summary": "Apply for a credit line of 7,000 EUR",
+        "level": "APPROVAL",
+        "reason": "Credit lines always need CEO approval.",
+        "status": "pending",
+        "actor": "agent",
+        "payload": {"amount": "7000.00"},
+        "executed_simulated": false,
+        "approval_request_id": "apr_8e2f6b3a1c47"
+      }
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### `GET /v1/approvals/{approval_id}`
+
+One approval, same shape as an item above. Unknown id: 404 `not_found`.
+
+### `POST /v1/approvals/{approval_id}:approve` and `:reject`
+
+Demo step 6: the CEO clicks Approve. Calls `Agent.resume_approval`: on approve the agent executes the action (always
+**SIMULATED**, D-005) and records it in the decision history; on reject nothing is executed and the decision becomes
+`rejected`. The approver also gets a confirmation DM.
+
+Body: `{"by": "<employee id>"}` (the dashboard has no login, so it sends who clicked; `vincenzo` for the CEO).
+
+```bash
+curl -s -X POST http://localhost:8080/v1/approvals/apr_8e2f6b3a1c47:approve \
+  -H 'Content-Type: application/json' -d '{"by": "vincenzo"}'
+curl -s -X POST http://localhost:8080/v1/approvals/apr_8e2f6b3a1c47:reject \
+  -H 'Content-Type: application/json' -d '{"by": "vincenzo"}'
+```
+
+```json
+{
+  "id": "apr_8e2f6b3a1c47",
+  "decision_id": "dec_5d0a91c4e7b2",
+  "approver_id": "vincenzo",
+  "question": "Apply for a credit line of 7,000 EUR from 1 Mar to 5 Aug 2026? ...",
+  "status": "approved",
+  "created_at": "2026-11-20T18:02:11Z",
+  "resolved_at": "2026-11-20T18:05:40Z",
+  "channel_ref": "D01ABCDEF:1763661731.000200",
+  "decision": {
+    "id": "dec_5d0a91c4e7b2",
+    "action_type": "request_credit_line",
+    "status": "executed",
+    "actor": "vincenzo",
+    "executed_simulated": true,
+    "summary": "Apply for a credit line of 7,000 EUR Approved by vincenzo. Execution is SIMULATED.",
+    "...": "..."
+  },
+  "already_resolved": false
+}
+```
+
+| Situation | Result |
+|---|---|
+| first answer | 200, `already_resolved: false`, `status` `approved` / `rejected` |
+| same answer again (double click, Slack and dashboard both) | 200, `already_resolved: true`, nothing runs twice, the stored state is returned |
+| the opposite answer after resolution | 409 `conflict`, state unchanged |
+| `by` is not the approver | 403 `forbidden`, nothing happens |
+| unknown id | 404 `not_found` |
+| missing or empty `by` | 422 `validation_error` |
+| API process has no agent | 503 `agent_unavailable` |
+
+The agent is injected through the FastAPI dependency `cfo.api.deps.get_agent`. The process that builds it
+(`cfo.run`) calls `cfo.api.deps.set_agent(agent)` before serving; tests override the dependency with a fake.
+
+---
+
+## `GET /v1/events` (Server-Sent Events)
+
+A live stream for the dashboard: new decisions, approvals and simulator events, without polling from the browser.
+
+```js
+const es = new EventSource("http://localhost:8080/v1/events");
+es.addEventListener("decision", (e) => addToHistory(JSON.parse(e.data)));
+es.addEventListener("approval", (e) => updateCard(JSON.parse(e.data)));
+es.addEventListener("event", (e) => console.log("simulator event", JSON.parse(e.data)));
+```
+
+```bash
+curl -N http://localhost:8080/v1/events
+```
+
+```text
+retry: 3000
+: connected
+
+id: decision=2026-11-20T18:02:11.120000+00:00|dec_5d0a91c4e7b2;approval=...;event=...
+event: decision
+data: {"id": "dec_5d0a91c4e7b2", "ts": "2026-11-20T18:02:11.120000Z", "action_type": "request_credit_line", ...}
+
+id: decision=...;approval=2026-11-20T18:02:11.340000+00:00|apr_8e2f6b3a1c47;event=...
+event: approval
+data: {"id": "apr_8e2f6b3a1c47", "status": "pending", "decision": {...}, ...}
+
+: keepalive
+```
+
+| `event:` | `data` | When |
+|---|---|---|
+| `decision` | like `GET /v1/decisions/{id}` | a decision row is written |
+| `approval` | like `GET /v1/approvals/{id}` | an approval is created, and again when it is answered (status and embedded decision are then the resolved ones) |
+| `event` | `{id, ts, kind, payload}` | the simulator wrote an event (bank transaction, invoice document, metric) |
+
+* **Start:** without `Last-Event-ID` the stream starts from now: nothing is replayed. Load the current state with the
+  list endpoints first, then open the stream.
+* **Resume:** every message carries an `id:`, an opaque token (one cursor per table: timestamps of events are
+  simulated time, those of decisions are wall clock, so there is no single sequence number). `EventSource`
+  sends it back as `Last-Event-ID` after a reconnect and receives everything newer, once. Clients that cannot set
+  the header can use `?last_event_id=<token>`. An unusable token is ignored (start from now).
+* A decision that changes in place (pending to executed) is not sent again as `decision`; follow the `approval`
+  message, which carries the resolved decision.
+* **Mechanics:** the server polls the database about once a second (inside the stream, per connection) and sends
+  `: keepalive` comments after 15 idle polls; `retry: 3000` tells the browser to reconnect after 3 s. Behind a proxy turn
+  response buffering off (`X-Accel-Buffering: no` is already sent). CORS is open like for the other endpoints.
+* Poll interval, wait function and connection factory are the injectable dependency
+  `cfo.api.deps.get_stream_config`, which is how the tests run without sleeping.
+
+---
+
+## Simulator control
+
+Replay of December (demo step 2 onwards), state in the database table `sim_state`, implemented by `cfo.sim.control`.
+
+| Endpoint | Body | Effect |
+|---|---|---|
+| `GET /v1/sim` | none | status |
+| `POST /v1/sim:start` | optional `{"speed": 120}` (sim seconds per real second, > 0) | un-pause, optionally change speed |
+| `POST /v1/sim:pause` | none | pause (events due until now are emitted first) |
+| `POST /v1/sim:step` | none | emit the next event right now |
+
+`jump` and `reset` are not exposed (CLI only: `python -m cfo.sim jump 2025-12-30`).
+
+```bash
+curl -s http://localhost:8080/v1/sim
+curl -s -X POST http://localhost:8080/v1/sim:start -H 'Content-Type: application/json' -d '{"speed": 3600}'
+curl -s -X POST http://localhost:8080/v1/sim:pause
+curl -s -X POST http://localhost:8080/v1/sim:step
+```
+
+```json
+{
+  "sim_time": "2025-12-01T00:00:00Z",
+  "paused": true,
+  "speed": 3600.0,
+  "emitted": 0,
+  "total": 106,
+  "next_event_ts": "2025-12-01T07:40:00Z",
+  "finished": false
+}
+```
+
+`:step` returns `{"event": {"id", "ts", "kind", "payload"} | null, "status": {...}}`; `event` is `null` when the
+replay is finished.
+
+**Caveat: subscribers live in the worker process.** The agent listens to the simulator through
+`cfo.sim.subscribe(callback)`, a registry of the *current process*. Therefore:
+
+* `start` and `pause` only change the shared state in the database; the clock advances in the process that runs
+  `python -m cfo.sim run` (the worker, `cfo.run`). Starting the replay from the API without a running worker moves
+  nothing.
+* `step` writes the event in the API process and hands it to the subscribers of the API process. If the agent is
+  registered in the worker only, the event shows up in the database (and in `/v1/events`) but the agent does not react
+  to it. Run the agent in the API process (single-process deployment) or use `start`/`pause` and let the worker tick.
+* The default control opens its own database connection per call and reads the events from `data/generated`.
+
+---
+
 ## Coming next
 
-Owned by other tasks, so the shapes below are plans, not contracts:
-
-* `GET /v1/approvals`, `POST /v1/approvals/{id}:approve` and `:reject` (Approve / Reject from the dashboard),
-  returning 409 `conflict` when already resolved.
-* `GET /v1/events`: Server-Sent Events stream of new decisions and events.
+Nothing planned that the dashboard depends on right now.
 
 Missing something for the dashboard? Open a GitHub issue with the screen and the fields you need (D-010).

@@ -1,9 +1,9 @@
 ---
 id: T027
 title: MLflow tracing of the agent (LangGraph + LLM calls)
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T027-agent-tracing
 depends_on: ["T005"]
 capabilities: []
 acceptance:

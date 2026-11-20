@@ -1,0 +1,26 @@
+{
+  "task": "T028",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend --extra mlflow pytest -q backend/tests/test_agent_eval.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "python -m cfo.eval against the cluster vLLM logs an evaluation run in MLflow (metrics + per-scenario table); judge records the run URL and scores",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:20:35+01:00",
+  "results": {}
+}

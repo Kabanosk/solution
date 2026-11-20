@@ -19,9 +19,9 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T015-forecast-model/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T015-forecast-model/backend\nUninstalled 1 package in 0.43ms\nInstalled 7 packages in 6ms\n...............                                                          [100%]\n15 passed in 3.64s",
-      "ran_at": "2026-11-20T14:50:05+01:00",
-      "commit": "f081f10d27a6b724b1a35f427e78425109c0104c"
+      "output_tail": "...............                                                          [100%]\n15 passed in 7.68s",
+      "ran_at": "2026-11-20T14:52:05+01:00",
+      "commit": "f9f928f9339486998e330e85c5ef3dc5640a7491"
     }
   }
 }

@@ -1,7 +1,7 @@
 ---
 id: T007
 title: Cost vs metric anomaly detection (3 pairs)
-status: doing
+status: review
 owner: coder
 branch: task/T007-cost-metrics
 depends_on: ["T002"]

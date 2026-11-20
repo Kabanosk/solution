@@ -78,3 +78,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** deps updated after splitting T006/T009/T012 into small tasks
 - **Kto:** coordinator
 - **Data:** 2026-11-20 14:24
+
+## D-013 Próg płynności = bufor bezpieczeństwa; kredyt w scenariuszu „co jeśli”
+- **Decyzja:** „dziura” to prognozowane saldo poniżej bufora bezpieczeństwa (domyślnie 1 miesiąc kosztów stałych ≈ 17,7 tys. €, konfigurowalne), nie poniżej zera. Prognoza z prawdziwych danych pokazuje czerwcowy spadek (net czerwca ok. −14 tys. €), ale saldo zostaje ok. 45 tys. €, więc agent: (a) przy zapasie ponad bufor i czerwcowy spadek proponuje lokatę/fundusz rynku pieniężnego na kwotę, która nie przebije bufora w czerwcu (soczewka Investment, APPROVAL); (b) w scenariuszu „co jeśli” od CEO (np. „kupuję piec za 25 tys. € w marcu”) prognoza przebija bufor w czerwcu → wniosek o linię kredytową (APPROVAL). Stub API (−20 tys. €) zostanie zastąpiony prawdziwą prognozą w T019.
+- **Dlaczego:** T015 pokazał, że z danych od końca listopada saldo nie schodzi pod zero; zmyślanie minusa byłoby nieuczciwe wobec jury, a oba warianty pokazują liquidity + investment z wyjaśnieniem.
+- **Kto:** coordinator (do potwierdzenia przez zespół demo)
+- **Data:** 2026-11-20 17:30

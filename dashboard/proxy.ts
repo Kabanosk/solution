@@ -22,3 +22,10 @@ export function proxy(request: NextRequest) {
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
   return response;
 }
+
+// Hashed build assets (/_next/static) hold no company data and never change for a given URL: serve them without the
+// login check and with Next's immutable cache headers. Before this, every page load re-downloaded ~200 KB of
+// JavaScript because they were marked no-store.
+export const config = {
+  matcher: ["/((?!_next/static/).*)"],
+};

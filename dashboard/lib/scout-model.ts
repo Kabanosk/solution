@@ -62,16 +62,19 @@ export type TransactionInfo = { id: string; bookingDate: string; type: string; r
 
 export type TaskDetail = { task: AgentTask; steps: TaskStep[]; approval: Approval | null; audit: AuditRow[]; transaction: TransactionInfo | null };
 
+/** Everything the dashboard shell needs on first paint. Task evidence, the audit log and the transaction list are
+ *  not in here: they load on demand (task detail, /api/records/audit, /api/records/transactions). */
 export type ScoutData = {
   ceoId: string;
   tasks: AgentTask[];
-  audit: AuditRow[];
   connections: Connection[];
   cashEvents: CashEvent[];
   explained: { documented: number; total: number };
-  transactions: TransactionRow[];
   demo: boolean;
 };
+
+export type RecordKind = "audit" | "transactions";
+export type ScoutRecords = { audit: AuditRow[]; transactions: TransactionRow[] };
 
 export const STATUS_ORDER: TaskStatus[] = ["in_progress", "waiting", "escalated", "todo", "done", "cancelled"];
 export const STATUS_LABEL: Record<TaskStatus, string> = {

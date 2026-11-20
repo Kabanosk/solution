@@ -1,7 +1,7 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { displayCents } from "./finance-model";
-import type { AgentTask, AuditRow, CashEvent, Connection, ScoutData, TaskDetail, TaskStep, TransactionInfo, TransactionRow } from "./scout-model";
+import type { AgentTask, AuditRow, CashEvent, Connection, ScoutData, ScoutRecords, TaskDetail, TaskStep, TransactionInfo, TransactionRow } from "./scout-model";
 
 // Read-only queries over the Scout tables (backend/scout/schema.sql). Timestamps are rendered as UTC ISO strings
 // and money as integer cents in SQL, so no float arithmetic happens here.
@@ -35,8 +35,9 @@ const audit = (row: Row): AuditRow => ({
 });
 
 export async function loadScout(client: PoolClient): Promise<ScoutData> {
-  const tasks = (await client.query(`SELECT ${TASK_COLUMNS} FROM agent_tasks t ORDER BY t.updated_at DESC LIMIT 300`)).rows.map(task);
-  const auditRows = (await client.query(`SELECT ${AUDIT_COLUMNS} FROM audit_log ORDER BY ts DESC, id DESC LIMIT 300`)).rows.map(audit);
+  // The list needs no evidence (the task detail loads it): it was a third of the page payload.
+  const tasks = (await client.query(`SELECT ${TASK_COLUMNS.replace("t.evidence", "'[]'::jsonb AS evidence")} FROM agent_tasks t
+    ORDER BY t.updated_at DESC LIMIT 300`)).rows.map(task);
   const connections: Connection[] = (await client.query(`SELECT id, kind, provider, enabled, display_name, config, status,
       ${iso("last_sync_at")} AS last_sync_at, last_error FROM connections ORDER BY id`)).rows.map(row => ({
     id: row.id, kind: row.kind, provider: row.provider, enabled: row.enabled, displayName: row.display_name,
@@ -50,13 +51,21 @@ export async function loadScout(client: PoolClient): Promise<ScoutData> {
   const explained = (await client.query(`SELECT
       count(*) FILTER (WHERE documented)::int AS documented, count(*)::int AS total
       FROM transactions WHERE amount < 0 AND invoice_number IS NOT NULL`)).rows[0];
+  return { ceoId: ceoId(), tasks, connections, cashEvents, explained, demo: demoEnabled() };
+}
+
+/** The audit log or the latest bank bookings, loaded when their view opens. */
+export async function loadRecords<K extends keyof ScoutRecords>(client: PoolClient, kind: K): Promise<ScoutRecords[K]> {
+  if (kind === "audit") {
+    return (await client.query(`SELECT ${AUDIT_COLUMNS} FROM audit_log ORDER BY ts DESC, id DESC LIMIT 300`)).rows.map(audit) as ScoutRecords[K];
+  }
   const transactions: TransactionRow[] = (await client.query(`SELECT id, to_char(booking_date, 'YYYY-MM-DD') AS booking_date,
       counterparty, reference, ${cents("amount")} AS amount, category, invoice_number, documented
       FROM transactions ORDER BY booking_date DESC, id DESC LIMIT 100`)).rows.map(row => ({
     id: row.id, bookingDate: row.booking_date, counterparty: row.counterparty, reference: row.reference,
     amount: displayCents(row.amount), category: row.category, invoiceNumber: row.invoice_number, documented: row.documented,
   }));
-  return { ceoId: ceoId(), tasks, audit: auditRows, connections, cashEvents, explained, transactions, demo: demoEnabled() };
+  return transactions as ScoutRecords[K];
 }
 
 export async function loadTaskDetail(client: PoolClient, id: string): Promise<TaskDetail | null> {

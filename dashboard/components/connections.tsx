@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Database, HardDrive, Mail, MessagesSquare, type LucideIcon } from "lucide-react";
+import { Building2, Database, HardDrive, LoaderCircle, Mail, MessagesSquare, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,12 @@ const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): 
 
 export function Connections({ connections }: { connections: Connection[] }) {
   const [toast, setToast] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  useEffect(() => { // Back from Google via the back button (bfcache): the link works again.
+    const reset = () => setConnecting(false);
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const google = params.get("google");
@@ -54,7 +60,10 @@ export function Connections({ connections }: { connections: Connection[] }) {
             {missing.length > 0 && <p className="text-warning">Missing: <span className="font-mono">{missing.join(", ")}</span></p>}
           </div>}
           {kind === "mail" && <div className="space-y-3 pt-1">
-            <Button asChild size="sm"><a href="/api/google">Connect Google</a></Button>
+            <Button asChild size="sm"><a id="scout-connect-google" href="/api/google" aria-busy={connecting} aria-disabled={connecting}
+              onClick={event => { if (connecting) { event.preventDefault(); return; } setConnecting(true); }}
+              className={connecting ? "pointer-events-none opacity-80" : undefined}>
+              {connecting && <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}{connecting ? "Opening Google…" : "Connect Google"}</a></Button>
             <details className="rounded-md border px-3 py-2">
               <summary className="cursor-pointer text-[13px] text-foreground">Google Workspace (admin)</summary>
               <ol className="mt-2 list-decimal space-y-1 pl-4">

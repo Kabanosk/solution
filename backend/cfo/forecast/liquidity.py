@@ -222,13 +222,15 @@ def forecast_with(
     transactions: pd.DataFrame | None = None,
     conn: psycopg.Connection | None = None,
     scheduled_payments: Any = None,
+    buffer: float | Decimal | None = None,
 ) -> pd.DataFrame:
     """`liquidity_forecast` with extra payments, e.g. `forecast_with([Outflow(on=date(2026, 3, 15), amount=30000,
     label="oven")])`. Also accepts `(date, amount[, label])` tuples and dicts. With no extras it is the base
     forecast. Extra outflows are positive EUR and must fall inside the horizon.
 
     Same frame as `liquidity_forecast` plus the column `what_if` (the extra payments, negative); `attrs` adds
-    `default_buffer` (float, one month of fixed costs) and `outflows`.
+    `default_buffer` (float: `buffer` when given, else one month of fixed costs; absent when there are no
+    fixed-cost bookings and no `buffer`) and `outflows`.
     """
     tx = transactions if transactions is not None else feat.fetch_transactions(conn)
     outflows = _normalize_outflows(extra_outflows)
@@ -245,7 +247,14 @@ def forecast_with(
         if not first <= o.on <= last:
             raise ValueError(f"outflow '{o.label}' on {o.on} is outside the forecast horizon {first}..{last}")
     fc["what_if"] = extra.reindex(fc.index).fillna(0.0)
-    fc.attrs.update(default_buffer=float(default_buffer(tx)), outflows=outflows)
+    fc.attrs.update(outflows=outflows)
+    if buffer is not None:
+        fc.attrs["default_buffer"] = float(_dec(buffer))
+    else:
+        try:
+            fc.attrs["default_buffer"] = float(default_buffer(tx))
+        except ValueError:  # no fixed-cost rows: the forecast is still valid, `_resolve_buffer` explains if asked
+            pass
     return fc
 
 
@@ -480,7 +489,8 @@ def review_liquidity(
     tx = transactions if transactions is not None else feat.fetch_transactions(conn)
     model = model or fm.get_model(tx)
     outflows = _normalize_outflows(extra_outflows)
-    fc = forecast_with(outflows, days=days, start_balance=start_balance, model=model, transactions=tx)
+    fc = forecast_with(outflows, days=days, start_balance=start_balance, model=model, transactions=tx,
+                       buffer=buffer)
     limit = _resolve_buffer(fc, buffer, tx)
     evidence = Evidence(model=model, transactions=tx, outflows=outflows)
     gaps = detect_gaps(fc, limit)

@@ -227,6 +227,9 @@ def daily_features(
     Shutdown windows and due days are inferred from the full history in `transactions`.
     """
     history = daily_cash_flow(transactions, exclude_categories=exclude_categories)
+    if history.empty:  # no bookings: no first day to start from
+        columns = [*history.columns, *CALENDAR_COLUMNS]
+        return pd.DataFrame(columns=columns, index=pd.DatetimeIndex([], name="date"), dtype=float)
     shutdown = infer_shutdown_days(transactions, min_run=min_shutdown_run)
     due = infer_due_days(transactions)
     last = pd.Timestamp(end) if end is not None else history.index.max()

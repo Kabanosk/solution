@@ -27,7 +27,7 @@ Estimate and expose what running our agent on the cluster costs, from real usage
    - Same API conventions (money string + currency, ISO timestamps, error model), docs/api.md sections with curl + example responses, regenerated docs/openapi.json.
 
 ## Context
-Decisions D-008, D-009, D-016; reports T001 (llm.py, schema), T005 (graph nodes calling the LLM), T018-T020 (API conventions); INFRA.md §6 (vLLM endpoint still TODO: everything must be configurable and testable with a fixture `/metrics` text). Another session owns MLflow tracing (T027) which also wraps the openai client: keep recording in `cfo/llm.py` independent of MLflow.
+Decisions D-008, D-009, D-019; reports T001 (llm.py, schema), T005 (graph nodes calling the LLM), T018-T020 (API conventions); INFRA.md §6 (vLLM endpoint still TODO: everything must be configurable and testable with a fixture `/metrics` text). Another session owns MLflow tracing (T027) which also wraps the openai client: keep recording in `cfo/llm.py` independent of MLflow.
 
 ## Out of scope
 Dashboard UI; MLflow tracing; Prometheus/Thanos integration of the cluster monitoring stack (can be a later variant).

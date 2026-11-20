@@ -1,7 +1,7 @@
 ---
 id: T030
 title: API for the dashboard: cost breakdown by category, period summary, employees
-status: doing
+status: rejected  # misunderstood request, replaced by T032 (D-019)
 owner: coder
 branch: task/T030-api-cost-breakdown
 depends_on: ["T019"]

@@ -74,7 +74,8 @@ def test_list_workstations_and_files(ws):
     res = tools.list_files("grazyna", "Downloads", reason="find AS-69664")
     assert res["ok"]
     assert sorted(f["name"] for f in res["files"]) == ["AS-69664.pdf", "notes.txt"]  # symlink not listed
-    assert log.entries == [("grazyna", "list_files", "Downloads", "find AS-69664")]
+    assert log.entries == [("*", "list_workstations", "*", None),  # T044: listing is audited too
+                           ("grazyna", "list_files", "Downloads", "find AS-69664")]
 
 
 def test_search_by_name_and_content(ws):

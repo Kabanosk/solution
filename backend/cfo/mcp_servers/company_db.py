@@ -121,8 +121,8 @@ class CompanyDbTools:
     ) -> dict[str, Any]:
         """Store an invoice for a payment and mark the payment documented (D-003).
 
-        Refuses (`ok: false`) when the transaction is unknown, already documented, or when `total` differs from
-        the payment amount; then nothing is written. `source` is the workstation path the document was found at.
+        Refuses (`ok: false`) when the transaction is unknown, already documented, when `total` differs from the
+        payment amount, or when the invoice number is already linked to another payment; then nothing is written. `source` is the workstation path the document was found at.
         """
         try:
             total_d = Decimal(str(total))
@@ -131,7 +131,11 @@ class CompanyDbTools:
         except (InvalidOperation, ValueError, TypeError) as e:
             return {"ok": False, "error": "invalid_input", "detail": str(e)}
         with self._repo_factory() as repo:
-            txn = repo.get_transaction(transaction_id)
+            # One transaction: the invoice number and the payment row are locked while we check and write, so
+            # concurrent attaches cannot both succeed (any early `return` leaves it uncommitted = rolled back).
+            # Lock order everywhere: invoice number first, then payment row (add_invoice does the same).
+            repo.lock_invoice_number(number)
+            txn = repo.lock_transaction(transaction_id)
             if txn is None:
                 return {"ok": False, "error": "unknown_transaction", "transaction_id": transaction_id}
             if txn.documented:
@@ -143,6 +147,9 @@ class CompanyDbTools:
                           lines=inv_lines, transaction_id=transaction_id, source=source)
             existing = repo.get_invoice_by_number(number)
             if existing is not None:
+                if existing.transaction_id and existing.transaction_id != transaction_id:
+                    return {"ok": False, "error": "invoice_linked_to_other_transaction", "number": number,
+                            "transaction_id": existing.transaction_id, "invoice_id": existing.id}
                 inv.id = existing.id
             repo.add_invoice(inv)
         return {"ok": True, "invoice_id": inv.id, "transaction_id": transaction_id, "documented": True}

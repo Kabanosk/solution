@@ -9,3 +9,4 @@ resources:
   - api.yaml
   - worker.yaml
   - mcp.yaml
+  - usage-sampler.yaml

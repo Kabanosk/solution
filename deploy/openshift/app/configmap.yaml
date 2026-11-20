@@ -23,3 +23,6 @@ data:
   CORS_ORIGINS: "*"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
   MLFLOW_TRACKING_URI: "http://mlflow:5000"
+  # LLM usage and cost (T032): vLLM Prometheus metrics, scraped by Deployment usage-sampler.
+  VLLM_METRICS_URL: "https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc:8000/metrics"
+  VLLM_METRICS_VERIFY: "/etc/llm-ca/service-ca.crt"

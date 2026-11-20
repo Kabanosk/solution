@@ -28,7 +28,7 @@ from cfo.llm import ToolSpec
 log = logging.getLogger(__name__)
 
 READ_ONLY_TOOLS: dict[str, tuple[str, ...]] = {
-    COMPANY_DB: ("list_transactions", "get_invoice", "list_teams", "team_costs", "list_cost_metrics",
+    COMPANY_DB: ("spend_summary", "list_transactions", "get_invoice", "list_teams", "team_costs", "list_cost_metrics",
                  "list_decisions", "list_rules"),
     HR: ("org_chart", "who_is_on_vacation", "manager_of"),
 }
@@ -37,6 +37,7 @@ MAX_RESULT_CHARS = 4000  # about 1,200 tokens per tool result
 MAX_DESCRIPTION_CHARS = 400
 MAX_LIMIT = 50
 DEFAULT_LIMIT = 25
+SERVER_MAX_ROWS = 500  # the MCP server's own cap on `limit`; asked for so the page can say how many rows match
 
 # For tools whose docstring is missing in the server; a docstring there always wins.
 _FALLBACK_DESCRIPTIONS = {
@@ -74,7 +75,13 @@ class ToolCatalog:
             return _dump({"error": f"unknown tool {name!r}; use one of: {', '.join(self._entries)}"})
         try:
             args = _clean_arguments(entry.spec, dict(arguments or {}))
+            page_size = args.get("limit")
+            if page_size is not None:  # ask for more than the page: the count of matching rows is then known
+                args["limit"] = SERVER_MAX_ROWS
             result = self._box.call(entry.server, entry.tool, **args)
+            if page_size is not None and isinstance(result, list):
+                total: int | str = len(result) if len(result) < SERVER_MAX_ROWS else f"{SERVER_MAX_ROWS}+"
+                return _fit(_page(_strip_empty(result[:page_size]), total, len(result) > page_size))
         except Exception as e:  # noqa: BLE001 - the model gets the error and may retry once
             log.warning("chat tool %s failed: %s", name, e)
             return _dump({"error": f"{type(e).__name__}: {str(e)[:300]}"})
@@ -210,15 +217,24 @@ def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
+def _page(rows: list[Any], total: int | str, truncated: bool) -> dict[str, Any]:
+    """A list result says it is a page: `returned` of `total_matching`, so it is never read as a total."""
+    page: dict[str, Any] = {"returned": len(rows), "total_matching": total, "truncated": truncated, "rows": rows}
+    if truncated:
+        page["note"] = "only a page of the rows: do not add them up; use spend_summary for totals or narrow the filters"
+    return page
+
+
 def _fit(value: Any) -> str:
+    if isinstance(value, list):
+        value = _page(value, len(value), False)
     text = _dump(value)
     if len(text) <= MAX_RESULT_CHARS:
         return text
-    if isinstance(value, list):
-        shown = len(value)
-        while shown > 0 and len(_dump({"rows_shown": shown, "rows_total": len(value), "rows": value[:shown],
-                                       "note": "truncated; narrow the query with dates or filters"})) > MAX_RESULT_CHARS:
+    if isinstance(value, dict) and isinstance(value.get("rows"), list):
+        rows, total = value["rows"], value["total_matching"]
+        shown = len(rows)
+        while shown > 0 and len(_dump(_page(rows[:shown], total, True))) > MAX_RESULT_CHARS:
             shown = shown * 3 // 4 if shown > 4 else shown - 1
-        return _dump({"rows_shown": shown, "rows_total": len(value), "rows": value[:shown],
-                      "note": "truncated; narrow the query with dates or filters"})
+        return _dump(_page(rows[:shown], total, True))
     return text[:MAX_RESULT_CHARS] + f"... [truncated, {len(text) - MAX_RESULT_CHARS} more characters]"

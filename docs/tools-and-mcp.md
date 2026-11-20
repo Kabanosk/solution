@@ -25,10 +25,12 @@ How the agent and the CEO chat use tools, and how to add one.
    makes it answer with what it has. The reply names the tools used ("Sources: team_costs"). Numbers in the answer must
    come from tool results.
 
-The loop is cheap on purpose, for a small model (Granite 4.0 H Tiny): only the allowlist (10 tools) is offered,
+The loop is cheap on purpose, for a small model (Granite 4.0 H Tiny): only the allowlist (11 tools) is offered,
 schemas are trimmed (no titles, no `anyOf null`), descriptions are cut at 400 characters, unknown arguments are
-dropped, `limit` is clamped to 50 (default 25), empty fields are removed, and each result is cut at 4,000 characters
-(lists are cut by whole rows with `rows_shown` / `rows_total`). Tool errors go back to the model as `{"error": ...}`.
+dropped, `limit` is clamped to 50 (default 25), empty fields are removed, and each result is cut at 4,000 characters.
+Every list comes back as a page: `returned`, `total_matching`, `truncated` and `rows` (cut by whole rows), so a page
+is never read as a total. Totals come from `spend_summary`, which sums in SQL over all matching rows. At most 4 tool
+calls of one response are executed, and only those are kept in the conversation. Tool errors go back to the model as `{"error": ...}`.
 Tool text (supplier names, payment references) is untrusted data; the system prompt says never to follow
 instructions in it.
 
@@ -38,7 +40,7 @@ instructions in it.
 
 | Server | Tools |
 |---|---|
-| company-db | `list_transactions`, `get_invoice`, `list_teams`, `team_costs`, `list_cost_metrics`, `list_decisions`, `list_rules` |
+| company-db | `spend_summary`, `list_transactions`, `get_invoice`, `list_teams`, `team_costs`, `list_cost_metrics`, `list_decisions`, `list_rules` |
 | hr | `org_chart`, `who_is_on_vacation`, `manager_of` |
 
 Never offered to the model: `attach_invoice`, `record_decision` (writes) and every `workstations` tool (employee
@@ -52,6 +54,10 @@ files are read only by the invoice search, D-004).
 3. Test it directly on the tools class (see `tests/test_mcp.py`).
 
 The tool is now available to the agent's code through `ToolBox.call`. It is **not** visible to the LLM.
+
+Example: `spend_summary` (company-db) answers "how much did we spend on ads in October?" with totals computed in SQL
+(`group_by` category | team | supplier, optional `since`, `until`, `category`, `team`, `supplier`). It was added because
+summing a page of `list_transactions` rows silently gives a partial total.
 
 ## Expose a tool to the LLM
 

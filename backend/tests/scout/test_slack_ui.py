@@ -43,6 +43,19 @@ def test_dm_adds_eyes_posts_working_and_enqueues(conn_factory, db, fake_slack):
     assert j["payload"]["from_id"] == "grazyna" and j["payload"]["status_ref"].startswith("D1:100.")
 
 
+def test_final_update_swaps_eyes_for_a_check_mark(conn_factory, db, fake_slack):
+    s, _, _ = ui(conn_factory, fake_slack)
+    s.on_message({"type": "message", "channel_type": "im", "channel": "D1", "user": "U_GRA", "ts": "5.1",
+                  "text": "hi"})
+    ref = jobs(db)[0]["payload"]["status_ref"]
+    s.update(ref, "Done", "AUTO")
+    assert fake_slack.named("reactions_remove")[0] == {"channel": "D1", "timestamp": "5.1", "name": "eyes"}
+    assert fake_slack.named("reactions_add")[-1] == {"channel": "D1", "timestamp": "5.1",
+                                                     "name": "white_check_mark"}
+    s.update(ref, "Done again", "AUTO")  # only once
+    assert len(fake_slack.named("reactions_remove")) == 1
+
+
 def test_ignores_bots_and_strangers(conn_factory, db, fake_slack):
     s, _, _ = ui(conn_factory, fake_slack)
     base = {"type": "message", "channel_type": "im", "channel": "D1", "ts": "1.0", "text": "x"}

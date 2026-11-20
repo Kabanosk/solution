@@ -148,3 +148,8 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** konfiguracja środowiska nie powinna trafiać do publicznych źródeł. W opisie ręcznego kryterium T029 oraz jego zapisanej kopii zastąpiono wyłącznie nazwę projektu przez ogólny opis; wymagania i komendy weryfikacyjne pozostają równoważne. Narzędzie house nie jest dostępne na tej maszynie.
 - **Kto:** człowiek (polecenie), codex (realizacja)
 - **Data:** 2026-11-20
+
+## D-024 T048 przywrócony po fałszywym revercie (flake współdzielonego schematu testów)
+- **Decyzja:** `house merge T048` cofnął merge, bo padł check T011 (golden path). Ten sam commit merge'a przechodzi test sam (18/18); przyczyna: `test_golden_path.py` (i `test_llm_usage.py`) mają stałą nazwę schematu (`t011_test`, `t032_test`), a równolegle chodziła pełna suita codera T047. T048 wrócił revertem reverta (98ad128) jak w D-014; `house check --all` GREEN. Poprawkę nazw schematów robi sesja ed.
+- **Kto:** coordinator
+- **Data:** 2026-11-20 19:30

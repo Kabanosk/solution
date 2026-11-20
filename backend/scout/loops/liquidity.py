@@ -151,6 +151,22 @@ def _after_answer(ctx: JobContext, task_id: str, approval_id: str, approved: boo
     if apr and apr.slack_ref:
         ctx.notifier.update(apr.slack_ref, f"{apr.question}\n\n{'✅ Approved' if approved else '❌ Rejected'} by {who}",
                             "APPROVAL")
+    _tell_requester(ctx, task_id, by)
+
+
+def _tell_requester(ctx: JobContext, task_id: str, by: str) -> None:
+    """The person who asked for the what-if hears how it ended: their "Waiting for approval" message is replaced,
+    or, without one, they get a DM. The approver already sees it on the approval message."""
+    task = ctx.recorder.get(task_id)
+    steps = ctx.recorder.steps(task_id)
+    first = steps[0].detail if steps else {}
+    status_ref, requester = (first or {}).get("status_ref"), task.requested_by
+    lines = "\n".join(f"• {s.text}" for s in steps[1:][-6:])
+    text = f"{task.outcome} ({task.id})\n{lines}"
+    if status_ref:
+        ctx.notifier.update(status_ref, text, "NOTIFY")
+    elif requester and requester not in ("agent", by):
+        ctx.notifier.dm(requester, text, "NOTIFY", task_id=task.id)
 
 
 def resume(ctx: JobContext, approval_id: str, approved: bool, by: str) -> Task:
@@ -228,7 +244,8 @@ def on_what_if(ctx: JobContext, job: Job) -> Task:
     if p.get("status_ref"):
         ctx.notifier.track(task.id, p["status_ref"])
     ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(p.get('from_id'))} asked: what if we buy {what} for "
-                                           f"{eur(amount) if amount else '?'} in {month:%B}", source="slack:dm")
+                                           f"{eur(amount) if amount else '?'} in {month:%B}", source="slack:dm",
+                      detail={"status_ref": p.get("status_ref")} if p.get("status_ref") else None)
     if amount is None:
         outcome = "Closed · I need the price to run the forecast"
         ctx.recorder.step(task.id, "resolved", outcome)

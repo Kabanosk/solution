@@ -22,13 +22,12 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from fastapi.testclient import TestClient
-
 from cfo.agent.tools import InProcessToolBox
 from cfo.api import deps as api_deps
 from cfo.api import services
 from cfo.api.app import create_app
-from cfo.channels.base import SIMULATED, ActionKind, ApprovalAnswer, ChatMessage, ChatReply, Notifier
+from cfo.channels.base import (SIMULATED, ActionKind, ApprovalAnswer,
+                               ChatMessage, ChatReply, Notifier)
 from cfo.config import REPO_ROOT, get_settings
 from cfo.data.load import load_events, seed
 from cfo.db.migrate import SCHEMA_PATH
@@ -40,11 +39,16 @@ from cfo.mcp_servers.company_db import CompanyDbTools
 from cfo.mcp_servers.hr import HrTools
 from cfo.mcp_servers.workstations import DbAccessLog, WorkstationTools
 from cfo.sim.engine import Simulator
+from fastapi.testclient import TestClient
 
 SCHEMA = "t011_test"
 CEO, OFFICE = "vincenzo", "grazyna"
 MISSING_TXN, MISSING_INV = "txn_1116", "FLV-42026"  # paid 29 Dec, no document anywhere
-FOUND_TXN, FOUND_INV, FOUND_FILE = "txn_1120", "AS-69664", "Downloads/AS-69664.pdf"  # paid 30 Dec
+FOUND_TXN, FOUND_INV, FOUND_FILE = (
+    "txn_1120",
+    "AS-69664",
+    "Downloads/AS-69664.pdf",
+)  # paid 30 Dec
 
 
 # -- fakes ------------------------------------------------------------------------------------------------
@@ -58,7 +62,14 @@ class FakeChannel:
         self._chat = None
 
     def send_dm(self, employee, text, level, actions=()):
-        self.sent.append({"to": employee.id, "text": text, "level": str(level), "actions": list(actions)})
+        self.sent.append(
+            {
+                "to": employee.id,
+                "text": text,
+                "level": str(level),
+                "actions": list(actions),
+            }
+        )
         return f"fake:{len(self.sent)}"
 
     def on_approval(self, handler):
@@ -77,11 +88,19 @@ class FakeChannel:
         return [m for m in self.sent if m["to"] == employee_id]
 
     def click(self, request_id, approved, employee_id):
-        self._approval(ApprovalAnswer(request_id=request_id, approved=approved, employee_id=employee_id,
-                                      message_ref="fake:click"))
+        self._approval(
+            ApprovalAnswer(
+                request_id=request_id,
+                approved=approved,
+                employee_id=employee_id,
+                message_ref="fake:click",
+            )
+        )
 
     def say(self, employee_id, text) -> ChatReply | None:
-        out = self._chat(ChatMessage(employee_id=employee_id, text=text, message_ref="fake:chat"))
+        out = self._chat(
+            ChatMessage(employee_id=employee_id, text=text, message_ref="fake:chat")
+        )
         return ChatReply(text=out) if isinstance(out, str) else out
 
 
@@ -97,14 +116,30 @@ def fake_llm(messages, tools):
         total = re.search(r"Total \(EUR\) ([\d.]+)", user)
         if not (number and total):
             return "I cannot read this document."
-        lines = [{"description": m["d"], "quantity": m["q"], "unit_price": m["u"], "amount": m["a"]}
-                 for m in map(LINE.match, user.splitlines()) if m]
-        return FakeLLM.tool_call("submit_invoice", number=number.group(1), supplier=re.search(r"^.+ (?:Ltd|GmbH)$", user, re.M).group(0),
-                                 issue_date="2025-12-21", total=total.group(1), lines=lines)
+        lines = [
+            {
+                "description": m["d"],
+                "quantity": m["q"],
+                "unit_price": m["u"],
+                "amount": m["a"],
+            }
+            for m in map(LINE.match, user.splitlines())
+            if m
+        ]
+        return FakeLLM.tool_call(
+            "submit_invoice",
+            number=number.group(1),
+            supplier=re.search(r"^.+ (?:Ltd|GmbH)$", user, re.M).group(0),
+            issue_date="2025-12-21",
+            total=total.group(1),
+            lines=lines,
+        )
     if "search_queries" in names:
         return FakeLLM.tool_call("search_queries", queries=["Fattoria", "Rechnung"])
     if "plan_purchase" in names and "oven" in user:
-        return FakeLLM.tool_call("plan_purchase", what="oven", amount_eur="30000", month="2026-03")
+        return FakeLLM.tool_call(
+            "plan_purchase", what="oven", amount_eur="30000", month="2026-03"
+        )
     if "create_rule" in names and "sprzęt" in user:
         return FakeLLM.tool_call("create_rule", level="APPROVAL", category="equipment")
     if "create_rule" in names:
@@ -138,7 +173,10 @@ def world(tmp_path_factory):
         pytest.skip("generated data missing (python -m cfo.data.generate)")
 
     mp = pytest.MonkeyPatch()
-    mp.setenv("FORECAST_MODEL_PATH", str(tmp_path_factory.mktemp("model") / "liquidity_xgb.json"))
+    mp.setenv(
+        "FORECAST_MODEL_PATH",
+        str(tmp_path_factory.mktemp("model") / "liquidity_xgb.json"),
+    )
     services._model_cache.clear()
 
     admin = Repository.connect(url)
@@ -155,12 +193,22 @@ def world(tmp_path_factory):
     w.channel = FakeChannel()
     assert isinstance(w.channel, Notifier)
     w.llm = FakeLLM(handler=fake_llm)
-    tools = InProcessToolBox(CompanyDbTools(w.factory), WorkstationTools(data / "workstations", DbAccessLog(w.factory)),
-                             HrTools(w.factory))
-    w.runtime = build_runtime(repo_factory=w.factory, tools=tools, llm=w.llm, channel=w.channel)
+    tools = InProcessToolBox(
+        CompanyDbTools(w.factory),
+        WorkstationTools(data / "workstations", DbAccessLog(w.factory)),
+        HrTools(w.factory),
+    )
+    w.runtime = build_runtime(
+        repo_factory=w.factory, tools=tools, llm=w.llm, channel=w.channel
+    )
     w.now = [1_000_000.0]
-    w.sim = Simulator(w.factory(), load_events(data), speed=3600.0, clock=lambda: w.now[0],
-                      subscribers=[w.runtime.on_event])
+    w.sim = Simulator(
+        w.factory(),
+        load_events(data),
+        speed=3600.0,
+        clock=lambda: w.now[0],
+        subscribers=[w.runtime.on_event],
+    )
     w.worker = Worker(w.runtime, w.sim)
 
     app = create_app()
@@ -189,8 +237,12 @@ def decisions(w, action_type=None, txn=None):
     """Oldest first."""
     with w.factory() as r:
         out = list(reversed(r.list_decisions(limit=500)))
-    return [d for d in out if (action_type is None or d.action_type == action_type)
-            and (txn is None or d.payload.get("transaction_id") == txn)]
+    return [
+        d
+        for d in out
+        if (action_type is None or d.action_type == action_type)
+        and (txn is None or d.payload.get("transaction_id") == txn)
+    ]
 
 
 def advance(w, to: datetime):
@@ -209,18 +261,30 @@ def api_decisions(w, **params):
 def test_step1_dashboard_shows_history(world):
     w = world
     kpis = w.api.get("/v1/kpis").json()
-    assert kpis["stub"] is False and kpis["as_of"] == "2025-11-30" and kpis["pending_approvals"] == 0
+    assert (
+        kpis["stub"] is False
+        and kpis["as_of"] == "2025-11-30"
+        and kpis["pending_approvals"] == 0
+    )
     forecast = w.api.get("/v1/forecast/liquidity", params={"days": 90}).json()
     assert forecast["points"] and Decimal(forecast["safety_buffer"]["amount"]) > 0
-    assert {t["team_id"] for t in w.api.get("/v1/costs/by-team").json()["items"]} >= {"kitchen", "it"}
+    assert {t["team_id"] for t in w.api.get("/v1/costs/by-team").json()["items"]} >= {
+        "kitchen",
+        "it",
+    }
     assert {s["kind"] for s in w.api.get("/v1/cost-metrics").json()["items"]} == {
-        "food_cost", "ads_cac", "cloud_per_order"}
+        "food_cost",
+        "ads_cac",
+        "cloud_per_order",
+    }
     assert api_decisions(w) == [] and w.channel.sent == []
 
 
 def test_the_worker_registers_itself_with_the_channel_and_the_api(world):
     w = world
-    assert api_deps.get_agent() is w.runtime.agent  # POST /v1/approvals/{id}:approve reaches this agent
+    assert (
+        api_deps.get_agent() is w.runtime.agent
+    )  # POST /v1/approvals/{id}:approve reaches this agent
     assert w.channel._approval is not None and w.channel._chat is not None
 
 
@@ -231,8 +295,14 @@ def test_routine_december_days_produce_no_decisions(world):
     assert w.sim.status().emitted > 80
     assert decisions(w) == [] and w.channel.sent == []
     with w.factory() as r:
-        december = [t for t in r.list_transactions(undocumented_only=True) if t.booking_date.month == 12]
-    assert december == []  # payments whose invoice is in the database are documented on arrival
+        december = [
+            t
+            for t in r.list_transactions(undocumented_only=True)
+            if t.booking_date.month == 12
+        ]
+    assert (
+        december == []
+    )  # payments whose invoice is in the database are documented on arrival
 
 
 # -- step 3: no document anywhere, Grazyna on vacation -> the CEO, with the reason ------------------------
@@ -241,7 +311,9 @@ def test_step3_missing_invoice_goes_to_ceo_because_grazyna_is_on_vacation(world)
     advance(w, datetime(2025, 12, 29, 8, 0, tzinfo=UTC))
     (dec,) = decisions(w, txn=MISSING_TXN)
     assert dec.action_type == "request_invoice" and dec.level == PolicyLevel.NOTIFY
-    assert dec.payload["recipient"] == CEO and dec.payload["skipped_on_vacation"] == [OFFICE]
+    assert dec.payload["recipient"] == CEO and dec.payload["skipped_on_vacation"] == [
+        OFFICE
+    ]
     (dm,) = w.channel.to(CEO)
     assert dm["level"] == "NOTIFY" and MISSING_INV in dm["text"]
     assert "Belegpflicht" in dm["text"] and "on vacation" in dm["text"]
@@ -250,7 +322,12 @@ def test_step3_missing_invoice_goes_to_ceo_because_grazyna_is_on_vacation(world)
     assert "company folders" in notice["text"] and MISSING_INV in notice["text"]
     with w.factory() as r:
         assert not r.get_transaction(MISSING_TXN).documented
-        assert r._all("SELECT count(*) AS n FROM access_log WHERE employee = %s", (OFFICE,))[0]["n"] > 0
+        assert (
+            r._all(
+                "SELECT count(*) AS n FROM access_log WHERE employee = %s", (OFFICE,)
+            )[0]["n"]
+            > 0
+        )
 
 
 # -- step 2: document found on Grazyna's computer -> AUTO --------------------------------------------------
@@ -259,8 +336,14 @@ def test_step2_invoice_found_in_downloads_is_attached_on_its_own(world):
     before = len(w.channel.to(OFFICE))
     advance(w, datetime(2025, 12, 30, 8, 0, tzinfo=UTC))
     (dec,) = decisions(w, "attach_invoice")
-    assert dec.level == PolicyLevel.AUTO and dec.status == DecisionStatus.EXECUTED and dec.actor == "agent"
-    assert dec.payload["transaction_id"] == FOUND_TXN and dec.payload["path"] == FOUND_FILE
+    assert (
+        dec.level == PolicyLevel.AUTO
+        and dec.status == DecisionStatus.EXECUTED
+        and dec.actor == "agent"
+    )
+    assert (
+        dec.payload["transaction_id"] == FOUND_TXN and dec.payload["path"] == FOUND_FILE
+    )
     with w.factory() as r:
         txn = r.get_transaction(FOUND_TXN)
         inv = r.get_invoice_by_number(FOUND_INV)
@@ -269,7 +352,9 @@ def test_step2_invoice_found_in_downloads_is_attached_on_its_own(world):
     assert len(inv.lines) == 6 and sum(ln.amount for ln in inv.lines) == inv.total
     assert inv.supplier == "Asimex Wholesale Ltd"
     (dm,) = w.channel.to(OFFICE)[before:]
-    assert dm["level"] == "AUTO" and FOUND_INV in dm["text"] and FOUND_FILE in dm["text"]
+    assert (
+        dm["level"] == "AUTO" and FOUND_INV in dm["text"] and FOUND_FILE in dm["text"]
+    )
     (item,) = api_decisions(w, action_type="attach_invoice")
     assert item["level"] == "AUTO"
 
@@ -287,34 +372,55 @@ def test_step3_reminder_fires_after_24_simulated_hours(world):
 def test_step4_cloud_cost_anomaly_alerts_the_ceo(world):
     w = world
     before = len(w.channel.to(CEO))
-    w.sim.jump(datetime(2025, 12, 31, 8, 0, tzinfo=UTC))  # the cloud bill arrives; no `pump` yet
+    w.sim.jump(
+        datetime(2025, 12, 31, 8, 0, tzinfo=UTC)
+    )  # the cloud bill arrives; no `pump` yet
     (dec,) = decisions(w, "alert_cost_anomaly")
     assert dec.level == PolicyLevel.NOTIFY and dec.payload["kind"] == "cloud_per_order"
     facts = dec.payload["facts"]
     assert 49 < facts["cost_change_pct"] < 51 and 2 < facts["metric_change_pct"] < 4
     assert "Log ingestion" in facts["biggest_increase"]["line"]
-    assert facts["cost_per_unit_now"] and facts["cost_per_unit_change_pct"] > 40  # cloud cost per online order
+    assert (
+        facts["cost_per_unit_now"] and facts["cost_per_unit_change_pct"] > 40
+    )  # cloud cost per online order
     (alert,) = w.channel.to(CEO)[before:]  # one DM: the CEO also owns the IT team
-    assert alert["level"] == "NOTIFY" and alert["text"] == dec.summary  # the explanation (worded by the LLM)
+    assert (
+        alert["level"] == "NOTIFY" and alert["text"] == dec.summary
+    )  # the explanation (worded by the LLM)
     assert w.api.get("/v1/kpis").json()["open_cost_alerts"] == 1
 
 
 # -- step 5 (D-013 a): the scheduled forecast review -> investment proposal, APPROVAL ----------------------
 def test_step5_scheduled_forecast_review_proposes_and_waits_for_approval(world):
     w = world
-    advance(w, datetime(2025, 12, 31, 9, 0, tzinfo=UTC))  # the replay is over: the month is closed
+    advance(
+        w, datetime(2025, 12, 31, 9, 0, tzinfo=UTC)
+    )  # the replay is over: the month is closed
     assert w.sim.status().finished
     (dec,) = decisions(w, "make_investment")
-    assert dec.level == PolicyLevel.APPROVAL and dec.status == DecisionStatus.PENDING and not dec.executed_simulated
-    assert decisions(w, "request_credit_line") == []  # D-013: the real forecast stays above the buffer
+    assert (
+        dec.level == PolicyLevel.APPROVAL
+        and dec.status == DecisionStatus.PENDING
+        and not dec.executed_simulated
+    )
+    assert (
+        decisions(w, "request_credit_line") == []
+    )  # D-013: the real forecast stays above the buffer
     dm = w.channel.to(CEO)[-1]
-    assert dm["level"] == "APPROVAL" and "safety buffer" in dm["text"] and "June 2026" in dm["text"]
+    assert (
+        dm["level"] == "APPROVAL"
+        and "safety buffer" in dm["text"]
+        and "June 2026" in dm["text"]
+    )
     assert [a.kind for a in dm["actions"]] == [ActionKind.APPROVE, ActionKind.REJECT]
     assert {a.request_id for a in dm["actions"]} == {dec.approval_request_id}
     w.approvals["make_investment"] = dec.approval_request_id
     # the checks are deduplicated: another round changes nothing
     w.runtime.run_checks(w.sim.status().sim_time)
-    assert len(decisions(w, "make_investment")) == 1 and len(decisions(w, "alert_cost_anomaly")) == 1
+    assert (
+        len(decisions(w, "make_investment")) == 1
+        and len(decisions(w, "alert_cost_anomaly")) == 1
+    )
     (pending,) = w.api.get("/v1/approvals", params={"state": "pending"}).json()["items"]
     assert pending["id"] == dec.approval_request_id
     assert w.api.get("/v1/kpis").json()["pending_approvals"] == 1
@@ -323,14 +429,25 @@ def test_step5_scheduled_forecast_review_proposes_and_waits_for_approval(world):
 # -- step 5 (D-013 b): the CEO's what-if breaks the buffer -> credit line request, APPROVAL ----------------
 def test_step5_ceo_what_if_leads_to_a_credit_line_request(world):
     w = world
-    assert "CEO" in w.channel.say(OFFICE, "What if I buy a new oven for 30000 EUR in March?").text
-    assert decisions(w, "request_credit_line") == []  # only the CEO may ask the agent for scenarios
+    assert (
+        "CEO"
+        in w.channel.say(
+            OFFICE, "What if I buy a new oven for 30000 EUR in March?"
+        ).text
+    )
+    assert (
+        decisions(w, "request_credit_line") == []
+    )  # only the CEO may ask the agent for scenarios
     reply = w.channel.say(CEO, "What if I buy a new oven for 30000 EUR in March?")
     (dec,) = decisions(w, "request_credit_line")
     assert dec.level == PolicyLevel.APPROVAL and dec.status == DecisionStatus.PENDING
     assert "credit line" in reply.text and "30,000" in reply.text
     dm = w.channel.to(CEO)[-1]
-    assert dm["level"] == "APPROVAL" and "safety buffer" in dm["text"] and "oven" in dm["text"]
+    assert (
+        dm["level"] == "APPROVAL"
+        and "safety buffer" in dm["text"]
+        and "oven" in dm["text"]
+    )
     assert [a.kind for a in dm["actions"]] == [ActionKind.APPROVE, ActionKind.REJECT]
     w.approvals["request_credit_line"] = dec.approval_request_id
 
@@ -350,11 +467,19 @@ def test_step6_approve_executes_simulated_and_shows_in_the_api(world):
     apr = w.approvals["request_credit_line"]
     w.channel.click(apr, True, CEO)
     (dec,) = decisions(w, "request_credit_line")
-    assert dec.status == DecisionStatus.EXECUTED and dec.executed_simulated and dec.actor == CEO
+    assert (
+        dec.status == DecisionStatus.EXECUTED
+        and dec.executed_simulated
+        and dec.actor == CEO
+    )
     confirmation = w.channel.to(CEO)[-1]
     assert confirmation["level"] == SIMULATED and "SIMULATED" in confirmation["text"]
     (item,) = api_decisions(w, action_type="request_credit_line")
-    assert item["level"] == "APPROVAL" and item["status"] == "executed" and item["executed_simulated"] is True
+    assert (
+        item["level"] == "APPROVAL"
+        and item["status"] == "executed"
+        and item["executed_simulated"] is True
+    )
     assert w.api.get(f"/v1/approvals/{apr}").json()["status"] == "approved"
     sent = len(w.channel.sent)
     w.channel.click(apr, True, CEO)  # a double click does nothing
@@ -376,21 +501,35 @@ def test_step7_ceo_sentence_becomes_a_rule(world):
     w = world
     sentence = "sprzęt zawsze zatwierdzam sam"
     assert "CEO" in w.channel.say(OFFICE, sentence).text
-    assert w.api.get("/v1/rules").json()["items"] == []  # only the CEO changes the policy
+    assert (
+        w.api.get("/v1/rules").json()["items"] == []
+    )  # only the CEO changes the policy
     reply = w.channel.say(CEO, sentence)
     assert "equipment" in reply.text and "APPROVAL" in reply.text
     (rule,) = w.api.get("/v1/rules").json()["items"]
-    assert rule["text"] == sentence and rule["level"] == "APPROVAL" and rule["category"] == "equipment"
+    assert (
+        rule["text"] == sentence
+        and rule["level"] == "APPROVAL"
+        and rule["category"] == "equipment"
+    )
     assert rule["created_by"] == CEO and rule["active"] is True
     (dec,) = decisions(w, "create_rule")
     assert dec.actor == CEO and dec.payload["rule_id"] == rule["id"]
     # the rule changes what the policy engine says about equipment
-    from cfo.agent.policy import PolicyAction, classify, context_from_transactions
+    from cfo.agent.policy import (PolicyAction, classify,
+                                  context_from_transactions)
 
     with w.factory() as r:
         ctx = context_from_transactions(r.list_transactions(), r.list_rules())
-    assert classify(PolicyAction(action_type="pay_invoice", amount=Decimal("5"), category="equipment"),
-                    ctx).level == PolicyLevel.APPROVAL
+    assert (
+        classify(
+            PolicyAction(
+                action_type="pay_invoice", amount=Decimal("5"), category="equipment"
+            ),
+            ctx,
+        ).level
+        == PolicyLevel.APPROVAL
+    )
 
 
 def test_small_talk_gets_a_reply_and_changes_nothing(world):
@@ -410,7 +549,12 @@ def test_history_shows_every_level(world):
     assert by_type["alert_cost_anomaly"]["level"] == "NOTIFY"
     assert by_type["request_credit_line"]["level"] == "APPROVAL"
     assert by_type["request_credit_line"]["executed_simulated"] is True
-    assert {m["level"] for m in w.channel.sent} == {"AUTO", "NOTIFY", "APPROVAL", "SIMULATED"}
+    assert {m["level"] for m in w.channel.sent} == {
+        "AUTO",
+        "NOTIFY",
+        "APPROVAL",
+        "SIMULATED",
+    }
 
 
 # -- the entrypoint ---------------------------------------------------------------------------------------
@@ -427,7 +571,9 @@ def test_worker_loop_ticks_the_simulator_and_starts_the_channel(world):
 
     n = len(decisions(w))
     w.worker.run(stop, wait=wait)
-    assert len(rounds) == 3 and w.channel.started is False  # started for the loop, stopped afterwards
+    assert (
+        len(rounds) == 3 and w.channel.started is False
+    )  # started for the loop, stopped afterwards
     assert len(decisions(w)) == n  # replay finished, checks deduplicated: nothing new
 
 
@@ -435,10 +581,15 @@ def test_events_of_the_replay_get_the_transaction_id_the_agent_needs():
     from cfo.domain import Event
     from cfo.run import normalize_event
 
-    ev = Event(kind=EventKind.BANK_TRANSACTION, payload={"transaction": {"id": "txn_9", "amount": "-1"}})
+    ev = Event(
+        kind=EventKind.BANK_TRANSACTION,
+        payload={"transaction": {"id": "txn_9", "amount": "-1"}},
+    )
     out = normalize_event(ev)
     assert out.id == ev.id and out.payload["transaction_id"] == "txn_9"
-    assert normalize_event(Event(kind=EventKind.METRIC, payload={"x": 1})).payload == {"x": 1}
+    assert normalize_event(Event(kind=EventKind.METRIC, payload={"x": 1})).payload == {
+        "x": 1
+    }
 
 
 def test_main_has_help():

@@ -24,7 +24,9 @@ from cfo.api.schemas import EventOut
 from cfo.db.repo import Repository
 from cfo.domain import ApprovalRequest, Decision, Event
 
-Cursor = dict[str, tuple[datetime, str]]  # source -> (key timestamp, row id) of the last emitted row
+Cursor = dict[
+    str, tuple[datetime, str]
+]  # source -> (key timestamp, row id) of the last emitted row
 
 # source -> (table, key expression, SSE event name)
 SOURCES: dict[str, tuple[str, str, str]] = {
@@ -36,7 +38,9 @@ SOURCES: dict[str, tuple[str, str, str]] = {
 
 def encode_cursor(cursor: Cursor) -> str:
     """`decision=<iso ts>|<id>;approval=...;event=...` (sources without rows are omitted)."""
-    return ";".join(f"{name}={ts.isoformat()}|{row_id}" for name, (ts, row_id) in cursor.items())
+    return ";".join(
+        f"{name}={ts.isoformat()}|{row_id}" for name, (ts, row_id) in cursor.items()
+    )
 
 
 def decode_cursor(text: str | None) -> Cursor | None:
@@ -60,19 +64,27 @@ def current_cursor(repo: Repository) -> Cursor:
     """Position of the newest row of every table: a stream started with it only sees what is written afterwards."""
     cursor: Cursor = {}
     for name, (table, key, _) in SOURCES.items():
-        row = repo.conn.execute(f"SELECT {key} AS k, id FROM {table} ORDER BY {key} DESC, id DESC LIMIT 1").fetchone()
+        row = repo.conn.execute(
+            f"SELECT {key} AS k, id FROM {table} ORDER BY {key} DESC, id DESC LIMIT 1"
+        ).fetchone()
         if row:
             cursor[name] = (row["k"], row["id"])
     return cursor
 
 
-def _rows_after(repo: Repository, name: str, cursor: Cursor, limit: int) -> list[dict[str, Any]]:
+def _rows_after(
+    repo: Repository, name: str, cursor: Cursor, limit: int
+) -> list[dict[str, Any]]:
     table, key, _ = SOURCES[name]
     if name in cursor:
         ts, row_id = cursor[name]
-        return repo._all(f"SELECT *, {key} AS _k FROM {table} WHERE ({key}, id) > (%s, %s) ORDER BY {key}, id LIMIT %s",
-                         [ts, row_id, limit])
-    return repo._all(f"SELECT *, {key} AS _k FROM {table} ORDER BY {key}, id LIMIT %s", [limit])
+        return repo._all(
+            f"SELECT *, {key} AS _k FROM {table} WHERE ({key}, id) > (%s, %s) ORDER BY {key}, id LIMIT %s",
+            [ts, row_id, limit],
+        )
+    return repo._all(
+        f"SELECT *, {key} AS _k FROM {table} ORDER BY {key}, id LIMIT %s", [limit]
+    )
 
 
 def _payload(repo: Repository, name: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -80,9 +92,13 @@ def _payload(repo: Repository, name: str, row: dict[str, Any]) -> dict[str, Any]
     if name == "decision":
         return json.loads(services._decision_out(Decision(**row)).model_dump_json())
     if name == "approval":
-        return json.loads(services.approval_out(repo, ApprovalRequest(**row)).model_dump_json())
+        return json.loads(
+            services.approval_out(repo, ApprovalRequest(**row)).model_dump_json()
+        )
     ev = Event(**row)
-    return json.loads(EventOut(id=ev.id, ts=ev.ts, kind=ev.kind, payload=ev.payload).model_dump_json())
+    return json.loads(
+        EventOut(id=ev.id, ts=ev.ts, kind=ev.kind, payload=ev.payload).model_dump_json()
+    )
 
 
 def format_message(event: str, data: dict[str, Any], cursor: Cursor) -> str:
@@ -103,7 +119,8 @@ def poll(repo: Repository, cursor: Cursor, limit: int) -> list[str]:
 def stream(config: StreamConfig, last_event_id: str | None) -> Iterator[str]:
     """Yields SSE text chunks. Starts after `last_event_id`, or from now when it is missing or invalid.
 
-    Runs in a worker thread of the server; when the client disconnects, Starlette stops iterating it."""
+    Runs in a worker thread of the server; when the client disconnects, Starlette stops iterating it.
+    """
     cursor = decode_cursor(last_event_id)
     if cursor is None:
         with config.repo_factory() as repo:

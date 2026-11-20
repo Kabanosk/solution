@@ -27,7 +27,14 @@ def _history(revenue: float = 200.0) -> pd.DataFrame:
     rows: list[tuple] = []
     for day in pd.date_range("2025-01-01", "2025-11-30"):
         if day.month != 6:
-            rows.append((day, revenue + (100.0 if day.day_of_week >= 5 else 0.0), "revenue", None))
+            rows.append(
+                (
+                    day,
+                    revenue + (100.0 if day.day_of_week >= 5 else 0.0),
+                    "revenue",
+                    None,
+                )
+            )
         if day.day == 28:
             rows.append((day, -2000.0, "payroll", "kitchen"))
         if day.day == 1:
@@ -53,7 +60,9 @@ def tracking(tmp_path, monkeypatch):
     monkeypatch.delenv("MLFLOW_EXPERIMENT_NAME", raising=False)
     monkeypatch.delenv("MLFLOW_REGISTRY_URI", raising=False)
     mlflow.set_tracking_uri(uri)
-    mlflow.create_experiment(m.MLFLOW_EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri())
+    mlflow.create_experiment(
+        m.MLFLOW_EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri()
+    )
     yield uri
     mlflow.set_tracking_uri(None)
 
@@ -61,7 +70,9 @@ def tracking(tmp_path, monkeypatch):
 @pytest.fixture
 def api_env(tmp_path, monkeypatch):
     """The API service with an empty model dir and clean caches; `FORECAST_MODEL_URI` is set by each test."""
-    monkeypatch.setenv("FORECAST_MODEL_PATH", str(tmp_path / "local" / "liquidity_xgb.json"))
+    monkeypatch.setenv(
+        "FORECAST_MODEL_PATH", str(tmp_path / "local" / "liquidity_xgb.json")
+    )
     monkeypatch.setenv("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
     monkeypatch.setenv("MLFLOW_HTTP_REQUEST_TIMEOUT", "2")
     services.reset_forecast_cache()
@@ -83,7 +94,9 @@ def test_logging_returns_the_run_id_and_stores_the_sidecar(history, tracking):
     assert isinstance(run_id, str) and run_id
     assert model.mlflow_run_id == run_id and model.model_version is None
     run = mlflow.get_run(run_id)
-    assert run.data.metrics["holdout_mae"] == pytest.approx(model.metrics["holdout_mae"])
+    assert run.data.metrics["holdout_mae"] == pytest.approx(
+        model.metrics["holdout_mae"]
+    )
     names = {a.path for a in mlflow.MlflowClient().list_artifacts(run_id)}
     assert {m.META_ARTIFACT, "feature_importances.json"} <= names
     # not registered unless asked
@@ -98,18 +111,30 @@ def test_register_and_load_by_alias_gives_equal_predictions(history, tracking):
     assert loaded.mlflow_run_id == model.mlflow_run_id
     assert loaded.model_version == "1"
     assert loaded.trained_at is not None and loaded.trained_at.tzinfo is not None
-    assert loaded.shutdown_days == model.shutdown_days and loaded.due_days == model.due_days
+    assert (
+        loaded.shutdown_days == model.shutdown_days
+        and loaded.due_days == model.due_days
+    )
     assert loaded.trained_until == model.trained_until
     assert loaded.metrics == pytest.approx(model.metrics)
     pd.testing.assert_series_equal(loaded.predict(FUTURE), model.predict(FUTURE))
-    pd.testing.assert_series_equal(loaded.feature_importances(), model.feature_importances())
-    assert loaded.explain("2026-06-01", "2026-06-30")["top_drivers"]  # SHAP works on the rebuilt regressor
+    pd.testing.assert_series_equal(
+        loaded.feature_importances(), model.feature_importances()
+    )
+    assert loaded.explain("2026-06-01", "2026-06-30")[
+        "top_drivers"
+    ]  # SHAP works on the rebuilt regressor
 
 
 def test_load_by_version_number_and_by_run_uri(history, tracking):
     model = m.train(history, register=True)
-    by_version = m.ForecastModel.load_from_mlflow(f"models:/{m.REGISTERED_MODEL_NAME}/1")
-    assert (by_version.mlflow_run_id, by_version.model_version) == (model.mlflow_run_id, "1")
+    by_version = m.ForecastModel.load_from_mlflow(
+        f"models:/{m.REGISTERED_MODEL_NAME}/1"
+    )
+    assert (by_version.mlflow_run_id, by_version.model_version) == (
+        model.mlflow_run_id,
+        "1",
+    )
     by_run = m.ForecastModel.load_from_mlflow(f"runs:/{model.mlflow_run_id}/model")
     assert by_run.mlflow_run_id == model.mlflow_run_id and by_run.model_version is None
     pd.testing.assert_series_equal(by_run.predict(FUTURE), model.predict(FUTURE))
@@ -117,9 +142,13 @@ def test_load_by_version_number_and_by_run_uri(history, tracking):
 
 def test_custom_name_and_alias_and_alias_moves_to_the_new_version(history, tracking):
     first = m.train(history, log_to_mlflow=False)
-    m.log_to_mlflow_if_configured(first, register=True, model_name="liq-test", alias="staging")
+    m.log_to_mlflow_if_configured(
+        first, register=True, model_name="liq-test", alias="staging"
+    )
     second = m.train(_history(revenue=400.0), log_to_mlflow=False)
-    m.log_to_mlflow_if_configured(second, register=True, model_name="liq-test", alias="staging")
+    m.log_to_mlflow_if_configured(
+        second, register=True, model_name="liq-test", alias="staging"
+    )
     assert (first.model_version, second.model_version) == ("1", "2")
     loaded = m.ForecastModel.load_from_mlflow("models:/liq-test@staging")
     assert loaded.model_version == "2" and loaded.mlflow_run_id == second.mlflow_run_id
@@ -130,11 +159,15 @@ def test_resolve_does_not_download_the_model(history, tracking):
     model = m.train(history, register=True)
     ref = m.resolve_mlflow_model(CHAMPION_URI)
     assert (ref.run_id, ref.version) == (model.mlflow_run_id, "1")
-    assert ref.uri == f"models:/{m.REGISTERED_MODEL_NAME}/1"  # pinned: alias moves do not race the download
+    assert (
+        ref.uri == f"models:/{m.REGISTERED_MODEL_NAME}/1"
+    )  # pinned: alias moves do not race the download
 
 
 # -- the API service ---------------------------------------------------------------------------------------
-def test_api_service_uses_the_mlflow_model_and_reports_run_id(history, tracking, api_env):
+def test_api_service_uses_the_mlflow_model_and_reports_run_id(
+    history, tracking, api_env
+):
     model = m.train(history, register=True)
     _set_model_uri(api_env, CHAMPION_URI)
     api_env.setattr(services, "_transactions", lambda repo, **kw: history)
@@ -148,7 +181,9 @@ def test_api_service_uses_the_mlflow_model_and_reports_run_id(history, tracking,
     assert out.model.version == "1"
     assert out.model.trained_at == trained_at
     expected = m.liquidity_forecast(60, model=model, transactions=history)
-    assert float(out.points[-1].balance.amount) == pytest.approx(float(expected["balance"].iloc[-1]), abs=0.01)
+    assert float(out.points[-1].balance.amount) == pytest.approx(
+        float(expected["balance"].iloc[-1]), abs=0.01
+    )
 
 
 def test_api_service_caches_and_follows_a_promoted_version(history, tracking, api_env):
@@ -159,28 +194,45 @@ def test_api_service_caches_and_follows_a_promoted_version(history, tracking, ap
 
     loads: list[str] = []
     real_load = m.ForecastModel.load_from_mlflow.__func__
-    api_env.setattr(m.ForecastModel, "load_from_mlflow",
-                    classmethod(lambda cls, uri: (loads.append(uri), real_load(cls, uri))[1]))
+    api_env.setattr(
+        m.ForecastModel,
+        "load_from_mlflow",
+        classmethod(lambda cls, uri: (loads.append(uri), real_load(cls, uri))[1]),
+    )
 
-    promoted = m.train(_history(revenue=400.0), register=True)  # version 2 takes the alias
+    promoted = m.train(
+        _history(revenue=400.0), register=True
+    )  # version 2 takes the alias
     assert promoted.model_version == "2"
-    assert services.forecast_model(history)[0] is first  # inside the 60 s window: no re-resolve
+    assert (
+        services.forecast_model(history)[0] is first
+    )  # inside the 60 s window: no re-resolve
     assert loads == []
 
     clock = time.monotonic()
-    api_env.setattr(services.time, "monotonic", lambda: clock + services.MLFLOW_RECHECK_SECONDS + 1)
+    api_env.setattr(
+        services.time, "monotonic", lambda: clock + services.MLFLOW_RECHECK_SECONDS + 1
+    )
     second, _ = services.forecast_model(history)
-    assert second.model_version == "2" and second.mlflow_run_id == promoted.mlflow_run_id
+    assert (
+        second.model_version == "2" and second.mlflow_run_id == promoted.mlflow_run_id
+    )
     assert len(loads) == 1
 
     # window expired again but the alias did not move: resolved, not downloaded again
-    api_env.setattr(services.time, "monotonic", lambda: clock + 3 * services.MLFLOW_RECHECK_SECONDS)
+    api_env.setattr(
+        services.time, "monotonic", lambda: clock + 3 * services.MLFLOW_RECHECK_SECONDS
+    )
     assert services.forecast_model(history)[0] is second
     assert len(loads) == 1
 
 
-def test_unreachable_tracking_uri_falls_back_to_the_local_model(history, api_env, caplog):
-    api_env.setenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:9")  # nothing listens on the discard port
+def test_unreachable_tracking_uri_falls_back_to_the_local_model(
+    history, api_env, caplog
+):
+    api_env.setenv(
+        "MLFLOW_TRACKING_URI", "http://127.0.0.1:9"
+    )  # nothing listens on the discard port
     _set_model_uri(api_env, CHAMPION_URI)
     try:
         with caplog.at_level(logging.WARNING, logger=services.log.name):
@@ -193,7 +245,9 @@ def test_unreachable_tracking_uri_falls_back_to_the_local_model(history, api_env
 
     api_env.setattr(services, "_transactions", lambda repo, **kw: history)
     out = services.liquidity_forecast(SimpleNamespace(conn=None), 30, "day")
-    assert out.model.mlflow_run_id is None and out.model.version.startswith("trained-until-")
+    assert out.model.mlflow_run_id is None and out.model.version.startswith(
+        "trained-until-"
+    )
 
 
 def test_missing_registered_model_falls_back(history, tracking, api_env):

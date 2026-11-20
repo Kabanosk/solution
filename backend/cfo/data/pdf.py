@@ -18,7 +18,13 @@ def render_pdf(items: list[TextItem], title: str = "Document") -> bytes:
     content = bytearray()
     for x, y, size, bold, text in items:
         font = b"/F2" if bold else b"/F1"
-        content += b"BT " + font + b" %d Tf %d %d Td (" % (size, x, y) + _escape(text) + b") Tj ET\n"
+        content += (
+            b"BT "
+            + font
+            + b" %d Tf %d %d Td (" % (size, x, y)
+            + _escape(text)
+            + b") Tj ET\n"
+        )
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -38,5 +44,8 @@ def render_pdf(items: list[TextItem], title: str = "Document") -> bytes:
     out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
     for off in offsets:
         out += b"%010d 00000 n \n" % off
-    out += b"trailer\n<< /Size %d /Root 1 0 R /Info 7 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+    out += (
+        b"trailer\n<< /Size %d /Root 1 0 R /Info 7 0 R >>\nstartxref\n%d\n%%%%EOF\n"
+        % (len(objects) + 1, xref)
+    )
     return bytes(out)

@@ -1,7 +1,6 @@
 """Shared fixtures."""
 
 import pytest
-
 from cfo.usage import recorder
 
 

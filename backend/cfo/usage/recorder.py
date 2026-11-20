@@ -41,7 +41,10 @@ def usage_context(**fields: str | None) -> Iterator[None]:
     unknown = set(fields) - set(_CONTEXT_KEYS)
     if unknown:
         raise TypeError(f"unknown usage context keys: {sorted(unknown)}")
-    merged = {**_context.get(), **{k: str(v) for k, v in fields.items() if v is not None}}
+    merged = {
+        **_context.get(),
+        **{k: str(v) for k, v in fields.items() if v is not None},
+    }
     token = _context.set(merged)
     try:
         yield
@@ -83,7 +86,16 @@ def _message_text(messages: Sequence[Any], tools: Sequence[Any] | None) -> str:
         for c in getattr(m, "tool_calls", None) or []:
             parts.append(c.name + json.dumps(c.arguments, default=str))
     for t in tools or []:
-        parts.append(json.dumps({"name": t.name, "description": t.description, "parameters": t.parameters}, default=str))
+        parts.append(
+            json.dumps(
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                },
+                default=str,
+            )
+        )
     return "\n".join(parts)
 
 
@@ -97,8 +109,12 @@ def _response_text(response: Any) -> str:
 class DbSink:
     """Writes to the `llm_usage` table; skips the database for `cooldown` seconds after a failure."""
 
-    def __init__(self, connect: Callable[[], Any] | None = None, clock: Callable[[], float] = time.monotonic,
-                 cooldown: float = 30.0):
+    def __init__(
+        self,
+        connect: Callable[[], Any] | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        cooldown: float = 30.0,
+    ):
         self._connect = connect or self._default_connect
         self._clock = clock
         self._cooldown = cooldown
@@ -107,7 +123,6 @@ class DbSink:
     @staticmethod
     def _default_connect() -> Any:
         import psycopg
-
         from cfo.config import get_settings
 
         return psycopg.connect(get_settings().database_url, connect_timeout=3)
@@ -124,7 +139,11 @@ class DbSink:
                 conn.close()
         except Exception as exc:  # noqa: BLE001 - recording is best-effort by contract
             self._blocked_until = self._clock() + self._cooldown
-            log.warning("llm usage not recorded (database skipped for %.0f s): %s", self._cooldown, exc)
+            log.warning(
+                "llm usage not recorded (database skipped for %.0f s): %s",
+                self._cooldown,
+                exc,
+            )
 
     def write(self, record: UsageRecord) -> None:
         from cfo.usage import store
@@ -160,8 +179,16 @@ def _active_sink() -> UsageSink | None:
     return _default_sink
 
 
-def record_call(*, model: str, messages: Sequence[Any], tools: Sequence[Any] | None, response: Any | None,
-                started: float, success: bool = True, usage: Any | None = None) -> None:
+def record_call(
+    *,
+    model: str,
+    messages: Sequence[Any],
+    tools: Sequence[Any] | None,
+    response: Any | None,
+    started: float,
+    success: bool = True,
+    usage: Any | None = None,
+) -> None:
     """Record one LLM call. `started` is a `perf_counter()` reading from before the call. Never raises."""
     try:
         sink = _active_sink()
@@ -174,11 +201,22 @@ def record_call(*, model: str, messages: Sequence[Any], tools: Sequence[Any] | N
             prompt, completion = int(usage.prompt_tokens), int(usage.completion_tokens)
         else:
             prompt = estimate_tokens(_message_text(messages, tools))
-            completion = estimate_tokens(_response_text(response)) if response is not None else 0
+            completion = (
+                estimate_tokens(_response_text(response)) if response is not None else 0
+            )
         ctx = _context.get()
-        sink.write(UsageRecord(ts=now(), model=model, prompt_tokens=prompt, completion_tokens=completion,
-                               latency_ms=latency_ms, estimated=estimated, success=success,
-                               **{k: ctx.get(k) for k in _CONTEXT_KEYS}))
+        sink.write(
+            UsageRecord(
+                ts=now(),
+                model=model,
+                prompt_tokens=prompt,
+                completion_tokens=completion,
+                latency_ms=latency_ms,
+                estimated=estimated,
+                success=success,
+                **{k: ctx.get(k) for k in _CONTEXT_KEYS},
+            )
+        )
     except Exception:  # noqa: BLE001
         log.warning("llm usage not recorded", exc_info=True)
 

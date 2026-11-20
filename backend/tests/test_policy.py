@@ -4,15 +4,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-
-from cfo.agent.policy import (
-    PolicyAction,
-    PolicyContext,
-    PolicyDecision,
-    classify,
-    context_from_transactions,
-    parse_rule,
-)
+from cfo.agent.policy import (PolicyAction, PolicyContext, PolicyDecision,
+                              classify, context_from_transactions, parse_rule)
 from cfo.domain import PolicyLevel, Rule, Transaction
 from cfo.llm import FakeLLM
 
@@ -26,8 +19,12 @@ def ctx(**kw) -> PolicyContext:
     return PolicyContext(**kw)
 
 
-def pay(amount, supplier="Metro AG", category="food", action_type="pay_invoice") -> PolicyAction:
-    return PolicyAction(action_type=action_type, amount=D(amount), supplier=supplier, category=category)
+def pay(
+    amount, supplier="Metro AG", category="food", action_type="pay_invoice"
+) -> PolicyAction:
+    return PolicyAction(
+        action_type=action_type, amount=D(amount), supplier=supplier, category=category
+    )
 
 
 # --- routine -> AUTO regardless of amount
@@ -41,9 +38,13 @@ def test_routine_known_supplier_is_auto_even_above_five_percent():
 
 def test_routine_boundary_is_inclusive_and_regardless_of_amount():
     big = ctx(typical_amounts={"Metro AG": D("20000")})
-    assert classify(pay("-24000"), big).level == PolicyLevel.AUTO  # +20% exactly, 24% of inflows
+    assert (
+        classify(pay("-24000"), big).level == PolicyLevel.AUTO
+    )  # +20% exactly, 24% of inflows
     assert classify(pay("-16000"), big).level == PolicyLevel.AUTO  # -20% exactly
-    assert classify(pay("-24001"), big).level == PolicyLevel.APPROVAL  # just outside, > 5%
+    assert (
+        classify(pay("-24001"), big).level == PolicyLevel.APPROVAL
+    )  # just outside, > 5%
 
 
 def test_sign_of_amount_does_not_matter():
@@ -51,14 +52,18 @@ def test_sign_of_amount_does_not_matter():
 
 
 def test_supplier_matching_ignores_case_and_whitespace():
-    assert classify(pay("-4000", supplier="  metro ag "), ctx()).level == PolicyLevel.AUTO
+    assert (
+        classify(pay("-4000", supplier="  metro ag "), ctx()).level == PolicyLevel.AUTO
+    )
 
 
 # --- small amounts -> AUTO
 
 
 def test_below_one_percent_is_auto_even_when_unusual():
-    d = classify(pay("-999.99", supplier="Metro AG"), ctx())  # far from typical 4000, but < 1%
+    d = classify(
+        pay("-999.99", supplier="Metro AG"), ctx()
+    )  # far from typical 4000, but < 1%
     assert d.level == PolicyLevel.AUTO
     assert "1%" in d.reason
 
@@ -79,8 +84,12 @@ def test_unusual_up_to_five_percent_is_notify():
 
 
 def test_exactly_one_percent_and_exactly_five_percent_are_notify():
-    assert classify(pay("-1000", supplier="Cloud GmbH"), ctx()).level == PolicyLevel.NOTIFY  # typical 500
-    assert classify(pay("-5000"), ctx()).level == PolicyLevel.NOTIFY  # typical 4000, +25%
+    assert (
+        classify(pay("-1000", supplier="Cloud GmbH"), ctx()).level == PolicyLevel.NOTIFY
+    )  # typical 500
+    assert (
+        classify(pay("-5000"), ctx()).level == PolicyLevel.NOTIFY
+    )  # typical 4000, +25%
 
 
 def test_unusual_above_five_percent_needs_approval():
@@ -91,7 +100,10 @@ def test_unusual_above_five_percent_needs_approval():
 
 def test_cloud_invoice_plus_fifty_percent_is_notify():
     # demo step 4: cloud invoice +50% m/m, still a small share of inflows
-    d = classify(pay("-750", supplier="Cloud GmbH", category="cloud"), ctx(avg_monthly_inflows=D("50000")))
+    d = classify(
+        pay("-750", supplier="Cloud GmbH", category="cloud"),
+        ctx(avg_monthly_inflows=D("50000")),
+    )
     assert d.level == PolicyLevel.NOTIFY
 
 
@@ -103,9 +115,14 @@ def test_new_supplier_above_one_percent_needs_approval():
 
 def test_unknown_inflows_is_conservative_unless_routine():
     c = ctx(avg_monthly_inflows=None)
-    assert classify(pay("-4000"), c).level == PolicyLevel.AUTO  # routine needs no inflows
+    assert (
+        classify(pay("-4000"), c).level == PolicyLevel.AUTO
+    )  # routine needs no inflows
     assert classify(pay("-3000"), c).level == PolicyLevel.APPROVAL
-    assert classify(pay("-3000"), ctx(avg_monthly_inflows=D("0"))).level == PolicyLevel.APPROVAL
+    assert (
+        classify(pay("-3000"), ctx(avg_monthly_inflows=D("0"))).level
+        == PolicyLevel.APPROVAL
+    )
 
 
 # --- always APPROVAL
@@ -113,7 +130,13 @@ def test_unknown_inflows_is_conservative_unless_routine():
 
 @pytest.mark.parametrize(
     "action_type",
-    ["request_credit_line", "open_deposit", "make_investment", "fx_hedge", "change_team_budget"],
+    [
+        "request_credit_line",
+        "open_deposit",
+        "make_investment",
+        "fx_hedge",
+        "change_team_budget",
+    ],
 )
 def test_strategic_actions_always_need_approval(action_type):
     d = classify(PolicyAction(action_type=action_type, amount=D("1")), ctx())
@@ -121,7 +144,10 @@ def test_strategic_actions_always_need_approval(action_type):
 
 
 def test_strategic_action_without_amount_needs_approval():
-    assert classify(PolicyAction(action_type="request_credit_line"), ctx()).level == PolicyLevel.APPROVAL
+    assert (
+        classify(PolicyAction(action_type="request_credit_line"), ctx()).level
+        == PolicyLevel.APPROVAL
+    )
 
 
 def test_action_without_money_is_auto():
@@ -149,22 +175,34 @@ def test_ceo_rule_beats_routine():
 
 def test_ceo_rule_can_relax_a_default():
     c = ctx(rules=[rule(PolicyLevel.AUTO, supplier="Fresh Newcomer")])
-    assert classify(pay("-4000", supplier="Fresh Newcomer"), c).level == PolicyLevel.AUTO
+    assert (
+        classify(pay("-4000", supplier="Fresh Newcomer"), c).level == PolicyLevel.AUTO
+    )
 
 
 def test_ceo_rule_can_relax_strategic_action():
     c = ctx(rules=[rule(PolicyLevel.NOTIFY, action_type="open_deposit")])
-    assert classify(PolicyAction(action_type="open_deposit", amount=D("10")), c).level == PolicyLevel.NOTIFY
+    assert (
+        classify(PolicyAction(action_type="open_deposit", amount=D("10")), c).level
+        == PolicyLevel.NOTIFY
+    )
 
 
 def test_rule_requires_every_given_field_to_match():
     c = ctx(rules=[rule(PolicyLevel.APPROVAL, category="equipment", supplier="Dell")])
     assert classify(pay("-4000", category="equipment"), c).level == PolicyLevel.AUTO
-    assert classify(pay("-4000", supplier="Dell", category="equipment"), c).level == PolicyLevel.APPROVAL
+    assert (
+        classify(pay("-4000", supplier="Dell", category="equipment"), c).level
+        == PolicyLevel.APPROVAL
+    )
 
 
 def test_rule_category_match_is_case_insensitive_and_text_is_quoted_in_reason():
-    r = Rule(text="equipment I always approve myself", level=PolicyLevel.APPROVAL, category="equipment")
+    r = Rule(
+        text="equipment I always approve myself",
+        level=PolicyLevel.APPROVAL,
+        category="equipment",
+    )
     d = classify(pay("-10", category="Equipment"), ctx(rules=[r]))
     assert d.level == PolicyLevel.APPROVAL
     assert "equipment I always approve myself" in d.reason
@@ -172,16 +210,23 @@ def test_rule_category_match_is_case_insensitive_and_text_is_quoted_in_reason():
 
 def test_newest_matching_rule_wins():
     now = datetime.now(timezone.utc)
-    old = rule(PolicyLevel.APPROVAL, created_at=now - timedelta(days=2), category="equipment")
+    old = rule(
+        PolicyLevel.APPROVAL, created_at=now - timedelta(days=2), category="equipment"
+    )
     new = rule(PolicyLevel.NOTIFY, created_at=now, category="equipment")
     for order in ([old, new], [new, old]):
-        assert classify(pay("-10", category="equipment"), ctx(rules=order)).level == PolicyLevel.NOTIFY
+        assert (
+            classify(pay("-10", category="equipment"), ctx(rules=order)).level
+            == PolicyLevel.NOTIFY
+        )
 
 
 def test_inactive_and_empty_rules_are_ignored():
     inactive = rule(PolicyLevel.APPROVAL, category="equipment")
     inactive.active = False
-    empty = Rule(text="everything", level=PolicyLevel.APPROVAL)  # no match field: never matches
+    empty = Rule(
+        text="everything", level=PolicyLevel.APPROVAL
+    )  # no match field: never matches
     d = classify(pay("-4000", category="equipment"), ctx(rules=[inactive, empty]))
     assert d.level == PolicyLevel.AUTO
 
@@ -196,7 +241,14 @@ def test_decision_is_a_model_with_level_and_reason():
 
 
 def txn(day, amount, who, category=None) -> Transaction:
-    return Transaction(booking_date=day, type="X", reference="r", counterparty=who, amount=D(amount), category=category)
+    return Transaction(
+        booking_date=day,
+        type="X",
+        reference="r",
+        counterparty=who,
+        amount=D(amount),
+        category=category,
+    )
 
 
 def test_context_from_transactions_derives_typical_and_inflows():
@@ -224,20 +276,39 @@ def test_context_from_no_transactions():
 
 
 def test_parse_rule_from_tool_call():
-    llm = FakeLLM([FakeLLM.tool_call("create_rule", level="APPROVAL", category="equipment")])
+    llm = FakeLLM(
+        [FakeLLM.tool_call("create_rule", level="APPROVAL", category="equipment")]
+    )
     r = parse_rule("sprzęt zawsze zatwierdzam sam", llm)
     assert isinstance(r, Rule)
-    assert (r.level, r.category, r.supplier, r.action_type) == (PolicyLevel.APPROVAL, "equipment", None, None)
-    assert r.text == "sprzęt zawsze zatwierdzam sam" and r.created_by == "ceo" and r.active
+    assert (r.level, r.category, r.supplier, r.action_type) == (
+        PolicyLevel.APPROVAL,
+        "equipment",
+        None,
+        None,
+    )
+    assert (
+        r.text == "sprzęt zawsze zatwierdzam sam" and r.created_by == "ceo" and r.active
+    )
     sent = llm.calls[0]
     assert sent["tools"] and sent["tools"][0].name == "create_rule"
     assert "sprzęt zawsze zatwierdzam sam" in sent["messages"][-1].content
 
 
 def test_parse_rule_normalises_values():
-    llm = FakeLLM([FakeLLM.tool_call("create_rule", level="auto", supplier="  Metro AG ", category="Food ")])
+    llm = FakeLLM(
+        [
+            FakeLLM.tool_call(
+                "create_rule", level="auto", supplier="  Metro AG ", category="Food "
+            )
+        ]
+    )
     r = parse_rule("Metro AG food: just do it", llm)
-    assert r.level == PolicyLevel.AUTO and r.supplier == "Metro AG" and r.category == "food"
+    assert (
+        r.level == PolicyLevel.AUTO
+        and r.supplier == "Metro AG"
+        and r.category == "food"
+    )
 
 
 def test_parse_rule_falls_back_to_json_content():
@@ -247,7 +318,9 @@ def test_parse_rule_falls_back_to_json_content():
 
 
 def test_parse_rule_mentions_known_categories_in_prompt():
-    llm = FakeLLM([FakeLLM.tool_call("create_rule", level="APPROVAL", category="cloud")])
+    llm = FakeLLM(
+        [FakeLLM.tool_call("create_rule", level="APPROVAL", category="cloud")]
+    )
     parse_rule("cloud always ask", llm, categories=["food", "cloud"])
     prompt = " ".join(m.content or "" for m in llm.calls[0]["messages"])
     assert "food" in prompt and "cloud" in prompt

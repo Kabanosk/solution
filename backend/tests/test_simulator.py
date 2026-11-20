@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import threading
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import psycopg
 import pytest
-
 from cfo.config import get_settings
 from cfo.data import load
 from cfo.db.migrate import SCHEMA_PATH
@@ -36,16 +35,31 @@ class FakeClock:
 
 def txn_event(n: int, ts: datetime) -> Event:
     return Event(
-        id=f"evt_t{n}", ts=ts, kind=EventKind.BANK_TRANSACTION,
-        payload={"transaction": {"id": f"txn_t{n}", "booking_date": ts.date().isoformat(), "type": "SUPPLIER PAYMENT",
-                                 "reference": f"Invoice AS-{n}", "counterparty": "Acme", "amount": "-10.00"}},
+        id=f"evt_t{n}",
+        ts=ts,
+        kind=EventKind.BANK_TRANSACTION,
+        payload={
+            "transaction": {
+                "id": f"txn_t{n}",
+                "booking_date": ts.date().isoformat(),
+                "type": "SUPPLIER PAYMENT",
+                "reference": f"Invoice AS-{n}",
+                "counterparty": "Acme",
+                "amount": "-10.00",
+            }
+        },
     )
 
 
 def make_events() -> list[Event]:
     d = lambda day, hour: datetime(2025, 12, day, hour, tzinfo=UTC)
     # deliberately unsorted: the simulator sorts by timestamp
-    return [txn_event(3, d(2, 12)), txn_event(1, d(1, 8)), txn_event(2, d(1, 9)), txn_event(4, d(5, 8))]
+    return [
+        txn_event(3, d(2, 12)),
+        txn_event(1, d(1, 8)),
+        txn_event(2, d(1, 9)),
+        txn_event(4, d(5, 8)),
+    ]
 
 
 @pytest.fixture
@@ -76,7 +90,9 @@ def clock() -> FakeClock:
 def sim(db_url, clock):
     repo = Repository.connect(db_url)
     got: list[Event] = []
-    s = Simulator(repo, make_events(), speed=3600.0, clock=clock, subscribers=[got.append])
+    s = Simulator(
+        repo, make_events(), speed=3600.0, clock=clock, subscribers=[got.append]
+    )
     s.got = got  # type: ignore[attr-defined]
     yield s
     repo.conn.close()
@@ -88,7 +104,9 @@ def stored_ids(sim: Simulator) -> list[str]:
 
 def test_starts_paused_and_clock_does_not_run(sim, clock):
     st = sim.status()
-    assert st.paused and st.sim_time == DEFAULT_START and st.emitted == 0 and st.total == 4
+    assert (
+        st.paused and st.sim_time == DEFAULT_START and st.emitted == 0 and st.total == 4
+    )
     clock.advance(10_000)
     assert sim.tick() == [] and sim.status().sim_time == DEFAULT_START
 
@@ -104,9 +122,19 @@ def test_replay_at_speed(sim, clock):
     assert sim.status().sim_time == datetime(2025, 12, 1, 9, tzinfo=UTC)
     clock.advance(27)  # 02.12 12:00
     assert [e.id for e in sim.tick()] == ["evt_t3"]
-    assert [e.id for e in sim.got] == ["evt_t1", "evt_t2", "evt_t3"]  # subscriber saw them in order
-    assert set(stored_ids(sim)) == {"evt_t1", "evt_t2", "evt_t3"}  # also logged in the events table
-    assert sim.repo.get_transaction("txn_t3") is not None  # applied to the domain tables, not only logged
+    assert [e.id for e in sim.got] == [
+        "evt_t1",
+        "evt_t2",
+        "evt_t3",
+    ]  # subscriber saw them in order
+    assert set(stored_ids(sim)) == {
+        "evt_t1",
+        "evt_t2",
+        "evt_t3",
+    }  # also logged in the events table
+    assert (
+        sim.repo.get_transaction("txn_t3") is not None
+    )  # applied to the domain tables, not only logged
 
 
 def test_no_double_emit_and_live_status(sim, clock):
@@ -125,7 +153,10 @@ def test_pause_freezes_time_and_resume_continues(sim, clock):
     sim.pause()
     clock.advance(100_000)
     assert sim.tick() == []
-    assert sim.status().sim_time == datetime(2025, 12, 1, 2, tzinfo=UTC) and sim.status().paused
+    assert (
+        sim.status().sim_time == datetime(2025, 12, 1, 2, tzinfo=UTC)
+        and sim.status().paused
+    )
     sim.start()
     clock.advance(6)  # 08:00
     assert [e.id for e in sim.tick()] == ["evt_t1"]
@@ -143,7 +174,9 @@ def test_step_emits_next_event_and_moves_clock(sim):
     assert first.id == "evt_t1" and sim.status().sim_time == first.ts
     assert sim.step().id == "evt_t2"
     assert [e.id for e in sim.got] == ["evt_t1", "evt_t2"]
-    assert sim.status().emitted == 2 and sim.status().paused  # stepping does not start the clock
+    assert (
+        sim.status().emitted == 2 and sim.status().paused
+    )  # stepping does not start the clock
     sim.step()
     sim.step()
     assert sim.step() is None and sim.status().finished
@@ -176,13 +209,19 @@ def test_finishing_pauses_and_status_stays_in_range(sim, clock):
     clock.advance(10**6)
     assert len(sim.tick()) == 4
     st = sim.status()
-    assert st.paused and st.finished and st.sim_time == datetime(2025, 12, 5, 8, tzinfo=UTC)
+    assert (
+        st.paused
+        and st.finished
+        and st.sim_time == datetime(2025, 12, 5, 8, tzinfo=UTC)
+    )
 
 
 def test_state_is_shared_between_connections(sim, db_url, clock):
     sim.start(speed=120)
     other_repo = Repository.connect(db_url)
-    other = Simulator(other_repo, make_events(), clock=clock)  # a second process (API) with its own connection
+    other = Simulator(
+        other_repo, make_events(), clock=clock
+    )  # a second process (API) with its own connection
     try:
         st = other.status()
         assert not st.paused and st.speed == 120
@@ -232,7 +271,9 @@ def test_parse_when():
 def data_dir(tmp_path, monkeypatch, db_url) -> Path:
     (tmp_path / "events").mkdir()
     lines = [json.dumps(json.loads(e.model_dump_json())) for e in make_events()]
-    (tmp_path / "events" / "december.jsonl").write_text("\n".join(lines), encoding="utf-8")
+    (tmp_path / "events" / "december.jsonl").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
     monkeypatch.setenv("DATABASE_URL", db_url)
     get_settings.cache_clear()
     monkeypatch.setattr(control, "ensure_schema", lambda: None)
@@ -248,7 +289,10 @@ def test_control_functions(data_dir):
     try:
         assert control.status(data_dir).paused
         assert control.step(data_dir).id == "evt_t1"
-        assert [e.id for e in control.jump("2025-12-03", data_dir)] == ["evt_t2", "evt_t3"]
+        assert [e.id for e in control.jump("2025-12-03", data_dir)] == [
+            "evt_t2",
+            "evt_t3",
+        ]
         assert [e.id for e in seen] == ["evt_t1", "evt_t2", "evt_t3"]
         assert not control.start(2.0, data_dir).paused
         assert control.pause(data_dir).paused
@@ -293,5 +337,12 @@ def test_december_replay_from_generated_data(tmp_path, sim, clock):
     assert len(emitted) == len(events) > 100
     assert [e.id for e in emitted] == [e.id for e in sorted(events, key=lambda e: e.ts)]
     assert december.status().finished and len(sim.repo.list_events()) == len(events)
-    pending = {t.invoice_number for t in sim.repo.list_transactions(since=date(2025, 12, 1)) if not t.documented}
-    assert {"AS-69664", "FLV-42026"} <= pending  # the demo's two missing documents arrived undocumented
+    pending = {
+        t.invoice_number
+        for t in sim.repo.list_transactions(since=date(2025, 12, 1))
+        if not t.documented
+    }
+    assert {
+        "AS-69664",
+        "FLV-42026",
+    } <= pending  # the demo's two missing documents arrived undocumented

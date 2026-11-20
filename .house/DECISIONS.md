@@ -65,3 +65,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Decyzja:** Wojtek + Grzesiu: backend + OpenShift; Paweł + Piotrek: demo, prezentacja, dashboard (front). API REST z OpenAPI i docs; front zgłasza nowe endpointy przez issues. Deadline niedziela 22.11 10:00, cel 09:00. Makiety DM-a i dashboardu po postawieniu Slacka.
 - **Kto:** człowiek
 - **Data:** 2026-11-20 13:30
+
+## D-011 Nowy dostawca nigdy nie jest AUTO
+- **Decyzja:** płatność do nowego dostawcy poniżej 1% wpływów → NOTIFY (nie AUTO); powyżej → APPROVAL. Rutynowe płatności zostają AUTO niezależnie od kwoty.
+- **Dlaczego:** drobne pierwsze przelewy do nieznanych odbiorców to klasyczny wektor nadużyć; jury to bank. Rozstrzyga niejasność w D-005 zgłoszoną przez T003.
+- **Kto:** coordinator
+- **Data:** 2026-11-20 14:30

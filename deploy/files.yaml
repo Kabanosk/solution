@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: sample-data}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: files, labels: {app: files}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: files}}
+  template:
+    metadata: {labels: {app: files}}
+    spec:
+      containers:
+        - name: files
+          image: registry.access.redhat.com/ubi9/python-311
+          command: [python, -m, http.server, "8080", --directory, /data]
+          ports: [{containerPort: 8080}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          volumeMounts: [{name: data, mountPath: /data}]
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: sample-data}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: files}
+spec:
+  selector: {app: files}
+  ports: [{port: 8080, targetPort: 8080}]

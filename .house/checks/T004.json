@@ -17,11 +17,11 @@
   "results": {
     "AC-1": {
       "id": "AC-1",
-      "passes": true,
-      "exit": 0,
-      "output_tail": "...........................                                              [100%]\n27 passed in 1.64s",
-      "ran_at": "2026-11-20T14:20:19+01:00",
-      "commit": "70f2a4f272e42adab4eff1728a2381c26c8af21e"
+      "passes": false,
+      "exit": 1,
+      "output_tail": "        s1 = company_db.build_server(factory)\n        s2 = hr.build_server(factory)\n        n1 = {t.name for t in asyncio.run(s1.list_tools())}\n        assert {\"attach_invoice\", \"record_decision\", \"list_transactions\"} <= n1\n        assert not n1 & {\"delete_transaction\", \"execute_sql\"}  # only the two narrow writes exist\n        assert {t.name for t in asyncio.run(s2.list_tools())} >= {\"org_chart\", \"manager_of\", \"is_on_vacation\"}\n        out = asyncio.run(s2.call_tool(\"is_on_vacation\", {\"employee_id\": \"grazyna\", \"on\": \"2025-12-25\"}))\n>       assert \"true\" in json.dumps(out, default=str).lower()\nE       assert 'true' in '[[\"type=\\'text\\' text=\\'{\\\\\\\\n  \\\\\"ok\\\\\": false,\\\\\\\\n  \\\\\"error\\\\\": \\\\\"unknown_employee\\\\\",\\\\\\\\n  \\\\\"employee_id\\\\\": \\\\\"grazyna\\\\\"\\\\\\\\n}\\' annotations=none meta=none\"], {\"ok\": false, \"error\": \"unknown_employee\", \"employee_id\": \"grazyna\"}]'\nE        +  where '[[\"type=\\'text\\' text=\\'{\\\\\\\\n  \\\\\"ok\\\\\": false,\\\\\\\\n  \\\\\"error\\\\\": \\\\\"unknown_employee\\\\\",\\\\\\\\n  \\\\\"employee_id\\\\\": \\\\\"grazyna\\\\\"\\\\\\\\n}\\' annotations=none meta=none\"], {\"ok\": false, \"error\": \"unknown_employee\", \"employee_id\": \"grazyna\"}]' = <built-in method lower of str object at 0x7655ee6e4b70>()\nE        +    where <built-in method lower of str object at 0x7655ee6e4b70> = '[[\"type=\\'text\\' text=\\'{\\\\\\\\n  \\\\\"ok\\\\\": false,\\\\\\\\n  \\\\\"error\\\\\": \\\\\"unknown_employee\\\\\",\\\\\\\\n  \\\\\"employee_id\\\\\": \\\\\"grazyna\\\\\"\\\\\\\\n}\\' annotations=None meta=None\"], {\"ok\": false, \"error\": \"unknown_employee\", \"employee_id\": \"grazyna\"}]'.lower\nE        +      where '[[\"type=\\'text\\' text=\\'{\\\\\\\\n  \\\\\"ok\\\\\": false,\\\\\\\\n  \\\\\"error\\\\\": \\\\\"unknown_employee\\\\\",\\\\\\\\n  \\\\\"employee_id\\\\\": \\\\\"grazyna\\\\\"\\\\\\\\n}\\' annotations=None meta=None\"], {\"ok\": false, \"error\": \"unknown_employee\", \"employee_id\": \"grazyna\"}]' = <function dumps at 0x7655f1990720>(([TextContent(type='text', text='{\\n  \"ok\": false,\\n  \"error\": \"unknown_employee\",\\n  \"employee_id\": \"grazyna\"\\n}', annotations=None, meta=None)], {'ok': False, 'error': 'unknown_employee', 'employee_id': 'grazyna'}), default=str)\nE        +        where <function dumps at 0x7655f1990720> = json.dumps\n\nbackend/tests/test_mcp.py:309: AssertionError\n=========================== short test summary info ============================\nFAILED backend/tests/test_mcp.py::test_hr - TypeError: 'NoneType' object is n...\nFAILED backend/tests/test_mcp.py::test_access_log_is_written_to_db - Assertio...\nFAILED backend/tests/test_mcp.py::test_db_servers_build_and_expose_tools - as...\n3 failed, 24 passed in 1.57s",
+      "ran_at": "2026-11-20T14:23:32+01:00",
+      "commit": "a47e0ba96be918828318991d0733e6a394133389"
     }
   }
 }

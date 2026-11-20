@@ -167,3 +167,7 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
   dashboard z PR #7 bez zmian (tsc OK, testy 8/8 na Node 22).
 - Na przyszłość: PR-y mergujemy squashem (decyzja Wojtka). Każdy PR od aktualnego origin/main, bez kopiowania plików
   między gałęziami; po każdym squashu lokalny main dociąga origin/main (`git pull`), zanim powstanie kolejna gałąź.
+
+## D-027 — pitch i scenariusz demo robi Piotrek poza repo (2026-11-20)
+- Pitch i scenariusz demo prowadzi Piotrek, poza repo; zespół dokończy je razem 21.11. Agent `pitch` tego nie rusza.
+- Agenci mogą najwyżej dostarczyć mu fakty (architektura, liczby z evalu i smoke'a) na prośbę.

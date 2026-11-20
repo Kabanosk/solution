@@ -1,0 +1,26 @@
+{
+  "task": "T018",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_api_skeleton.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.api.export_openapi docs/openapi.json && test -s docs/openapi.json",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T14:24:50+01:00",
+  "results": {}
+}

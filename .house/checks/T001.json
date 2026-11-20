@@ -35,25 +35,28 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "..............                                                           [100%]\n14 passed in 0.06s",
-      "ran_at": "2026-11-20T13:56:58+01:00",
-      "commit": "63dd2d751c1c9699bec2cb294d0e68e9cf682990"
+      "output_tail": "Using CPython 3.12.13 interpreter at: /home/wojciech.fiolka/.local/bin/python3.12\nCreating virtual environment at: backend/.venv\n   Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\nInstalled 24 packages in 23ms\n..............                                                           [100%]\n14 passed in 0.20s",
+      "ran_at": "2026-11-20T13:57:33+01:00",
+      "commit": "251a7609fd35a0abb1052cff07eac7bd16b36e00"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T13:56:58+01:00",
-      "commit": "63dd2d751c1c9699bec2cb294d0e68e9cf682990"
+      "ran_at": "2026-11-20T13:57:33+01:00",
+      "commit": "251a7609fd35a0abb1052cff07eac7bd16b36e00"
     },
     "AC-3": {
       "id": "AC-3",
       "passes": true,
       "exit": 0,
       "output_tail": "schema OK (dry run)",
-      "ran_at": "2026-11-20T13:56:58+01:00",
-      "commit": "63dd2d751c1c9699bec2cb294d0e68e9cf682990"
+      "ran_at": "2026-11-20T13:57:34+01:00",
+      "commit": "251a7609fd35a0abb1052cff07eac7bd16b36e00"
     }
+  },
+  "reverted": {
+    "base": "63dd2d751c1c9699bec2cb294d0e68e9cf682990"
   }
 }

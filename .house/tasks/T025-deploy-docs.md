@@ -1,9 +1,9 @@
 ---
 id: T025
 title: Deploy guide for k8s people new to OpenShift
-status: todo
-owner: null
-branch: null
+status: done
+owner: coordinator
+branch: task/T025-deploy-docs
 depends_on: ["T022", "T023", "T024"]
 capabilities: []
 acceptance:

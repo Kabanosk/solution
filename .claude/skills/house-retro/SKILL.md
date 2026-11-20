@@ -9,7 +9,7 @@ Adapted from `retro` by Matt Pocock (MIT, https://github.com/mattpocock/skills).
 1. If the `writing-for-agents` skill is available, call the Skill tool with `writing-for-agents` for the style
    guide (any suggested wording change to a playbook, agent or skill must follow it).
 2. Read the primary sources for the period `$ARGUMENTS` names (default: the whole contest):
-   `/home/kabanosk/house/contests/collabothon-2026/.house/DECISIONS.md`, `QUESTIONS.md`, `PROGRESS.md`, `reports/`, `submissions.csv`, `ideas.md`, task files,
+   `/home/wojciech.fiolka/house/contests/collabothon-2026/.house/DECISIONS.md`, `QUESTIONS.md`, `PROGRESS.md`, `reports/`, `submissions.csv`, `ideas.md`, task files,
    `git log --all`, and the Claude Code session logs for this repo (`~/.claude/projects/<this repo path with / as ->/`).
    If official results are known (jury verdict, final leaderboard), compare them with every judge report and
    prior-art card: where was our judge too generous or too harsh, per criterion? That calibration is a finding.
@@ -25,8 +25,8 @@ Adapted from `retro` by Matt Pocock (MIT, https://github.com/mattpocock/skills).
    - **Tool economy**: expensive calls (huge logs pasted, repeated reads, Opus doing haiku work, Codex timeouts).
    - **No-ops**: instructions in core/ that did not change any agent's behaviour.
    - **Information access**: something an agent needed and could not see (logs, leaderboard, docs, data).
-4. Write `/home/kabanosk/house/contests/collabothon-2026/.house/reports/retro-<YYYY-MM-DD>.md` (English): candidates ordered by severity, each with the
-   evidence (file/commit/session), the proposed change to a specific file in `/home/kabanosk/house/core/` or
-   `/home/kabanosk/house/adapters/`, and the expected effect. Append one Polish line to `PROGRESS.md`.
+4. Write `/home/wojciech.fiolka/house/contests/collabothon-2026/.house/reports/retro-<YYYY-MM-DD>.md` (English): candidates ordered by severity, each with the
+   evidence (file/commit/session), the proposed change to a specific file in `/home/wojciech.fiolka/house/core/` or
+   `/home/wojciech.fiolka/house/adapters/`, and the expected effect. Append one Polish line to `PROGRESS.md`.
 5. Present the top candidates to the human in Polish. Do not edit `core/` or `adapters/` without the human's
    approval; approved changes go through the house repo's tests (`python3 -m unittest discover -s tests`).

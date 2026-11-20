@@ -74,7 +74,7 @@ class WorkstationTools:
 
     # -- guard -----------------------------------------------------------------------------------
     def _employee_dir(self, employee: str) -> Path:
-        if not isinstance(employee, str) or not _SLUG.match(employee):
+        if not isinstance(employee, str) or not _SLUG.fullmatch(employee):
             raise AccessDenied(f"unknown employee {employee!r}")
         d = (self.root / employee).resolve()
         if d.parent != self.root or not d.is_dir():
@@ -89,22 +89,34 @@ class WorkstationTools:
         parts = Path(rel).parts
         if ".." in parts or not parts or parts[0] not in self.company_folders:
             raise AccessDenied(f"path {rel!r} is outside the company folders {self.company_folders}")
-        folder = (edir / parts[0]).resolve()
+        # The company folder must be a real directory of this workstation (not a symlink to a private sibling or
+        # elsewhere), and the fully resolved target must lie inside it.
+        folder = self._real_company_folder(edir, parts[0])
         target = (edir / rel).resolve()
-        if folder.parent != edir or not (target == folder or folder in target.parents):
+        if folder is None or not (target == folder or folder in target.parents):
             raise AccessDenied(f"path {rel!r} resolves outside the company folder")
         return edir, target
 
+    @staticmethod
+    def _real_company_folder(edir: Path, name: str) -> Path | None:
+        folder = edir / name
+        real = folder.resolve()
+        return real if real == folder and real.parent == edir else None
+
     def _audit(self, employee: str, action: str, path: str, reason: str | None) -> None:
-        # fail closed: if the log cannot be written, the access does not happen
-        self.access_log.log(employee, action, path, reason or None)
+        # fail closed: if the log cannot be written, the access does not happen. Postgres text cannot hold NUL,
+        # so it is stripped from what is logged (the access itself was already refused).
+        def clean(value: Any) -> str:
+            return str(value).replace("\x00", "")
+
+        self.access_log.log(clean(employee), clean(action), clean(path), clean(reason) if reason else None)
 
     def _guarded(self, action: str, employee: str, rel: str, reason: str, fn: Callable[[Path, Path], dict[str, Any]]):
         try:
             edir, target = self._resolve(employee, rel)
         except AccessDenied as e:
             self._audit(str(employee)[:100], f"DENIED {action}", str(rel)[:500], reason)
-            return {"ok": False, "error": "access_denied", "detail": str(e)}
+            return {"ok": False, "error": "access_denied", "detail": str(e).replace("\x00", "")}
         self._audit(employee, action, rel, reason)
         if not target.exists():
             return {"ok": False, "error": "not_found", "path": rel}
@@ -113,9 +125,15 @@ class WorkstationTools:
     # -- tools -----------------------------------------------------------------------------------
     def list_workstations(self) -> list[dict[str, Any]]:
         """List the simulated company computers and which company folders each has."""
+        self._audit("*", "list_workstations", "*", None)
         out = []
-        for d in sorted(p for p in self.root.iterdir() if p.is_dir() and _SLUG.match(p.name)) if self.root.is_dir() else []:
-            out.append({"employee": d.name, "folders": [f for f in self.company_folders if (d / f).is_dir()]})
+        for d in sorted(p for p in self.root.iterdir() if p.is_dir() and _SLUG.fullmatch(p.name)) if self.root.is_dir() else []:
+            real_dir = d.resolve()
+            if real_dir.parent != self.root:  # a symlinked workstation directory is not reachable by the other tools
+                continue
+            folders = [f for f in self.company_folders
+                       if (real := self._real_company_folder(real_dir, f)) is not None and real.is_dir()]
+            out.append({"employee": d.name, "folders": folders})
         return out
 
     def list_files(self, employee: str, folder: str = "Downloads", reason: str = "") -> dict[str, Any]:
@@ -141,7 +159,7 @@ class WorkstationTools:
             resolved = [self._resolve(employee, f) for f in folders]
         except AccessDenied as e:
             self._audit(str(employee)[:100], "DENIED search_files", str(folder)[:500], reason)
-            return {"ok": False, "error": "access_denied", "detail": str(e)}
+            return {"ok": False, "error": "access_denied", "detail": str(e).replace("\x00", "")}
         self._audit(employee, action, folder or "*", reason)
         if not needle:
             return {"ok": False, "error": "empty_query"}

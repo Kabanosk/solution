@@ -78,10 +78,10 @@ class CostAnomaly:
     team_id: str | None
     cost: Decimal
     previous_cost: Decimal
-    cost_change_pct: Decimal
+    cost_change_pct: Decimal  # Decimal("Infinity") when the previous cost was zero (any cost is then new)
     metric_value: Decimal
     previous_metric_value: Decimal
-    metric_change_pct: Decimal
+    metric_change_pct: Decimal  # 0 when the metric stayed at zero
     cost_per_unit: Decimal | None
     previous_cost_per_unit: Decimal | None
     cost_per_unit_change_pct: Decimal | None
@@ -179,7 +179,7 @@ def _p1(value: Decimal) -> str:
 
 
 def _explain(kind: CostMetricKind, cost_pct: Decimal, metric_pct: Decimal, drivers: list[Driver],
-             cpu_prev: Decimal | None, cpu_now: Decimal | None) -> str:
+             cpu_prev: Decimal | None, cpu_now: Decimal | None, cost_prev: Decimal, cost_now: Decimal) -> str:
     spec = PAIRS[kind]
     if metric_pct > 0:
         metric_phrase = f"grew only {_p1(metric_pct)}%"
@@ -194,17 +194,32 @@ def _explain(kind: CostMetricKind, cost_pct: Decimal, metric_pct: Decimal, drive
     if cpu_prev is not None and cpu_now is not None:
         parts.append(f"{spec.unit_cost_noun} from {_money(cpu_prev)} to {_money(cpu_now)}")
     tail = f": {', '.join(parts)}." if parts else "."
-    return f"{spec.cost_noun} rose {_p1(cost_pct)}% month over month while {spec.metric_noun} {metric_phrase}{tail}"
+    rose = (f"rose {_p1(cost_pct)}%" if cost_pct.is_finite()
+            else f"went from {_money(cost_prev)} to {_money(cost_now)}")
+    return f"{spec.cost_noun} {rose} month over month while {spec.metric_noun} {metric_phrase}{tail}"
 
 
 def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], cost_growth_pct: Decimal,
             metric_growth_max_pct: Decimal) -> CostAnomaly | None:
+    if not _consecutive(prev, cur):  # a gap is not month over month
+        return None
     cost_pct = change_pct(cur.cost, prev.cost)
-    metric_pct = change_pct(cur.metric_value, prev.metric_value)
-    if cost_pct is None or metric_pct is None:  # nothing to compare with (e.g. after the June shutdown)
+    if cost_pct is None:
+        # previous cost was zero: any cost is new growth (never a silent skip on division by zero)
+        if cur.cost <= 0:
+            return None
+        cost_pct = Decimal("Infinity")
+    elif cost_pct < cost_growth_pct:
         return None
-    if cost_pct < cost_growth_pct or metric_pct >= metric_growth_max_pct:
-        return None
+    if prev.metric_value == 0:
+        if cur.metric_value != 0:  # restarting from zero (e.g. after the June shutdown): growth is unbounded
+            return None
+        metric_pct = Decimal(0)  # stayed at zero
+    else:
+        metric_pct = change_pct(cur.metric_value, prev.metric_value)
+        assert metric_pct is not None
+        if metric_pct >= metric_growth_max_pct:
+            return None
     cpu_now, cpu_prev = cur.cost_per_unit, prev.cost_per_unit
     drivers = _drivers(prev, cur, invoices)
     return CostAnomaly(
@@ -212,8 +227,13 @@ def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], 
         cost_change_pct=cost_pct, metric_value=cur.metric_value, previous_metric_value=prev.metric_value,
         metric_change_pct=metric_pct, cost_per_unit=cpu_now, previous_cost_per_unit=cpu_prev,
         cost_per_unit_change_pct=change_pct(cpu_now, cpu_prev), drivers=drivers,
-        explanation=_explain(cur.kind, cost_pct, metric_pct, drivers, cpu_prev, cpu_now),
+        explanation=_explain(cur.kind, cost_pct, metric_pct, drivers, cpu_prev, cpu_now, prev.cost, cur.cost),
     )
+
+
+def _consecutive(prev: CostMetric, cur: CostMetric) -> bool:
+    """True when `cur` is the calendar month right after `prev`."""
+    return (cur.month.year * 12 + cur.month.month) - (prev.month.year * 12 + prev.month.month) == 1
 
 
 def _by_kind(metrics: Iterable[CostMetric]) -> dict[CostMetricKind, list[CostMetric]]:
@@ -237,7 +257,7 @@ def monthly_series(metrics: Iterable[CostMetric], invoices: Iterable[Invoice] | 
             continue
         points: list[Point] = []
         for i, cur in enumerate(rows):
-            prev = rows[i - 1] if i else None
+            prev = rows[i - 1] if i and _consecutive(rows[i - 1], cur) else None
             points.append(Point(
                 month=cur.month, cost=cur.cost, metric_value=cur.metric_value, cost_per_unit=cur.cost_per_unit,
                 cost_change_pct=change_pct(cur.cost, prev.cost) if prev else None,

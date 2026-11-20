@@ -11,6 +11,7 @@ comes from an injectable `clock` (epoch seconds), so tests use a fake one and ne
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -78,6 +79,12 @@ class _State:
     next_index: int
 
 
+def _check_speed(speed: float) -> float:
+    if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not math.isfinite(speed) or speed <= 0:
+        raise ValueError("speed must be a positive, finite number")
+    return float(speed)
+
+
 def parse_when(value: str | date | datetime) -> datetime:
     """`YYYY-MM-DD` means that day at 00:00 UTC; a naive datetime is taken as UTC."""
     if isinstance(value, datetime):
@@ -137,15 +144,21 @@ class Simulator:
     def _emit_through(self, st: _State, until: datetime, out: list[Event]) -> None:
         """Write all events with ts <= `until` (in order), persisting the cursor after each one."""
         while st.next_index < len(self.events) and self.events[st.next_index].ts <= until:
-            event = self.events[st.next_index]
-            apply_event(self.repo, event)
-            st.next_index += 1
-            st.sim_time = max(st.sim_time, event.ts)
-            self._save(st)
-            out.append(event)
+            self._emit_next(st, out)
 
-    def _elapse(self, st: _State, now: float, out: list[Event]) -> None:
-        """Account for the real time since `last_tick` (only counts while running)."""
+    def _emit_next(self, st: _State, out: list[Event]) -> None:
+        """Write exactly the next event (equal timestamps are separate steps) and persist the cursor."""
+        event = self.events[st.next_index]
+        apply_event(self.repo, event)
+        st.next_index += 1
+        st.sim_time = max(st.sim_time, event.ts)
+        self._save(st)
+        out.append(event)
+
+    def _elapse(self, st: _State, now: float, out: list[Event], *, emit: bool = True) -> None:
+        """Account for the real time since `last_tick` (only counts while running).
+
+        With `emit=False` the clock moves but overdue events stay queued for the next `tick`."""
         if not st.paused:
             horizon = self.events[-1].ts if self.events else st.sim_time
             horizon = max(horizon, st.sim_time)
@@ -153,7 +166,8 @@ class Simulator:
                 target = min(st.sim_time + timedelta(seconds=max(0.0, now - st.last_tick) * st.speed), horizon)
             except OverflowError:
                 target = horizon
-            self._emit_through(st, target, out)
+            if emit:
+                self._emit_through(st, target, out)
             st.sim_time = max(st.sim_time, target)
             if st.next_index >= len(self.events):
                 st.paused = True  # nothing left to replay
@@ -168,12 +182,13 @@ class Simulator:
                 except Exception:  # a broken subscriber must not stop the clock
                     log.exception("simulator subscriber failed on event %s", event.id)
 
-    def _run_locked(self, mutate: Callable[[_State, float, list[Event]], Any] | None = None) -> tuple[Any, list[Event]]:
+    def _run_locked(self, mutate: Callable[[_State, float, list[Event]], Any] | None = None,
+                    *, flush: bool = True) -> tuple[Any, list[Event]]:
         out: list[Event] = []
         with self._locked():
             st = self._load()
             now = self.clock()
-            self._elapse(st, now, out)
+            self._elapse(st, now, out, emit=flush)
             result = mutate(st, now, out) if mutate else None
             self._save(st)
         self._dispatch(out)
@@ -187,9 +202,7 @@ class Simulator:
     def start(self, speed: float | None = None) -> SimStatus:
         def mutate(st: _State, now: float, out: list[Event]) -> None:
             if speed is not None:
-                if speed <= 0:
-                    raise ValueError("speed must be positive")
-                st.speed = speed
+                st.speed = _check_speed(speed)
             st.paused = False
             st.last_tick = now
 
@@ -204,8 +217,7 @@ class Simulator:
         return self.status()
 
     def set_speed(self, speed: float) -> SimStatus:
-        if speed <= 0:
-            raise ValueError("speed must be positive")
+        speed = _check_speed(speed)
 
         def mutate(st: _State, now: float, out: list[Event]) -> None:
             st.speed = speed
@@ -214,13 +226,18 @@ class Simulator:
         return self.status()
 
     def step(self) -> Event | None:
-        """Emit the next event right now (sim time jumps to its timestamp); None if nothing is left."""
+        """Emit exactly one event right now (sim time jumps to its timestamp); None if nothing is left.
+
+        Ties at the same timestamp are separate steps. On a running playback the clock keeps its elapsed time but
+        overdue events are not flushed here: the next `tick` delivers them."""
 
         def mutate(st: _State, now: float, out: list[Event]) -> None:
             if st.next_index < len(self.events):
-                self._emit_through(st, self.events[st.next_index].ts, out)
+                self._emit_next(st, out)
+                if not st.paused and st.next_index >= len(self.events):
+                    st.paused = True  # nothing left to replay
 
-        _, out = self._run_locked(mutate)
+        _, out = self._run_locked(mutate, flush=False)
         return out[-1] if out else None
 
     def jump(self, to: str | date | datetime) -> list[Event]:

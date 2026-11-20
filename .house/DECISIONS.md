@@ -96,3 +96,15 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** bonus Red Hat brzmi dosłownie „Use MLflow for tracing and evaluating the agents”; trening w Jupyterze zalicza osobny bonus (Jupyter). Pipelines wymagają S3 i dodatkowych podów na jednym nodzie i nie dają punktów.
 - **Kto:** coordinator (człowiek: „ogarnijmy taski do MLflow”)
 - **Data:** 2026-11-20 15:30
+
+## D-016 Review Codexem całej dotychczasowej pracy (limit dzienny pominięty)
+- **Decyzja:** 19 review Codexa (każdy wmergowany task + PR #2 Grzesia) przez maszynerię `houselib.review` z zakresem merge^1...merge^2 (`house review T###` daje pusty diff dla już wmergowanych gałęzi). Limit `codex_reviews_per_day: 4` pominięty na prośbę człowieka. Wynik: `reports/review-fixes.md` (P0–P3), raporty `reports/review-<id>.md`.
+- **Dlaczego:** człowiek: „odpal codexa i rób review wszystkiego”.
+- **Kto:** coordinator (człowiek)
+- **Data:** 2026-11-20 15:45
+
+## D-016 Koszt użycia agenta z metryk vLLM zamiast rozbicia kosztów pizzerii pod dashboard
+- **Decyzja:** T030/T031 (endpointy kosztów pizzerii i paczka dla Pawła) odrzucone — źle zrozumiałem prośbę; dane firmy są już w Postgresie na klastrze. Zamiast tego T032: szacowanie kosztu działania agenta na klastrze — zapis użycia każdego wywołania LLM (tokeny, czas, który krok agenta) + próbkowanie metryk Prometheus z vLLM, model kosztu (czas GPU wg stawki L4, amortyzacja, porównanie z hostowanym API), endpointy `/v1/llm/usage` i `/v1/llm/usage/live`.
+- **Dlaczego:** prośba Wojtka; pokazuje jury koszt jednej decyzji agenta i przewagę własnego modelu na OpenShift AI.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 16:30

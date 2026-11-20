@@ -1,0 +1,26 @@
+{
+  "task": "T031",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "test -s docs/dashboard-integration.md && test -s docs/api-examples/kpis.json && test -s docs/api-examples/costs-by-category.year.json && test -s docs/api-examples/forecast-liquidity.json",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "docker compose config --services | grep -qx api",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:39:25+01:00",
+  "results": {}
+}

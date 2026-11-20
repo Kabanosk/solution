@@ -46,7 +46,7 @@ pub const EMPLOYEES: [Employee; 4] = [
         role: "Owner & General Manager",
         team: "Leadership",
         salary: 3_600.0,
-        gradient: "avatar-violet",
+        gradient: "avatar-green",
     },
     Employee {
         name: "Jordan Lee",
@@ -54,7 +54,7 @@ pub const EMPLOYEES: [Employee; 4] = [
         role: "Pizza Baker",
         team: "Kitchen",
         salary: 2_500.0,
-        gradient: "avatar-blue",
+        gradient: "avatar-orange",
     },
     Employee {
         name: "Casey Rivera",
@@ -122,12 +122,12 @@ fn build_snapshot(period: Period) -> FinancialSnapshot {
 
     let total_expenses: f64 = totals.values().sum();
     let palette = [
-        ("Payroll", "#7C6FF2"),
-        ("Inventory", "#59A5F5"),
+        ("Payroll", "#277757"),
+        ("Inventory", "#929292"),
         ("Investment", "#F3A455"),
         ("Rent & utilities", "#42C994"),
-        ("Tax & social", "#E86B7D"),
-        ("Other", "#8B96A5"),
+        ("Tax & social", "#E86B6B"),
+        ("Other", "#626262"),
     ];
 
     let expenses = palette
@@ -213,10 +213,11 @@ mod tests {
         assert!(year.transactions > 500);
         assert!(year.total_expenses > 100_000.0);
         assert!(year.total_revenue > 100_000.0);
-        assert!(year
-            .expenses
-            .iter()
-            .any(|category| category.name == "Payroll"));
+        assert!(
+            year.expenses
+                .iter()
+                .any(|category| category.name == "Payroll")
+        );
     }
 
     #[test]

@@ -66,10 +66,10 @@ button:disabled {
 }
 
 .app-shell {
-  --ds-accent: #6f61e8;
-  --ds-accent-hover: #8073ee;
-  --ds-accent-surface: color-mix(in oklch, #6f61e8 16%, var(--ds-background));
-  --ds-accent-ring: #9489f5;
+  --ds-accent: #25664e;
+  --ds-accent-hover: #30785d;
+  --ds-accent-surface: color-mix(in oklch, #25664e 16%, var(--ds-background));
+  --ds-accent-ring: #82bca0;
   --app-border: color-mix(in oklch, var(--ds-foreground) 10%, transparent);
   --app-border-strong: color-mix(in oklch, var(--ds-foreground) 17%, transparent);
   --app-panel: #181818;
@@ -77,8 +77,8 @@ button:disabled {
   --app-canvas: #101010;
   --app-success: #42c994;
   --app-warning: #f3a455;
-  --app-critical: #e86b7d;
-  --app-info: #59a5f5;
+  --app-critical: #e17777;
+  --app-info: #a5afa9;
 
   display: grid;
   min-height: 100vh;
@@ -116,7 +116,7 @@ button:disabled {
   border: 1px solid color-mix(in oklch, var(--ds-accent) 54%, var(--app-border));
   border-radius: var(--ds-radius-lg);
   background: var(--ds-accent-surface);
-  color: #a9a1ff;
+  color: #a5c9b6;
 }
 
 .brand-name {
@@ -230,7 +230,7 @@ button:disabled {
 .nav-item.is-active {
   border-color: color-mix(in oklch, var(--ds-accent) 28%, transparent);
   background: var(--ds-accent-surface);
-  color: #b8b2ff;
+  color: #b4d2c0;
 }
 
 .nav-item:focus-visible,
@@ -254,7 +254,7 @@ button:disabled {
   place-items: center;
   border-radius: var(--ds-radius-full);
   background: color-mix(in oklch, var(--app-critical) 16%, transparent);
-  color: #f29aaa;
+  color: #e6a0a0;
   font-family: var(--ds-font-family-mono);
   font-size: var(--ds-font-size-xxs);
 }
@@ -352,19 +352,19 @@ button:disabled {
 }
 
 .avatar-violet {
-  background: linear-gradient(135deg, #4237a4, #7c6ff2);
+  background: linear-gradient(135deg, #343a36, #57625a);
 }
 
 .avatar-blue {
-  background: linear-gradient(135deg, #28639d, #59a5f5);
+  background: linear-gradient(135deg, #294c3d, #3d7058);
 }
 
 .avatar-green {
-  background: linear-gradient(135deg, #24745b, #42c994);
+  background: linear-gradient(135deg, #245c45, #30785d);
 }
 
 .avatar-orange {
-  background: linear-gradient(135deg, #9b5c23, #f3a455);
+  background: linear-gradient(135deg, #70421f, #9b5c23);
 }
 
 .icon-button {
@@ -786,13 +786,13 @@ button:disabled {
 .aesir-badge[data-tone="critical"] {
   border-color: color-mix(in oklch, var(--app-critical) 30%, transparent);
   background: color-mix(in oklch, var(--app-critical) 10%, var(--app-canvas));
-  color: #f18c9c;
+  color: #e6a0a0;
 }
 
 .aesir-badge[data-tone="info"] {
   border-color: color-mix(in oklch, var(--app-info) 30%, transparent);
   background: color-mix(in oklch, var(--app-info) 10%, var(--app-canvas));
-  color: #88c0f8;
+  color: #c0c9c3;
 }
 
 .aesir-badge[data-tone="success"] {
@@ -1344,7 +1344,7 @@ button:disabled {
   place-items: center;
   border: 1px solid color-mix(in oklch, var(--ds-accent) 35%, transparent);
   border-radius: var(--ds-radius-lg);
-  color: #a9a1ff;
+  color: #a5c9b6;
 }
 
 .staff-insight strong {
@@ -1437,6 +1437,7 @@ button:disabled {
 
   .brand-block,
   .company-switcher,
+  #lantern-company-list,
   .nav-label,
   .sidebar-spacer,
   .agent-card,
@@ -1448,7 +1449,7 @@ button:disabled {
   .sidebar-nav {
     display: grid;
     height: 100%;
-    grid-template-columns: repeat(2, minmax(0, 130px));
+    grid-template-columns: repeat(3, minmax(0, 150px));
     justify-content: center;
     gap: var(--ds-spacing-2);
   }

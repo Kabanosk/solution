@@ -24,7 +24,9 @@ fi
 # Removing it avoids a CLI parse error without changing the user's shell.
 unset NO_COLOR
 
-printf 'Starting LedgerLoop with automatic reload...\n'
+bash "${DASHBOARD_DIR}/scripts/build-forecast.sh"
+
+printf 'Starting Lantern with automatic reload...\n'
 printf 'Local URL: http://127.0.0.1:8080\n'
 printf 'Press Ctrl+C to stop.\n\n'
 

@@ -579,9 +579,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ledgerloop-dashboard"
+name = "lantern-dashboard"
 version = "0.1.0"
 dependencies = [
+ "web-sys",
  "yew",
 ]
 

@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** LedgerLoop
+**Project:** Lantern
 **Generated:** 2026-11-20 12:58:22
 **Category:** Financial Dashboard
 **Token files:** `tokens.json` (W3C Design Tokens Community Group JSON).
@@ -18,11 +18,15 @@ Token files are master-level only; `--page` overrides do not emit tokens.
 
 ## Implementation alignment
 
-The user-selected [Aesir public snapshot](https://github.com/antmicro/aesir-components/tree/public-snapshot) is authoritative where it conflicts with this generated recommendation. The implementation therefore uses Aesir's Inter and Geist Mono fonts, 4 px spacing scale, restrained neutral surfaces, component radii and interaction behavior. Purple is the interactive accent; green is reserved for positive financial and system-health states. The generated palette below remains a product-direction record, not the runtime token source.
+The current `dashboard/AGENTS.md` styling conventions are authoritative. Use existing antmicro-aesir components only; do not add components or ad-hoc styling. Use dark neutral surfaces with restrained green, red and orange accents, and use icons and bright colors sparingly. Every rendered HTML element must have a unique `id`.
+
+The user-selected [Aesir public snapshot](https://github.com/antmicro/aesir-components/tree/public-snapshot) supplies Inter and Geist Mono fonts, the 4 px spacing scale, component radii and interaction behavior. Green denotes positive financial and system-health states, orange denotes attention, and red denotes critical states. Chart categories also use neutral gray and distinct green shades, with text labels and values so color is not the sole distinction.
+
+The generated palette, typography alternatives, component examples and other recommendations below, together with `tokens.json` and `tokens.css`, remain a historical product-direction record. They are not runtime tokens or permission to introduce custom components, purple or blue accents, alternate fonts, or ad-hoc styling. Reuse the existing Aesir component variants and theme tokens instead.
 
 ---
 
-## Global Rules
+## Historical generated guidance
 
 ### Color Palette
 

@@ -1,11 +1,12 @@
 [package]
-name = "ledgerloop-dashboard"
+name = "lantern-dashboard"
 version = "0.1.0"
 edition = "2021"
 description = "Autonomous CFO dashboard built with Rust, Yew and WebAssembly"
 
 [dependencies]
 yew = { version = "0.21", features = ["csr"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlElement", "HtmlCollection"] }
 
 [profile.release]
 opt-level = "s"

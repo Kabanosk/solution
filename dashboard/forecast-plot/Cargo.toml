@@ -1,0 +1,22 @@
+[package]
+name = "forecast_plot"
+version = "0.1.0"
+edition = "2024"
+description = "Embedded WebGL cash-balance scenario for Lantern"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "=0.32.3", default-features = false, features = ["glow", "default_fonts"] }
+egui_plot = { version = "=0.33.0", default-features = false }
+wasm-bindgen = "=0.2.130"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Document", "Window", "HtmlElement"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+

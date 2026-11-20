@@ -33,7 +33,9 @@ spec:
             - name: PGDATABASE
               valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
             - {name: CFO_API_URL, value: "http://api:8000"}
-            - {name: LLM_CHAT_BASE_URL, value: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1"}
+            - {name: SCOUT_DEMO, value: "1"}
+            - name: API_WRITE_TOKEN  # server-side only: Scout chat, approvals, Connect Google, demo panel
+              valueFrom: {secretKeyRef: {name: slack, key: API_WRITE_TOKEN}}
           envFrom:
             - secretRef: {name: dashboard-auth}
           resources:

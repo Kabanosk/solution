@@ -15,6 +15,8 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel
 import { FinancialCharts } from "@/components/financial-charts";
 import { Investigation } from "@/components/investigation";
 import { Staffing } from "@/components/staffing";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { DomIds } from "@/components/dom-ids";
 
 type Page = "overview" | "staffing" | "investigations";
 const navigation = [
@@ -26,7 +28,9 @@ const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "cu
 const compact = (amount: number) => amount >= 1000 ? `€${(amount / 1000).toFixed(1)}k` : currency(amount);
 
 export function Dashboard({ data }: { data: DashboardData }) {
-  return <SidebarProvider><DashboardContent data={data} /></SidebarProvider>;
+  // Assign IDs only after this client tree hydrates, rather than from the
+  // layout while the streamed dashboard is still waiting to hydrate.
+  return <SidebarProvider><DashboardContent data={data} /><DomIds /></SidebarProvider>;
 }
 
 function DashboardContent({ data }: { data: DashboardData }) {
@@ -92,13 +96,13 @@ function DashboardContent({ data }: { data: DashboardData }) {
       <Sidebar id="lantern-sidebar" className="border-r" aria-label="Primary navigation">
         <SidebarHeader className="gap-6 px-3 pt-6 pb-4">
           <div className="flex items-center gap-3 px-2">
-            <span className="flex size-9 items-center justify-center rounded-lg border border-primary/50 bg-primary/10 text-emerald-200"><Sparkles className="size-4" aria-hidden="true" /></span>
+            <span className="flex size-9 items-center justify-center rounded-lg border border-primary/50 bg-primary/10 text-success"><Sparkles className="size-4" aria-hidden="true" /></span>
             <div><span className="text-base font-medium text-foreground">Lantern</span><p className="mt-1 font-mono text-[11px] text-muted-foreground">Autonomous CFO</p></div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button id="lantern-company-switcher" variant="outline" className="h-auto min-h-16 w-full justify-start gap-3 bg-card px-3 py-3" aria-label="Select company">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-orange-900/60 bg-orange-950/20 text-xs font-medium text-orange-300">DB</span>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-warning-border bg-warning-muted text-xs font-medium text-warning">DB</span>
                 <span className="min-w-0 flex-1 text-left"><strong id="lantern-company-name" className="block truncate text-sm font-medium">Company workspace</strong><span className="mt-1 block text-xs font-normal text-muted-foreground">Bank records · EUR</span></span>
                 <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
               </Button>
@@ -152,6 +156,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
             <Search className="size-4" aria-hidden="true" /><span className="flex-1 text-left text-xs font-normal">Search transactions, people…</span><kbd className="rounded border px-1.5 py-0.5 font-mono text-[10px]">⌘ K</kbd>
           </Button>
           <Button id="lantern-search-compact" variant="ghost" size="icon" className="size-10 shrink-0 lg:hidden" aria-label="Search workspace" onClick={openSearch}><Search className="size-4" aria-hidden="true" /></Button>
+          <ThemeToggle />
           <span className="hidden items-center gap-2 text-[11px] text-muted-foreground xl:flex"><span className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />Company records</span>
           <Button id="lantern-notifications" variant="outline" size="icon" aria-label="Notifications" className="size-10 shrink-0" onClick={() => setNotice({title:"Workspace notifications",description:`${data.undocumentedPayments} undocumented payments and ${data.pendingApprovals} pending approvals. Open Investigations to review the latest recorded agent decisions.`})}><Bell className="size-4" aria-hidden="true" /></Button>
         </header>
@@ -173,9 +178,9 @@ function DashboardContent({ data }: { data: DashboardData }) {
                 ].map(({ label, value, note, trend, icon: Icon, tone }) => (
                   <Card key={label} className="gap-3 py-5 shadow-none">
                     <CardContent className="space-y-3 px-4">
-                      <div className="flex items-center justify-between gap-3"><span className={`flex size-8 items-center justify-center rounded-md border ${tone === "positive" ? "border-emerald-900/70 text-emerald-300" : tone === "warning" ? "border-orange-900/70 text-orange-300" : "text-muted-foreground"}`}><Icon className="size-4" aria-hidden="true" /></span><p className="text-xs text-muted-foreground">{label}</p></div>
+                      <div className="flex items-center justify-between gap-3"><span className={`flex size-8 items-center justify-center rounded-md border ${tone === "positive" ? "border-success-border text-success" : tone === "warning" ? "border-warning-border text-warning" : "text-muted-foreground"}`}><Icon className="size-4" aria-hidden="true" /></span><p className="text-xs text-muted-foreground">{label}</p></div>
                       <div><strong className="block font-mono text-[1.65rem] font-medium tracking-tighter">{value}</strong><span className="mt-1 block text-[11px] text-muted-foreground">{note}</span></div>
-                      <p className={`pt-1 text-[11px] ${tone === "positive" ? "text-emerald-300" : tone === "warning" ? "text-orange-300" : "text-muted-foreground"}`}>{trend}</p>
+                      <p className={`pt-1 text-[11px] ${tone === "positive" ? "text-success" : tone === "warning" ? "text-warning" : "text-muted-foreground"}`}>{trend}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -184,7 +189,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
               <FinancialCharts data={data} />
 
               <Card id="lantern-priority-inbox" aria-labelledby="priority-title" className="gap-5">
-                <CardHeader className="flex flex-row justify-between gap-4"><div className="space-y-1.5"><CardTitle id="priority-title" className="text-base font-medium">Priority inbox</CardTitle><CardDescription>Evidence gathered by the autonomous finance loop</CardDescription></div><Badge variant="outline" className="h-fit shrink-0 border-orange-900/70 text-orange-300">{attention} open</Badge></CardHeader>
+                <CardHeader className="flex flex-row justify-between gap-4"><div className="space-y-1.5"><CardTitle id="priority-title" className="text-base font-medium">Priority inbox</CardTitle><CardDescription>Evidence gathered by the autonomous finance loop</CardDescription></div><Badge variant="outline" className="h-fit shrink-0 border-warning-border text-warning">{attention} open</Badge></CardHeader>
                 <CardContent className="divide-y">
                   <PriorityItem label="Documents" title={`${data.undocumentedPayments} payments without invoice documents`} description="Counted from bank bookings with an invoice reference that are not documented." action="Review decisions" tone="red" onClick={() => navigate("investigations")} />
                   <PriorityItem label="Approvals" title={`${data.pendingApprovals} pending approvals`} description="Review the agent’s reasoning in its recorded decisions." action="View decisions" tone="orange" onClick={() => navigate("investigations")} />
@@ -213,5 +218,5 @@ function DashboardContent({ data }: { data: DashboardData }) {
 }
 
 function PriorityItem({ label, title, description, action, tone, onClick }: {label:string;title:string;description:string;action:string;tone:"red"|"orange"|"neutral";onClick:()=>void}) {
-  return <article className="flex flex-col justify-between gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"><div className="space-y-2"><Badge variant="outline" className={`font-normal ${tone==="red"?"border-red-900/70 text-red-300":tone==="orange"?"border-orange-900/70 text-orange-300":"text-muted-foreground"}`}>{label}</Badge><h3 className="text-sm font-medium">{title}</h3><p className="max-w-3xl text-xs leading-6 text-muted-foreground">{description}</p></div><Button variant="outline" size="sm" className="min-h-10 w-fit shrink-0" onClick={onClick}>{action}</Button></article>;
+  return <article className="flex flex-col justify-between gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"><div className="space-y-2"><Badge variant="outline" className={`font-normal ${tone==="red"?"border-danger-border text-danger":tone==="orange"?"border-warning-border text-warning":"text-muted-foreground"}`}>{label}</Badge><h3 className="text-sm font-medium">{title}</h3><p className="max-w-3xl text-xs leading-6 text-muted-foreground">{description}</p></div><Button variant="outline" size="sm" className="min-h-10 w-fit shrink-0" onClick={onClick}>{action}</Button></article>;
 }

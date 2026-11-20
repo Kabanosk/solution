@@ -13,28 +13,17 @@ from datetime import date, datetime
 from typing import Any, Self
 
 import psycopg
+from cfo.config import get_settings
+from cfo.domain import (ApprovalRequest, ApprovalStatus, CostMetric, Decision,
+                        Employee, Event, Invoice, InvoiceLine, Rule, Team,
+                        Transaction, Vacation, utcnow)
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from cfo.config import get_settings
-from cfo.domain import (
-    ApprovalRequest,
-    ApprovalStatus,
-    CostMetric,
-    Decision,
-    Employee,
-    Event,
-    Invoice,
-    InvoiceLine,
-    Rule,
-    Team,
-    Transaction,
-    Vacation,
-    utcnow,
-)
 
-
-def _insert(table: str, row: dict[str, Any], *, upsert_key: str | None = "id") -> tuple[str, list[Any]]:
+def _insert(
+    table: str, row: dict[str, Any], *, upsert_key: str | None = "id"
+) -> tuple[str, list[Any]]:
     cols = list(row)
     sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})"
     if upsert_key:
@@ -50,7 +39,11 @@ class Repository:
 
     @classmethod
     def connect(cls, database_url: str | None = None) -> Self:
-        return cls(psycopg.connect(database_url or get_settings().database_url, row_factory=dict_row))
+        return cls(
+            psycopg.connect(
+                database_url or get_settings().database_url, row_factory=dict_row
+            )
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -58,12 +51,16 @@ class Repository:
     def __exit__(self, *exc: object) -> None:
         self.conn.close()
 
-    def _write(self, table: str, row: dict[str, Any], upsert_key: str | None = "id") -> None:
+    def _write(
+        self, table: str, row: dict[str, Any], upsert_key: str | None = "id"
+    ) -> None:
         sql, params = _insert(table, row, upsert_key=upsert_key)
         self.conn.execute(sql, params)
         self.conn.commit()
 
-    def _all(self, sql: str, params: list[Any] | tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+    def _all(
+        self, sql: str, params: list[Any] | tuple[Any, ...] = ()
+    ) -> list[dict[str, Any]]:
         return self.conn.execute(sql, params).fetchall()
 
     # -- teams, employees ----------------------------------------------------------------------
@@ -86,10 +83,16 @@ class Repository:
             )
         self.conn.commit()
 
-    def _employees(self, where: str = "", params: tuple[Any, ...] = ()) -> list[Employee]:
+    def _employees(
+        self, where: str = "", params: tuple[Any, ...] = ()
+    ) -> list[Employee]:
         vac: dict[str, list[Vacation]] = {}
-        for r in self._all("SELECT employee_id, start_date, end_date FROM vacations ORDER BY start_date"):
-            vac.setdefault(r["employee_id"], []).append(Vacation(start=r["start_date"], end=r["end_date"]))
+        for r in self._all(
+            "SELECT employee_id, start_date, end_date FROM vacations ORDER BY start_date"
+        ):
+            vac.setdefault(r["employee_id"], []).append(
+                Vacation(start=r["start_date"], end=r["end_date"])
+            )
         rows = self._all(f"SELECT * FROM employees {where} ORDER BY id", params)
         return [Employee(**r, vacations=vac.get(r["id"], [])) for r in rows]
 
@@ -137,7 +140,15 @@ class Repository:
             self.conn.execute(
                 "INSERT INTO invoice_lines (invoice_id, position, description, quantity, unit_price, amount, category)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (inv.id, pos, line.description, line.quantity, line.unit_price, line.amount, line.category),
+                (
+                    inv.id,
+                    pos,
+                    line.description,
+                    line.quantity,
+                    line.unit_price,
+                    line.amount,
+                    line.category,
+                ),
             )
         if inv.transaction_id:
             self.conn.execute(
@@ -159,17 +170,27 @@ class Repository:
 
     # -- cost metrics, events ------------------------------------------------------------------
     def add_cost_metric(self, cm: CostMetric) -> None:
-        self._write("cost_metrics", cm.model_dump(mode="json"), upsert_key="kind, month")
+        self._write(
+            "cost_metrics", cm.model_dump(mode="json"), upsert_key="kind, month"
+        )
 
     def list_cost_metrics(self, kind: str | None = None) -> list[CostMetric]:
-        sql = "SELECT * FROM cost_metrics" + (" WHERE kind = %s" if kind else "") + " ORDER BY month"
+        sql = (
+            "SELECT * FROM cost_metrics"
+            + (" WHERE kind = %s" if kind else "")
+            + " ORDER BY month"
+        )
         return [CostMetric(**r) for r in self._all(sql, [kind] if kind else [])]
 
     def add_event(self, event: Event) -> None:
         self._write("events", event.model_dump(mode="json"))
 
     def list_events(self, since: datetime | None = None) -> list[Event]:
-        sql = "SELECT * FROM events" + (" WHERE ts >= %s" if since else "") + " ORDER BY ts"
+        sql = (
+            "SELECT * FROM events"
+            + (" WHERE ts >= %s" if since else "")
+            + " ORDER BY ts"
+        )
         return [Event(**r) for r in self._all(sql, [since] if since else [])]
 
     # -- decisions, approvals, rules -----------------------------------------------------------
@@ -177,7 +198,12 @@ class Repository:
         self._write("decisions", dec.model_dump(mode="json"))
 
     def list_decisions(self, limit: int = 100) -> list[Decision]:
-        return [Decision(**r) for r in self._all("SELECT * FROM decisions ORDER BY ts DESC LIMIT %s", (limit,))]
+        return [
+            Decision(**r)
+            for r in self._all(
+                "SELECT * FROM decisions ORDER BY ts DESC LIMIT %s", (limit,)
+            )
+        ]
 
     def add_approval_request(self, req: ApprovalRequest) -> None:
         self._write("approval_requests", req.model_dump(mode="json"))
@@ -197,5 +223,9 @@ class Repository:
         self._write("rules", rule.model_dump(mode="json"))
 
     def list_rules(self, active_only: bool = True) -> list[Rule]:
-        sql = "SELECT * FROM rules" + (" WHERE active" if active_only else "") + " ORDER BY created_at DESC"
+        sql = (
+            "SELECT * FROM rules"
+            + (" WHERE active" if active_only else "")
+            + " ORDER BY created_at DESC"
+        )
         return [Rule(**r) for r in self._all(sql)]

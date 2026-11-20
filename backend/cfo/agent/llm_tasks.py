@@ -17,11 +17,10 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from cfo.domain import InvoiceLine
 from cfo.llm import LLM, Message, ToolSpec
 from cfo.usage.recorder import usage_context
+from pydantic import BaseModel, Field
 
 log = logging.getLogger(__name__)
 
@@ -31,10 +30,16 @@ EXTRACT_TOOL = ToolSpec(
     parameters={
         "type": "object",
         "properties": {
-            "number": {"type": "string", "description": "invoice number, e.g. AS-69664"},
+            "number": {
+                "type": "string",
+                "description": "invoice number, e.g. AS-69664",
+            },
             "supplier": {"type": "string"},
             "issue_date": {"type": "string", "description": "YYYY-MM-DD"},
-            "total": {"type": "string", "description": "gross total in EUR, e.g. 1234.50"},
+            "total": {
+                "type": "string",
+                "description": "gross total in EUR, e.g. 1234.50",
+            },
             "lines": {
                 "type": "array",
                 "items": {
@@ -82,11 +87,15 @@ def parse_amount(value: Any) -> Decimal | None:
     if not re.search(r"\d", s):
         return None
     if "," in s and "." in s:
-        dec, thou = ("," , ".") if s.rfind(",") > s.rfind(".") else (".", ",")
+        dec, thou = (",", ".") if s.rfind(",") > s.rfind(".") else (".", ",")
         s = s.replace(thou, "").replace(dec, ".")
     elif "," in s:
         head, _, tail = s.rpartition(",")
-        s = head.replace(",", "") + "." + tail if len(tail) != 3 or "," in head else s.replace(",", "")
+        s = (
+            head.replace(",", "") + "." + tail
+            if len(tail) != 3 or "," in head
+            else s.replace(",", "")
+        )
     elif s.count(".") > 1:
         head, _, tail = s.rpartition(".")
         s = head.replace(".", "") + "." + tail
@@ -119,10 +128,15 @@ def extract_invoice(llm: LLM, text: str) -> ExtractedInvoice | None:
     try:
         with usage_context(purpose="extract_invoice"):
             response = llm.chat(
-                [Message(role="system", content=system), Message(role="user", content=f"Document text:\n---\n{text}\n---")],
+                [
+                    Message(role="system", content=system),
+                    Message(role="user", content=f"Document text:\n---\n{text}\n---"),
+                ],
                 [EXTRACT_TOOL],
             )
-    except Exception:  # noqa: BLE001 - model/network failure: caller treats it as "could not extract"
+    except (
+        Exception
+    ):  # noqa: BLE001 - model/network failure: caller treats it as "could not extract"
         log.exception("invoice extraction call failed")
         return None
     args = _args_from(response, EXTRACT_TOOL.name)
@@ -140,18 +154,34 @@ def extract_invoice(llm: LLM, text: str) -> ExtractedInvoice | None:
             continue
         qty = parse_amount(raw.get("quantity")) or Decimal(1)
         unit = parse_amount(raw.get("unit_price"))
-        lines.append(InvoiceLine(description=str(raw["description"]), quantity=qty,
-                                 unit_price=unit if unit is not None else amount, amount=amount))
+        lines.append(
+            InvoiceLine(
+                description=str(raw["description"]),
+                quantity=qty,
+                unit_price=unit if unit is not None else amount,
+                amount=amount,
+            )
+        )
     try:
-        issued = date.fromisoformat(str(args.get("issue_date"))) if args.get("issue_date") else None
+        issued = (
+            date.fromisoformat(str(args.get("issue_date")))
+            if args.get("issue_date")
+            else None
+        )
     except ValueError:
         issued = None
-    return ExtractedInvoice(number=(str(args["number"]).strip() if args.get("number") else None),
-                            supplier=(str(args["supplier"]).strip() if args.get("supplier") else None),
-                            issue_date=issued, total=total, lines=lines)
+    return ExtractedInvoice(
+        number=(str(args["number"]).strip() if args.get("number") else None),
+        supplier=(str(args["supplier"]).strip() if args.get("supplier") else None),
+        issue_date=issued,
+        total=total,
+        lines=lines,
+    )
 
 
-def alternative_queries(llm: LLM, counterparty: str, reference: str, amount: str) -> list[str]:
+def alternative_queries(
+    llm: LLM, counterparty: str, reference: str, amount: str
+) -> list[str]:
     system = (
         "A bank payment has no invoice on file. Suggest up to 3 short search words (supplier name, invoice "
         "number, amount) to find its document in a folder. Call search_queries once."
@@ -159,7 +189,13 @@ def alternative_queries(llm: LLM, counterparty: str, reference: str, amount: str
     user = f"Counterparty: {counterparty}\nReference: {reference}\nAmount: {amount} EUR"
     try:
         with usage_context(purpose="alternative_queries"):
-            response = llm.chat([Message(role="system", content=system), Message(role="user", content=user)], [QUERIES_TOOL])
+            response = llm.chat(
+                [
+                    Message(role="system", content=system),
+                    Message(role="user", content=user),
+                ],
+                [QUERIES_TOOL],
+            )
     except Exception:  # noqa: BLE001
         log.exception("query wording call failed")
         return []
@@ -182,7 +218,12 @@ def explain(llm: LLM, instruction: str, facts: dict[str, Any], fallback: str) ->
     user = f"{instruction}\nFacts: {json.dumps(facts, default=str, ensure_ascii=False)}"
     try:
         with usage_context(purpose="explain"):
-            reply = llm.chat([Message(role="system", content=system), Message(role="user", content=user)])
+            reply = llm.chat(
+                [
+                    Message(role="system", content=system),
+                    Message(role="user", content=user),
+                ]
+            )
         text = (reply.content or "").strip()
     except Exception:  # noqa: BLE001
         log.exception("explanation call failed")

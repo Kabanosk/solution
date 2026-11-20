@@ -1,35 +1,53 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
-
 from cfo.api import services
 from cfo.api.deps import LimitParam, OffsetParam, get_repo
 from cfo.api.errors import ERRORS_404, ERRORS_422, not_found
 from cfo.api.schemas import DecisionOut, Page
 from cfo.db.repo import Repository
 from cfo.domain import DecisionStatus, PolicyLevel
+from fastapi import APIRouter, Depends, Query
 
 router = APIRouter(prefix="/v1", tags=["decisions"])
 
 
-@router.get("/decisions", response_model=Page[DecisionOut], responses=ERRORS_422,
-            summary="History of everything the agent decided or did, newest first")
+@router.get(
+    "/decisions",
+    response_model=Page[DecisionOut],
+    responses=ERRORS_422,
+    summary="History of everything the agent decided or did, newest first",
+)
 def list_decisions(
     limit: LimitParam = 50,
     offset: OffsetParam = 0,
-    level: Annotated[PolicyLevel | None, Query(description="AUTO, NOTIFY or APPROVAL.")] = None,
+    level: Annotated[
+        PolicyLevel | None, Query(description="AUTO, NOTIFY or APPROVAL.")
+    ] = None,
     status: Annotated[DecisionStatus | None, Query()] = None,
-    action_type: Annotated[str | None, Query(description="e.g. attach_invoice.")] = None,
+    action_type: Annotated[
+        str | None, Query(description="e.g. attach_invoice.")
+    ] = None,
     repo: Repository = Depends(get_repo),
 ) -> Page[DecisionOut]:
     rows, total = services.list_decisions(
-        repo, level=level.value if level else None, status=status.value if status else None,
-        action_type=action_type, limit=limit, offset=offset)
-    return Page[DecisionOut](stub=False, items=rows, total=total, limit=limit, offset=offset)
+        repo,
+        level=level.value if level else None,
+        status=status.value if status else None,
+        action_type=action_type,
+        limit=limit,
+        offset=offset,
+    )
+    return Page[DecisionOut](
+        stub=False, items=rows, total=total, limit=limit, offset=offset
+    )
 
 
-@router.get("/decisions/{decision_id}", response_model=DecisionOut, responses=ERRORS_404,
-            summary="One decision")
+@router.get(
+    "/decisions/{decision_id}",
+    response_model=DecisionOut,
+    responses=ERRORS_404,
+    summary="One decision",
+)
 def get_decision(decision_id: str, repo: Repository = Depends(get_repo)) -> DecisionOut:
     found = services.get_decision(repo, decision_id)
     if found is None:

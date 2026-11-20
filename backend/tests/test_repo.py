@@ -1,15 +1,15 @@
 """Repository round-trip against the compose Postgres; skipped when it is not reachable."""
 
+import os
 from datetime import date
 from decimal import Decimal
 
-import os
 import psycopg
 import pytest
-
 from cfo.config import get_settings
 from cfo.db.repo import Repository
-from cfo.domain import Decision, Employee, Invoice, InvoiceLine, PolicyLevel, Rule, Team, Transaction, Vacation
+from cfo.domain import (Decision, Employee, Invoice, InvoiceLine, PolicyLevel,
+                        Rule, Team, Transaction, Vacation)
 
 
 @pytest.fixture
@@ -44,28 +44,57 @@ def apply_schema_in(r: Repository) -> None:
 def test_transactions_invoices_employees_rules(repo: Repository):
     repo.add_team(Team(id="kitchen", name="Kitchen", monthly_budget=Decimal("9000")))
     repo.add_employee(Employee(id="vincenzo", name="Vincenzo", role="CEO"))
-    repo.add_employee(Employee(id="grazyna", name="Grazyna", role="office manager", manager_id="vincenzo",
-                               vacations=[Vacation(start=date(2025, 12, 20), end=date(2025, 12, 31))]))
+    repo.add_employee(
+        Employee(
+            id="grazyna",
+            name="Grazyna",
+            role="office manager",
+            manager_id="vincenzo",
+            vacations=[Vacation(start=date(2025, 12, 20), end=date(2025, 12, 31))],
+        )
+    )
     assert repo.get_employee("grazyna").on_vacation(date(2025, 12, 25))
 
-    txn = Transaction(booking_date=date(2025, 12, 3), type="GIRO", reference="AS-1", counterparty="Asimex",
-                      amount=Decimal("-100.00"), invoice_number="AS-1")
+    txn = Transaction(
+        booking_date=date(2025, 12, 3),
+        type="GIRO",
+        reference="AS-1",
+        counterparty="Asimex",
+        amount=Decimal("-100.00"),
+        invoice_number="AS-1",
+    )
     repo.add_transaction(txn)
     assert [t.id for t in repo.list_transactions(undocumented_only=True)] == [txn.id]
 
-    inv = Invoice(number="AS-1", supplier="Asimex", issue_date=date(2025, 12, 1), total=Decimal("100.00"),
-                  lines=[InvoiceLine(description="Flour", unit_price=Decimal("100"), amount=Decimal("100"))],
-                  transaction_id=txn.id)
+    inv = Invoice(
+        number="AS-1",
+        supplier="Asimex",
+        issue_date=date(2025, 12, 1),
+        total=Decimal("100.00"),
+        lines=[
+            InvoiceLine(
+                description="Flour", unit_price=Decimal("100"), amount=Decimal("100")
+            )
+        ],
+        transaction_id=txn.id,
+    )
     repo.add_invoice(inv)
     assert repo.get_invoice_by_number("AS-1") == inv
     assert repo.list_transactions(undocumented_only=True) == []
     assert repo.get_transaction(txn.id).documented
 
-    dec = Decision(action_type="attach_invoice", summary="s", level=PolicyLevel.AUTO, reason="r",
-                   payload={"invoice": "AS-1"})
+    dec = Decision(
+        action_type="attach_invoice",
+        summary="s",
+        level=PolicyLevel.AUTO,
+        reason="r",
+        payload={"invoice": "AS-1"},
+    )
     repo.add_decision(dec)
     assert repo.list_decisions() == [dec]
 
-    rule = Rule(text="equipment: ask me", level=PolicyLevel.APPROVAL, category="equipment")
+    rule = Rule(
+        text="equipment: ask me", level=PolicyLevel.APPROVAL, category="equipment"
+    )
     repo.add_rule(rule)
     assert repo.list_rules() == [rule]

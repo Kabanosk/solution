@@ -10,10 +10,9 @@ import json
 from collections.abc import Callable, Sequence
 from typing import Any, Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
-
 from cfo.config import Settings, get_settings
 from cfo.usage import recorder
+from pydantic import BaseModel, Field
 
 
 class ToolSpec(BaseModel):
@@ -21,7 +20,9 @@ class ToolSpec(BaseModel):
 
     name: str
     description: str
-    parameters: dict[str, Any] = Field(default_factory=lambda: {"type": "object", "properties": {}})
+    parameters: dict[str, Any] = Field(
+        default_factory=lambda: {"type": "object", "properties": {}}
+    )
 
 
 class ToolCall(BaseModel):
@@ -47,11 +48,15 @@ class TokenUsage(BaseModel):
 class LLMResponse(BaseModel):
     content: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
-    usage: TokenUsage | None = None  # None: the server sent none; cfo.usage then estimates the count and flags it
+    usage: TokenUsage | None = (
+        None  # None: the server sent none; cfo.usage then estimates the count and flags it
+    )
 
     def as_message(self) -> Message:
         """The assistant message to append to the conversation before sending tool results."""
-        return Message(role="assistant", content=self.content, tool_calls=self.tool_calls)
+        return Message(
+            role="assistant", content=self.content, tool_calls=self.tool_calls
+        )
 
 
 @runtime_checkable
@@ -97,17 +102,27 @@ class OpenAICompatLLM:
             base_url=base_url,
             api_key=api_key or "EMPTY",
             timeout=timeout,
-            http_client=httpx.Client(verify=tls_verify_setting(verify_tls), timeout=timeout),
+            http_client=httpx.Client(
+                verify=tls_verify_setting(verify_tls), timeout=timeout
+            ),
         )
 
     @staticmethod
     def _to_wire(m: Message) -> dict[str, Any]:
         if m.role == "tool":
-            return {"role": "tool", "tool_call_id": m.tool_call_id, "content": m.content or ""}
+            return {
+                "role": "tool",
+                "tool_call_id": m.tool_call_id,
+                "content": m.content or "",
+            }
         wire: dict[str, Any] = {"role": m.role, "content": m.content}
         if m.tool_calls:
             wire["tool_calls"] = [
-                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
+                {
+                    "id": c.id,
+                    "type": "function",
+                    "function": {"name": c.name, "arguments": json.dumps(c.arguments)},
+                }
                 for c in m.tool_calls
             ]
         return wire
@@ -129,15 +144,28 @@ class OpenAICompatLLM:
             kwargs["max_tokens"] = max_tokens
         if tools:
             kwargs["tools"] = [
-                {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    },
+                }
                 for t in tools
             ]
         started = recorder.perf_counter()
         try:
             completion = self._client.chat.completions.create(**kwargs)
         except Exception:
-            recorder.record_call(model=self.model, messages=messages, tools=tools, response=None, started=started,
-                                 success=False)
+            recorder.record_call(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                response=None,
+                started=started,
+                success=False,
+            )
             raise
         msg = completion.choices[0].message
         calls = []
@@ -145,33 +173,55 @@ class OpenAICompatLLM:
             try:
                 args = json.loads(c.function.arguments or "{}")
             except json.JSONDecodeError:
-                args = {"_raw": c.function.arguments}  # small models emit broken JSON; let the caller decide
+                args = {
+                    "_raw": c.function.arguments
+                }  # small models emit broken JSON; let the caller decide
             calls.append(ToolCall(id=c.id, name=c.function.name, arguments=args))
         raw = getattr(completion, "usage", None)
-        usage = TokenUsage(prompt_tokens=raw.prompt_tokens or 0, completion_tokens=raw.completion_tokens or 0) if raw else None
+        usage = (
+            TokenUsage(
+                prompt_tokens=raw.prompt_tokens or 0,
+                completion_tokens=raw.completion_tokens or 0,
+            )
+            if raw
+            else None
+        )
         response = LLMResponse(content=msg.content, tool_calls=calls, usage=usage)
-        recorder.record_call(model=self.model, messages=messages, tools=tools, response=response, started=started)
+        recorder.record_call(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            response=response,
+            started=started,
+        )
         return response
 
 
 class FakeLLM:
     """Scripted LLM for tests. Each `chat` call returns the next scripted response, or asks `handler`.
 
-        llm = FakeLLM([FakeLLM.tool_call("get_balance", day="2025-06-01"), "Done."])
+    llm = FakeLLM([FakeLLM.tool_call("get_balance", day="2025-06-01"), "Done."])
     """
 
     def __init__(
         self,
         script: Sequence[LLMResponse | str] = (),
-        handler: Callable[[Sequence[Message], Sequence[ToolSpec] | None], LLMResponse | str] | None = None,
+        handler: (
+            Callable[[Sequence[Message], Sequence[ToolSpec] | None], LLMResponse | str]
+            | None
+        ) = None,
     ):
         self._script = list(script)
         self._handler = handler
-        self.calls: list[dict[str, Any]] = []  # recorded {"messages": ..., "tools": ...} per call
+        self.calls: list[dict[str, Any]] = (
+            []
+        )  # recorded {"messages": ..., "tools": ...} per call
 
     @staticmethod
     def tool_call(name: str, call_id: str = "call_1", **arguments: Any) -> LLMResponse:
-        return LLMResponse(tool_calls=[ToolCall(id=call_id, name=name, arguments=arguments)])
+        return LLMResponse(
+            tool_calls=[ToolCall(id=call_id, name=name, arguments=arguments)]
+        )
 
     def chat(
         self,
@@ -190,11 +240,19 @@ class FakeLLM:
         else:
             raise AssertionError("FakeLLM script exhausted")
         response = LLMResponse(content=out) if isinstance(out, str) else out
-        recorder.record_call(model="fake", messages=messages, tools=tools, response=response, started=started)
+        recorder.record_call(
+            model="fake",
+            messages=messages,
+            tools=tools,
+            response=response,
+            started=started,
+        )
         return response
 
 
 def get_llm(settings: Settings | None = None) -> LLM:
     """The configured LLM client (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`)."""
     s = settings or get_settings()
-    return OpenAICompatLLM(s.llm_base_url, s.llm_model, s.llm_api_key, verify_tls=s.llm_verify_tls)
+    return OpenAICompatLLM(
+        s.llm_base_url, s.llm_model, s.llm_api_key, verify_tls=s.llm_verify_tls
+    )

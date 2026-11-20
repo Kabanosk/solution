@@ -18,11 +18,10 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel
-
 from cfo.data.load import apply_event
 from cfo.db.repo import Repository
 from cfo.domain import Event
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +100,9 @@ class Simulator:
         subscribers: list[Subscriber] | None = None,
     ):
         self.repo = repo
-        self.events = sorted(events, key=lambda e: e.ts)  # stable: file order wins for equal timestamps
+        self.events = sorted(
+            events, key=lambda e: e.ts
+        )  # stable: file order wins for equal timestamps
         self.default_speed = speed
         self.start_time = start
         self.clock = clock
@@ -111,7 +112,9 @@ class Simulator:
 
     # -- state storage --------------------------------------------------------------------------------------
     def _load(self) -> _State:
-        row = self.repo.conn.execute("SELECT sim_time, paused, speed, last_tick, next_index FROM sim_state").fetchone()
+        row = self.repo.conn.execute(
+            "SELECT sim_time, paused, speed, last_tick, next_index FROM sim_state"
+        ).fetchone()
         self.repo.conn.commit()  # no transaction left open between calls
         if row is None:
             self.repo.conn.execute(
@@ -136,7 +139,9 @@ class Simulator:
     # -- core: move sim time forward ------------------------------------------------------------------------
     def _emit_through(self, st: _State, until: datetime, out: list[Event]) -> None:
         """Write all events with ts <= `until` (in order), persisting the cursor after each one."""
-        while st.next_index < len(self.events) and self.events[st.next_index].ts <= until:
+        while (
+            st.next_index < len(self.events) and self.events[st.next_index].ts <= until
+        ):
             event = self.events[st.next_index]
             apply_event(self.repo, event)
             st.next_index += 1
@@ -150,7 +155,11 @@ class Simulator:
             horizon = self.events[-1].ts if self.events else st.sim_time
             horizon = max(horizon, st.sim_time)
             try:
-                target = min(st.sim_time + timedelta(seconds=max(0.0, now - st.last_tick) * st.speed), horizon)
+                target = min(
+                    st.sim_time
+                    + timedelta(seconds=max(0.0, now - st.last_tick) * st.speed),
+                    horizon,
+                )
             except OverflowError:
                 target = horizon
             self._emit_through(st, target, out)
@@ -168,7 +177,9 @@ class Simulator:
                 except Exception:  # a broken subscriber must not stop the clock
                     log.exception("simulator subscriber failed on event %s", event.id)
 
-    def _run_locked(self, mutate: Callable[[_State, float, list[Event]], Any] | None = None) -> tuple[Any, list[Event]]:
+    def _run_locked(
+        self, mutate: Callable[[_State, float, list[Event]], Any] | None = None
+    ) -> tuple[Any, list[Event]]:
         out: list[Event] = []
         with self._locked():
             st = self._load()
@@ -229,7 +240,9 @@ class Simulator:
 
         def mutate(st: _State, now: float, out: list[Event]) -> None:
             if target < st.sim_time:
-                raise ValueError(f"cannot jump back: it is already {st.sim_time.isoformat()} (use reset)")
+                raise ValueError(
+                    f"cannot jump back: it is already {st.sim_time.isoformat()} (use reset)"
+                )
             self._emit_through(st, target, out)
             st.sim_time = target
 
@@ -239,7 +252,9 @@ class Simulator:
         """Back to the beginning, paused. Does not touch the events table (use `cfo.data.load --reset`)."""
         with self._locked():
             self._load()
-            self._save(_State(self.start_time, True, self._load().speed, self.clock(), 0))
+            self._save(
+                _State(self.start_time, True, self._load().speed, self.clock(), 0)
+            )
         return self.status()
 
     def status(self) -> SimStatus:
@@ -248,15 +263,36 @@ class Simulator:
         if not st.paused:
             horizon = max(self.events[-1].ts if self.events else sim_time, sim_time)
             try:
-                sim_time = min(sim_time + timedelta(seconds=max(0.0, self.clock() - st.last_tick) * st.speed), horizon)
+                sim_time = min(
+                    sim_time
+                    + timedelta(
+                        seconds=max(0.0, self.clock() - st.last_tick) * st.speed
+                    ),
+                    horizon,
+                )
             except OverflowError:
                 sim_time = horizon
-        nxt = self.events[st.next_index].ts if st.next_index < len(self.events) else None
-        return SimStatus(sim_time=sim_time, paused=st.paused, speed=st.speed, emitted=st.next_index,
-                         total=len(self.events), next_event_ts=nxt, finished=nxt is None)
+        nxt = (
+            self.events[st.next_index].ts if st.next_index < len(self.events) else None
+        )
+        return SimStatus(
+            sim_time=sim_time,
+            paused=st.paused,
+            speed=st.speed,
+            emitted=st.next_index,
+            total=len(self.events),
+            next_event_ts=nxt,
+            finished=nxt is None,
+        )
 
     # -- worker loop ----------------------------------------------------------------------------------------
-    def run(self, stop: threading.Event, *, max_wait: float = 1.0, wait: Callable[[float], Any] | None = None) -> None:
+    def run(
+        self,
+        stop: threading.Event,
+        *,
+        max_wait: float = 1.0,
+        wait: Callable[[float], Any] | None = None,
+    ) -> None:
         """Tick until `stop` is set. Waits until the next event is due (at most `max_wait` real seconds).
 
         `wait(seconds)` defaults to `stop.wait`; tests pass a function that advances a fake clock.
@@ -267,7 +303,13 @@ class Simulator:
             st = self.status()
             delay = max_wait
             if not st.paused and st.next_event_ts is not None:
-                delay = min(max_wait, max(0.01, (st.next_event_ts - st.sim_time).total_seconds() / st.speed))
+                delay = min(
+                    max_wait,
+                    max(
+                        0.01,
+                        (st.next_event_ts - st.sim_time).total_seconds() / st.speed,
+                    ),
+                )
             wait(delay)
 
 

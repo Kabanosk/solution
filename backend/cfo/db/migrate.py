@@ -1,7 +1,7 @@
 """Apply `schema.sql` to `DATABASE_URL`.
 
-    python -m cfo.db.migrate          # apply
-    python -m cfo.db.migrate --check  # dry run: apply in a rolled-back transaction, exit 0 if clean
+python -m cfo.db.migrate          # apply
+python -m cfo.db.migrate --check  # dry run: apply in a rolled-back transaction, exit 0 if clean
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import psycopg
-
 from cfo.config import get_settings
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
@@ -29,7 +28,9 @@ def apply_schema(database_url: str, *, check: bool = False) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cfo.db.migrate")
-    parser.add_argument("--check", action="store_true", help="verify the schema applies, change nothing")
+    parser.add_argument(
+        "--check", action="store_true", help="verify the schema applies, change nothing"
+    )
     args = parser.parse_args(argv)
     try:
         apply_schema(get_settings().database_url, check=args.check)

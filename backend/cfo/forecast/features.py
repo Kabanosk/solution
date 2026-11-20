@@ -23,9 +23,8 @@ from typing import Any
 
 import pandas as pd
 import psycopg
-from psycopg.rows import dict_row
-
 from cfo.config import get_settings
+from psycopg.rows import dict_row
 
 NON_COST_CATEGORIES = ("revenue", "partner_investment")
 UNASSIGNED_TEAM = "company"
@@ -41,8 +40,19 @@ DEFAULT_DUE_DAYS: dict[str, tuple[int, ...]] = {
 DUE_COLUMNS = {f"{category}_due": category for category in DEFAULT_DUE_DAYS}
 
 CALENDAR_COLUMNS = [
-    "weekday", "is_weekend", "month", "quarter", "day_of_month", "day_of_year", "week_of_year",
-    "days_to_month_end", "is_month_start", "is_month_end", "is_public_holiday", "shutdown_flag", *DUE_COLUMNS,
+    "weekday",
+    "is_weekend",
+    "month",
+    "quarter",
+    "day_of_month",
+    "day_of_year",
+    "week_of_year",
+    "days_to_month_end",
+    "is_month_start",
+    "is_month_end",
+    "is_public_holiday",
+    "shutdown_flag",
+    *DUE_COLUMNS,
 ]
 
 
@@ -61,9 +71,22 @@ def _query(conn: psycopg.Connection | None, sql: str) -> list[dict[str, Any]]:
 
 def fetch_transactions(conn: psycopg.Connection | None = None) -> pd.DataFrame:
     """All bank statement lines; `booking_date` is datetime64, `amount` float (signed EUR)."""
-    rows = _query(conn, "SELECT booking_date, amount, category, team_id, counterparty, invoice_id "
-                        "FROM transactions ORDER BY booking_date, id")
-    df = pd.DataFrame(rows, columns=["booking_date", "amount", "category", "team_id", "counterparty", "invoice_id"])
+    rows = _query(
+        conn,
+        "SELECT booking_date, amount, category, team_id, counterparty, invoice_id "
+        "FROM transactions ORDER BY booking_date, id",
+    )
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "booking_date",
+            "amount",
+            "category",
+            "team_id",
+            "counterparty",
+            "invoice_id",
+        ],
+    )
     df["booking_date"] = pd.to_datetime(df["booking_date"])
     df["amount"] = df["amount"].astype(float)
     return df
@@ -71,10 +94,23 @@ def fetch_transactions(conn: psycopg.Connection | None = None) -> pd.DataFrame:
 
 def fetch_invoices(conn: psycopg.Connection | None = None) -> pd.DataFrame:
     """All supplier invoices; `issue_date` is datetime64, `total` float EUR."""
-    rows = _query(conn, "SELECT number, supplier, issue_date, total, category, team_id, transaction_id "
-                        "FROM invoices ORDER BY issue_date, number")
-    df = pd.DataFrame(rows, columns=["number", "supplier", "issue_date", "total", "category", "team_id",
-                                     "transaction_id"])
+    rows = _query(
+        conn,
+        "SELECT number, supplier, issue_date, total, category, team_id, transaction_id "
+        "FROM invoices ORDER BY issue_date, number",
+    )
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "number",
+            "supplier",
+            "issue_date",
+            "total",
+            "category",
+            "team_id",
+            "transaction_id",
+        ],
+    )
     df["issue_date"] = pd.to_datetime(df["issue_date"])
     df["total"] = df["total"].astype(float)
     return df
@@ -98,13 +134,25 @@ def _easter(year: int) -> date:
 def public_holidays(year: int) -> set[date]:
     """German nationwide public holidays (the pizzeria is a GmbH on a German statement)."""
     easter = _easter(year)
-    moving = [easter - timedelta(days=2), easter + timedelta(days=1), easter + timedelta(days=39),
-              easter + timedelta(days=50)]
-    fixed = [date(year, 1, 1), date(year, 5, 1), date(year, 10, 3), date(year, 12, 25), date(year, 12, 26)]
+    moving = [
+        easter - timedelta(days=2),
+        easter + timedelta(days=1),
+        easter + timedelta(days=39),
+        easter + timedelta(days=50),
+    ]
+    fixed = [
+        date(year, 1, 1),
+        date(year, 5, 1),
+        date(year, 10, 3),
+        date(year, 12, 25),
+        date(year, 12, 26),
+    ]
     return set(moving + fixed)
 
 
-def infer_due_days(transactions: pd.DataFrame, *, min_months: int = 3) -> dict[str, tuple[int, ...]]:
+def infer_due_days(
+    transactions: pd.DataFrame, *, min_months: int = 3
+) -> dict[str, tuple[int, ...]]:
     """Day(s) of month on which each fixed cost is booked: days seen in at least `min_months` distinct months.
 
     Falls back to `DEFAULT_DUE_DAYS` for a category without such a day.
@@ -113,13 +161,17 @@ def infer_due_days(transactions: pd.DataFrame, *, min_months: int = 3) -> dict[s
     for category, default in DEFAULT_DUE_DAYS.items():
         rows = transactions[transactions["category"] == category]
         dates = rows["booking_date"]
-        months_per_day = dates.groupby(dates.dt.day).apply(lambda s: s.dt.to_period("M").nunique())
+        months_per_day = dates.groupby(dates.dt.day).apply(
+            lambda s: s.dt.to_period("M").nunique()
+        )
         days = tuple(int(d) for d, n in months_per_day.items() if n >= min_months)
         due[category] = days or default
     return due
 
 
-def infer_shutdown_days(transactions: pd.DataFrame, *, min_run: int = 7) -> frozenset[tuple[int, int]]:
+def infer_shutdown_days(
+    transactions: pd.DataFrame, *, min_run: int = 7
+) -> frozenset[tuple[int, int]]:
     """(month, day) pairs of the yearly shutdown, derived from runs of zero-revenue days.
 
     A shutdown is a run of at least `min_run` consecutive calendar days without any revenue booking inside the
@@ -128,9 +180,15 @@ def infer_shutdown_days(transactions: pd.DataFrame, *, min_run: int = 7) -> froz
     """
     if transactions.empty:
         return frozenset()
-    days = pd.date_range(transactions["booking_date"].min(), transactions["booking_date"].max(), freq="D")
-    revenue = (transactions[transactions["category"] == "revenue"].groupby("booking_date")["amount"].sum()
-               .reindex(days, fill_value=0.0))
+    days = pd.date_range(
+        transactions["booking_date"].min(), transactions["booking_date"].max(), freq="D"
+    )
+    revenue = (
+        transactions[transactions["category"] == "revenue"]
+        .groupby("booking_date")["amount"]
+        .sum()
+        .reindex(days, fill_value=0.0)
+    )
     pairs: set[tuple[int, int]] = set()
     run: list[pd.Timestamp] = []
     for day, amount in revenue.items():
@@ -168,13 +226,20 @@ def calendar_features(
     out["days_to_month_end"] = index.days_in_month - index.day
     out["is_month_start"] = (index.day == 1).astype("int8")
     out["is_month_end"] = index.is_month_end.astype("int8")
-    holidays = set().union(*(public_holidays(y) for y in index.year.unique())) if len(index) else set()
+    holidays = (
+        set().union(*(public_holidays(y) for y in index.year.unique()))
+        if len(index)
+        else set()
+    )
     out["is_public_holiday"] = [int(d.date() in holidays) for d in index]
     shutdown = set(shutdown_days)
     out["shutdown_flag"] = [int((d.month, d.day) in shutdown) for d in index]
     for column, category in DUE_COLUMNS.items():
         days = due_days.get(category, DEFAULT_DUE_DAYS[category])
-        flags = [any(min(due, dim) == day for due in days) for day, dim in zip(index.day, index.days_in_month)]
+        flags = [
+            any(min(due, dim) == day for due in days)
+            for day, dim in zip(index.day, index.days_in_month)
+        ]
         out[column] = [int(f) for f in flags]
     return out[CALENDAR_COLUMNS].astype("int64")
 
@@ -195,20 +260,33 @@ def daily_cash_flow(
     """
     tx = transactions[~transactions["category"].isin(list(exclude_categories))]
     if transactions.empty:
-        return pd.DataFrame(columns=["net_cash_flow", "inflow", "outflow", "revenue", "n_transactions"],
-                            index=pd.DatetimeIndex([], name="date"), dtype=float)
-    first = pd.Timestamp(start) if start is not None else transactions["booking_date"].min()
+        return pd.DataFrame(
+            columns=["net_cash_flow", "inflow", "outflow", "revenue", "n_transactions"],
+            index=pd.DatetimeIndex([], name="date"),
+            dtype=float,
+        )
+    first = (
+        pd.Timestamp(start) if start is not None else transactions["booking_date"].min()
+    )
     last = pd.Timestamp(end) if end is not None else transactions["booking_date"].max()
     days = pd.date_range(first, last, freq="D", name="date")
     tx = tx.assign(day=tx["booking_date"].dt.normalize())
     grouped = tx.groupby("day")
-    out = pd.DataFrame({
-        "net_cash_flow": grouped["amount"].sum(),
-        "inflow": tx[tx["amount"] > 0].groupby("day")["amount"].sum(),
-        "outflow": tx[tx["amount"] < 0].groupby("day")["amount"].sum(),
-        "revenue": tx[tx["category"] == "revenue"].groupby("day")["amount"].sum(),
-        "n_transactions": grouped["amount"].size(),
-    }).reindex(days).fillna(0.0)
+    out = (
+        pd.DataFrame(
+            {
+                "net_cash_flow": grouped["amount"].sum(),
+                "inflow": tx[tx["amount"] > 0].groupby("day")["amount"].sum(),
+                "outflow": tx[tx["amount"] < 0].groupby("day")["amount"].sum(),
+                "revenue": tx[tx["category"] == "revenue"]
+                .groupby("day")["amount"]
+                .sum(),
+                "n_transactions": grouped["amount"].size(),
+            }
+        )
+        .reindex(days)
+        .fillna(0.0)
+    )
     out["n_transactions"] = out["n_transactions"].astype(int)
     out.index.name = "date"
     return out
@@ -230,13 +308,17 @@ def daily_features(
     shutdown = infer_shutdown_days(transactions, min_run=min_shutdown_run)
     due = infer_due_days(transactions)
     last = pd.Timestamp(end) if end is not None else history.index.max()
-    days = pd.date_range(history.index.min(), max(last, history.index.min()), freq="D", name="date")
+    days = pd.date_range(
+        history.index.min(), max(last, history.index.min()), freq="D", name="date"
+    )
     features = calendar_features(days, shutdown_days=shutdown, due_days=due)
     out = features.join(history.reindex(days))
     return out[list(history.columns) + CALENDAR_COLUMNS]
 
 
-def load_daily_features(conn: psycopg.Connection | None = None, **kwargs: Any) -> pd.DataFrame:
+def load_daily_features(
+    conn: psycopg.Connection | None = None, **kwargs: Any
+) -> pd.DataFrame:
     """`daily_features` from the database (read-only)."""
     return daily_features(fetch_transactions(conn), **kwargs)
 
@@ -260,11 +342,23 @@ def monthly_cost_by_team(
     zero-filled for every team/category that ever has a cost.
     """
     bank = transactions[~transactions["category"].isin(NON_COST_CATEGORIES)]
-    bank = pd.DataFrame({"date": bank["booking_date"], "team_id": bank["team_id"],
-                         "category": bank["category"], "cost": -bank["amount"]})
+    bank = pd.DataFrame(
+        {
+            "date": bank["booking_date"],
+            "team_id": bank["team_id"],
+            "category": bank["category"],
+            "cost": -bank["amount"],
+        }
+    )
     unlinked = invoices[invoices["transaction_id"].isna()]
-    inv = pd.DataFrame({"date": unlinked["issue_date"], "team_id": unlinked["team_id"],
-                        "category": unlinked["category"], "cost": unlinked["total"]})
+    inv = pd.DataFrame(
+        {
+            "date": unlinked["issue_date"],
+            "team_id": unlinked["team_id"],
+            "category": unlinked["category"],
+            "cost": unlinked["total"],
+        }
+    )
     lines = pd.concat([bank, inv], ignore_index=True)
     keys = ["team_id", "category"] if by_category else ["team_id"]
     lines["team_id"] = lines["team_id"].fillna(UNASSIGNED_TEAM)
@@ -275,17 +369,27 @@ def monthly_cost_by_team(
     if lines.empty:
         return pd.DataFrame(columns=columns)
     lines["month"] = lines["date"].dt.to_period("M").dt.to_timestamp()
-    monthly = lines.groupby(["month", *keys])["cost"].sum().unstack(keys, fill_value=0.0)
+    monthly = (
+        lines.groupby(["month", *keys])["cost"].sum().unstack(keys, fill_value=0.0)
+    )
     months = pd.date_range(monthly.index.min(), monthly.index.max(), freq="MS")
     monthly = monthly.reindex(months, fill_value=0.0)
     out = monthly.stack(keys, future_stack=True).rename("cost").reset_index()
-    out = out.rename(columns={"level_0": "month"}) if "month" not in out.columns else out
+    out = (
+        out.rename(columns={"level_0": "month"}) if "month" not in out.columns else out
+    )
     return out.sort_values(["month", *keys]).reset_index(drop=True)[columns]
 
 
-def load_monthly_cost_by_team(conn: psycopg.Connection | None = None, **kwargs: Any) -> pd.DataFrame:
+def load_monthly_cost_by_team(
+    conn: psycopg.Connection | None = None, **kwargs: Any
+) -> pd.DataFrame:
     """`monthly_cost_by_team` from the database (read-only)."""
     if conn is None:
         with psycopg.connect(get_settings().database_url) as own:
-            return monthly_cost_by_team(fetch_transactions(own), fetch_invoices(own), **kwargs)
-    return monthly_cost_by_team(fetch_transactions(conn), fetch_invoices(conn), **kwargs)
+            return monthly_cost_by_team(
+                fetch_transactions(own), fetch_invoices(own), **kwargs
+            )
+    return monthly_cost_by_team(
+        fetch_transactions(conn), fetch_invoices(conn), **kwargs
+    )

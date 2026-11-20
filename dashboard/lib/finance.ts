@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { Pool } from "pg";
 import { authorized } from "./auth";
+import { isDevelopmentPreview } from "./development-preview";
 import { decimalCents, displayCents, financePeriod, type DashboardData, type Decision, type Forecast } from "./finance-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
@@ -42,6 +43,7 @@ async function forecast(): Promise<Forecast | null> {
 export async function getDashboardData(): Promise<DashboardData> {
   // Enforce access at the data boundary too, including RSC and route requests.
   if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewData();
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });

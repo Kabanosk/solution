@@ -201,7 +201,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
 
         <CardContent className="min-w-0 space-y-3 px-0 pb-0">
           {exportNotice && (
-            <p id="lantern-payroll-export-status" role="status" className="px-6 text-sm leading-6 text-emerald-300">
+            <p id="lantern-payroll-export-status" role="status" className="px-6 text-sm leading-6 text-success">
               {exportNotice}
             </p>
           )}
@@ -222,7 +222,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
                     <TableCell className="py-5 pl-6">
                       <div className="flex items-center gap-3">
                         <Avatar className="size-10 shrink-0" aria-hidden="true">
-                          <AvatarFallback className={employee.avatar === "avatar-orange" ? "bg-orange-950 text-orange-200" : "bg-emerald-950 text-emerald-200"}>
+                          <AvatarFallback className={employee.avatar === "avatar-orange" ? "bg-warning-muted text-warning" : "bg-success-muted text-success"}>
                             {employee.initials}
                           </AvatarFallback>
                         </Avatar>
@@ -238,7 +238,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
                       <p className="mt-1 text-xs text-muted-foreground">€ · monthly</p>
                     </TableCell>
                     <TableCell className="pr-6">
-                      <Badge variant="outline" className="border-emerald-900/70 bg-emerald-950/30 font-normal text-emerald-300">Active</Badge>
+                      <Badge variant="outline" className="border-success-border bg-success-muted font-normal text-success">Active</Badge>
                     </TableCell>
                   </TableRow>
                 )) : (
@@ -261,7 +261,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
         </CardFooter>
       </Card>
 
-      <Card id="lantern-payroll-insight" className="border-emerald-900/50 bg-emerald-950/10" aria-labelledby="lantern-payroll-insight-title">
+      <Card id="lantern-payroll-insight" className="border-success-border bg-success-muted" aria-labelledby="lantern-payroll-insight-title">
         <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <CardTitle id="lantern-payroll-insight-title" className="text-base font-medium">CFO insight</CardTitle>

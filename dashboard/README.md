@@ -15,14 +15,20 @@ Database queries use a repeatable-read, read-only transaction, a bounded connect
 
 ## Local development
 
-Requires Node.js 22.18+ and a seeded database. Copy `.env.example` to `.env.local` and fill the server-only Postgres connection fields, `CFO_API_URL` and dashboard login. Never use `NEXT_PUBLIC_` for these values or commit credentials.
+Requires Node.js 22.18+. For a UI preview without database or cluster access, create `dashboard/.env.local` containing `DASHBOARD_PREVIEW=1`, then run from the repository root:
 
 ```sh
 npm --prefix dashboard ci
 npm --prefix dashboard run dev
 ```
 
-Open `http://127.0.0.1:3000` and enter the configured dashboard login. For access to the shared cluster services, run each port-forward in its own terminal:
+Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including chart, payroll and investigation examples. It works only in development; production always requires configured authentication and real services.
+
+Light is the default theme. Use the theme button in the top bar to switch between light and dark; your choice is saved in this browser and restored before the page paints.
+
+The cash forecast supports drag-to-pan on both axes. Hover over the plot and hold Ctrl while scrolling up/down to zoom in/out around the pointer; no click is needed. Click or tab into the chart, then use Ctrl + / Ctrl − to zoom and arrow keys to pan. Double-click, Ctrl 0 or **Reset** fits the full forecast. Zoom and pan buttons provide the same controls without dragging; browser shortcuts outside the forecast keep working normally. On narrow screens, the surrounding scrollbars let you reach the whole chart.
+
+For real records, copy `.env.example` to `.env.local`, keep `DASHBOARD_PREVIEW=0`, and fill the server-only Postgres connection fields, `CFO_API_URL` and dashboard login. Never use `NEXT_PUBLIC_` for these values or commit credentials. Enter the configured login in the browser. For access to the shared cluster services, run each port-forward in its own terminal:
 
 ```sh
 oc port-forward svc/postgres 5432:5432

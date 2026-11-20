@@ -21,7 +21,8 @@ def get_costs_by_team(
     repo: Repository = Depends(get_repo),
 ) -> CostsByTeam:
     """Teams are sorted by total cost, highest first. Months are included when their first day is in range.
-    Costs without a team (tax, social security) appear as team `company`."""
-    if from_ and to and from_ > to:
+    Costs without a team (tax, social security) appear as team `company`. The range (after defaults) must not be
+    inverted and spans at most 120 months, otherwise 422."""
+    if from_ and to and from_ > to:  # cheap check before the database; `services` also checks after the defaults
         raise ApiError(422, "validation_error", "Invalid request: 'from' must not be after 'to'.")
     return services.costs_by_team(repo, from_, to)

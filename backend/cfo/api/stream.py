@@ -7,14 +7,20 @@ complete cursor after that message, so `Last-Event-ID` resumes exactly where the
 An approval is emitted again when it is answered (its key is `COALESCE(resolved_at, created_at)`), with the resolved
 decision embedded. A decision that changes in place (pending -> executed) is not emitted twice; follow the approval.
 
-No threads and no timers here: `stream()` is a plain generator that calls `config.wait(interval)` between polls, so
-tests drive it with a fake wait and never sleep.
+`stream()` is an async generator: while a client is idle it only awaits `config.wait(interval)` and holds no worker
+thread; each database poll runs in a short-lived thread (`asyncio.to_thread`). Tests inject a fake `wait` (sync or
+async), so they never sleep.
+
+The very first frame already carries an `id:` (the position the stream starts at), so a client that reconnects before
+any data frame arrived resumes from there and loses nothing.
 """
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
@@ -34,8 +40,13 @@ SOURCES: dict[str, tuple[str, str, str]] = {
 }
 
 
+EMPTY_CURSOR = "-"
+
+
 def encode_cursor(cursor: Cursor) -> str:
-    """`decision=<iso ts>|<id>;approval=...;event=...` (sources without rows are omitted)."""
+    """`decision=<iso ts>|<id>;approval=...;event=...` (sources without rows are omitted; `-` when all are)."""
+    if not cursor:
+        return EMPTY_CURSOR
     return ";".join(f"{name}={ts.isoformat()}|{row_id}" for name, (ts, row_id) in cursor.items())
 
 
@@ -43,6 +54,8 @@ def decode_cursor(text: str | None) -> Cursor | None:
     """None when `text` is empty or not a cursor of ours (the stream then starts from now)."""
     if not text:
         return None
+    if text == EMPTY_CURSOR:
+        return {}  # connected to empty tables: resume with everything that exists now
     cursor: Cursor = {}
     try:
         for part in text.split(";"):
@@ -100,25 +113,36 @@ def poll(repo: Repository, cursor: Cursor, limit: int) -> list[str]:
     return out
 
 
-def stream(config: StreamConfig, last_event_id: str | None) -> Iterator[str]:
+def _poll_once(config: StreamConfig, cursor: Cursor) -> list[str]:
+    with config.repo_factory() as repo:
+        return poll(repo, cursor, config.batch)
+
+
+def _connect_cursor(config: StreamConfig) -> Cursor:
+    with config.repo_factory() as repo:
+        return current_cursor(repo)
+
+
+async def stream(config: StreamConfig, last_event_id: str | None) -> AsyncIterator[str]:
     """Yields SSE text chunks. Starts after `last_event_id`, or from now when it is missing or invalid.
 
-    Runs in a worker thread of the server; when the client disconnects, Starlette stops iterating it."""
+    Idle time is spent in `await`, not in a threadpool slot; when the client disconnects, Starlette cancels it."""
     cursor = decode_cursor(last_event_id)
     if cursor is None:
-        with config.repo_factory() as repo:
-            cursor = current_cursor(repo)
-    yield "retry: 3000\n: connected\n\n"
+        cursor = await asyncio.to_thread(_connect_cursor, config)
+    yield f"id: {encode_cursor(cursor)}\nretry: 3000\n: connected\n\n"
     idle, polls = 0, 0
     while config.max_polls is None or polls < config.max_polls:
         if polls:
-            config.wait(config.interval)
+            waited = config.wait(config.interval)
+            if inspect.isawaitable(waited):
+                await waited
         polls += 1
-        with config.repo_factory() as repo:
-            messages = poll(repo, cursor, config.batch)
+        messages = await asyncio.to_thread(_poll_once, config, cursor)
         if messages:
             idle = 0
-            yield from messages
+            for message in messages:
+                yield message
         else:
             idle += 1
             if idle >= config.keepalive_polls:

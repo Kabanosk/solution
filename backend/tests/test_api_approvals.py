@@ -303,7 +303,8 @@ def test_stream_sends_only_news_in_order_and_never_sleeps(db_url, repo):
                   lambda: repo.add_decision(Decision(id="dec_x", ts=T0 + timedelta(hours=1), action_type="attach_invoice",
                                                      summary="Attached AS-69664", level=PolicyLevel.AUTO, reason="routine")))
     messages = read_stream(sse_client(db_url, polls, max_polls=3))
-    assert messages[0] == {"retry": "3000", "comment": "connected"}
+    assert {k: v for k, v in messages[0].items() if k != "id"} == {"retry": "3000", "comment": "connected"}
+    assert messages[0]["id"]  # the first frame is a resume point, too (T046)
     news = messages[1:]
     kinds = [(m["event"], m["data"]["id"]) for m in news]
     # one poll: decisions, then approvals, then events; second poll: the later decision
@@ -316,7 +317,7 @@ def test_stream_sends_only_news_in_order_and_never_sleeps(db_url, repo):
 def test_stream_resumes_from_last_event_id(db_url, repo):
     polls = Polls(lambda: (add_event(repo, 1), add_event(repo, 2)))
     first = read_stream(sse_client(db_url, polls, max_polls=2))
-    ids = [m["id"] for m in first if "id" in m]
+    ids = [m["id"] for m in first if "data" in m]  # resume tokens of the data frames
     assert [m["data"]["id"] for m in first if "data" in m] == ["evt_1", "evt_2"]
 
     add_event(repo, 3)  # written while the client was away
@@ -330,7 +331,7 @@ def test_resume_cursor_covers_all_tables_and_survives_different_clocks(db_url, r
     # events carry simulated time (2025), decisions the wall clock (2026): one cursor per table
     polls = Polls(lambda: (add_event(repo, 1), add_approval(repo, 1)))
     first = read_stream(sse_client(db_url, polls, max_polls=2))
-    last_id = [m["id"] for m in first if "id" in m][-1]
+    last_id = [m["id"] for m in first if "data" in m][-1]
     add_event(repo, 2)
     add_approval(repo, 2)
     resumed = read_stream(sse_client(db_url, Polls(), max_polls=1), headers={"Last-Event-ID": last_id})

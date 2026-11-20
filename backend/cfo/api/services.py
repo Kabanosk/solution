@@ -311,23 +311,41 @@ def _month_starts(start: date, end: date) -> list[date]:
     out, cur = [], date(start.year, start.month, 1)
     while cur <= end:
         out.append(cur)
+        if cur.year == date.max.year and cur.month == 12:
+            break  # the next month would be January 10000
         cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
     return out
+
+
+MAX_RANGE_MONTHS = 120
+
+
+def _validate_range(start: date, end: date) -> None:
+    if start > end:
+        raise ApiError(422, "validation_error", f"Invalid request: 'from' ({start}) must not be after 'to' ({end}).")
+    months = (end.year - start.year) * 12 + end.month - start.month + 1
+    if months > MAX_RANGE_MONTHS:
+        raise ApiError(422, "validation_error",
+                       f"Invalid request: the range spans {months} months, at most {MAX_RANGE_MONTHS} are allowed.")
 
 
 def costs_by_team(repo: Repository, start: date | None, end: date | None) -> CostsByTeam:
     """Bank lines and unlinked invoices per team and month (T014 `monthly_cost_by_team`).
 
-    Defaults: first day of the first booking month to the last booking day. Months whose first day lies in
-    `[from, to]` are included, plus the month containing `from`.
+    Defaults: first day of the first booking month to the last booking day (unlinked invoice dates when there are no bookings). Months
+    whose first day lies in `[from, to]` are included, plus the month containing `from`. A range that is inverted
+    after the defaults are applied, or longer than `MAX_RANGE_MONTHS`, is a 422.
     """
     tx = _transactions(repo, required=False)
     invoices = feat.fetch_invoices(repo.conn)
-    first = tx["booking_date"].min().date() if not tx.empty else date.today()
-    last = tx["booking_date"].max().date() if not tx.empty else date.today()
+    # Default range = the bank statement; only without any booking do the unlinked invoices define it.
+    dates = tx["booking_date"] if not tx.empty else invoices.loc[invoices["transaction_id"].isna(), "issue_date"]
+    first = dates.min().date() if not dates.empty else date.today()
+    last = dates.max().date() if not dates.empty else date.today()
     start, end = start or date(first.year, first.month, 1), end or last
+    _validate_range(start, end)
     months = _month_starts(start, end)
-    monthly = feat.monthly_cost_by_team(tx, invoices) if not tx.empty else pd.DataFrame(columns=["month", "team_id", "cost"])
+    monthly = feat.monthly_cost_by_team(tx, invoices)
     cost: dict[tuple[str, date], Decimal] = {}
     for row in monthly.itertuples():
         cost[(row.team_id, row.month.date())] = _dec(round(float(row.cost), 2))

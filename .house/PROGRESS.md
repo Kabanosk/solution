@@ -11,3 +11,4 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-20 14:23 T008 cofnięte po scaleniu: regresja w T004: AC-1 (exit 1)
 - 2026-11-20 15:30 · coder · T002 gotowe: generator danych syntetycznych (faktury AS/FLV, PDF/eml, HR, chmura +50%, grudzień jako zdarzenia) + loader Postgres; 91 testów, check GREEN · reports/T002.md
 - 2026-11-20 16:00 · coder · T005 gotowe: agent LangGraph (rekoncyliacja faktur, eskalacja po łańcuchu HR, zatwierdzanie przez interrupt + resume, pod-agent do anomalii kosztów), 23 testy, check GREEN · reports/T005.md
+- 2026-11-20 16:30 · coder · T014 gotowe: cechy prognozy (przepływ dzienny + kalendarz, flaga przerwy czerwcowej, dni płatności, koszt miesięczny na zespół), 12 testów, check GREEN · reports/T014.md

@@ -1,7 +1,7 @@
 ---
 id: T005
 title: LangGraph agent: event loop, reconciliation, escalation, approvals
-status: review
+status: done
 owner: coder
 branch: task/T005-agent-graph
 depends_on: ["T003", "T004"]

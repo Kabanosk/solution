@@ -1,7 +1,7 @@
 ---
 id: T018
 title: API skeleton: FastAPI app, error model, OpenAPI export, docs, stub endpoints
-status: doing
+status: done
 owner: coder
 branch: task/T018-api-skeleton
 depends_on: ["T001"]

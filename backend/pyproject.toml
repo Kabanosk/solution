@@ -9,6 +9,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "openai>=1.40",
     "mcp>=1.12,<2",
+    "fastapi>=0.165.0",
+    "uvicorn[standard]>=0.54.0",
     "pandas>=2.2",
     "langgraph>=1.2.24",
     "langgraph-checkpoint-postgres>=3.2.1",
@@ -21,7 +23,10 @@ dependencies = [
 mlflow = ["mlflow>=2.14"]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]

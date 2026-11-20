@@ -458,6 +458,509 @@
         }
       }
     },
+    "/v1/approvals": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Approval requests (CEO decisions the agent waits for), newest first",
+        "operationId": "list_approvals_v1_approvals_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Page size.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of items to skip.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Number of items to skip."
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "resolved",
+                    "approved",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`pending`: waiting for an answer; `resolved`: answered (approved or rejected).",
+              "title": "State"
+            },
+            "description": "`pending`: waiting for an answer; `resolved`: answered (approved or rejected)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ApprovalOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approval_id}": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "One approval request with its decision",
+        "operationId": "get_approval_v1_approvals__approval_id__get",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approval_id}:approve": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Approve: the agent executes the action (SIMULATED) and records the decision",
+        "operationId": "approve_v1_approvals__approval_id__approve_post",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`by` is not the approver of this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request was already answered the other way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No agent runs in this API process.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approval_id}:reject": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Reject: nothing is executed, the decision is recorded as rejected",
+        "operationId": "reject_v1_approvals__approval_id__reject_post",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`by` is not the approver of this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request was already answered the other way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No agent runs in this API process.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Live stream of new decisions, approvals and events (SSE)",
+        "description": "Server-Sent Events (`text/event-stream`). Messages:\n\n* `event: decision`, `data` = a decision like `GET /v1/decisions/{id}`;\n* `event: approval`, `data` = an approval like `GET /v1/approvals/{id}` (sent when created and again when answered);\n* `event: event`, `data` = a simulator event (`id`, `ts`, `kind`, `payload`).\n\nEvery message has an `id:` that is a resume token: after a disconnect `EventSource` sends it back as `Last-Event-ID`\nand receives everything newer. Without it the stream starts from now (nothing is replayed). The server polls the\ndatabase about once a second and sends a `: keepalive` comment when nothing happens.",
+        "operationId": "events_v1_events_get",
+        "parameters": [
+          {
+            "name": "last_event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Same as the header, for clients that cannot set it.",
+              "title": "Last Event Id"
+            },
+            "description": "Same as the header, for clients that cannot set it."
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Resume token (set by EventSource).",
+              "title": "Last-Event-Id"
+            },
+            "description": "Resume token (set by EventSource)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An endless `text/event-stream`.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sim": {
+      "get": {
+        "tags": [
+          "simulator"
+        ],
+        "summary": "State of the December replay",
+        "operationId": "sim_status_v1_sim_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sim:start": {
+      "post": {
+        "tags": [
+          "simulator"
+        ],
+        "summary": "Start or resume the replay",
+        "description": "Events written by `step` go to the agent subscribers of *this* API process (`cfo.sim.subscribe`); `start` only flips the shared state, the clock is advanced by the worker process that runs `python -m cfo.sim run` (subscribers live there). See docs/api.md.",
+        "operationId": "sim_start_v1_sim_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SimStart"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sim:pause": {
+      "post": {
+        "tags": [
+          "simulator"
+        ],
+        "summary": "Pause the replay",
+        "operationId": "sim_pause_v1_sim_pause_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sim:step": {
+      "post": {
+        "tags": [
+          "simulator"
+        ],
+        "summary": "Emit the next event now",
+        "description": "Events written by `step` go to the agent subscribers of *this* API process (`cfo.sim.subscribe`); `start` only flips the shared state, the clock is advanced by the worker process that runs `python -m cfo.sim run` (subscribers live there). See docs/api.md.",
+        "operationId": "sim_step_v1_sim_step_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimStepResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -523,6 +1026,204 @@
           "current"
         ],
         "title": "AnomalyDriver"
+      },
+      "ApprovalAnswer": {
+        "properties": {
+          "by": {
+            "type": "string",
+            "minLength": 1,
+            "title": "By",
+            "description": "Employee id of the person answering; must be the approver.",
+            "examples": [
+              "vincenzo"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "by"
+        ],
+        "title": "ApprovalAnswer",
+        "description": "Body of `POST /v1/approvals/{id}:approve` and `:reject`."
+      },
+      "ApprovalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "apr_8e2f6b3a1c47"
+            ]
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "approver_id": {
+            "type": "string",
+            "title": "Approver Id",
+            "description": "Employee id who may answer (normally the CEO).",
+            "examples": [
+              "vincenzo"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "What the approver is asked, in one or two sentences."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "channel_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Ref",
+            "description": "Slack message reference, if the DM was sent."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pending (or, after the answer, resolved) decision: action_type, summary, payload."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "decision_id",
+          "approver_id",
+          "question",
+          "status",
+          "created_at"
+        ],
+        "title": "ApprovalOut",
+        "description": "Mirror of `cfo.domain.ApprovalRequest`, with the decision it is about embedded (for the Approve/Reject card)."
+      },
+      "ApprovalResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "apr_8e2f6b3a1c47"
+            ]
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "approver_id": {
+            "type": "string",
+            "title": "Approver Id",
+            "description": "Employee id who may answer (normally the CEO).",
+            "examples": [
+              "vincenzo"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "What the approver is asked, in one or two sentences."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "channel_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Ref",
+            "description": "Slack message reference, if the DM was sent."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pending (or, after the answer, resolved) decision: action_type, summary, payload."
+          },
+          "already_resolved": {
+            "type": "boolean",
+            "title": "Already Resolved",
+            "description": "True when the approval had been answered before; nothing was executed by this call."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "decision_id",
+          "approver_id",
+          "question",
+          "status",
+          "created_at",
+          "already_resolved"
+        ],
+        "title": "ApprovalResult",
+        "description": "State of the approval after the call."
+      },
+      "ApprovalStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ],
+        "title": "ApprovalStatus"
       },
       "Collection_CostMetricSeries_": {
         "properties": {
@@ -894,6 +1595,50 @@
         ],
         "title": "ErrorResponse"
       },
+      "EventKind": {
+        "type": "string",
+        "enum": [
+          "bank_transaction",
+          "invoice_document",
+          "metric",
+          "reminder",
+          "message"
+        ],
+        "title": "EventKind"
+      },
+      "EventOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "evt_3b1c9f0a2d44"
+            ]
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ts"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EventKind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ts",
+          "kind",
+          "payload"
+        ],
+        "title": "EventOut",
+        "description": "Mirror of `cfo.domain.Event` (simulator event: bank transaction, invoice document, metric, ...)."
+      },
       "ForecastGap": {
         "properties": {
           "start": {
@@ -1255,6 +2000,44 @@
         ],
         "title": "MonthlyCost"
       },
+      "Page_ApprovalOut_": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "True while the data is a stub, not computed from the database.",
+            "default": false
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Number of items matching the filters, across all pages."
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ApprovalOut]"
+      },
       "Page_DecisionOut_": {
         "properties": {
           "stub": {
@@ -1417,6 +2200,108 @@
         "title": "RuleOut",
         "description": "Mirror of `cfo.domain.Rule`."
       },
+      "SimStart": {
+        "properties": {
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed",
+            "description": "New speed (sim seconds per real second); keeps the current one when omitted."
+          }
+        },
+        "type": "object",
+        "title": "SimStart",
+        "description": "Optional body of `POST /v1/sim:start`."
+      },
+      "SimStatusOut": {
+        "properties": {
+          "sim_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Sim Time",
+            "description": "Current simulated time (UTC)."
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "speed": {
+            "type": "number",
+            "title": "Speed",
+            "description": "Simulated seconds per real second."
+          },
+          "emitted": {
+            "type": "integer",
+            "title": "Emitted",
+            "description": "Events written so far."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Events in the replay."
+          },
+          "next_event_ts": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Event Ts",
+            "description": "Null when everything was replayed."
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sim_time",
+          "paused",
+          "speed",
+          "emitted",
+          "total",
+          "next_event_ts",
+          "finished"
+        ],
+        "title": "SimStatusOut",
+        "description": "Mirror of `cfo.sim.SimStatus`: state of the December replay."
+      },
+      "SimStepResult": {
+        "properties": {
+          "event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The event that was emitted, null when the replay is finished."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SimStatusOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event",
+          "status"
+        ],
+        "title": "SimStepResult"
+      },
       "TeamCosts": {
         "properties": {
           "team_id": {
@@ -1568,6 +2453,18 @@
     {
       "name": "rules",
       "description": "CEO overrides of the default policy."
+    },
+    {
+      "name": "approvals",
+      "description": "Requests waiting for the CEO; approve or reject."
+    },
+    {
+      "name": "events",
+      "description": "Live Server-Sent Events stream."
+    },
+    {
+      "name": "simulator",
+      "description": "Control of the December replay."
     },
     {
       "name": "system",

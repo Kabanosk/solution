@@ -1,9 +1,9 @@
 ---
 id: T021
 title: Container image for the backend
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T021-containerfile
 depends_on: ["T001"]
 capabilities: []
 acceptance:

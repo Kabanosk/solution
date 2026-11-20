@@ -35,25 +35,25 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "..............                                                           [100%]\n14 passed in 0.19s",
-      "ran_at": "2026-11-20T13:58:06+01:00",
-      "commit": "d7fe1590ecb44574bf9efa51dd3fe7d5b4c15e69"
+      "output_tail": "..............                                                           [100%]\n14 passed in 0.21s",
+      "ran_at": "2026-11-20T14:18:57+01:00",
+      "commit": "7640a94a126443d61cdb02acd9722f5aea06cb7e"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T13:58:06+01:00",
-      "commit": "d7fe1590ecb44574bf9efa51dd3fe7d5b4c15e69"
+      "ran_at": "2026-11-20T14:18:57+01:00",
+      "commit": "7640a94a126443d61cdb02acd9722f5aea06cb7e"
     },
     "AC-3": {
       "id": "AC-3",
       "passes": true,
       "exit": 0,
       "output_tail": "schema OK (dry run)",
-      "ran_at": "2026-11-20T13:58:07+01:00",
-      "commit": "d7fe1590ecb44574bf9efa51dd3fe7d5b4c15e69"
+      "ran_at": "2026-11-20T14:18:57+01:00",
+      "commit": "7640a94a126443d61cdb02acd9722f5aea06cb7e"
     }
   }
 }

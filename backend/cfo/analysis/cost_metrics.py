@@ -194,9 +194,11 @@ def _explain(kind: CostMetricKind, cost_pct: Decimal | None, metric_pct: Decimal
     if cpu_prev is not None and cpu_now is not None:
         parts.append(f"{spec.unit_cost_noun} from {_money(cpu_prev)} to {_money(cpu_now)}")
     tail = f": {', '.join(parts)}." if parts else "."
-    rose = (f"rose {_p1(cost_pct)}%" if cost_pct is not None
+    # the cost change always comes with its EUR amounts, also without line items or a per-unit cost (T049)
+    rose = (f"rose {_p1(cost_pct)}% month over month (from {_money(cost_prev)} to {_money(cost_now)})"
+            if cost_pct is not None
             else f"is a new cost of {_money(cost_now)} (previous month {_money(cost_prev)})")
-    return f"{spec.cost_noun} {rose} month over month while {spec.metric_noun} {metric_phrase}{tail}"
+    return f"{spec.cost_noun} {rose} while {spec.metric_noun} {metric_phrase}{tail}"
 
 
 def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], cost_growth_pct: Decimal,

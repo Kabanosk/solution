@@ -176,6 +176,10 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=get_llm(),
                      notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names),
                      checkpointer=scout_db.postgres_checkpointer(s.database_url))
+    try:
+        ctx.hr.link_slack(user_map, names)
+    except Exception:  # noqa: BLE001 - the dashboard keeps the HR names; Scout itself works either way
+        log.warning("could not write the Slack names to HR", exc_info=True)
     bank = BankWatcher(cf, connectors, jobs)
     mail = MailWatcher(cf, connectors, jobs, recorder)
 

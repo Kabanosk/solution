@@ -142,3 +142,6 @@ CREATE TABLE IF NOT EXISTS bank_mock_transactions (
     source              TEXT NOT NULL DEFAULT 'csv'
 );
 CREATE INDEX IF NOT EXISTS bank_mock_transactions_booked_idx ON bank_mock_transactions (booked_at);
+
+-- The real Slack person who plays an HR role (written by the worker from SLACK_USER_MAP; the dashboard shows it).
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS slack_name TEXT;

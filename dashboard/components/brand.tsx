@@ -16,7 +16,7 @@ export function ScoutLockup({ tagline = true, className }: { tagline?: boolean; 
     <ScoutMark size={28} />
     <span className="leading-tight">
       <span className="block text-sm font-semibold tracking-tight">Scout</span>
-      {tagline && <span className="block text-[11px] text-muted-foreground">Your autonomous CFO</span>}
+      {tagline && <span className="block text-[11px] text-muted-foreground">Your finance agent</span>}
     </span>
   </span>;
 }

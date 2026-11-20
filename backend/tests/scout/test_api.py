@@ -118,3 +118,39 @@ def test_audit_filters(client, conn_factory):
     a.record("agent", "access_check", "laptop:vincenzo", "folders", "DENY", requester="vanessa")
     assert len(client.get("/v1/audit").json()["items"]) == 2
     assert [i["requester"] for i in client.get("/v1/audit?decision=deny").json()["items"]] == ["vanessa"]
+
+
+def _book_with_invoice(db) -> None:  # noqa: ANN001
+    db.execute("INSERT INTO invoices (id, number, supplier, issue_date, total, transaction_id)"
+               " VALUES ('inv_flv1', 'FLV-1', 'Fattoria La Vino', '2026-10-01', 120.00, 'tx1')")
+    db.execute("INSERT INTO invoice_lines (invoice_id, position, description, quantity, unit_price, amount)"
+               " VALUES ('inv_flv1', 0, 'Chianti 0.75l', 10, 12, 120.00)")
+    db.execute("INSERT INTO transactions (id, booking_date, type, reference, counterparty, amount, invoice_number,"
+               " documented, invoice_id) VALUES ('tx1', '2026-10-02', 'card', 'FLV-1', 'Fattoria La Vino', -120.00,"
+               " 'FLV-1', TRUE, 'inv_flv1'), ('tx2', '2026-10-03', 'card', 'x', 'Metro', -5.00, NULL, FALSE, NULL)")
+    db.commit()
+
+
+def test_transaction_invoice_with_document(client, conn_factory, db):
+    _book_with_invoice(db)
+    rec = TaskRecorder(conn_factory)
+    task = rec.open("k-inv", "invoicing", "Invoice for Fattoria La Vino", transaction_id="tx1")
+    rec.step(task.id, "acted", "Filed invoice FLV-1", source="invoicing_pg",
+             detail={"invoice_id": "inv_flv1", "lines": 1, "text_excerpt": "INVOICE FLV-1 Total 120.00"},
+             evidence={"name": "FLV-1.pdf", "kind": "pdf"})
+    body = client.get("/v1/transactions/tx1/invoice").json()
+    assert body["invoice"]["number"] == "FLV-1" and body["invoice"]["total"] == "120.00"
+    assert body["invoice"]["issue_date"] == "2026-10-01"
+    assert [(line["description"], line["amount"]) for line in body["lines"]] == [("Chianti 0.75l", "120.00")]
+    assert body["transaction"]["amount"] == "-120.00"
+    assert body["document"]["text_excerpt"] == "INVOICE FLV-1 Total 120.00"
+    assert body["document"]["evidence"]["name"] == "FLV-1.pdf"
+    assert body["task_id"] == task.id == body["document"]["task_id"]
+
+
+def test_transaction_invoice_without_document_and_missing(client, db):
+    _book_with_invoice(db)
+    body = client.get("/v1/transactions/tx1/invoice").json()
+    assert body["document"] is None and body["task_id"] is None
+    assert client.get("/v1/transactions/tx2/invoice").json()["error"]["code"] == "no_invoice"
+    assert client.get("/v1/transactions/nope/invoice").status_code == 404

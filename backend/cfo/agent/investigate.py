@@ -39,7 +39,7 @@ def build_investigation_graph(gw: Gateway, llm: LLM, threshold_pct: float = 20.0
                 continue
             spec = PAIRS[a.kind]
             facts: dict[str, Any] = {
-                "what": spec.unit_cost_noun, "month": a.month.isoformat(), "cost_change_pct": float(a.cost_change_pct),
+                "what": spec.unit_cost_noun, "month": a.month.isoformat(), "cost_change_pct": None if a.cost_change_pct is None else float(a.cost_change_pct),
                 "metric": spec.metric_noun, "metric_change_pct": float(a.metric_change_pct),
                 "cost_per_unit_now": None if a.cost_per_unit is None else str(round(a.cost_per_unit, 4)),
                 "cost_per_unit_change_pct": None if a.cost_per_unit_change_pct is None else float(a.cost_per_unit_change_pct),

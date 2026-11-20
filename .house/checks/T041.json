@@ -1,0 +1,26 @@
+{
+  "task": "T041",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_agent_fixes.py backend/tests/test_agent.py backend/tests/test_policy.py backend/tests/test_cost_metrics.py backend/tests/test_liquidity_gaps.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests",
+        "expect": null,
+        "text": null,
+        "timeout": 1500
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:56:58+01:00",
+  "results": {}
+}

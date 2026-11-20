@@ -134,7 +134,7 @@ export function LlmChat({ active }: { active: boolean }) {
           ? <li key={turn.id} id={`scout-chat-message-${turn.id}`}><SummaryDivider turn={turn} /></li>
           : turn.role === "user"
           ? <li key={turn.id} id={`scout-chat-message-${turn.id}`} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap text-primary-foreground [overflow-wrap:anywhere]"><span className="sr-only">You: </span>{turn.content}</div>
+              <UserBubble content={turn.content} />
             </li>
           : <li key={turn.id} id={`scout-chat-message-${turn.id}`} className="flex min-w-0 gap-3">
               <ScoutMark size={26} className="mt-0.5" />
@@ -224,6 +224,17 @@ function FileChip({ file }: { file: ChatFile }) {
     <span className={`flex size-8 shrink-0 items-center justify-center rounded-md border ${file.mime === "application/pdf" ? "border-danger-border text-danger" : "border-success-border bg-success-muted text-success"}`}><Icon className="size-4" aria-hidden="true" /></span>
     <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium" title={file.name}>{file.name}</span><span className="block text-[11px] text-muted-foreground">{file.mime === "text/csv" ? "CSV" : file.mime === "application/pdf" ? "PDF" : file.mime.split("/").pop()} · {size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB`}</span></span>
     <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" onClick={download} aria-label={`Download ${file.name}`} title="Download"><Download className="size-4" aria-hidden="true" /></Button>
+  </div>;
+}
+
+/** Long pasted messages fold to a few lines, so the conversation stays readable. */
+function UserBubble({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  const long = content.length > 600 || content.split("\n").length > 8;
+  return <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 text-primary-foreground">
+    <div className={`whitespace-pre-wrap [overflow-wrap:anywhere] ${long && !open ? "line-clamp-6" : ""}`}><span className="sr-only">You: </span>{content}</div>
+    {long && <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)} className="mt-1 text-xs text-primary-foreground/80 underline underline-offset-2 hover:text-primary-foreground">
+      {open ? "Show less" : `Show all · ${content.length.toLocaleString("en-US")} characters`}</button>}
   </div>;
 }
 

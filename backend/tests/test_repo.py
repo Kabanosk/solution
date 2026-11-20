@@ -69,3 +69,34 @@ def test_transactions_invoices_employees_rules(repo: Repository):
     rule = Rule(text="equipment: ask me", level=PolicyLevel.APPROVAL, category="equipment")
     repo.add_rule(rule)
     assert repo.list_rules() == [rule]
+
+
+def test_job_log_merge_preserves_payload_failures_and_bounds_history(repo: Repository):
+    decision = Decision(action_type="attach_invoice", summary="Attach", level=PolicyLevel.AUTO,
+                        reason="Match", payload={"invoice": "AS-1", "thread_id": "evt:1"})
+    other = Decision(action_type="alert", summary="Other", level=PolicyLevel.AUTO, reason="Other")
+    repo.add_decision(decision)
+    repo.add_decision(other)
+    first = {"id": "entry-1", "ts": "2026-11-20T12:00:00Z", "level": "info", "source": "request", "message": "Recorded"}
+    failure = {**first, "id": "entry-2", "level": "error", "message": "Failed"}
+    success = {**first, "id": "entry-3", "message": "Completed after retry"}
+    repo.merge_decision_job_log([decision.id], [first])
+    repo.merge_decision_job_log([decision.id], [first, failure])
+    repo.merge_decision_job_log([decision.id], [first, success])
+    found = {row.id: row for row in repo.list_decisions()}
+    assert found[decision.id].payload == {**decision.payload, "job_log": [first, failure, success]}
+    assert found[other.id].payload == {}
+    # Repeated checkpoint snapshots do not grow or reorder the persisted log.
+    repo.merge_decision_job_log([decision.id], [first, success])
+    assert {row.id: row for row in repo.list_decisions()}[decision.id].payload["job_log"] == [first, failure, success]
+    more = [{**first, "id": f"entry-{index}"} for index in range(4, 510)]
+    repo.merge_decision_job_log([decision.id], more)
+    bounded = {row.id: row for row in repo.list_decisions()}[decision.id].payload
+    assert len(bounded["job_log"]) == 500
+    assert bounded["job_log"][-1]["id"] == "entry-509"
+    assert bounded["invoice"] == "AS-1"
+    # A malformed legacy log does not break recording.
+    other.payload["job_log"] = "legacy"
+    repo.add_decision(other)
+    repo.merge_decision_job_log([other.id], [first])
+    assert {row.id: row for row in repo.list_decisions()}[other.id].payload["job_log"] == [first]

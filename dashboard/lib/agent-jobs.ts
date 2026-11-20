@@ -2,14 +2,14 @@ import type { Decision } from "./finance-model.ts";
 
 export type JobStatus = "running" | "queued" | "waiting" | "completed" | "failed" | "rejected" | "attention" | "recorded";
 export type JobFilter = "all" | "active" | "needs-attention" | "finished";
-export type JobLogEntry = { ts: string; level: "info" | "warning" | "error"; source: string; message: string };
+export type JobLogEntry = { id?: string; ts: string; level: "info" | "warning" | "error"; source: string; message: string };
 
 export function parseJobLog(value: unknown): JobLogEntry[] {
   if (!Array.isArray(value)) return [];
   return value.slice(-500).filter((entry): entry is JobLogEntry =>
     entry !== null && typeof entry === "object" && typeof entry.ts === "string" && Number.isFinite(Date.parse(entry.ts)) &&
     ["info", "warning", "error"].includes(entry.level) && typeof entry.source === "string" && typeof entry.message === "string"
-  ).map(entry => ({ ts: entry.ts, level: entry.level, source: entry.source.slice(0, 80), message: entry.message.slice(0, 2000) }));
+  ).map(entry => ({ ...(typeof entry.id === "string" ? { id: entry.id.slice(0, 80) } : {}), ts: entry.ts, level: entry.level, source: entry.source.slice(0, 80), message: entry.message.slice(0, 2000) }));
 }
 export type JobApproval = { id: string; status: string; approver: string; question: string; createdAt: string; resolvedAt: string | null };
 export type JobUsage = { calls: number; failedCalls: number; latencyMs: number; tokens: number; estimated: boolean; events: { id: string; kind: string | null }[] };

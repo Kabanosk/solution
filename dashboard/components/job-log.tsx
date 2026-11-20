@@ -34,7 +34,7 @@ export function JobLog({ jobId }: { jobId: string }) {
     <p role="status" className="text-xs text-muted-foreground">{loading ? "Loading job log…" : error ? "Could not load the job log. Try again." : entries?.length ? `${entries.length} entries · UTC · Oldest first` : "No log recorded for this job."}</p>
     {!error && entries && entries.length > 0 && <div id="lantern-job-log-output" role="region" aria-label="Job log entries" aria-busy={loading} tabIndex={0} className="max-h-[28rem] overflow-auto rounded-md border bg-muted/25 focus-visible:outline-2 focus-visible:outline-ring">
       <ol className="divide-y divide-border/40 font-mono text-xs leading-6">
-        {entries.map((entry, index) => <li key={`${entry.ts}-${index}`} className="grid min-w-0 gap-x-4 gap-y-1 px-4 py-2 sm:grid-cols-[11rem_3.5rem_minmax(0,1fr)]">
+        {entries.map((entry, index) => <li key={entry.id ?? `${entry.ts}-${index}`} className="grid min-w-0 gap-x-4 gap-y-1 px-4 py-2 sm:grid-cols-[11rem_3.5rem_minmax(0,1fr)]">
           <time dateTime={entry.ts} className="text-muted-foreground">{entry.ts.replace("T", " ").replace("Z", "")}</time>
           <span className={`uppercase ${entry.level === "error" ? "text-danger" : entry.level === "warning" ? "text-warning" : "text-muted-foreground"}`}>{entry.level}</span>
           <span className="min-w-0 whitespace-pre-wrap break-words"><span className="text-muted-foreground">[{entry.source}] </span>{entry.message}</span>

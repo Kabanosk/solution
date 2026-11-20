@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any
+from uuid import uuid4
 
 from langgraph.errors import GraphBubbleUp
 
@@ -29,7 +30,7 @@ def recorded_node(name: str, fn: Callable, repo_factory: Callable) -> Callable:
         history = [*state.get("job_log", []), *entries][-MAX_ENTRIES:]
         try:
             with repo_factory() as repo:
-                repo.set_decision_job_log(ids, history)
+                repo.merge_decision_job_log(ids, history)
         except Exception:  # logging must not replay or prevent a business action
             log.warning("Could not persist agent job log")
 
@@ -51,6 +52,7 @@ def recorded_node(name: str, fn: Callable, repo_factory: Callable) -> Callable:
 
     def entry(level: str, message: str) -> dict[str, str]:
         return {
+            "id": uuid4().hex,
             "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
             "level": level,
             "source": name,

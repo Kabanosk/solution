@@ -22,9 +22,13 @@ class MemoryRepo:
     def __exit__(self, *args):
         pass
 
-    def set_decision_job_log(self, ids, entries):
+    def merge_decision_job_log(self, ids, entries):
         for decision_id in ids:
-            self.logs[decision_id] = copy.deepcopy(entries)
+            history = self.logs.get(decision_id, []).copy()
+            for entry in entries:
+                if entry not in history:
+                    history.append(copy.deepcopy(entry))
+            self.logs[decision_id] = history[-MAX_ENTRIES:]
 
 
 def test_records_work_before_decision_and_keeps_jobs_separate():
@@ -105,3 +109,20 @@ def test_persisted_history_and_messages_are_bounded():
     )
     assert len(repo.logs["dec-1"]) == MAX_ENTRIES
     assert len(repo.logs["dec-1"][-1]["message"]) == MAX_MESSAGE_CHARS
+
+
+def test_retry_retains_failure_outside_checkpoint_without_duplicating_history():
+    repo = MemoryRepo()
+    state = recorded_node("request", lambda state: {"decision_ids": ["dec-1"], "steps": ["Request recorded"]}, lambda: repo)({})
+
+    def fail(state):
+        raise RuntimeError("temporary failure")
+
+    with pytest.raises(RuntimeError):
+        recorded_node("finish", fail, lambda: repo)(state)
+    recorded_node("finish", lambda state: {"steps": ["Completed after retry"]}, lambda: repo)(state)
+    history = repo.logs["dec-1"]
+    assert [entry["level"] for entry in history] == ["info", "error", "info"]
+    assert history[0]["message"] == "Request recorded"
+    assert history[-1]["message"] == "Completed after retry"
+    assert len({entry["id"] for entry in history}) == 3

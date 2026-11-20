@@ -24,5 +24,14 @@
     }
   },
   "frozen_at": "2026-11-20T14:24:51+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T011-integration/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T011-integration/backend\nUninstalled 1 package in 0.93ms\nInstalled 47 packages in 176ms\n..................                                                       [100%]\n18 passed in 11.20s",
+      "ran_at": "2026-11-20T15:33:37+01:00",
+      "commit": "2912d747ff70aa6786178dbf217ddcb3c054501c"
+    }
+  }
 }

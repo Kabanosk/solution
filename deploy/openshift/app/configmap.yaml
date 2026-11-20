@@ -1,17 +1,18 @@
 # Non-secret settings shared by api, worker and the MCP servers (envFrom).
-# Fill in the two LLM_* values, then:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/worker
+# After changing a value:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/worker
 # (see README.md in this directory). Secrets live in Secret `cfo-secrets`, not here.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cfo-config
 data:
-  # vLLM (Llama 3.2 3B) or the NeMo Guardrails proxy in front of it; must be an OpenAI-compatible /v1 base URL.
-  # PLACEHOLDER: the real service URL is not known yet. Find it in the RHOAI console (the model's
-  # internal endpoint) or `oc get inferenceservice,svc`, and write it to INFRA.md section 6.
-  LLM_BASE_URL: "http://CHANGE-ME-vllm-service.cfo-agent-uwur.svc.cluster.local:8080/v1"
-  # PLACEHOLDER: the served model name (`curl <LLM_BASE_URL>/models`).
-  LLM_MODEL: "CHANGE-ME-served-model-name"
+  # Model (D-017): Granite 4.0 H Tiny on vLLM, LLMInferenceService in namespace my-first-model (one L4 GPU).
+  # Swap model = change these two values. For the NeMo Guardrails proxy, point LLM_BASE_URL at the proxy.
+  LLM_BASE_URL: "https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc:8000/v1"
+  LLM_MODEL: "modelcar-granite-4-0-h-tiny"
+  # The endpoint's cert is signed by the OpenShift service CA, injected into ConfigMap llm-service-ca
+  # and mounted at /etc/llm-ca (api, worker). Values: true | false | path to a CA bundle.
+  LLM_VERIFY_TLS: "/etc/llm-ca/service-ca.crt"
   # MCP servers (streamable HTTP, endpoint /mcp). Read by the worker (T011).
   MCP_COMPANY_DB_URL: "http://mcp-company-db:8001/mcp"
   MCP_WORKSTATIONS_URL: "http://mcp-workstations:8002/mcp"

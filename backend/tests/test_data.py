@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import hashlib
 import json
 import shutil
@@ -202,7 +203,7 @@ def repo():
         psycopg.connect(url, connect_timeout=2).close()
     except psycopg.OperationalError:
         pytest.skip("Postgres not reachable")
-    schema = "t002_test"
+    schema = f"t002_test_{os.getpid()}"
     r = Repository.connect(url)
     r.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     r.conn.execute(f"CREATE SCHEMA {schema}")

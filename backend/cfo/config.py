@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:8000/v1"
     llm_model: str = "llama-3.2-3b"
     llm_api_key: str = "EMPTY"  # vLLM accepts any non-empty key
+    # TLS check for LLM_BASE_URL: "true" (system CAs), "false" (off), or a path to a CA bundle
+    # (on OpenShift: the injected service CA, e.g. /etc/llm-ca/service-ca.crt).
+    llm_verify_tls: str = "true"
     slack_bot_token: str = ""  # xoxb-...
     slack_app_token: str = ""  # xapp-... (Socket Mode)
     slack_user_map: str = ""  # employee_id=SLACK_USER_ID pairs, comma separated; overrides HR data
@@ -30,6 +33,9 @@ class Settings(BaseSettings):
     workstations_root: Path = Field(default=Path("data/generated/workstations"))
     # Simulator speed multiplier: 1.0 = simulated time runs at real time, 3600 = one hour per second.
     sim_speed: float = 1.0
+    # Forecast model in the MLflow registry, e.g. models:/liquidity-forecast@champion. Used by the API only when
+    # MLFLOW_TRACKING_URI is set too; empty = the local model file (FORECAST_MODEL_PATH).
+    forecast_model_uri: str = ""
 
 
 @lru_cache

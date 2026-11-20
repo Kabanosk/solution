@@ -6,6 +6,7 @@ touched), with a fake agent and a fake poll wait: no real-time sleeping. Skips w
 
 from __future__ import annotations
 
+import os
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -37,7 +38,7 @@ from cfo.domain import (
 )
 from cfo.sim.engine import Simulator
 
-SCHEMA = "t020_test"
+SCHEMA = f"t020_test_{os.getpid()}"
 T0 = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
 
 

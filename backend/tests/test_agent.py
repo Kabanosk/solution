@@ -6,6 +6,7 @@ unreachable). Workstations are a tmp dir with an in-memory access log.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from datetime import date, datetime, timezone
@@ -31,7 +32,7 @@ from cfo.mcp_servers.company_db import CompanyDbTools
 from cfo.mcp_servers.hr import HrTools
 from cfo.mcp_servers.workstations import WorkstationTools
 
-SCHEMA = "t005_test"
+SCHEMA = f"t005_test_{os.getpid()}"
 TS = datetime(2025, 12, 10, 9, 0, tzinfo=timezone.utc)
 
 

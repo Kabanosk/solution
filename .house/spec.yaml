@@ -1,0 +1,89 @@
+# Specyfikacja konkursu — centralny dokument. Wypełniasz Ty; luki uzupełnia coordinator
+# z regulaminu/treści zadania i oznacza je `proposed: true` do Twojego zatwierdzenia.
+# Agenci czytają ten plik na starcie każdej sesji.
+
+contest:            # człowiek
+  name: null
+  url: null
+  organizer: null
+  language: null    # język konkursu (pitch/README w tym języku)
+
+kind: null          # build | optimize — człowiek
+
+goal: null          # co budujemy / co optymalizujemy — człowiek, coordinator doprecyzowuje
+
+scoring:            # build: rubryka; optimize: metryka + sprawdzarka — z regulaminu
+  rubric: null      # build: lista kryteriów {name, what, levels 1-5, weight}
+  metric: null      # optimize: nazwa metryki i kierunek (max/min)
+  direction: null   # optimize: max | min (house exp; bez tego bierze max/min ze słów w metric)
+  local_scorer: null   # optimize: komenda lokalnej sprawdzarki; drukuje `score: <liczba>`
+  scorer_files: []     # optimize: dodatkowe pliki sprawdzarki (globy), gdy nie wynikają z komendy (np. [eval/*.sh])
+  leaderboard: null    # optimize: czy jest, gdzie, jak często się odświeża
+
+timeline:           # z regulaminu
+  start: null
+  end: null
+  milestones: []    # np. {at: "19:00", what: "golden path end-to-end"}, feature freeze
+
+rules:              # sprawdza researcher PRZED startem
+  url: null
+  allowed_ai: null
+  allowed_autonomous_agents: null
+  notes: null
+
+deliverables:       # co trzeba oddać — researcher sprawdza w regulaminie; nie zakładaj niczego (null = nieznane)
+  video_required: null
+  video_max_seconds: null
+  live_demo: null
+  slides: null
+  repo_submission: null
+  starter_code_allowed: null    # czy wolno użyć kodu przygotowanego przed eventem
+  ai_apis_allowed: null
+  external_data_allowed: null
+  cloud_deploy_allowed: null
+  format: null                  # optimize: .py / .onnx / zip / plik wyników …
+
+mode: copilot       # copilot (pytaj o trudne decyzje) | autopilot (decyduj sam, pytaj tylko w końcówce)
+
+limits:
+  max_parallel_agents: 3
+  ideas_per_round: 5
+  codex_reviews_per_day: 4  # house review: Codex reviews per day (Codex limits are smaller); then Claude
+  stagnation_n: 3   # iteracje bez poprawy → wymuszona zmiana kierunku
+
+submissions:
+  auto_submit: true     # wysyłaj sam, gdy jest podstawa sądzić, że poprawi wynik
+  slots_total: null     # limit zgłoszeń (np. na dzień), z regulaminu
+  explore_share: 0.25   # część slotów na nowe/nieprzetestowane podejścia
+  endgame_share: 0.20   # ostatnie 20% czasu: pytaj przed każdym zgłoszeniem
+
+deploy: true        # czy wolno samemu wystawić publiczne demo
+
+languages:
+  team: pl          # PROGRESS, QUESTIONS, DECISIONS, briefing
+  public: null      # pitch, README, raporty — domyślnie język konkursu, inaczej en
+
+tools: see tools.json   # wykrywa `house doctor`; nie edytuj ręcznie
+
+team:               # człowiek — system zajmuje się tylko tematami właściciela
+  owner: Wojtek
+  members: []       # {name, role, uses: claude|codex|cursor|grok-bot}
+
+notify:             # powiadomienia Signal (house notify / ask / inbox); konfiguracja konta: ~/.config/house/notify.env
+  alias: null       # krótki skrót konkursu w wiadomościach, np. fr; unikalny wśród trwających konkursów
+  signal_group: null  # nazwa grupy Signal drużyny; null = tylko Twoja „Notatka do siebie”
+
+guard:              # ochrona (hooki + house guard diff)
+  push_allow: [origin]  # remote'y, na które wolno pushować
+
+night:              # house night (tryb nocny)
+  task_minutes: 45  # limit jednej sesji workera
+  model: sonnet     # model workera Claude w nocy
+
+exp:                # house exp (pętla eksperymentów, optimize)
+  budget: 5m        # limit czasu komendy eksperymentu (90s, 5m, 1h)
+  scorer_minutes: 10  # limit lokalnej sprawdzarki
+  shared: []        # ścieżki spoza gita (dane), linkowane do każdego worktree eksperymentu, np. [data]
+
+review:             # house review (recenzja krzyżowa Codex ↔ Claude)
+  minutes: 20       # limit jednej recenzji

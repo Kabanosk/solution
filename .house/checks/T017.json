@@ -14,5 +14,14 @@
     "protected": {}
   },
   "frozen_at": "2026-11-20T14:24:49+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "",
+      "ran_at": "2026-11-20T15:31:43+01:00",
+      "commit": "4a55590b05487229f4e748767c92cec7104cb566"
+    }
+  }
 }

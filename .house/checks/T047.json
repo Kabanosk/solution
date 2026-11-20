@@ -35,25 +35,25 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "..........................................                               [100%]\n42 passed in 10.72s",
-      "ran_at": "2026-11-20T17:56:24+01:00",
-      "commit": "583a4243d7cd7ef887af562f309e8f1f1136c477"
+      "output_tail": "..........................................                               [100%]\n42 passed in 11.13s",
+      "ran_at": "2026-11-20T18:52:06+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
-      "output_tail": "tests/test_agent_eval.py::test_run_exists_with_tags_and_aggregate_metrics\ntests/test_agent_eval.py::test_a_deliberately_wrong_expectation_scores_zero\ntests/test_agent_eval.py::test_a_crashing_scenario_fails_its_scores_and_the_run_still_finishes\ntests/test_agent_eval.py::test_optional_llm_judge_is_one_more_score\ntests/test_agent_eval.py::test_cli_runs_and_prints_the_summary\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/.venv/lib/python3.12/site-packages/mlflow/tracking/client.py:3509: Pandas4Warning: For backward compatibility, 'str' dtypes are included by select_dtypes when 'object' dtype is specified. This behavior is deprecated and will be removed in a future version. Explicitly pass 'str' to `include` to select them, or to `exclude` to remove them and silence this warning.\n  See https://pandas.pydata.org/docs/dev/user_guide/migration.html#string-migration-select-dtypes for details on how to write code that works with pandas 2 and 3.\n    if len(data.select_dtypes(include=[\"object\"]).columns) > 0:\n\ntests/test_tracing.py::test_init_is_idempotent_and_spans_nest\ntests/test_tracing.py::test_interrupt_is_not_an_error_span_but_real_errors_are\ntests/test_tracing.py::test_golden_path_event_is_one_trace_with_node_and_llm_spans\ntests/test_tracing.py::test_approval_and_resume_are_traced_with_level_and_simulation\ntests/test_tracing.py::test_sub_agent_investigation_spans_are_children_of_the_investigate_node\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/tests/test_tracing.py:98: FutureWarning: Parameter 'experiment_ids' is deprecated. Please use 'locations' instead.\n    return mlflow.search_traces(experiment_ids=[exp.experiment_id], return_type=\"list\")\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n607 passed, 11 warnings in 111.04s (0:01:51)\n2026/11/20 17:58:16 INFO mlflow.tracing.export.async_export_queue: Flushing the async trace logging queue before program exit. This may take a while...",
-      "ran_at": "2026-11-20T17:58:21+01:00",
-      "commit": "583a4243d7cd7ef887af562f309e8f1f1136c477"
+      "output_tail": "tests/test_agent_eval.py::test_run_exists_with_tags_and_aggregate_metrics\ntests/test_agent_eval.py::test_a_deliberately_wrong_expectation_scores_zero\ntests/test_agent_eval.py::test_a_crashing_scenario_fails_its_scores_and_the_run_still_finishes\ntests/test_agent_eval.py::test_optional_llm_judge_is_one_more_score\ntests/test_agent_eval.py::test_cli_runs_and_prints_the_summary\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/.venv/lib/python3.12/site-packages/mlflow/tracking/client.py:3509: Pandas4Warning: For backward compatibility, 'str' dtypes are included by select_dtypes when 'object' dtype is specified. This behavior is deprecated and will be removed in a future version. Explicitly pass 'str' to `include` to select them, or to `exclude` to remove them and silence this warning.\n  See https://pandas.pydata.org/docs/dev/user_guide/migration.html#string-migration-select-dtypes for details on how to write code that works with pandas 2 and 3.\n    if len(data.select_dtypes(include=[\"object\"]).columns) > 0:\n\ntests/test_tracing.py::test_init_is_idempotent_and_spans_nest\ntests/test_tracing.py::test_interrupt_is_not_an_error_span_but_real_errors_are\ntests/test_tracing.py::test_golden_path_event_is_one_trace_with_node_and_llm_spans\ntests/test_tracing.py::test_approval_and_resume_are_traced_with_level_and_simulation\ntests/test_tracing.py::test_sub_agent_investigation_spans_are_children_of_the_investigate_node\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/tests/test_tracing.py:98: FutureWarning: Parameter 'experiment_ids' is deprecated. Please use 'locations' instead.\n    return mlflow.search_traces(experiment_ids=[exp.experiment_id], return_type=\"list\")\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n617 passed, 11 warnings in 111.56s (0:01:51)\n2026/11/20 18:53:59 INFO mlflow.tracing.export.async_export_queue: Flushing the async trace logging queue before program exit. This may take a while...",
+      "ran_at": "2026-11-20T18:54:02+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
     },
     "AC-3": {
       "id": "AC-3",
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T17:58:21+01:00",
-      "commit": "583a4243d7cd7ef887af562f309e8f1f1136c477"
+      "ran_at": "2026-11-20T18:54:02+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
     }
   }
 }

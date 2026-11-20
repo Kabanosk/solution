@@ -27,17 +27,17 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "...........                                                              [100%]\n=============================== warnings summary ===============================\ntests/test_forecast_registry.py::test_logging_returns_the_run_id_and_stores_the_sidecar\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/.venv/lib/python3.12/site-packages/mlflow/store/tracking/sqlalchemy_store.py:356: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)\n    sqlalchemy.orm.configure_mappers()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n11 passed, 1 warning in 14.65s",
-      "ran_at": "2026-11-20T17:50:25+01:00",
-      "commit": "583a4243d7cd7ef887af562f309e8f1f1136c477"
+      "output_tail": "...........                                                              [100%]\n=============================== warnings summary ===============================\ntests/test_forecast_registry.py::test_logging_returns_the_run_id_and_stores_the_sidecar\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/.venv/lib/python3.12/site-packages/mlflow/store/tracking/sqlalchemy_store.py:356: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)\n    sqlalchemy.orm.configure_mappers()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n11 passed, 1 warning in 14.64s",
+      "ran_at": "2026-11-20T18:45:33+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
-      "output_tail": ".........................................                                [100%]\n41 passed in 4.03s",
-      "ran_at": "2026-11-20T17:50:30+01:00",
-      "commit": "583a4243d7cd7ef887af562f309e8f1f1136c477"
+      "output_tail": ".........................................                                [100%]\n41 passed in 4.31s",
+      "ran_at": "2026-11-20T18:45:38+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
     }
   },
   "reverted": {

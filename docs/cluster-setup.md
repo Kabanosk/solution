@@ -39,10 +39,43 @@ oc get secret postgres -o jsonpath='{.data.POSTGRESQL_PASSWORD}' | base64 -d
 ```
 Never commit secrets or the sample data to this repo (it is public).
 
-## 6. Re-applying the base
+## 6. Upload the bank CSV (before the seed job)
+The `sample-data` PVC starts empty. The seed job (`cfo-seed`, part of `oc apply -k deploy/`) downloads
+`pizzeria-amalfi-bank-statement-2025-v6.csv` from the `files` service; without the file the download answers
+404, the job fails and Postgres stays empty. Upload it once, from the machine that has the organizer CSV
+(never commit it):
+
+On a fresh namespace the file server and its PVC do not exist yet: apply only them first (this does not
+create the seed job), then stream the file into the volume:
+
+```sh
+oc apply -f deploy/files.yaml
+oc rollout status deploy/files
+oc exec -i deploy/files -- sh -c 'cat > /data/pizzeria-amalfi-bank-statement-2025-v6.csv' < ./pizzeria-amalfi-bank-statement-2025-v6.csv
+```
+Check that the file is on the volume and that the file server serves it (the second command must print `200`):
+```sh
+oc exec deploy/files -- ls -l /data
+oc exec deploy/files -- python -c "import urllib.request as u; print(u.urlopen('http://localhost:8080/pizzeria-amalfi-bank-statement-2025-v6.csv').status)"
+```
+
+## 7. Seed the database
+```sh
+oc apply -k deploy/
+oc start-build cfo-backend --follow      # first image; the seed job waits for it (ImagePullBackOff, then runs)
+oc wait --for=condition=complete job/cfo-seed --timeout=3600s
+oc logs job/cfo-seed
+```
+The job's `activeDeadlineSeconds` (3600) counts from job creation, so it covers the wait for the first image
+build. If the CSV was missing and the job already failed, upload it (step 6) and re-run:
+`oc delete job cfo-seed && oc apply -k deploy/` (a Job spec is immutable). Do not re-seed during a live demo
+(`load --reset` also resets the simulator).
+
+## 8. Re-applying the base
 ```sh
 oc apply -k deploy/
 oc rollout status deploy/postgres
 oc rollout status deploy/files
 ```
-The app (API, agent, MCP servers) will be added to `deploy/` later; its guide will be `docs/deploy.md`.
+The app (API, worker, MCP servers, MLflow) is part of the same kustomization; see
+`deploy/openshift/app/README.md`.

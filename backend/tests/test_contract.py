@@ -117,3 +117,12 @@ def test_fake_llm_tool_call():
 
     with pytest.raises(AssertionError):
         llm.chat(messages)
+
+
+def test_tls_verify_setting_maps_strings():
+    from cfo.llm import tls_verify_setting
+
+    assert tls_verify_setting("true") is True
+    assert tls_verify_setting("FALSE") is False
+    assert tls_verify_setting("/etc/llm-ca/service-ca.crt") == "/etc/llm-ca/service-ca.crt"
+    assert tls_verify_setting(False) is False

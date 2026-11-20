@@ -1,9 +1,9 @@
 ---
 id: T004
 title: MCP servers: company DB, workstations, HR
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T004-mcp-tools
 depends_on: ["T001"]
 capabilities: []
 acceptance:

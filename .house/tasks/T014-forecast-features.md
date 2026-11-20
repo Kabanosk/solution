@@ -1,7 +1,7 @@
 ---
 id: T014
 title: Forecast features: daily cash flow and monthly cost per team series
-status: review
+status: done
 owner: coder
 branch: task/T014-forecast-features
 depends_on: ["T002"]

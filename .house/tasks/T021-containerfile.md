@@ -1,7 +1,7 @@
 ---
 id: T021
 title: Container image for the backend
-status: review
+status: done
 owner: coder
 branch: task/T021-containerfile
 depends_on: ["T001"]

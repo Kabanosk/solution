@@ -1,7 +1,7 @@
 ---
 id: T019
 title: API read endpoints wired to the database
-status: doing
+status: review
 owner: coder
 branch: task/T019-api-read
 depends_on: ["T018", "T002"]

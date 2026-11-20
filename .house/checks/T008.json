@@ -27,17 +27,17 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\nUninstalled 1 package in 0.35ms\nInstalled 3 packages in 4ms\n..........................                                               [100%]\n26 passed in 0.34s",
-      "ran_at": "2026-11-20T14:23:26+01:00",
-      "commit": "a47e0ba96be918828318991d0733e6a394133389"
+      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T008-slack-channel/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T008-slack-channel/backend\nUninstalled 1 package in 1ms\nInstalled 1 package in 1ms\n..........................                                               [100%]\n26 passed in 0.14s",
+      "ran_at": "2026-11-20T14:56:25+01:00",
+      "commit": "4ef870cbff8064fcfc3f44fea13dc1fbccc04c3e"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T14:23:26+01:00",
-      "commit": "a47e0ba96be918828318991d0733e6a394133389"
+      "ran_at": "2026-11-20T14:56:25+01:00",
+      "commit": "4ef870cbff8064fcfc3f44fea13dc1fbccc04c3e"
     }
   },
   "reverted": {

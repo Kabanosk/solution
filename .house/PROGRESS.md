@@ -44,3 +44,5 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-20 T047: poprawki po review Codexa (uziemienie odpowiedzi, narzędzie spend_summary, strony wyników, parowanie wywołań narzędzi, awaria bazy) - check GREEN, status review.
 - 2026-11-20 17:26 T048 cofnięte po scaleniu: regresja w T011: AC-1 (exit 1)
 - 2026-11-20 18:10 T049: alert kosztowy zawsze podaje zmianę kosztu (procent, EUR przed → teraz), zmianę metryki i koszt jednostkowy w EUR; zdanie z LLM bez tych danych zastępuje szablon - check GREEN (AC-3 ręcznie u koordynatora), status review · reports/T049.md
+- T048 zamknięty: `cfo smoke` na klastrze 11/11 PASS (Granite z tool callingiem, 3 serwery MCP, Postgres, MLflow).
+- T025 zamknięty: docs/deploy.md (deploy krok po kroku dla ludzi z k8s) + INFRA.md zgodne z klastrem, argumenty Granite zapisane.

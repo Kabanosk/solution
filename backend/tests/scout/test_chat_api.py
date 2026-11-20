@@ -78,3 +78,60 @@ def test_chat_streams_a_sent_file(conn_factory, tmp_path, monkeypatch):
     assert f["name"] == "Invoice_AS-77012.pdf" and f["mime"] == "application/pdf" and f["sent_to_slack"] is True
     assert f["data_b64"]
     get_api_settings.cache_clear()
+
+
+def test_long_conversation_is_compacted(conn_factory, tmp_path, monkeypatch):
+    seen = []
+
+    def handler(messages, tools):  # noqa: ANN001
+        if tools is None and "Summarize" in messages[0].content:
+            return "Vincenzo asked about missing invoices; Fattoria La Vino €869.62 has none."
+        seen.append(sum(len(m.content or "") for m in messages))
+        return "Still €869.62 to Fattoria La Vino."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    long = "Which payments miss invoices? " + "details " * 1500  # ~12k chars each
+    turns = []
+    for i in range(12):
+        turns += [{"role": "user", "content": f"{i}: {long}"}, {"role": "assistant", "content": "answer " * 1000}]
+    turns.append({"role": "user", "content": "And now?"})
+    r = TestClient(app).post("/v1/chat", json={"messages": turns}, headers={"Authorization": "Bearer tok"})
+    events = [json.loads(line) for line in r.text.splitlines()]
+    assert [e["type"] for e in events] == ["compacted", "delta", "done"]
+    c = events[0]
+    assert c["summary"].startswith("Vincenzo asked") and 0 < c["replaced"] < len(turns) - 1
+    assert c["replaced"] % 2 == 0  # whole user/assistant pairs
+    assert seen and seen[-1] < 26_000 * 3  # what the model saw fits the budget
+    get_api_settings.cache_clear()
+
+
+def test_short_conversation_is_not_compacted(conn_factory, tmp_path, monkeypatch):
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=lambda m, t: "Hi."))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    r = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": "hi"}]},
+                             headers={"Authorization": "Bearer tok"})
+    assert [json.loads(x)["type"] for x in r.text.splitlines()] == ["delta", "done"]
+    get_api_settings.cache_clear()
+
+
+def test_tool_results_shrink_when_one_answer_runs_long():
+    from cfo.llm import Message
+    from scout.loops.chat import _shrink_tool_results, _size
+
+    msgs = [Message(role="system", content="s"), *[Message(role="tool", tool_call_id=str(i), content="x" * 9000)
+                                                   for i in range(12)], Message(role="user", content="q")]
+    _shrink_tool_results(msgs, 26_000)
+    assert _size(msgs) <= 26_000 and msgs[-2].content == "x" * 9000  # the newest result stays whole

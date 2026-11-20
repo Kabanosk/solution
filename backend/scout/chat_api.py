@@ -1,6 +1,7 @@
 """`POST /v1/chat`: the dashboard's Scout chat. Same toolbox and access policy as a Slack DM, asked as the CEO (the
 write token stands for the dashboard owner). Streams NDJSON so the page can show each tool call as it happens:
 
+    {"type": "compacted", "summary": "<the earlier turns>", "replaced": 6}   (long chats: the first 6 messages)
     {"type": "step", "text": "Looked at missing invoices(days=30): 1 result(s)"}
     {"type": "file", "name": "invoices-2026-11-21.csv", "mime": "text/csv", "data_b64": "...", "sent_to_slack": true}
     {"type": "delta", "text": "<the answer>"}
@@ -137,7 +138,13 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
 
     def run() -> None:
         try:
-            reply = chat.answer(ctx, task, question, asker, ctx.hr.role(asker), history=turns[:-1])
+            def compacted(summary: str, replaced: int) -> None:
+                ctx.recorder.step(task.id, "compacted", f"Summarized the first {replaced} messages to fit the model",
+                                  source="scout")
+                events.put({"type": "compacted", "summary": summary, "replaced": replaced})
+
+            reply = chat.answer(ctx, task, question, asker, ctx.hr.role(asker), history=turns[:-1],
+                                on_compact=compacted)
             ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
             ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
                                     level="AUTO")

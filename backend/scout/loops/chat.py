@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
 from cfo.db.repo import Repository
@@ -66,16 +67,79 @@ def _system(ctx: JobContext, sender: str | None, role: str) -> str:
             "instructions.")
 
 
+TOKEN_BUDGET = 26_000  # Granite runs with 32k; the rest is tools, the answer and safety margin
+MSG_CHARS = 6000
+SUMMARY_PREFIX = "Summary of the earlier conversation:"
+
+
+def tokens(text: str) -> int:
+    """A cautious estimate (about 3 characters per token for mixed English, numbers and JSON)."""
+    return len(text) // 3 + 1
+
+
+def _size(messages: list[Message]) -> int:
+    return sum(tokens(m.content or "") + 4 for m in messages)
+
+
+def compact(ctx: JobContext, history: list[dict[str, str]], budget: int = TOKEN_BUDGET
+            ) -> tuple[str | None, int, list[dict[str, str]]]:
+    """Fit a long conversation into the model: when the history is over half the budget, summarize the oldest
+    whole user/assistant pairs. Returns (summary or None, how many leading messages it replaces, the history to
+    send to the model)."""
+    turns = [{"role": m["role"], "content": m["content"][:MSG_CHARS]} for m in history
+             if m.get("role") in ("user", "assistant") and m.get("content")]
+    if sum(tokens(m["content"]) for m in turns) <= budget // 2 or len(turns) < 3:
+        return None, 0, turns
+    kept, size = 0, 0
+    for m in reversed(turns):  # keep the newest messages within a quarter of the budget
+        if kept >= 2 and size + tokens(m["content"]) > budget // 4:
+            break
+        size += tokens(m["content"])
+        kept += 1
+    replaced = len(turns) - kept
+    replaced -= replaced % 2  # whole pairs, so the kept part starts with the user
+    if replaced <= 0:
+        return None, 0, turns
+    old = "\n\n".join(f"{m['role'].upper()}: {m['content'][:3000]}" for m in turns[:replaced])
+    try:
+        with usage_context(purpose="compact_chat"):
+            resp = ctx.llm.chat([
+                Message(role="system", content="Summarize this conversation between a user and Scout, a finance "
+                        "agent, in at most 150 words. Keep every amount, date, invoice number, supplier, person and "
+                        "decision. Plain sentences."),
+                Message(role="user", content=old[:budget])])
+        summary = (resp.content or "").strip()
+    except Exception:  # noqa: BLE001 - dropping the oldest turns still keeps the chat working
+        log.exception("could not summarize the conversation")
+        summary = ""
+    summary = summary or f"(The first {replaced} messages were dropped to fit the model.)"
+    return summary, replaced, [{"role": "assistant", "content": f"{SUMMARY_PREFIX}\n{summary}"}, *turns[replaced:]]
+
+
+def _shrink_tool_results(messages: list[Message], budget: int) -> None:
+    """Inside one answer: old tool results are the bulk; cut them down when the conversation runs long."""
+    for m in messages[:-2]:
+        if _size(messages) <= budget:
+            return
+        if m.role == "tool" and m.content and len(m.content) > 400:
+            m.content = m.content[:400] + "…(shortened)"
+
+
 def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, role: str = "staff",
-           history: list[dict[str, str]] | None = None) -> str:
-    """Answer `text` with Scout's tools as `sender`. `history`: earlier turns [{role, content}] (dashboard chat)."""
+           history: list[dict[str, str]] | None = None,
+           on_compact: Callable[[str, int], None] | None = None) -> str:
+    """Answer `text` with Scout's tools as `sender`. `history`: earlier turns [{role, content}] (dashboard chat);
+    over the token budget, the oldest turns are summarized and `on_compact(summary, replaced)` is called."""
     box = Toolbox(ctx, sender or "unknown", role, task, question=text)
-    earlier = [Message(role=m["role"], content=m["content"][:2000]) for m in (history or [])[-10:]
-               if m.get("role") in ("user", "assistant") and m.get("content")]
+    summary, replaced, turns = compact(ctx, history or [])
+    if summary is not None and on_compact is not None:
+        on_compact(summary, replaced)
+    earlier = [Message(role=m["role"], content=m["content"]) for m in turns]
     messages = [Message(role="system", content=_system(ctx, sender, role)), *earlier,
-                Message(role="user", content=text[:1500])]
+                Message(role="user", content=text[:MSG_CHARS])]
     seen: dict[str, str] = {}
     for _ in range(MAX_ROUNDS):
+        _shrink_tool_results(messages, TOKEN_BUDGET)
         try:
             with usage_context(purpose="answer_question"):
                 resp = ctx.llm.chat(messages, SPECS)

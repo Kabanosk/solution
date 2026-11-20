@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+import os
 import psycopg
 import pytest
 
@@ -19,7 +20,7 @@ def repo():
     except psycopg.OperationalError:
         pytest.skip("Postgres not reachable")
     conn.close()
-    schema = "t001_test"
+    schema = f"t001_test_{os.getpid()}"
     r = Repository.connect(url)
     r.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     r.conn.execute(f"CREATE SCHEMA {schema}")

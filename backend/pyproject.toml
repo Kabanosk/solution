@@ -13,7 +13,12 @@ dependencies = [
     "langgraph>=1.2.24",
     "langgraph-checkpoint-postgres>=3.2.1",
     "pypdf>=7.1.1",
+    "xgboost>=3.4.1",
+    "scikit-learn>=1.9.1",
 ]
+
+[project.optional-dependencies]
+mlflow = ["mlflow>=2.14"]
 
 [dependency-groups]
 dev = ["pytest>=8"]

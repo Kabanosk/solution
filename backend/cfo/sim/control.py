@@ -25,7 +25,7 @@ def make_simulator(data_dir: Path | None = None, database_url: str | None = None
     return Simulator(repo, load_events(data_dir or DEFAULT_DATA_DIR), speed=get_settings().sim_speed)
 
 
-def _with_sim(data_dir: Path | None, fn):  # noqa: ANN001, ANN202
+def _with_sim(data_dir: Path | None, fn):
     sim = make_simulator(data_dir)
     try:
         return fn(sim)

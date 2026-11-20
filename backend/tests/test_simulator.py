@@ -42,7 +42,7 @@ def txn_event(n: int, ts: datetime) -> Event:
 
 
 def make_events() -> list[Event]:
-    d = lambda day, hour: datetime(2025, 12, day, hour, tzinfo=UTC)  # noqa: E731
+    d = lambda day, hour: datetime(2025, 12, day, hour, tzinfo=UTC)
     # deliberately unsorted: the simulator sorts by timestamp
     return [txn_event(3, d(2, 12)), txn_event(1, d(1, 8)), txn_event(2, d(1, 9)), txn_event(4, d(5, 8))]
 

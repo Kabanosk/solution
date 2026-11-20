@@ -1,9 +1,9 @@
 ---
 id: T022
 title: OpenShift: Postgres and seed Job
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T022-deploy-db
 depends_on: ["T021"]
 capabilities: []
 acceptance:
@@ -13,7 +13,7 @@ acceptance:
 protected: []
 ---
 ## Objective
-Postgres (StatefulSet + PVC + Service + Secret template) and a seed Job running migrate + generator + loader. The bank CSV is already on the cluster (uploaded by Grzesiu; ask the coordinator for the ConfigMap/PVC name, Q-002). Part of former T012.
+Postgres itself is already deployed by Grzesiu (PR #2: `deploy/postgres.yaml`, Secret `postgres`, service `postgres:5432`, db `cfo`, namespace `cfo-agent-uwur`; read `docs/cluster-setup.md` and `INFRA.md`). This task is only the seed: a Job in `deploy/openshift/db/` using our backend image that downloads the bank CSV from the in-cluster file server `http://files:8080/` (PVC `sample-data`), then runs `cfo migrate`, `cfo generate`, `cfo load --reset`, with DB credentials from Secret `postgres`. Reference it from `deploy/kustomization.yaml` without breaking Grzesiu's resources. Part of former T012.
 
 ## Context
 Decisions in `$HOUSE_DIR/DECISIONS.md`, golden path `$HOUSE_DIR/demo-flow.md`, merged code under `backend/cfo/`, reports of dependencies in `$HOUSE_DIR/reports/`.

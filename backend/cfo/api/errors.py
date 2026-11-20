@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import psycopg
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -94,6 +95,11 @@ def install_error_handlers(app: FastAPI) -> None:
         code = _HTTP_CODES.get(exc.status_code, f"http_{exc.status_code}")
         message = {404: "No such endpoint."}.get(exc.status_code, str(exc.detail))
         return _envelope(exc.status_code, code, message)
+
+    @app.exception_handler(psycopg.OperationalError)
+    async def _database(_: Request, exc: Exception) -> JSONResponse:
+        log.error("database unavailable: %s", exc)
+        return _envelope(503, "database_unavailable", "The database is not reachable.")
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:

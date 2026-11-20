@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Autonomous CFO API",
-    "description": "\nREST API of the Autonomous CFO for Pizzeria Amalfi (dashboard backend).\n\n* Versioned under `/v1`. Money is `{\"amount\": \"1234.50\", \"currency\": \"EUR\"}`, dates are ISO 8601, timestamps UTC.\n* Errors always look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`.\n* Responses with `\"stub\": true` (and header `X-Stub: true`) carry sample data in the final shape.\n\nExamples for every endpoint: `docs/api.md`.\n",
+    "description": "\nREST API of the Autonomous CFO for Pizzeria Amalfi (dashboard backend).\n\n* Versioned under `/v1`. Money is `{\"amount\": \"1234.50\", \"currency\": \"EUR\"}`, dates are ISO 8601, timestamps UTC.\n* Errors always look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`.\n* All read endpoints return data from the database (`\"stub\": false`); `\"stub\": true` (header `X-Stub: true`) would mark sample data.\n\nExamples for every endpoint: `docs/api.md`.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -33,8 +33,8 @@
         "tags": [
           "forecast"
         ],
-        "summary": "Predicted bank balance with prediction interval and negative-balance gaps",
-        "description": "`gaps` and `lowest_point` always describe the whole horizon, whatever the granularity.",
+        "summary": "Predicted bank balance with prediction interval and safety-buffer gaps",
+        "description": "XGBoost forecast of the daily net cash flow (T015), walked forward from the current balance. `gaps` lists\nstretches below `safety_buffer` (D-013, draw it as a line); `gaps` and `lowest_point` always describe the\nwhole horizon, whatever the granularity. The interval is an approximation (holdout error of the model,\ngrowing with the square root of the days ahead).",
         "operationId": "get_liquidity_forecast_v1_forecast_liquidity_get",
         "parameters": [
           {
@@ -45,11 +45,11 @@
               "type": "integer",
               "maximum": 365,
               "minimum": 7,
-              "description": "Days ahead. 90 for the dashboard chart, 365 to see the June gap.",
+              "description": "Days ahead. 90 for the dashboard chart, 365 to see the June dip.",
               "default": 90,
               "title": "Horizon Days"
             },
-            "description": "Days ahead. 90 for the dashboard chart, 365 to see the June gap."
+            "description": "Days ahead. 90 for the dashboard chart, 365 to see the June dip."
           },
           {
             "name": "granularity",
@@ -98,7 +98,7 @@
           "costs"
         ],
         "summary": "Costs per team over a date range, with monthly breakdown",
-        "description": "Teams are sorted by total cost, highest first. Months are included when their first day is in range.",
+        "description": "Teams are sorted by total cost, highest first. Months are included when their first day is in range.\nCosts without a team (tax, social security) appear as team `company`.",
         "operationId": "get_costs_by_team_v1_costs_by_team_get",
         "parameters": [
           {
@@ -115,10 +115,10 @@
                   "type": "null"
                 }
               ],
-              "description": "First day, ISO date. Default 2025-01-01.",
+              "description": "First day, ISO date. Default: first day of the first month with bookings.",
               "title": "From"
             },
-            "description": "First day, ISO date. Default 2025-01-01."
+            "description": "First day, ISO date. Default: first day of the first month with bookings."
           },
           {
             "name": "to",
@@ -134,10 +134,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Last day, ISO date. Default 2025-12-31.",
+              "description": "Last day, ISO date. Default: last booking day.",
               "title": "To"
             },
-            "description": "Last day, ISO date. Default 2025-12-31."
+            "description": "Last day, ISO date. Default: last booking day."
           }
         ],
         "responses": {
@@ -923,7 +923,7 @@
           "lowest_balance"
         ],
         "title": "ForecastGap",
-        "description": "A stretch of days with a predicted negative balance: the reason for a credit line (D-005)."
+        "description": "A stretch of days with a predicted balance below the safety buffer (D-013); the trigger for a proposal\n(money-market deposit when there is slack, credit line in a what-if scenario)."
       },
       "ForecastModelInfo": {
         "properties": {
@@ -1020,13 +1020,30 @@
               }
             ],
             "title": "First Negative Date"
+          },
+          "safety_buffer": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "first_below_buffer_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Below Buffer Date",
+            "description": "First predicted day below the safety buffer (D-013), null if none."
           }
         },
         "type": "object",
         "required": [
           "horizon_days",
           "lowest_balance",
-          "lowest_date"
+          "lowest_date",
+          "safety_buffer"
         ],
         "title": "ForecastSummary"
       },
@@ -1149,6 +1166,10 @@
           "opening_balance": {
             "$ref": "#/components/schemas/Money"
           },
+          "safety_buffer": {
+            "$ref": "#/components/schemas/Money",
+            "description": "Safety buffer line to draw (D-013): by default the largest monthly fixed cost (payroll, rent, tax, social security, utilities), overridable with SAFETY_BUFFER_EUR."
+          },
           "lowest_point": {
             "$ref": "#/components/schemas/ForecastPoint",
             "description": "Lowest predicted balance within the horizon."
@@ -1158,7 +1179,8 @@
               "$ref": "#/components/schemas/ForecastGap"
             },
             "type": "array",
-            "title": "Gaps"
+            "title": "Gaps",
+            "description": "Stretches of days with a predicted balance below `safety_buffer`."
           },
           "model": {
             "$ref": "#/components/schemas/ForecastModelInfo"
@@ -1179,6 +1201,7 @@
           "granularity",
           "currency",
           "opening_balance",
+          "safety_buffer",
           "lowest_point",
           "gaps",
           "model",

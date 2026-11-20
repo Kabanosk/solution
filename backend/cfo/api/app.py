@@ -18,7 +18,7 @@ REST API of the Autonomous CFO for Pizzeria Amalfi (dashboard backend).
 
 * Versioned under `/v1`. Money is `{"amount": "1234.50", "currency": "EUR"}`, dates are ISO 8601, timestamps UTC.
 * Errors always look like `{"error": {"code": "...", "message": "..."}}`.
-* Responses with `"stub": true` (and header `X-Stub: true`) carry sample data in the final shape.
+* All read endpoints return data from the database (`"stub": false`); `"stub": true` (header `X-Stub: true`) would mark sample data.
 
 Examples for every endpoint: `docs/api.md`.
 """

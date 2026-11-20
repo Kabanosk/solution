@@ -1,7 +1,8 @@
+import type { ScoutData } from "./scout-model";
+
 export type ExpenseCategory = { name: string; color: string; amount: number; percentage: number };
 export type FinancePeriod = { transactions: number; totalRevenue: number; totalExpenses: number; expenses: ExpenseCategory[] };
 export type Employee = { id: string; name: string; initials: string; role: string; team: string; salary: number | null; avatar: string };
-export type Decision = { id: string; ts: string; summary: string; reason: string; level: string; status: string; executed_simulated: boolean };
 export type Forecast = { asOf: string; model: string; safetyBuffer: number; points: { day: number; balance: number }[] };
 export type DashboardData = {
   asOf: string;
@@ -13,8 +14,7 @@ export type DashboardData = {
   monthlyContributions: number;
   closingBalance: number;
   undocumentedPayments: number;
-  pendingApprovals: number;
-  decisions: Decision[];
+  scout: ScoutData;
   forecast: Forecast | null;
 };
 

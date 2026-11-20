@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import { Pool } from "pg";
 import { authorized } from "./auth";
 import { isDevelopmentPreview } from "./development-preview";
-import { decimalCents, displayCents, financePeriod, type DashboardData, type Decision, type Forecast } from "./finance-model";
+import { decimalCents, displayCents, financePeriod, type DashboardData, type Forecast } from "./finance-model";
+import { loadScout, loadTaskDetail } from "./scout";
+import type { TaskDetail } from "./scout-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
 let pool: Pool | undefined;
@@ -89,11 +91,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       WHERE category IN ('payroll', 'social_security')
         AND date_trunc('month', booking_date) = (SELECT date_trunc('month', max(booking_date)) FROM transactions WHERE category = 'payroll')
       GROUP BY category`)).rows;
-    const pendingApprovals = Number((await client.query("SELECT count(*)::text AS count FROM approval_requests WHERE status = 'pending'")).rows[0].count);
-    const decisions = (await client.query<Decision>(`SELECT id,
-      to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts,
-      summary, reason, level, status, executed_simulated
-      FROM decisions ORDER BY ts DESC, id DESC LIMIT 50`)).rows;
+    const scout = await loadScout(client);
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -101,7 +99,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       closingBalance: displayCents(summary.balance), employees,
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
-      undocumentedPayments: Number(summary.undocumented), pendingApprovals, decisions,
+      undocumentedPayments: Number(summary.undocumented), scout,
     };
   } catch {
     await client.query("ROLLBACK").catch(() => {});
@@ -111,4 +109,24 @@ export async function getDashboardData(): Promise<DashboardData> {
     client.release();
   }
   return { ...result, forecast: await forecast() };
+}
+
+/** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
+export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
+  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewTask(id);
+  const client = await database().connect().catch(() => {
+    throw new Error("Company data is temporarily unavailable");
+  });
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const detail = await loadTaskDetail(client, id);
+    await client.query("COMMIT");
+    return detail;
+  } catch {
+    await client.query("ROLLBACK").catch(() => {});
+    throw new Error("Company data is temporarily unavailable");
+  } finally {
+    client.release();
+  }
 }

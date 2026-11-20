@@ -1,0 +1,36 @@
+# Scrapes vLLM /metrics every 60 s into vllm_metrics_samples (T032; /v1/llm/usage reads it). One replica only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: usage-sampler
+  labels: {app: usage-sampler, app.kubernetes.io/component: usage-sampler}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"sampler\")].image"}]'
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: usage-sampler}}
+  template:
+    metadata: {labels: {app: usage-sampler, app.kubernetes.io/component: usage-sampler}}
+    spec:
+      enableServiceLinks: false
+      volumes:
+        - name: llm-ca
+          configMap: {name: llm-service-ca}
+      containers:
+        - name: sampler
+          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          args: [python, -m, cfo.usage, sample, --every, "60"]
+          volumeMounts:
+            - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          env:
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+          resources:
+            requests: {cpu: 20m, memory: 128Mi}
+            limits: {cpu: 200m, memory: 384Mi}

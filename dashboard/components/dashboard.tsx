@@ -93,7 +93,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     { label: "Overview", detail: "Account balance, cash forecast and expense mix", page: "overview" as Page },
     { label: "Staffing & payroll", detail: "Team, salaries and payroll export", page: "staffing" as Page },
     { label: "Agent jobs", detail: "Agent activity, outcomes and approvals", page: "agent-jobs" as Page },
-    { label: "LLM", detail: "Chat with Granite", page: "llm" as Page },
+    { label: "LLM", detail: "Chat with an AI assistant", page: "llm" as Page },
     ...data.jobs.map(job => ({ label: job.title, detail: `${job.action.replaceAll("_", " ")} · ${job.status}`, page: "agent-jobs" as Page })),
     ...data.employees.map((person) => ({ label: person.name, detail: `${person.role} · ${person.team}`, page: "staffing" as Page })),
   ].filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(search.toLowerCase().trim()));

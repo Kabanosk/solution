@@ -165,4 +165,5 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
   ma AST identyczne z którąś wcześniejszą wersją z naszych gałęzi. Token API jest już w main z T046.
 - Rozstrzygnięcie: backend/, deploy/, docs/ = nasz main; `kustomization.yaml` bez `includeTemplates` (kubectl 1.24);
   dashboard z PR #7 bez zmian (tsc OK, testy 8/8 na Node 22).
-- Na przyszłość: po pushu main zespół robi PR-y od aktualnego origin/main, bez kopiowania plików między gałęziami.
+- Na przyszłość: PR-y mergujemy squashem (decyzja Wojtka). Każdy PR od aktualnego origin/main, bez kopiowania plików
+  między gałęziami; po każdym squashu lokalny main dociąga origin/main (`git pull`), zanim powstanie kolejna gałąź.

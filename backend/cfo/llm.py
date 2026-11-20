@@ -57,14 +57,39 @@ class LLM(Protocol):
     ) -> LLMResponse: ...
 
 
+def tls_verify_setting(value: str | bool) -> str | bool:
+    """Map LLM_VERIFY_TLS to httpx `verify`: true/false, or a CA bundle path kept as a string."""
+    if isinstance(value, bool):
+        return value
+    v = value.strip()
+    if v.lower() in {"", "1", "true", "yes", "on"}:
+        return True
+    if v.lower() in {"0", "false", "no", "off"}:
+        return False
+    return v
+
+
 class OpenAICompatLLM:
     """Chat completions against an OpenAI-compatible server."""
 
-    def __init__(self, base_url: str, model: str, api_key: str = "EMPTY", timeout: float = 120.0):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "EMPTY",
+        timeout: float = 120.0,
+        verify_tls: str | bool = True,
+    ):
+        import httpx
         from openai import OpenAI
 
         self.model = model
-        self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY", timeout=timeout)
+        self._client = OpenAI(
+            base_url=base_url,
+            api_key=api_key or "EMPTY",
+            timeout=timeout,
+            http_client=httpx.Client(verify=tls_verify_setting(verify_tls), timeout=timeout),
+        )
 
     @staticmethod
     def _to_wire(m: Message) -> dict[str, Any]:
@@ -149,4 +174,4 @@ class FakeLLM:
 def get_llm(settings: Settings | None = None) -> LLM:
     """The configured LLM client (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`)."""
     s = settings or get_settings()
-    return OpenAICompatLLM(s.llm_base_url, s.llm_model, s.llm_api_key)
+    return OpenAICompatLLM(s.llm_base_url, s.llm_model, s.llm_api_key, verify_tls=s.llm_verify_tls)

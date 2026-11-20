@@ -207,7 +207,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
   else if (page === "chat") content = null; // Kept mounted below so the conversation survives page switches.
   else content = <div id="scout-overview" className="space-y-6">
     <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-      <div className="space-y-2"><p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Scout · Your autonomous CFO</p><h1 className="text-3xl font-medium tracking-tight">Your finance overview</h1><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {data.asOf}. {attention} tasks wait on people. Every outcome connected to its evidence.</p></div>
+      <div className="space-y-2"><p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Scout · Your finance agent</p><h1 className="text-3xl font-medium tracking-tight">Your finance overview</h1><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {data.asOf}. {attention} tasks wait on people. Every outcome connected to its evidence.</p></div>
       <Button id="scout-refresh" className="min-h-11 shrink-0 gap-2" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}><Activity className={cn("size-4", refreshing && "motion-safe:animate-spin")} aria-hidden="true" />{refreshing ? "Refreshing…" : "Refresh records"}</Button>
     </section>
 

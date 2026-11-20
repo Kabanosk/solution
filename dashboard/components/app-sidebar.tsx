@@ -58,7 +58,7 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent id="scout-company-list" align="start" className="min-w-56">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your autonomous CFO</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your finance agent</DropdownMenuLabel>
             <DropdownMenuRadioGroup value="amalfi"><DropdownMenuRadioItem value="amalfi">Pizzeria Amalfi</DropdownMenuRadioItem></DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -159,3 +159,15 @@ def test_upload_sends_the_file_to_the_dm(conn_factory, fake_slack):
     [up] = fake_slack.named("files_upload_v2")
     assert up["channel"] == "D_U_GRA" and up["filename"] == "invoices.csv" and up["content"] == b"a,b\n"
     assert up["initial_comment"] == "3 invoices"
+
+
+def test_linked_slack_people_are_written_to_hr(conn_factory, db):
+    from scout.loops.context import HR
+
+    db.execute("INSERT INTO employees (id, name, role) VALUES ('vincenzo', 'Vincenzo Amalfi', 'CEO / owner'), "
+               "('rosa', 'Rosa Pavese', 'Head chef')")
+    db.commit()
+    HR(conn_factory).link_slack({"vincenzo": "U_VIN"}, {"vincenzo": "Wojciech Fiołka"})
+    rows = {r["id"]: r for r in db.execute("SELECT id, slack_user_id, slack_name FROM employees").fetchall()}
+    assert rows["vincenzo"]["slack_user_id"] == "U_VIN" and rows["vincenzo"]["slack_name"] == "Wojciech Fiołka"
+    assert rows["rosa"]["slack_name"] is None

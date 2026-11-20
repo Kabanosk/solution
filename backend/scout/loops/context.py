@@ -101,6 +101,15 @@ class HR:
         e = self.employee(employee_id)
         return ((e or {}).get("name") or "").split()[:1][0] if (e or {}).get("name") else employee_id
 
+    def link_slack(self, user_map: dict[str, str], names: dict[str, str]) -> None:
+        """Write who plays which role on Slack into the HR table, so the dashboard shows the same people."""
+        with self._cf() as conn:
+            conn.execute("UPDATE employees SET slack_user_id = NULL, slack_name = NULL")
+            for emp, uid in user_map.items():
+                conn.execute("UPDATE employees SET slack_user_id = %s, slack_name = %s WHERE id = %s",
+                             (uid or None, names.get(emp), emp))
+            conn.commit()
+
     def full_name(self, employee_id: str) -> str:
         """The whole name: the linked Slack person's, else the HR record's."""
         if self._slack_names.get(employee_id):

@@ -95,7 +95,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         expense: String(BigInt(previous.expense) + BigInt(row.expense)) } : row);
     }
     const employees = (await client.query(`
-      SELECT e.id, e.name, e.role, coalesce(t.name, 'Unassigned') AS team,
+      SELECT e.id, coalesce(e.slack_name, e.name) AS name, e.role, coalesce(t.name, 'Unassigned') AS team,
         p.salary FROM employees e LEFT JOIN teams t ON t.id = e.team_id
       LEFT JOIN LATERAL (
         SELECT (-sum(amount) * 100)::bigint::text AS salary FROM transactions

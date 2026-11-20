@@ -1,7 +1,7 @@
 ---
 id: T028
 title: Agent evaluation in MLflow (scenario set + deterministic scorers)
-status: review
+status: merged
 owner: coder
 branch: task/T028-agent-eval
 depends_on: ["T027"]

@@ -11,7 +11,14 @@ import threading
 from pathlib import Path
 
 from cfo.sim import control
-from cfo.sim.engine import SimStatus
+from cfo.sim.engine import SimStatus, _check_speed
+
+
+def _speed(text: str) -> float:
+    try:
+        return _check_speed(float(text))
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"{text!r}: speed must be a positive, finite number") from e
 
 
 def _print(st: SimStatus) -> None:
@@ -23,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data", type=Path, default=None, help="generated data dir (default data/generated)")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_start = sub.add_parser("start", help="resume the clock (optionally set the speed)")
-    p_start.add_argument("--speed", type=float, default=None, help="sim-seconds per real second")
+    p_start.add_argument("--speed", type=_speed, default=None, help="sim-seconds per real second")
     p_start.add_argument("--run", action="store_true", help="then run the worker loop in the foreground")
     sub.add_parser("pause", help="stop the clock")
     sub.add_parser("step", help="emit the next event now")

@@ -14,10 +14,15 @@ spec:
   template:
     metadata: {labels: {app: worker, app.kubernetes.io/component: worker}}
     spec:
+      volumes:
+        - name: llm-ca
+          configMap: {name: llm-service-ca}
       containers:
         - name: worker
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
           args: [worker]
+          volumeMounts:
+            - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}
           envFrom:
             - configMapRef: {name: cfo-config}
             - secretRef: {name: cfo-secrets, optional: true}   # SLACK_*, LLM_API_KEY: see README.md

@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:8000/v1"
     llm_model: str = "llama-3.2-3b"
     llm_api_key: str = "EMPTY"  # vLLM accepts any non-empty key
-    # TLS check for an https LLM_BASE_URL: "true" (default), "false" (self-signed certificate) or a CA bundle path.
+    # TLS check for LLM_BASE_URL: "true" (system CAs), "false" (off), or a path to a CA bundle
+    # (on OpenShift: the injected service CA, e.g. /etc/llm-ca/service-ca.crt).
     llm_verify_tls: str = "true"
     slack_bot_token: str = ""  # xoxb-...
     slack_app_token: str = ""  # xapp-... (Socket Mode)

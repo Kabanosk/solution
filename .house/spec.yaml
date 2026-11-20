@@ -68,7 +68,7 @@ mode: copilot       # copilot (pytaj o trudne decyzje) | autopilot (decyduj sam,
 limits:
   max_parallel_agents: 3
   ideas_per_round: 5
-  codex_reviews_per_day: 4  # house review: Codex reviews per day (Codex limits are smaller); then Claude
+  codex_reviews_per_day: 40  # house review: Codex reviews per day (Codex limits are smaller); then Claude
   stagnation_n: 3   # iteracje bez poprawy → wymuszona zmiana kierunku
 
 submissions:

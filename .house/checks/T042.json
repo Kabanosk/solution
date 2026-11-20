@@ -1,0 +1,42 @@
+{
+  "task": "T042",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "kubectl kustomize deploy/ >/dev/null",
+        "expect": null,
+        "text": null,
+        "timeout": 300
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "grep -q 'extra mlflow' Containerfile",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-3",
+        "kind": "run",
+        "run": "docker compose -f docker-compose.yml config | grep -q 'host_ip: 127.0.0.1'",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-4",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_deploy_manifests.py",
+        "expect": null,
+        "text": null,
+        "timeout": 300
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:56:59+01:00",
+  "results": {}
+}

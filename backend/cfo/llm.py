@@ -7,7 +7,6 @@ at the same URL). Everything depends on the small `LLM` protocol, so tests use `
 from __future__ import annotations
 
 import json
-import ssl
 from collections.abc import Callable, Sequence
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -67,30 +66,39 @@ class LLM(Protocol):
     ) -> LLMResponse: ...
 
 
-def tls_verify(value: str | bool) -> bool | ssl.SSLContext:
-    """`LLM_VERIFY_TLS`: true (default), false (self-signed certificate, no check) or the path of a CA bundle."""
+def tls_verify_setting(value: str | bool) -> str | bool:
+    """Map LLM_VERIFY_TLS to httpx `verify`: true/false, or a CA bundle path kept as a string."""
     if isinstance(value, bool):
         return value
-    v = (value or "true").strip()
-    if v.lower() in ("true", "1", "yes"):
+    v = value.strip()
+    if v.lower() in {"", "1", "true", "yes", "on"}:
         return True
-    if v.lower() in ("false", "0", "no"):
+    if v.lower() in {"0", "false", "no", "off"}:
         return False
-    return ssl.create_default_context(cafile=v)
+    return v
 
 
 class OpenAICompatLLM:
     """Chat completions against an OpenAI-compatible server."""
 
-    def __init__(self, base_url: str, model: str, api_key: str = "EMPTY", timeout: float = 120.0,
-                 verify_tls: str | bool = True):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "EMPTY",
+        timeout: float = 120.0,
+        verify_tls: str | bool = True,
+    ):
         import httpx
         from openai import OpenAI
 
         self.model = model
-        verify = tls_verify(verify_tls)
-        http_client = httpx.Client(verify=verify, timeout=timeout) if verify is not True else None
-        self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY", timeout=timeout, http_client=http_client)
+        self._client = OpenAI(
+            base_url=base_url,
+            api_key=api_key or "EMPTY",
+            timeout=timeout,
+            http_client=httpx.Client(verify=tls_verify_setting(verify_tls), timeout=timeout),
+        )
 
     @staticmethod
     def _to_wire(m: Message) -> dict[str, Any]:

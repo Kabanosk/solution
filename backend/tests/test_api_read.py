@@ -7,6 +7,7 @@ Postgres or the generated data is missing. The repo is replaced through FastAPI'
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import timedelta
 from decimal import Decimal
@@ -21,6 +22,10 @@ from cfo.api.app import create_app
 from cfo.api.deps import get_repo
 from cfo.config import REPO_ROOT, get_settings
 from cfo.domain import ApprovalRequest, Decision, DecisionStatus, PolicyLevel, Rule, utcnow
+
+NOV = f"t019_nov_{os.getpid()}"
+DEC = f"t019_dec_{os.getpid()}"
+EMPTY = f"t019_empty_{os.getpid()}"
 
 MONEY = re.compile(r"^-?\d+\.\d{2}$")
 
@@ -83,7 +88,7 @@ def model_in_tmp(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def nov_repo(tmp_path_factory):
-    repo = _seeded_schema("t019_nov", december=False, tmp=tmp_path_factory.mktemp("nov"))
+    repo = _seeded_schema(NOV, december=False, tmp=tmp_path_factory.mktemp("nov"))
     now = utcnow()
     repo.add_decision(Decision(id="dec_old", ts=now - timedelta(hours=3), action_type="attach_invoice",
                                summary="Found AS-1", level=PolicyLevel.AUTO, reason="routine"))
@@ -104,17 +109,17 @@ def nov_repo(tmp_path_factory):
                        created_by="vincenzo", created_at=now - timedelta(days=2), active=False))
     yield repo
     repo.conn.rollback()
-    repo.conn.execute("DROP SCHEMA t019_nov CASCADE")
+    repo.conn.execute(f"DROP SCHEMA {NOV} CASCADE")
     repo.conn.commit()
     repo.conn.close()
 
 
 @pytest.fixture(scope="module")
 def dec_repo(tmp_path_factory):
-    repo = _seeded_schema("t019_dec", december=True, tmp=tmp_path_factory.mktemp("dec"))
+    repo = _seeded_schema(DEC, december=True, tmp=tmp_path_factory.mktemp("dec"))
     yield repo
     repo.conn.rollback()
-    repo.conn.execute("DROP SCHEMA t019_dec CASCADE")
+    repo.conn.execute(f"DROP SCHEMA {DEC} CASCADE")
     repo.conn.commit()
     repo.conn.close()
 
@@ -195,9 +200,9 @@ def test_kpis_without_data_is_a_clean_error():
 
     repo = Repository.connect(url)
     try:
-        repo.conn.execute("DROP SCHEMA IF EXISTS t019_empty CASCADE")
-        repo.conn.execute("CREATE SCHEMA t019_empty")
-        repo.conn.execute("SET search_path TO t019_empty")
+        repo.conn.execute(f"DROP SCHEMA IF EXISTS {EMPTY} CASCADE")
+        repo.conn.execute(f"CREATE SCHEMA {EMPTY}")
+        repo.conn.execute(f"SET search_path TO {EMPTY}")
         repo.conn.commit()
         repo.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
         repo.conn.commit()
@@ -205,7 +210,7 @@ def test_kpis_without_data_is_a_clean_error():
         assert r.status_code == 503 and r.json()["error"]["code"] == "no_data"
     finally:
         repo.conn.rollback()
-        repo.conn.execute("DROP SCHEMA t019_empty CASCADE")
+        repo.conn.execute(f"DROP SCHEMA {EMPTY} CASCADE")
         repo.conn.commit()
         repo.conn.close()
 

@@ -6,6 +6,7 @@ compose Postgres and are skipped when it is not reachable.
 
 from __future__ import annotations
 
+import os
 import asyncio
 import base64
 import json
@@ -176,7 +177,7 @@ def test_workstations_server_registers_tools_and_calls_through_fastmcp(ws):
 # ---------------------------------------------------------------------------------------------------
 # database-backed servers
 
-SCHEMA = "t004_test"
+SCHEMA = f"t004_test_{os.getpid()}"
 
 
 @pytest.fixture

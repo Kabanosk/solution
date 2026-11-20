@@ -17,8 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from collections.abc import AsyncIterator, Coroutine, Mapping
-from contextlib import asynccontextmanager
+from collections.abc import Mapping
 from datetime import date
 from typing import Any, Protocol
 
@@ -49,12 +48,6 @@ class InProcessToolBox:
         # round-trip through JSON so callers see exactly what an MCP client would
         return json.loads(json.dumps(fn(**arguments), default=str))
 
-    def list_tools(self, server: str) -> list[str]:
-        target = self._servers.get(server)
-        if target is None:
-            raise ToolError(f"unknown server {server!r}")
-        return sorted(n for n in dir(target) if not n.startswith("_") and callable(getattr(target, n)))
-
 
 class McpToolBox:
     """`endpoints` maps a server name to a streamable-HTTP URL (`http://host:8002/mcp`) or to
@@ -65,25 +58,17 @@ class McpToolBox:
         self._endpoints = dict(endpoints)
 
     def call(self, server: str, tool: str, **arguments: Any) -> Any:
-        return self._run(server, self._acall(server, tool, arguments))
-
-    def list_tools(self, server: str) -> list[str]:
-        """Names of the tools the server offers (used by `cfo smoke`)."""
-        return self._run(server, self._alist(server))
-
-    def _run(self, server: str, coro: Coroutine[Any, Any, Any]) -> Any:
         if server not in self._endpoints:
-            coro.close()
             raise ToolError(f"no endpoint configured for MCP server {server!r}")
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
+            return asyncio.run(self._acall(server, tool, arguments))
         box: dict[str, Any] = {}
 
         def run() -> None:
             try:
-                box["value"] = asyncio.run(coro)
+                box["value"] = asyncio.run(self._acall(server, tool, arguments))
             except BaseException as e:  # noqa: BLE001 - re-raised in the caller's thread
                 box["error"] = e
 
@@ -94,8 +79,7 @@ class McpToolBox:
             raise box["error"]
         return box["value"]
 
-    @asynccontextmanager
-    async def _session(self, server: str) -> AsyncIterator[Any]:
+    async def _acall(self, server: str, tool: str, arguments: dict[str, Any]) -> Any:
         from mcp import ClientSession
 
         endpoint = self._endpoints[server]
@@ -110,16 +94,7 @@ class McpToolBox:
         async with transport as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
-                yield session
-
-    async def _alist(self, server: str) -> list[str]:
-        async with self._session(server) as session:
-            result = await session.list_tools()
-        return [t.name for t in result.tools]
-
-    async def _acall(self, server: str, tool: str, arguments: dict[str, Any]) -> Any:
-        async with self._session(server) as session:
-            result = await session.call_tool(tool, arguments)
+                result = await session.call_tool(tool, arguments)
         if result.isError:
             raise ToolError(f"{server}.{tool}: " + " ".join(getattr(c, "text", "") for c in result.content))
         data = result.structuredContent

@@ -183,3 +183,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** istniejące tabele przechowują wyniki działań i częściową telemetrię; zdarzenie symulatora nie dowodzi rozpoczęcia lub zakończenia pracy agenta.
 - **Kto:** człowiek (zakres i styl), codex (realizacja)
 - **Data:** 2026-11-20
+
+## D-022 Log zadań w istniejącym JSONB i osobna strona LLM
+- **Decyzja:** log zadania jest uporządkowaną listą w decisions.payload.job_log, bez migracji. Checkpoint przenosi wpisy między czynnościami i akceptacją; atomowe scalanie ze stabilnymi identyfikatorami zachowuje błędy przy ponowieniach. Strona LLM korzysta z istniejących endpointów użycia/kosztów i osobnego serwerowego CFO_API_TOKEN. Zmiany zintegrowano na wskazanej przez użytkownika feature/agent-jobs-logs.
+- **Dlaczego:** użytkownik zlecił logi na stronie zadania, dopuszczając wykorzystanie istniejącej kolumny, oraz stronę LLM realizowaną przez subagenta. Obecny kontrakt wystarcza; aktywne cykle queued/running pozostają odrębnym rozszerzeniem.
+- **Kto:** człowiek (zakres), codex i subagent (realizacja)
+- **Data:** 2026-11-20

@@ -1,8 +1,8 @@
 ---
 id: T047
 title: Add the LLM dashboard page
-status: todo
-owner: null
+status: done
+owner: llm_page
 branch: task/T047-llm-page
 depends_on: []
 capabilities: [frontend, api]

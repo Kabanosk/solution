@@ -1,24 +1,25 @@
-# Agent jobs handoff
+# Agent jobs and LLM integration
 
-Saved at the user's request before disconnecting the network. Integration branch: `feature/agent-jobs-logs`, rebased onto main `07e3251` without conflicts. Work is saved as a checkpoint, not deployed.
+Completed on `feature/agent-jobs-logs`, based on main `07e3251`. The original saved checkpoint is `02e78d1`; job-log retry fixes are `3bac36e`, and the subagent's LLM page is integrated as `2790979`. Nothing was pushed or deployed.
 
-Implemented:
-- Investigations renamed to Agent jobs, with compact Linear-inspired rows, filters, search, direct links and details. No stages.
-- Factual job log recording in `decisions.payload.job_log`, using the existing JSONB column. No database migration.
-- LangGraph node wrapper carries history through checkpoints and approval resume, records generic errors after a decision exists, and treats interrupts as control flow.
-- Authenticated dashboard log route `/api/jobs/[id]/log`, detail-page log viewer, refresh/retry/empty states and development fixtures.
-- Updated `dashboard/README.md` and `docs/api.md`.
+## Delivered
 
-Validation completed:
-- Dashboard tests and TypeScript checks passed during implementation.
-- Five backend job-log tests passed, including an actual LangGraph interrupt/resume test without Postgres.
-- The compact jobs UI passed browser checks at 320–1440 px, both themes, navigation, filtering and reduced motion before adding the log viewer.
-- The new preview log endpoint returned HTTP 200 after a transient development hot-reload error.
+- Compact Linear-inspired Agent jobs list with filters, search, direct links, details and no stages.
+- Timestamped job log on the detail page, fetched on demand through authenticated `/api/jobs/[id]/log`, with refresh, loading, empty, error and retry states.
+- Existing `decisions.payload.job_log` JSONB storage, requiring no migration or new column. Stable entry IDs and atomic merges preserve failed attempts across retries without duplicating checkpoint entries. Other payload keys remain intact. Logs retain at most 500 entries and 2,000 characters per message.
+- LangGraph action summaries before and after approval interrupts/resumes. Generic errors exclude raw exception details; logging failures do not replay business actions. Failures before a decision exists are outside this decision-backed view.
+- LLM page in sidebar, mobile navigation and search, with usage/token/latency/cost summaries, time ranges, per-action costs, assumptions and model snapshot. Uses existing CFO API endpoints with server-only credentials and genuine partial/unavailable/empty states.
+- Updated `dashboard/README.md`, `docs/api.md`, task T047 and its report.
 
-Resume with:
-- Browser verification of the new log viewer, including empty/error/retry states.
-- Real PostgreSQL verification of payload updates and existing agent/approval regression tests. The isolated test environment is `/tmp/lantern-backend-test-env`; repository runtime dependencies are not installed globally. The first broader test collection failed because the temporary environment had MCP 2.x; installation of the locked MCP 1.30.0 and Postgres checkpointer was subsequently requested. Check its final state before running those tests.
-- Review the bounded log snapshot behavior on graph retries; a later snapshot can replace an error recorded outside a failed node's checkpoint.
-- Delegate the LLM page described in `.house/tasks/T047-llm-page.md`. No subagent was launched before the stop request.
+## Validation
 
-No push was requested for this checkpoint. The existing shared dashboard development server was left running at localhost:3000.
+- Job logs, repository and agent: **31 passed**, against an isolated PostgreSQL 17 Docker instance on localhost:55432.
+- Decision/approval API and tracing regression selection: **25 passed, 31 skipped**. Skips require generated company data or the optional MLflow extra; these were not supplied for this change.
+- Dashboard test suite and TypeScript checks passed after integration. `git diff --check` passed.
+- Log viewer browser checks passed: on-demand API, no-store headers, invalid/unknown IDs, refresh, unavailable/retry, empty logs, bounds, escaped text, scrollable output, unique IDs, both themes, 320–1440 px and no page errors. Script: `/tmp/lantern-job-log-browser-check.cjs`.
+- LLM checks passed in the subagent's isolated worktree; see `reports/T047.md`.
+- Integrated browser check passed on localhost:3000, including desktop/mobile navigation between job logs and LLM and LLM range changes. Script: `/tmp/lantern-integrated-check.cjs`.
+
+## Runtime and limitations
+
+The shared development-preview server remains at localhost:3000. All displayed fixtures are invented and labelled. Production log collection requires rolling out the updated backend; historical decisions are not backfilled. Real queued/running job lifecycles still require the separately proposed job registry. Live cluster telemetry was not tested. The temporary PostgreSQL test container is stopped after verification. The Python test environment is isolated under `/tmp/lantern-backend-test-env`.

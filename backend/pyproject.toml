@@ -9,6 +9,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "openai>=1.40",
     "mcp>=1.12,<2",
+    "pandas>=2.2",
     "langgraph>=1.2.24",
     "langgraph-checkpoint-postgres>=3.2.1",
     "pypdf>=7.1.1",

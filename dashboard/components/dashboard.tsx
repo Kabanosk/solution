@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowDownLeft, ArrowUpRight, Bell, ChevronDown, GitBranch, LayoutDashboard, Search, Sparkles, Users, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, Bell, ChevronDown, Cpu, GitBranch, LayoutDashboard, Search, Sparkles, Users, Wallet } from "lucide-react";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,12 +17,14 @@ import { AgentJobs } from "@/components/agent-jobs";
 import { Staffing } from "@/components/staffing";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { DomIds } from "@/components/dom-ids";
+import { LlmUsage } from "@/components/llm-usage";
 
-type Page = "overview" | "staffing" | "agent-jobs";
+type Page = "overview" | "staffing" | "agent-jobs" | "llm";
 const navigation = [
   { page: "overview" as const, label: "Overview", icon: LayoutDashboard },
   { page: "staffing" as const, label: "Staffing", icon: Users },
   { page: "agent-jobs" as const, label: "Agent jobs", icon: GitBranch },
+  { page: "llm" as const, label: "LLM", icon: Cpu },
 ];
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
 const compact = (amount: number) => amount >= 1000 ? `€${(amount / 1000).toFixed(1)}k` : currency(amount);
@@ -62,7 +64,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     const fromHash = () => {
       const value = window.location.hash.slice(1).split("/")[0];
       if (value === "investigations") setPage("agent-jobs");
-      else if (value === "overview" || value === "staffing" || value === "agent-jobs") setPage(value);
+      else if (value === "overview" || value === "staffing" || value === "agent-jobs" || value === "llm") setPage(value);
       else if (!value) setPage("overview");
     };
     const shortcut = (event: KeyboardEvent) => {
@@ -91,6 +93,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     { label: "Overview", detail: "Account balance, cash forecast and expense mix", page: "overview" as Page },
     { label: "Staffing & payroll", detail: "Team, salaries and payroll export", page: "staffing" as Page },
     { label: "Agent jobs", detail: "Agent activity, outcomes and approvals", page: "agent-jobs" as Page },
+    { label: "LLM", detail: "Model usage, tokens, latency and estimated costs", page: "llm" as Page },
     ...data.jobs.map(job => ({ label: job.title, detail: `${job.action.replaceAll("_", " ")} · ${job.status}`, page: "agent-jobs" as Page })),
     ...data.employees.map((person) => ({ label: person.name, detail: `${person.role} · ${person.team}`, page: "staffing" as Page })),
   ].filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(search.toLowerCase().trim()));
@@ -155,7 +158,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
           <SidebarTrigger className="md:hidden" aria-label="Open navigation" />
           <div className="flex min-w-0 flex-1 items-center gap-3 text-xs">
             <span className="hidden text-muted-foreground lg:inline">Finance workspace</span><span className="hidden text-muted-foreground lg:inline" aria-hidden="true">/</span>
-            <strong className="truncate font-medium">{page === "overview" ? data.asOf : page === "staffing" ? "People" : "Agent jobs"}</strong>
+            <strong className="truncate font-medium">{page === "overview" ? data.asOf : page === "staffing" ? "People" : page === "llm" ? "LLM" : "Agent jobs"}</strong>
           </div>
           <Button id="lantern-search-trigger" variant="outline" onClick={openSearch} className="hidden h-10 w-full max-w-sm justify-start gap-3 bg-card text-muted-foreground lg:flex">
             <Search className="size-4" aria-hidden="true" /><span className="flex-1 text-left text-xs font-normal">Search transactions, people…</span><kbd className="rounded border px-1.5 py-0.5 font-mono text-[10px]">⌘ K</kbd>
@@ -166,7 +169,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
           <Button id="lantern-notifications" variant="outline" size="icon" aria-label="Notifications" className="size-10 shrink-0" onClick={() => setNotice({title:"Workspace notifications",description:`${data.undocumentedPayments} undocumented payments and ${data.pendingApprovals} pending approvals. Open Agent jobs to review the agent’s work.`})}><Bell className="size-4" aria-hidden="true" /></Button>
         </header>
 
-        <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={page === "overview" ? "Overview" : page === "staffing" ? "Staffing and payroll" : "Agent jobs"} className="mx-auto w-full max-w-[1600px] min-w-0 px-4 pt-7 pb-28 outline-none md:px-8 md:pt-8 md:pb-10">
+        <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={page === "overview" ? "Overview" : page === "staffing" ? "Staffing and payroll" : page === "llm" ? "LLM usage" : "Agent jobs"} className="mx-auto w-full max-w-[1600px] min-w-0 px-4 pt-7 pb-28 outline-none md:px-8 md:pt-8 md:pb-10">
           {page === "overview" ? (
             <div id="lantern-overview" className="space-y-6">
               <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -206,10 +209,10 @@ function DashboardContent({ data }: { data: DashboardData }) {
                 <Card id="lantern-recorded-payroll" className="gap-4"><CardHeader><CardTitle className="text-base font-medium">Latest recorded payroll</CardTitle><CardDescription>Latest month with salary bookings</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center justify-between gap-3"><div><span className="text-xs text-muted-foreground">{data.employees.filter(employee => employee.salary !== null).length} recorded recipients</span><strong className="mt-1 block font-mono text-2xl font-medium tracking-tight">{currency(data.monthlyPayroll)}</strong></div><div className="flex -space-x-2" aria-label="Team members">{data.employees.map(employee=><Avatar key={employee.id} className="size-8 border-2 border-card"><AvatarFallback className="bg-secondary text-[10px]">{employee.initials}</AvatarFallback></Avatar>)}</div></div><Button variant="secondary" size="sm" className="min-h-10" onClick={() => navigate("staffing")}>Review staffing</Button></CardContent></Card>
               </section>
             </div>
-          ) : page === "staffing" ? <Staffing data={data} onBack={() => navigate("overview")} /> : <AgentJobs jobs={data.jobs} />}
+          ) : page === "staffing" ? <Staffing data={data} onBack={() => navigate("overview")} /> : page === "llm" ? <LlmUsage /> : <AgentJobs jobs={data.jobs} />}
         </section>
 
-        <nav id="lantern-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-3 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
+        <nav id="lantern-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-4 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
           {navigation.map(({page:target,label,icon:Icon})=><Button key={target} id={`lantern-mobile-${target}`} variant={page===target?"secondary":"ghost"} aria-current={page===target?"page":undefined} onClick={()=>navigate(target)} className="h-auto min-h-14 flex-col gap-1 text-[11px]"><Icon className="size-4" aria-hidden="true" />{label}</Button>)}
         </nav>
       </SidebarInset>

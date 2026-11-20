@@ -73,3 +73,11 @@ The TLS dashboard route uses a shared HTTP Basic login supplied by Secret `dashb
 The backend API has a separate existing Route and its own access policy; dashboard authentication does not protect that Route. Database and source-file services remain internal.
 
 See `THIRD_PARTY_NOTICES.md` and the font licenses under `assets/fonts/`.
+
+## LLM usage page
+
+Open `/#llm` or choose **LLM** in the workspace navigation. The page shows recorded requests and tokens, failures, estimated token counts, latency percentiles, busy-time and allocated cost estimates, cost per agent action, hosted-price comparisons and the latest model-server snapshot. Choose 24 hours, 7 days or 30 days and use **Refresh** to load a new snapshot. Times are UTC; costs keep the API's six decimal places. Busy-time includes overlapping requests; allocated cost includes idle time and the backend's token-share assumption. These are estimates, not billed charges.
+
+The authenticated dashboard route `GET /api/llm-usage?days=1|7|30` fetches the existing CFO API endpoints `/v1/llm/usage` and `/v1/llm/usage/live` on the server, using `CFO_API_URL`. Optional `CFO_API_TOKEN` supplies a server-only bearer token when the API or its gateway requires one. Never use `NEXT_PUBLIC_` for this token. Responses use `Cache-Control: private, no-store`. Invalid ranges return 400; missing authentication returns 401 (or the existing proxy's unconfigured-auth 503); both upstream sources being unavailable returns 503. One source failing does not hide the other source's data.
+
+The model snapshot displays its sample timestamp and the backend's stale indicator; it is refreshed on demand, not presented as a continuously streaming measurement. Missing gauges display **Not reported**. A successful zero-request report has an explicit empty state, while unavailable or malformed API responses display unavailable/retry states. No production metrics are fabricated. `DASHBOARD_PREVIEW=1` supplies explicitly labelled fictional usage only under `next dev`, using the same development-only guard as the rest of the dashboard.

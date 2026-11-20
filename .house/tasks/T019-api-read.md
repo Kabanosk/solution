@@ -1,9 +1,9 @@
 ---
 id: T019
 title: API read endpoints wired to the database
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T019-api-read
 depends_on: ["T018", "T002"]
 capabilities: []
 acceptance:

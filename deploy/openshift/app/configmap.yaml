@@ -1,6 +1,6 @@
 # Non-secret settings shared by api, worker and the MCP servers (envFrom).
 # After changing a value:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/worker
-# (see README.md in this directory). Secrets live in Secret `cfo-secrets`, not here.
+# (see README.md in this directory). Slack tokens live in Secret `slack` (created by the team), not here.
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -27,7 +27,7 @@ spec:
           ports: [{containerPort: 8000}]
           envFrom:
             - configMapRef: {name: cfo-config}
-            - secretRef: {name: cfo-secrets, optional: true}   # SLACK_BOT_TOKEN, LLM_API_KEY for the in-API agent
+            - secretRef: {name: slack, optional: true}   # SLACK_BOT_TOKEN etc. for the in-API agent (team Secret, not in git)
           env:
             # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
             # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password

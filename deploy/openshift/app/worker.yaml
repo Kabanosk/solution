@@ -29,7 +29,7 @@ spec:
             - {name: data, mountPath: /app/data, readOnly: true}
           envFrom:
             - configMapRef: {name: cfo-config}
-            - secretRef: {name: cfo-secrets, optional: true}   # SLACK_*, LLM_API_KEY: see README.md
+            - secretRef: {name: slack, optional: true}   # SLACK_BOT_TOKEN, SLACK_APP_TOKEN, SLACK_USER_MAP (created by the team, not in git)
           env:
             # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
             # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password

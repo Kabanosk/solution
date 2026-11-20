@@ -74,6 +74,48 @@ class CompanyDbTools:
         return [{"team_id": r["team_id"], "month": r["month"].isoformat(), "spend": str(r["spend"]),
                  "transactions": r["transactions"]} for r in rows]
 
+    def spend_summary(
+        self,
+        group_by: str = "category",
+        since: str | None = None,
+        until: str | None = None,
+        category: str | None = None,
+        team: str | None = None,
+        supplier: str | None = None,
+    ) -> dict[str, Any]:
+        """Total spend (outflows, positive EUR) over ALL matching bank transactions, summed in the database, grouped
+        by `group_by`: category | team | supplier. Use it for "how much did we spend on X". Filters (all optional):
+        `since`/`until` booking dates YYYY-MM-DD, `category` (e.g. advertising, food, beverages, cloud, equipment),
+        `team` (team id), `supplier` (part of the counterparty name). Returns `rows` (key, spend, transactions),
+        `total_spend` and `transactions` (the count of matching payments)."""
+        columns = {"category": "COALESCE(category, 'uncategorised')", "team": "COALESCE(team_id, 'unassigned')",
+                   "supplier": "counterparty"}
+        if group_by not in columns:
+            raise ValueError(f"group_by must be one of {sorted(columns)}")
+        where, params = ["amount < 0"], []
+        for sql, value in (("booking_date >= %s", parse_date(since)), ("booking_date <= %s", parse_date(until)),
+                           ("lower(category) = lower(%s)", category or None),
+                           ("lower(team_id) = lower(%s)", team or None),
+                           ("counterparty ILIKE %s", f"%{supplier}%" if supplier else None)):
+            if value is not None:
+                where.append(sql)
+                params.append(value)
+        key = columns[group_by]
+        with self._repo_factory() as repo:
+            rows = repo._all(f"SELECT {key} AS key, SUM(-amount) AS spend, COUNT(*) AS transactions FROM transactions"
+                             f" WHERE {' AND '.join(where)} GROUP BY 1 ORDER BY 2 DESC, 1", params)
+            known = [] if rows else [r["c"] for r in repo._all(
+                "SELECT DISTINCT category AS c FROM transactions WHERE category IS NOT NULL ORDER BY 1")]
+        out: dict[str, Any] = {
+            "group_by": group_by,
+            "rows": [{"key": r["key"], "spend": str(r["spend"]), "transactions": r["transactions"]} for r in rows],
+            "total_spend": str(sum((r["spend"] for r in rows), Decimal(0))),
+            "transactions": sum(r["transactions"] for r in rows),
+        }
+        if known:
+            out["categories_in_data"] = known  # nothing matched: the model can retry with a real category name
+        return out
+
     def list_cost_metrics(self, kind: str | None = None) -> list[dict[str, Any]]:
         """Monthly cost vs metric pairs (D-006). `kind`: food_cost | ads_cac | cloud_per_order. Each row also has
         `cost_per_unit` and `change_vs_previous` (cost, metric, cost_per_unit in percent) when a previous month exists."""
@@ -193,7 +235,7 @@ def build_server(
         port=port,
     )
     for fn in (tools.list_transactions, tools.get_transaction, tools.get_invoice, tools.list_teams,
-               tools.team_costs, tools.list_cost_metrics, tools.list_decisions, tools.list_rules,
+               tools.team_costs, tools.spend_summary, tools.list_cost_metrics, tools.list_decisions, tools.list_rules,
                tools.attach_invoice, tools.record_decision):
         server.tool()(fn)
     return server

@@ -119,3 +119,14 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Decyzja:** testy używają schematów Postgresa z PID procesu (`tNNN_test_<pid>`), bo kilka sesji naraz odpala bramki i nadpisywały sobie wspólny `t005_test` (stąd cofnięcie T026). T026 wrócił przez revert rewertu i ręczną bramkę jak w D-014 (`house check --worktree` GREEN → `merge --no-ff` → `check --all` GREEN).
 - **Kto:** coordinator
 - **Data:** 2026-11-20 16:30
+
+## D-018 Limit rund review Codexa na task z poprawkami
+- **Decyzja:** poprawki z review (T040–T046) przechodzą maksymalnie 3 rundy review Codexa. W ostatniej rundzie poprawiamy tylko to, co psuje demo albo instrukcję wdrożenia, resztę odrzucamy z uzasadnieniem w raporcie taska (np. T040: wyścigi przy seedzie i złośliwy `scenario.json`, T044: utrwalone NaN, którego już nie da się zapisać).
+- **Dlaczego:** każda kolejna runda znajdowała coraz bardziej egzotyczne przypadki (symlinki, deadlocki przy seedzie); koszt czasu > zysk na demo.
+- **Kto:** coordinator
+- **Data:** 2026-11-20 17:30
+
+## D-018 Granite jako zwykły InferenceService (HTTP), aktualne adresy
+- **Decyzja:** Granite 4.0 H Tiny działa teraz jako zwykły KServe InferenceService: `LLM_BASE_URL=http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`, `VLLM_METRICS_URL=http://…:8080/metrics` (bez TLS). Stare adresy https `…-kserve-workload-svc…:8000` z D-017 nie działają. Sekrety Slacka: Secret `slack` (envFrom w worker i api). Próbnik metryk działa jako Deployment `usage-sampler`; `/v1/llm/usage` i `/v1/llm/usage/live` odpowiadają na Route API (sprawdzone 2026-11-20 16:16).
+- **Kto:** człowiek (wdrożenie w sesji forka)
+- **Data:** 2026-11-20 16:20

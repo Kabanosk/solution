@@ -1,7 +1,7 @@
 ---
 id: T001
 title: Backend skeleton: config, domain types, DB schema, LLM client
-status: review
+status: done
 owner: coder
 branch: task/T001-contract-skeleton
 depends_on: []

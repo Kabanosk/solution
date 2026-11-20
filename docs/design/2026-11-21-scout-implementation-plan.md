@@ -526,6 +526,18 @@ Outcomes as in the spec:
   imports a deleted module.
 - [ ] **Step 5: Commit** `feat(scout): api, oauth and removal of replay code`.
 
+
+> **Dashboard rule (Pedro, 2026-11-21):** do not build a new frontend. Change the existing `dashboard/` in place:
+> - keep its shell, data layer (`lib/finance.ts`), charts, auth and preview mode;
+> - rename it to Scout and add the logo;
+> - restyle the existing shadcn sidebar to feel like Linear;
+> - add the new views (Agent tasks, task detail, Audit log, Connections) next to the existing ones, using its
+>   current tab and hash navigation or nested routes where it already fits;
+> - point Investigations at the new tasks.
+>
+> Files listed below as "Create" under `app/(app)/...` become views inside the existing `components/dashboard.tsx`
+> shell, unless a route is needed (task detail deep link).
+
 ### Task 11: Dashboard: Scout brand and Linear-style sidebar
 
 **Files:**

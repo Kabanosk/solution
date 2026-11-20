@@ -57,6 +57,18 @@ from cfo.llm import LLM
 
 log = logging.getLogger(__name__)
 
+LIQUIDITY_ACTIONS = {
+    "request_credit_line": {
+        "key": "credit_line", "label": "credit line", "summary": "Request a credit line of {amount} before {month}",
+        "instruction": "Explain why the company should ask the bank for a credit line now.",
+        "fallback": "The forecast shows the balance dropping to {low} EUR around {month}; a credit line of "
+                    "{amount} would cover the gap."},
+    "make_investment": {
+        "key": "investment", "label": "investment", "summary": "Invest {amount} in a money market fund ahead of {month}",
+        "instruction": "Explain why the company can invest this sum now.",
+        "fallback": "The forecast stays above the safety buffer, so {amount} can be invested ahead of {month}."},
+}
+
 ASK_TYPES = frozenset({"request_invoice", "request_clarification", "remind_invoice", "escalate_invoice"})
 EXHAUSTED = "escalation_exhausted"
 
@@ -344,30 +356,34 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
 
     # -- credit line proposal ------------------------------------------------------------------
     def propose_credit_line(state: AgentState) -> AgentState:
+        # Also handles the investment proposal of the same signal (T016): `action_type` in the payload picks it.
         p = _event(state).payload
         amount = parse_amount(p.get("requested_amount"))
         if amount is None:
             return {"steps": ["liquidity signal without requested_amount"]}
+        action = p.get("action_type") if p.get("action_type") in LIQUIDITY_ACTIONS else "request_credit_line"
+        what = LIQUIDITY_ACTIONS[action]
         month, low = str(p.get("month", "")), p.get("min_balance")
-        pol = classify(PolicyAction(action_type="request_credit_line", amount=amount), d.policy_context())
-        facts = {"forecast_month": month, "lowest_forecast_balance_eur": low, "credit_line_eur": str(amount),
+        pol = classify(PolicyAction(action_type=action, amount=amount), d.policy_context())
+        facts = {"forecast_month": month, "lowest_forecast_balance_eur": low, f"{what['key']}_eur": str(amount),
                  "why": p.get("why")}
-        explanation = explain(
-            d.llm, "Explain why the company should ask the bank for a credit line now.", facts,
-            f"The forecast shows the balance dropping to {low} EUR around {month}; a credit line of {_eur(amount)} "
-            "would cover the gap.")
-        summary = f"Request a credit line of {_eur(amount)} before {month}"
-        pending = {"action_type": "request_credit_line", "kind": "simulate", "args": {"amount": str(amount)},
+        if p.get("why"):  # T016 wrote a plain-language reason from code-computed numbers; keep it verbatim
+            explanation = str(p["why"])
+        else:
+            explanation = explain(d.llm, what["instruction"], facts, what["fallback"].format(
+                amount=_eur(amount), month=month, low=low))
+        summary = what["summary"].format(amount=_eur(amount), month=month)
+        pending = {"action_type": action, "kind": "simulate", "args": {"amount": str(amount)},
                    "reason": pol.reason, "summary": summary, "facts": facts,
                    "question": f"{summary}. {explanation}"}
         if pol.level == PolicyLevel.APPROVAL:
-            return {"pending": pending, "steps": ["credit line needs approval"]}
-        dec = Decision(action_type="request_credit_line", level=pol.level, reason=pol.reason, summary=summary + " (SIMULATED)",
+            return {"pending": pending, "steps": [f"{what['label']} needs approval"]}
+        dec = Decision(action_type=action, level=pol.level, reason=pol.reason, summary=summary + " (SIMULATED)",
                        payload={"facts": facts}, executed_simulated=True)
         d.save_decision(dec)
         if pol.level == PolicyLevel.NOTIFY:
             d.dm(cfg.ceo_id, f"{summary}. {explanation} Execution is SIMULATED.", pol.level)
-        return {"decision_ids": [dec.id], "steps": [f"credit line {pol.level}, simulated"]}
+        return {"decision_ids": [dec.id], "steps": [f"{what['label']} {pol.level}, simulated"]}
 
     # -- approvals -----------------------------------------------------------------------------
     def request_approval(state: AgentState) -> AgentState:

@@ -48,8 +48,8 @@ _ANCHORS: list[tuple[date, Decimal]] = [
     (date(2026, 4, 30), Decimal("21800.00")),
     (date(2026, 5, 31), Decimal("4900.00")),
     (date(2026, 6, 27), Decimal("-20430.00")),
-    (date(2026, 7, 31), Decimal("-6200.00")),
-    (date(2026, 8, 31), Decimal("11300.00")),
+    (date(2026, 7, 31), Decimal("3500.00")),
+    (date(2026, 8, 31), Decimal("14000.00")),
     (date(2026, 9, 30), Decimal("22000.00")),
     (date(2026, 12, 31), Decimal("40000.00")),
 ]

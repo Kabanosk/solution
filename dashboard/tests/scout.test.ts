@@ -8,8 +8,8 @@ const chip = (resolvedVia: ResolvedVia | null, status: TaskStatus = "done", pend
 test("channel chip mapping", () => {
   assert.equal(chip("slack_dm"), "Slack");
   assert.equal(chip("auto"), "Auto");
-  assert.equal(chip("invoicing"), "Auto");
-  assert.equal(chip("files"), "Auto");
+  assert.equal(chip("invoicing"), "Invoicing");
+  assert.equal(chip("files"), "Files");
   assert.equal(chip("chat_context"), "Chat context");
   assert.equal(chip("email"), "Email");
   assert.equal(chip("forecast"), "Forecast");

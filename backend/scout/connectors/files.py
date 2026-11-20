@@ -27,8 +27,12 @@ class _AuditLog:
 
     def log(self, employee: str, action: str, path: str, reason: str | None) -> None:
         denied = action.startswith("DENIED")
-        self.audit.record("agent", action.split()[1] if denied else action.split()[0], f"files:{employee}",
-                          path or "*", "DENY" if denied else "ALLOW", task_id=self.task_id, reason=reason,
+        verb = action.split()[1] if denied else action.split()[0]
+        resource = path or "*"
+        if not denied and " query=" in action:  # "search_files query='AS-77012'" -> what was looked for, and where
+            resource = f"{action.split(' query=', 1)[1]} in {'company folders' if resource == '*' else resource}"
+        self.audit.record("agent", verb, f"files:{employee}", resource, "DENY" if denied else "ALLOW",
+                          task_id=self.task_id, reason=reason,
                           policy="company-folders-only" if denied else None)
 
 

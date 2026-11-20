@@ -192,6 +192,7 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # the bank poll every 5 s is not news
     worker, socket_handler = build()
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):

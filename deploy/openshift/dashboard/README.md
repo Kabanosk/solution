@@ -2,6 +2,8 @@
 
 Deploys a separate `dashboard` pod in the selected project. It reads the existing `postgres:5432` service using keys from Secret `postgres`, and calls the internal API at `http://api:8000`. No company records or credentials are included in the build context, manifests or image layers. It does not alter the backend, seed jobs or base-service manifests.
 
+The **LLM** page is an interactive chat. Its server calls the supplied Granite endpoint at `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`, configured by `LLM_CHAT_BASE_URL` in the deployment. The model dropdown currently allows only `modelcar-granite-4-0-h-tiny`. Optional `LLM_CHAT_API_KEY` can be supplied through the existing Secret environment if a gateway requires a bearer token. Chat is streamed through the authenticated dashboard; the browser never connects to cluster DNS directly. No conversation database or schema migration is needed. See `dashboard/README.md` for local port-forwarding and request limits.
+
 All commands use the current `oc` project. Select the target using the environment variable `OPENSHIFT_PROJECT`; no project name is stored in the manifests:
 
 ```sh

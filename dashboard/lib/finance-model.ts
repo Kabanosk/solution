@@ -1,3 +1,5 @@
+import type { AgentJob } from "./agent-jobs.ts";
+
 export type ExpenseCategory = { name: string; color: string; amount: number; percentage: number };
 export type FinancePeriod = { transactions: number; totalRevenue: number; totalExpenses: number; expenses: ExpenseCategory[] };
 export type Employee = { id: string; name: string; initials: string; role: string; team: string; salary: number | null; avatar: string };
@@ -15,6 +17,7 @@ export type DashboardData = {
   undocumentedPayments: number;
   pendingApprovals: number;
   decisions: Decision[];
+  jobs: AgentJob[];
   forecast: Forecast | null;
 };
 

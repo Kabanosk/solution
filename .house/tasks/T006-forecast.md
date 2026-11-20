@@ -1,7 +1,7 @@
 ---
 id: T006
 title: Liquidity and cost forecast (XGBoost, Jupyter, MLflow)
-status: todo
+status: split  # -> T014, T015, T016, T017
 owner: null
 branch: null
 depends_on: ["T002"]

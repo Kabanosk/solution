@@ -1,7 +1,7 @@
 ---
 id: T012
 title: OpenShift deploy YAMLs (Postgres, app, MLflow, model endpoint)
-status: todo
+status: split  # -> T021, T022, T023, T024, T025
 owner: null
 branch: null
 depends_on: ["T001"]

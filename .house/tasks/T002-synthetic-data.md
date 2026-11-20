@@ -1,7 +1,7 @@
 ---
 id: T002
 title: Synthetic company data consistent with the bank statement
-status: doing
+status: review
 owner: coder
 branch: task/T002-synthetic-data
 depends_on: ["T001"]

@@ -204,9 +204,9 @@ def cm(kind, month, cost, metric, year=2025):
 def test_cost_from_zero_with_zero_metric_is_flagged():
     rows = [cm(CLOUD, 5, 0, 0), cm(CLOUD, 6, 150, 0)]
     (a,) = detect_anomalies(rows)
-    assert a.month == date(2025, 6, 1) and a.cost == 150 and a.cost_change_pct.is_infinite()
+    assert a.month == date(2025, 6, 1) and a.cost == 150 and a.cost_change_pct is None
     assert a.cost_per_unit is None
-    assert "from EUR 0.00 to EUR 150.00" in a.explanation
+    assert "new cost" in a.explanation and "EUR 0.00" in a.explanation and "EUR 150.00" in a.explanation
 
 
 def test_cost_rising_while_metric_stays_at_zero_is_flagged():
@@ -268,3 +268,66 @@ def test_zero_to_zero_metric_respects_the_growth_cap():
     rows = [cm(CLOUD, 5, 100, 0), cm(CLOUD, 6, 150, 0)]
     assert len(detect_anomalies(rows)) == 1
     assert detect_anomalies(rows, metric_growth_max_pct=0) == []  # 0% growth is not below a cap of 0
+
+
+# ---------------------------------------------------------------------------------------------------
+# second Codex review of T044
+@pytest.fixture
+def repo():
+    url = get_settings().database_url
+    try:
+        psycopg.connect(url, connect_timeout=2).close()
+    except psycopg.OperationalError:
+        pytest.skip("Postgres not reachable")
+    schema = f"{SCHEMA}_repo"
+    with psycopg.connect(url, autocommit=True) as c:
+        c.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+        c.execute(f"CREATE SCHEMA {schema}")
+    isolated = f"{url}{'&' if '?' in url else '?'}options=-csearch_path%3D{schema}"
+    with psycopg.connect(isolated) as c:
+        c.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+    r = Repository.connect(isolated)
+    yield r
+    r.conn.close()
+    with psycopg.connect(url, autocommit=True) as c:
+        c.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+
+
+def test_cost_from_zero_anomaly_round_trips_through_the_repository(repo):
+    from cfo.agent.investigate import build_investigation_graph
+    from cfo.domain import Decision, PolicyLevel
+
+    rows = [cm(CLOUD, 5, 0, 0), cm(CLOUD, 6, 150, 0)]
+
+    class Gw:
+        def cost_metrics(self):
+            return [r.model_dump(mode="json") for r in rows]
+
+    class Llm:
+        def chat(self, messages, **kw):
+            raise RuntimeError("no llm")  # explain() falls back to the code-made sentence
+
+    (f,) = build_investigation_graph(Gw(), Llm()).invoke({})["findings"]
+    assert f["facts"]["cost_change_pct"] is None and "new cost" in f["summary"]
+    dec = Decision(action_type="alert_cost_anomaly", level=PolicyLevel.NOTIFY, reason="r", summary=f["summary"],
+                   payload={"kind": f["kind"], "month": f["month"], "facts": f["facts"]})
+    repo.add_decision(dec)  # Postgres rejects Infinity/NaN in JSONB
+    assert repo.list_decisions()[0].payload["facts"]["cost_change_pct"] is None
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 0.0, -2.0])
+def test_start_without_speed_validates_the_default_before_persisting_state(sim, bad):
+    sim.default_speed = bad  # as if SIM_SPEED were bad; no sim_state row exists yet
+    with pytest.raises(ValueError):
+        sim.start()
+    assert sim.repo.conn.execute("SELECT count(*) AS n FROM sim_state").fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 0.0, -2.0])
+def test_start_without_speed_validates_the_stored_speed(sim, bad):
+    sim.status()  # creates the row
+    sim.repo.conn.execute("UPDATE sim_state SET speed = %s", (bad,))
+    sim.repo.conn.commit()
+    with pytest.raises(ValueError):
+        sim.start()
+    assert sim.status().paused

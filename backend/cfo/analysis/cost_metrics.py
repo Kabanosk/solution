@@ -78,7 +78,7 @@ class CostAnomaly:
     team_id: str | None
     cost: Decimal
     previous_cost: Decimal
-    cost_change_pct: Decimal  # Decimal("Infinity") when the previous cost was zero (any cost is then new)
+    cost_change_pct: Decimal | None  # None when the previous cost was zero (a new cost, no percentage)
     metric_value: Decimal
     previous_metric_value: Decimal
     metric_change_pct: Decimal  # 0 when the metric stayed at zero
@@ -178,7 +178,7 @@ def _p1(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.1")), "f")
 
 
-def _explain(kind: CostMetricKind, cost_pct: Decimal, metric_pct: Decimal, drivers: list[Driver],
+def _explain(kind: CostMetricKind, cost_pct: Decimal | None, metric_pct: Decimal, drivers: list[Driver],
              cpu_prev: Decimal | None, cpu_now: Decimal | None, cost_prev: Decimal, cost_now: Decimal) -> str:
     spec = PAIRS[kind]
     if metric_pct > 0:
@@ -194,8 +194,8 @@ def _explain(kind: CostMetricKind, cost_pct: Decimal, metric_pct: Decimal, drive
     if cpu_prev is not None and cpu_now is not None:
         parts.append(f"{spec.unit_cost_noun} from {_money(cpu_prev)} to {_money(cpu_now)}")
     tail = f": {', '.join(parts)}." if parts else "."
-    rose = (f"rose {_p1(cost_pct)}%" if cost_pct.is_finite()
-            else f"went from {_money(cost_prev)} to {_money(cost_now)}")
+    rose = (f"rose {_p1(cost_pct)}%" if cost_pct is not None
+            else f"is a new cost of {_money(cost_now)} (previous month {_money(cost_prev)})")
     return f"{spec.cost_noun} {rose} month over month while {spec.metric_noun} {metric_phrase}{tail}"
 
 
@@ -208,7 +208,6 @@ def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], 
         # previous cost was zero: any cost is new growth (never a silent skip on division by zero)
         if cur.cost <= 0:
             return None
-        cost_pct = Decimal("Infinity")
     elif cost_pct < cost_growth_pct:
         return None
     if prev.metric_value == 0:

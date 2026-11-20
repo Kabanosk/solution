@@ -134,8 +134,10 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `CORS_ORIGINS` | `*` | the dashboard origin |
 | `SOURCE_CSV` | auto-detect | bank CSV for `cfo generate` |
 | `FORECAST_MODEL_PATH` | `models/liquidity_xgb.json` | path to the saved XGBoost model |
-| `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024) |
-| `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event (`cfo/observability.py`); auth via MLflow's own vars, e.g. `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` on RHOAI |
+| `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024). Read from the process environment only (not from `.env`), like every other `MLFLOW_*` variable |
+| `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event when `MLFLOW_TRACKING_URI` is set (`cfo/observability.py`, T027) |
+| `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error falls back to `FORECAST_MODEL_PATH` |
+| `MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_NAME` | unset | standard MLflow client variables, the code sets none of them. RHOAI MLflow: `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` (+ `MLFLOW_WORKSPACE=<project>` from another namespace). Suggested for the API pod: `MLFLOW_HTTP_REQUEST_MAX_RETRIES=1`, `MLFLOW_HTTP_REQUEST_TIMEOUT=10` |
 | `API_PORT` | `8000` | image only |
 
 ## 6. Fill in (things only humans know)

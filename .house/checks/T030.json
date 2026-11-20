@@ -1,0 +1,26 @@
+{
+  "task": "T030",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_api_breakdown.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.api.export_openapi docs/openapi.json && grep -q \"/v1/costs/by-category\" docs/openapi.json && grep -q \"/v1/employees\" docs/openapi.json",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:39:25+01:00",
+  "results": {}
+}

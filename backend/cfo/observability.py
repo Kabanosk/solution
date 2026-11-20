@@ -30,25 +30,26 @@ import os
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from cfo.config import REPO_ROOT
 
 log = logging.getLogger(__name__)
 
 MAX_CHARS = 4000  # span inputs/outputs are clipped: documents can be long, traces should stay readable
 
 
-class TracingSettings(BaseSettings):
-    """Own settings class (same `.env` as cfo.config) so parallel tasks do not collide on config.py."""
-
-    model_config = SettingsConfigDict(env_file=(REPO_ROOT / ".env", ".env"), env_file_encoding="utf-8",
-                                      extra="ignore", env_ignore_empty=True)
+@dataclass
+class TracingSettings:
+    """`MLFLOW_*` variables come from the process environment only (not `.env`), like the rest of the MLflow
+    client configuration and `cfo.forecast.model`."""
 
     mlflow_tracking_uri: str = ""  # MLFLOW_TRACKING_URI; empty = tracing off
     mlflow_agent_experiment: str = "cfo-agent"  # MLFLOW_AGENT_EXPERIMENT
+
+    @classmethod
+    def from_env(cls) -> TracingSettings:
+        return cls(os.environ.get("MLFLOW_TRACKING_URI", "").strip(),
+                   os.environ.get("MLFLOW_AGENT_EXPERIMENT", "").strip() or "cfo-agent")
 
 
 _lock = threading.Lock()
@@ -63,15 +64,15 @@ def enabled() -> bool:
 def init_tracing(settings: Any = None) -> bool:
     """Turn tracing on if configured. Returns whether tracing is on. Idempotent; never raises.
 
-    `settings`: anything with `mlflow_tracking_uri` and `mlflow_agent_experiment` (default: `TracingSettings()`).
+    `settings`: anything with `mlflow_tracking_uri` and `mlflow_agent_experiment` (default: `TracingSettings.from_env()`).
     """
     global _mlflow
     with _lock:
         if _mlflow is not None:
             return True
         try:
-            s = settings if settings is not None else TracingSettings()
-            uri = getattr(s, "mlflow_tracking_uri", "") or os.environ.get("MLFLOW_TRACKING_URI", "")
+            s = settings if settings is not None else TracingSettings.from_env()
+            uri = getattr(s, "mlflow_tracking_uri", "")
             if not uri:
                 return False
             experiment = getattr(s, "mlflow_agent_experiment", "") or "cfo-agent"

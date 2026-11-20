@@ -30,7 +30,7 @@ NO_MLFLOW_SCRIPT = """
 import sys
 from cfo import observability as obs
 import cfo.agent.graph, cfo.agent.investigate, cfo.api.app
-assert obs.init_tracing(obs.TracingSettings(_env_file=None)) is False
+assert obs.init_tracing() is False
 assert obs.enabled() is False
 with obs.span("x", inputs={"a": 1}) as s:
     s.set_outputs({"b": 2})
@@ -77,7 +77,7 @@ def tracing(tmp_path):
     uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
     mlflow.set_tracking_uri(uri)  # keep trace artifacts in tmp_path too (the default is ./mlruns in the cwd)
     mlflow.create_experiment(EXPERIMENT, artifact_location=(tmp_path / "artifacts").as_uri())
-    settings = obs.TracingSettings(_env_file=None, mlflow_tracking_uri=uri, mlflow_agent_experiment=EXPERIMENT)
+    settings = obs.TracingSettings(mlflow_tracking_uri=uri, mlflow_agent_experiment=EXPERIMENT)
     assert obs.init_tracing(settings) is True
     yield mlflow
     obs.reset_tracing()
@@ -106,7 +106,7 @@ def children(trace, parent_name):
 
 @needs_mlflow
 def test_init_is_idempotent_and_spans_nest(tracing):
-    settings = obs.TracingSettings(_env_file=None, mlflow_tracking_uri="sqlite:///ignored-second-call.db")
+    settings = obs.TracingSettings(mlflow_tracking_uri="sqlite:///ignored-second-call.db")
     assert obs.init_tracing(settings) is True and obs.enabled()
     with obs.span("root", inputs={"q": 1}) as root:
         obs.set_trace_tags({"cfo.outcome": "done", "skipped": None})
@@ -149,7 +149,7 @@ def test_init_never_raises(monkeypatch):
 
     monkeypatch.setattr(mlflow, "set_experiment", boom)
     try:
-        assert obs.init_tracing(obs.TracingSettings(_env_file=None, mlflow_tracking_uri="sqlite:///:memory:")) is False
+        assert obs.init_tracing(obs.TracingSettings(mlflow_tracking_uri="sqlite:///:memory:")) is False
         assert not obs.enabled()
     finally:
         obs.reset_tracing()

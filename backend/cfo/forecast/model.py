@@ -12,7 +12,11 @@
   opening balance, the organizer's liquidity chart also starts at 0).
 * The model is saved to `models/liquidity_xgb.json` (booster) + `.meta.json` (calendar inference, metrics);
   `models/` is git-ignored. Params, metrics and the booster go to MLflow only when `MLFLOW_TRACKING_URI` is set
-  and `mlflow` is installed (optional extra `mlflow`).
+  and `mlflow` is installed (optional extra `mlflow`). With `register=True` the run's model becomes a new version
+  of the registered model `liquidity-forecast` and takes the alias `champion`;
+  `ForecastModel.load_from_mlflow("models:/liquidity-forecast@champion")` rebuilds the full model from MLflow
+  (booster + the sidecar logged as a run artifact). Auth, workspace and TLS come from MLflow's own environment
+  variables (`MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, ...); nothing is set here.
 * `feature_importances()` and `explain()` give T016 the numbers it hands to the LLM to explain a forecast.
 """
 
@@ -22,9 +26,11 @@ import importlib
 import json
 import logging
 import os
+import re
 import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +49,13 @@ PARTNER_TRANCHES_TOTAL = 12
 EXCLUDED_CATEGORIES = (PARTNER_CATEGORY,)
 FEATURE_COLUMNS = list(feat.CALENDAR_COLUMNS)
 MODEL_FILENAME = "liquidity_xgb.json"
-MLFLOW_EXPERIMENT = "liquidity-forecast"
+MLFLOW_EXPERIMENT = "liquidity-forecast"  # `MLFLOW_EXPERIMENT_NAME` overrides
+REGISTERED_MODEL_NAME = "liquidity-forecast"
+CHAMPION_ALIAS = "champion"
+MLFLOW_MODEL_ARTIFACT = "model"
+META_ARTIFACT = "forecast_model.meta.json"  # the sidecar of `ForecastModel.save`, as a run artifact
+_REGISTRY_ALIAS_URI = re.compile(r"^models:/(?P<name>[^/@]+)@(?P<alias>[^/@]+)$")
+_REGISTRY_VERSION_URI = re.compile(r"^models:/(?P<name>[^/@]+)/(?P<version>\d+)$")
 
 # Small, shallow and deterministic: ~330 training days, strong calendar signal, no randomness.
 DEFAULT_PARAMS: dict[str, Any] = {
@@ -75,6 +87,10 @@ class ForecastModel:
     metrics: dict[str, float] = field(default_factory=dict)
     excluded_categories: tuple[str, ...] = EXCLUDED_CATEGORIES
     feature_columns: list[str] = field(default_factory=lambda: list(FEATURE_COLUMNS))
+    # Where the model lives in MLflow (set by `log_to_mlflow_if_configured` / `load_from_mlflow`; not saved).
+    mlflow_run_id: str | None = None
+    model_version: str | None = None  # registered model version, None when not from the registry
+    trained_at: datetime | None = None  # start of the MLflow run
 
     def features_for(self, dates: Iterable[Any]) -> pd.DataFrame:
         return feat.calendar_features(dates, shutdown_days=self.shutdown_days, due_days=self.due_days)[
@@ -123,7 +139,12 @@ class ForecastModel:
         path = Path(path) if path else default_model_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         self.regressor.save_model(path)
-        meta = {
+        _meta_path(path).write_text(json.dumps(self.meta(), indent=2), encoding="utf-8")
+        return path
+
+    def meta(self) -> dict[str, Any]:
+        """Everything besides the booster that is needed to rebuild the model (the `.meta.json` sidecar)."""
+        return {
             "shutdown_days": sorted([m, d] for m, d in self.shutdown_days),
             "due_days": {k: list(v) for k, v in self.due_days.items()},
             "trained_until": str(self.trained_until.date()),
@@ -131,8 +152,19 @@ class ForecastModel:
             "excluded_categories": list(self.excluded_categories),
             "feature_columns": self.feature_columns,
         }
-        _meta_path(path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
-        return path
+
+    @classmethod
+    def from_meta(cls, regressor: XGBRegressor, meta: Mapping[str, Any], **extra: Any) -> ForecastModel:
+        return cls(
+            regressor=regressor,
+            shutdown_days=frozenset((int(m), int(d)) for m, d in meta["shutdown_days"]),
+            due_days={k: tuple(v) for k, v in meta["due_days"].items()},
+            trained_until=pd.Timestamp(meta["trained_until"]),
+            params=dict(meta["params"]), metrics=dict(meta["metrics"]),
+            excluded_categories=tuple(meta["excluded_categories"]),
+            feature_columns=list(meta["feature_columns"]),
+            **extra,
+        )
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> ForecastModel:
@@ -140,15 +172,35 @@ class ForecastModel:
         meta = json.loads(_meta_path(path).read_text(encoding="utf-8"))
         regressor = XGBRegressor()
         regressor.load_model(path)
-        return cls(
-            regressor=regressor,
-            shutdown_days=frozenset((int(m), int(d)) for m, d in meta["shutdown_days"]),
-            due_days={k: tuple(v) for k, v in meta["due_days"].items()},
-            trained_until=pd.Timestamp(meta["trained_until"]),
-            params=meta["params"], metrics=meta["metrics"],
-            excluded_categories=tuple(meta["excluded_categories"]),
-            feature_columns=list(meta["feature_columns"]),
-        )
+        return cls.from_meta(regressor, meta)
+
+    @classmethod
+    def load_from_mlflow(cls, uri: str) -> ForecastModel:
+        """Rebuild the model from MLflow: `models:/liquidity-forecast@champion`, `models:/<name>/<version>` or
+        `runs:/<run id>/model`. Needs the run that logged the model (the sidecar is its artifact).
+
+        Uses the tracking server of `MLFLOW_TRACKING_URI`. Raises on any problem (missing package, unreachable
+        server, unknown model); callers that must not fail catch it. `mlflow_run_id`, `model_version` and
+        `trained_at` are set on the result.
+        """
+        mlflow = _mlflow()
+        ref = resolve_mlflow_model(uri)
+        loaded = importlib.import_module("mlflow.xgboost").load_model(ref.uri)
+        with tempfile.TemporaryDirectory() as tmp:
+            if isinstance(loaded, XGBRegressor):  # someone logged the sklearn wrapper instead of the booster
+                regressor = loaded
+            else:
+                booster_file = Path(tmp) / MODEL_FILENAME
+                loaded.save_model(booster_file)
+                regressor = XGBRegressor()
+                regressor.load_model(booster_file)
+            meta_file = mlflow.artifacts.download_artifacts(
+                run_id=ref.run_id, artifact_path=META_ARTIFACT, dst_path=tmp)
+            meta = json.loads(Path(meta_file).read_text(encoding="utf-8"))
+        started = mlflow.MlflowClient().get_run(ref.run_id).info.start_time
+        trained_at = datetime.fromtimestamp(started / 1000, tz=timezone.utc) if started else None
+        return cls.from_meta(regressor, meta, mlflow_run_id=ref.run_id, model_version=ref.version,
+                             trained_at=trained_at)
 
 
 # -- training ---------------------------------------------------------------------------------------------
@@ -183,8 +235,13 @@ def train(
     holdout_days: int = 60,
     exclude_categories: Iterable[str] = EXCLUDED_CATEGORIES,
     log_to_mlflow: bool = True,
+    register: bool = False,
 ) -> ForecastModel:
-    """Fit on the daily net cash flow of `transactions` (columns of `features.fetch_transactions`)."""
+    """Fit on the daily net cash flow of `transactions` (columns of `features.fetch_transactions`).
+
+    With `MLFLOW_TRACKING_URI` set the run is logged to MLflow (`log_to_mlflow`), and with `register=True` also
+    registered as the new `champion` of `liquidity-forecast` (see `log_to_mlflow_if_configured`).
+    """
     if transactions.empty:
         raise ValueError("no transactions to train on")
     excluded = tuple(exclude_categories)
@@ -203,7 +260,7 @@ def train(
         params=merged, metrics=metrics, excluded_categories=excluded,
     )
     if log_to_mlflow:
-        log_to_mlflow_if_configured(model)
+        log_to_mlflow_if_configured(model, register=register)
     return model
 
 
@@ -211,37 +268,96 @@ def train_from_db(conn: psycopg.Connection | None = None, **kwargs: Any) -> Fore
     return train(feat.fetch_transactions(conn), **kwargs)
 
 
-def log_to_mlflow_if_configured(model: ForecastModel) -> bool:
-    """Log params, metrics and the booster to MLflow when `MLFLOW_TRACKING_URI` is set; otherwise do nothing.
+# -- MLflow ----------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class MlflowModelRef:
+    """A model URI resolved to something that no longer moves: `uri` is pinned to a version for registry URIs."""
+
+    uri: str
+    run_id: str
+    version: str | None  # registered model version; None for `runs:/...`
+
+
+def _mlflow() -> Any:
+    """The `mlflow` module (optional extra), pointed at `MLFLOW_TRACKING_URI` when that is set."""
+    mlflow = importlib.import_module("mlflow")
+    uri = os.environ.get("MLFLOW_TRACKING_URI")
+    if uri:
+        mlflow.set_tracking_uri(uri)
+    return mlflow
+
+
+def resolve_mlflow_model(uri: str) -> MlflowModelRef:
+    """Which run and registered version a model URI points to right now (one cheap call, no download)."""
+    mlflow = _mlflow()
+    alias, numbered = _REGISTRY_ALIAS_URI.match(uri), _REGISTRY_VERSION_URI.match(uri)
+    if alias or numbered:
+        client = mlflow.MlflowClient()
+        if alias:
+            mv = client.get_model_version_by_alias(alias["name"], alias["alias"])
+        else:
+            mv = client.get_model_version(numbered["name"], numbered["version"])
+        pinned = f"models:/{mv.name}/{mv.version}"
+        run_id = mv.run_id or mlflow.models.get_model_info(pinned).run_id
+        version: str | None = str(mv.version)
+    else:
+        pinned, version = uri, None
+        run_id = mlflow.models.get_model_info(uri).run_id
+    if not run_id:
+        raise ValueError(f"MLflow model {uri} has no source run; the forecast sidecar cannot be found")
+    return MlflowModelRef(uri=pinned, run_id=run_id, version=version)
+
+
+def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
+                                model_name: str = REGISTERED_MODEL_NAME,
+                                alias: str | None = CHAMPION_ALIAS) -> str | None:
+    """Log params, metrics, the booster and the sidecar to MLflow when `MLFLOW_TRACKING_URI` is set.
+
+    Returns the run id, or None when nothing was logged. With `register=True` the logged booster becomes a new
+    version of the registered model `model_name` and `alias` (default `champion`; None for no alias) is moved
+    to it. `model.mlflow_run_id` / `model.model_version` are set accordingly.
 
     `mlflow` is an optional dependency and is only imported when the variable is set. A tracking failure never
-    breaks training (it is logged). Returns whether a run was logged.
+    breaks training (it is logged).
     """
-    uri = os.environ.get("MLFLOW_TRACKING_URI")
-    if not uri:
-        return False
+    if not os.environ.get("MLFLOW_TRACKING_URI"):
+        return None
     try:
-        mlflow = importlib.import_module("mlflow")
+        mlflow = _mlflow()
         mlflow_xgboost = importlib.import_module("mlflow.xgboost")
     except ImportError:
         log.warning("MLFLOW_TRACKING_URI is set but mlflow is not installed (uv sync --extra mlflow)")
-        return False
+        return None
+    run_id: str | None = None
     try:
-        mlflow.set_tracking_uri(uri)
-        mlflow.set_experiment(MLFLOW_EXPERIMENT)
-        with mlflow.start_run(run_name=f"xgb-until-{model.trained_until.date()}"):
+        import xgboost
+
+        mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT_NAME") or MLFLOW_EXPERIMENT)
+        with mlflow.start_run(run_name=f"xgb-until-{model.trained_until.date()}") as run:
+            run_id = run.info.run_id
             mlflow.log_params({k: str(v) for k, v in model.params.items()})
             mlflow.log_param("excluded_categories", ",".join(model.excluded_categories))
             mlflow.log_metrics(model.metrics)
-            mlflow_xgboost.log_model(model.regressor.get_booster(), "model")
+            # Pinned requirement: skips MLflow's slow import-based inference and is all the booster needs.
+            info = mlflow_xgboost.log_model(model.regressor.get_booster(), name=MLFLOW_MODEL_ARTIFACT,
+                                            pip_requirements=[f"xgboost=={xgboost.__version__}"])
             with tempfile.TemporaryDirectory() as tmp:
-                path = Path(tmp) / "feature_importances.json"
-                path.write_text(model.feature_importances().to_json(indent=2), encoding="utf-8")
-                mlflow.log_artifact(str(path))
-        return True
+                importances = Path(tmp) / "feature_importances.json"
+                importances.write_text(model.feature_importances().to_json(indent=2), encoding="utf-8")
+                mlflow.log_artifact(str(importances))
+                meta = Path(tmp) / META_ARTIFACT
+                meta.write_text(json.dumps(model.meta(), indent=2), encoding="utf-8")
+                mlflow.log_artifact(str(meta))
+        model.mlflow_run_id, model.model_version = run_id, None
+        if register:
+            version = mlflow.register_model(info.model_uri, model_name)
+            if alias:
+                mlflow.MlflowClient().set_registered_model_alias(model_name, alias, version.version)
+            model.model_version = str(version.version)
+        return run_id
     except Exception:  # noqa: BLE001 - tracking is best effort
         log.exception("MLflow logging failed; the model is still trained")
-        return False
+        return run_id
 
 
 def get_model(transactions: pd.DataFrame | None = None, *, path: str | Path | None = None,

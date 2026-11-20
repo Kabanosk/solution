@@ -17,7 +17,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from cfo.domain import InvoiceLine
 from cfo.llm import LLM, Message, ToolSpec
@@ -132,7 +132,8 @@ def extract_invoice(llm: LLM, text: str) -> ExtractedInvoice | None:
     if total is None:
         return None
     lines: list[InvoiceLine] = []
-    for raw in args.get("lines") or []:
+    raw_lines = args.get("lines")
+    for raw in raw_lines if isinstance(raw_lines, list) else []:  # a scalar or object here is "no lines"
         if not isinstance(raw, dict):
             continue
         amount = parse_amount(raw.get("amount"))
@@ -140,8 +141,11 @@ def extract_invoice(llm: LLM, text: str) -> ExtractedInvoice | None:
             continue
         qty = parse_amount(raw.get("quantity")) or Decimal(1)
         unit = parse_amount(raw.get("unit_price"))
-        lines.append(InvoiceLine(description=str(raw["description"]), quantity=qty,
-                                 unit_price=unit if unit is not None else amount, amount=amount))
+        try:
+            lines.append(InvoiceLine(description=str(raw["description"]), quantity=qty,
+                                     unit_price=unit if unit is not None else amount, amount=amount))
+        except (ValidationError, ArithmeticError):
+            continue
     try:
         issued = date.fromisoformat(str(args.get("issue_date"))) if args.get("issue_date") else None
     except ValueError:

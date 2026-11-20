@@ -1,7 +1,7 @@
 ---
 id: T042
 title: "Review fixes: deploy runtime gaps (PVC mounts, mlflow extra, local ports, setup guide)"
-status: review
+status: done
 owner: coder
 branch: task/T042-fix-deploy-hardening
 depends_on: ["T011"]

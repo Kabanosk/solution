@@ -8,8 +8,9 @@ usage: cfo <command> [args...]
   api                     FastAPI on 0.0.0.0:\${API_PORT:-8000}   (default)
   mcp <company-db|workstations|hr> [port]
                           one MCP server over streamable HTTP (ports 8001/8002/8003)
-  worker                  agent worker: simulator + agent + notifier (python -m cfo.run)
-  smoke                   cluster smoke check: LLM tool calling, MCP servers, DB seed, MLflow (python -m cfo.smoke)
+  worker                  Scout worker pool: watchers, job queue, Slack (python -m scout.worker)
+  bank-mock               mock bank API on 0.0.0.0:\${BANK_PORT:-8010} (python -m scout.mock_bank)
+  seed [args]             Scout demo seed: company data, tasks, bank mock (python -m scout.seed)
   migrate [args]          apply the DB schema (python -m cfo.db.migrate)
   generate [args]         generate synthetic data (python -m cfo.data.generate)
   load [args]             load generated data into Postgres (python -m cfo.data.load)
@@ -37,10 +38,13 @@ case "$cmd" in
         exec python -m cfo.mcp_servers "$server" --transport streamable-http --host 0.0.0.0 --port "$port" "$@"
         ;;
     worker)
-        exec python -m cfo.run "$@"
+        exec python -m scout.worker "$@"
         ;;
-    smoke)
-        exec python -m cfo.smoke "$@"
+    bank-mock)
+        BANK_HOST="${BANK_HOST:-0.0.0.0}" BANK_PORT="${BANK_PORT:-8010}" exec python -m scout.mock_bank "$@"
+        ;;
+    seed)
+        exec python -m scout.seed "$@"
         ;;
     migrate)
         exec python -m cfo.db.migrate "$@"

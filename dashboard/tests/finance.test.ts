@@ -68,3 +68,18 @@ test("authentication fails closed and checks the full credentials", () => {
     if (password === undefined) delete process.env.DASHBOARD_PASSWORD; else process.env.DASHBOARD_PASSWORD = password;
   }
 });
+
+test("invoice payload keeps cents and maps the document", async () => {
+  const { parseTransactionInvoice } = await import("../lib/invoice-model.ts");
+  const parsed = parseTransactionInvoice({
+    transaction: { id: "tx1", booking_date: "2026-10-02", reference: "FLV-1", counterparty: "Fattoria", amount: "-120.10", currency: "EUR" },
+    invoice: { id: "inv", number: "FLV-1", supplier: "Fattoria", issue_date: "2026-10-01", due_date: null, total: "120.10", currency: "EUR", source: "db", category: null },
+    lines: [{ position: 0, description: "Chianti", quantity: "10.0000", unit_price: "12.0100", amount: "120.10", category: "beverages" }],
+    document: { task_id: "SC-1", filed_at: "2026-10-02T10:00:00+00:00", source: "invoicing_pg", text_excerpt: "INVOICE", evidence: { name: "FLV-1.pdf" } },
+    task_id: "SC-1",
+  });
+  assert.equal(parsed.transaction.amount, -120.1);
+  assert.equal(parsed.lines[0].unitPrice, 12.01);
+  assert.equal(parsed.document?.textExcerpt, "INVOICE");
+  assert.throws(() => parseTransactionInvoice({ transaction: {}, invoice: {}, lines: [] }));
+});

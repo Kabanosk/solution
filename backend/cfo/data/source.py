@@ -13,7 +13,7 @@ from __future__ import annotations
 import csv
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,12 +21,13 @@ from cfo.config import REPO_ROOT
 from cfo.domain import Transaction
 
 CSV_NAME = "pizzeria-amalfi-bank-statement-2025-v6.csv"
-INVOICE_RE = re.compile(r"\b((?:AS|FLV)-\d+)\b")
+INVOICE_RE = re.compile(r"\b((?:AS|FLV|CWM|PFB)-\d+)\b")
 
 SUPPLIER_CATEGORY = {
     "Asimex Wholesale Ltd": ("food", "kitchen"),
     "Central Wholesale Market": ("food", "kitchen"),
     "Fattoria La Vino GmbH": ("beverages", "kitchen"),
+    "Pasta Fresca Bologna S.r.l.": ("food", "kitchen"),
     "Main Street Real Estate GmbH": ("rent", "front"),
     "City Energy & Utilities AG": ("utilities", "front"),
 }
@@ -75,8 +76,12 @@ def _day(text: str) -> date:
     return datetime.strptime(text, "%d.%m.%y").date()
 
 
-def load_bank_csv(path: Path | None = None) -> list[Transaction]:
-    """All statement lines in chronological order (the file is newest-first) with deterministic ids."""
+def load_bank_csv(path: Path | None = None, *, shift_weeks: int = 0) -> list[Transaction]:
+    """All statement lines in chronological order (the file is newest-first) with deterministic ids.
+
+    `shift_weeks` moves every date by whole weeks (weekdays stay right), so the 2025 statement can serve as
+    recent history in real time (Scout bank mock)."""
+    shift = timedelta(weeks=shift_weeks)
     path = path or find_source_csv()
     with path.open(encoding="utf-8-sig", newline="") as fh:
         rows = list(csv.DictReader(fh, delimiter=";"))
@@ -89,8 +94,8 @@ def load_bank_csv(path: Path | None = None) -> list[Transaction]:
         txns.append(
             Transaction(
                 id=f"txn_{n:04d}",
-                booking_date=_day(row["Booking Date"]),
-                value_date=_day(row["Value Date"]) if row["Value Date"] else None,
+                booking_date=_day(row["Booking Date"]) + shift,
+                value_date=_day(row["Value Date"]) + shift if row["Value Date"] else None,
                 type=row["Transaction Type"],
                 reference=reference,
                 counterparty=row["Beneficiary/Payer"],

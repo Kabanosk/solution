@@ -9,7 +9,7 @@ import pytest
 
 from cfo.config import get_settings
 from cfo.db.repo import Repository
-from cfo.domain import Decision, Employee, Invoice, InvoiceLine, PolicyLevel, Rule, Team, Transaction, Vacation
+from cfo.domain import Employee, Invoice, InvoiceLine, PolicyLevel, Rule, Team, Transaction, Vacation
 
 
 @pytest.fixture
@@ -60,11 +60,6 @@ def test_transactions_invoices_employees_rules(repo: Repository):
     assert repo.get_invoice_by_number("AS-1") == inv
     assert repo.list_transactions(undocumented_only=True) == []
     assert repo.get_transaction(txn.id).documented
-
-    dec = Decision(action_type="attach_invoice", summary="s", level=PolicyLevel.AUTO, reason="r",
-                   payload={"invoice": "AS-1"})
-    repo.add_decision(dec)
-    assert repo.list_decisions() == [dec]
 
     rule = Rule(text="equipment: ask me", level=PolicyLevel.APPROVAL, category="equipment")
     repo.add_rule(rule)

@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import { Pool } from "pg";
 import { authorized } from "./auth";
 import { isDevelopmentPreview } from "./development-preview";
-import { decimalCents, displayCents, financePeriod, type DashboardData, type Decision, type Forecast } from "./finance-model";
+import { decimalCents, displayCents, financePeriod, type DashboardData, type Forecast } from "./finance-model";
+import { loadScout, loadTaskDetail } from "./scout";
+import type { TaskDetail } from "./scout-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
 let pool: Pool | undefined;
@@ -19,7 +21,25 @@ function database() {
   return pool;
 }
 
-async function forecast(): Promise<Forecast | null> {
+// The forecast is the same for every viewer and only moves when bookings change, but the API runs the model on
+// every call (100-250 ms). Cache it in-process: fresh for 60 s, then served stale while one refresh runs.
+const FORECAST_FRESH_MS = 60_000;
+const FORECAST_STALE_MS = 15 * 60_000;
+let forecastCache: { value: Forecast | null; at: number } | undefined;
+let forecastInFlight: Promise<Forecast | null> | undefined;
+
+function forecast(): Promise<Forecast | null> {
+  const age = forecastCache ? Date.now() - forecastCache.at : Infinity;
+  if (age < FORECAST_FRESH_MS) return Promise.resolve(forecastCache!.value);
+  forecastInFlight ??= fetchForecast().then(value => {
+    // A failed refresh keeps the last good forecast until it is too old to show.
+    if (value || !forecastCache || Date.now() - forecastCache.at > FORECAST_STALE_MS) forecastCache = { value, at: Date.now() };
+    return forecastCache?.value ?? value;
+  }).finally(() => { forecastInFlight = undefined; });
+  return age < FORECAST_STALE_MS && forecastCache?.value ? Promise.resolve(forecastCache.value) : forecastInFlight;
+}
+
+async function fetchForecast(): Promise<Forecast | null> {
   try {
     const response = await fetch(`${process.env.CFO_API_URL ?? "http://api:8000"}/v1/forecast/liquidity?horizon_days=90&granularity=day`, {
       cache: "no-store", signal: AbortSignal.timeout(15000),
@@ -44,6 +64,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Enforce access at the data boundary too, including RSC and route requests.
   if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
   if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewData();
+  // The forecast comes from the API, the rest from Postgres: run both at once instead of one after the other.
+  const forecastPromise = forecast();
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });
@@ -73,7 +95,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         expense: String(BigInt(previous.expense) + BigInt(row.expense)) } : row);
     }
     const employees = (await client.query(`
-      SELECT e.id, e.name, e.role, coalesce(t.name, 'Unassigned') AS team,
+      SELECT e.id, coalesce(e.slack_name, e.name) AS name, e.role, coalesce(t.name, 'Unassigned') AS team,
         p.salary FROM employees e LEFT JOIN teams t ON t.id = e.team_id
       LEFT JOIN LATERAL (
         SELECT (-sum(amount) * 100)::bigint::text AS salary FROM transactions
@@ -89,11 +111,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       WHERE category IN ('payroll', 'social_security')
         AND date_trunc('month', booking_date) = (SELECT date_trunc('month', max(booking_date)) FROM transactions WHERE category = 'payroll')
       GROUP BY category`)).rows;
-    const pendingApprovals = Number((await client.query("SELECT count(*)::text AS count FROM approval_requests WHERE status = 'pending'")).rows[0].count);
-    const decisions = (await client.query<Decision>(`SELECT id,
-      to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts,
-      summary, reason, level, status, executed_simulated
-      FROM decisions ORDER BY ts DESC, id DESC LIMIT 50`)).rows;
+    const scout = await loadScout(client);
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -101,7 +119,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       closingBalance: displayCents(summary.balance), employees,
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
-      undocumentedPayments: Number(summary.undocumented), pendingApprovals, decisions,
+      undocumentedPayments: Number(summary.undocumented), scout,
     };
   } catch {
     await client.query("ROLLBACK").catch(() => {});
@@ -110,5 +128,25 @@ export async function getDashboardData(): Promise<DashboardData> {
   } finally {
     client.release();
   }
-  return { ...result, forecast: await forecast() };
+  return { ...result, forecast: await forecastPromise };
+}
+
+/** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
+export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
+  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewTask(id);
+  const client = await database().connect().catch(() => {
+    throw new Error("Company data is temporarily unavailable");
+  });
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const detail = await loadTaskDetail(client, id);
+    await client.query("COMMIT");
+    return detail;
+  } catch {
+    await client.query("ROLLBACK").catch(() => {});
+    throw new Error("Company data is temporarily unavailable");
+  } finally {
+    client.release();
+  }
 }

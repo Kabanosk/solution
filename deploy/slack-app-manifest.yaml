@@ -1,9 +1,9 @@
-# Slack app manifest for the Autonomous CFO bot (Pizzeria Amalfi demo).
+# Slack app manifest for Scout, the finance agent of Pizzeria Amalfi.
 # Create the app from it: https://api.app.slack.com/apps -> Create New App -> From a manifest -> paste this file.
 # Step by step: docs/slack-setup.md. Socket Mode: the bot connects out to Slack, no public URL needed.
 display_information:
-  name: Autonomous CFO
-  description: AI CFO for Pizzeria Amalfi. DMs the team, asks the CEO to approve, answers questions.
+  name: Scout
+  description: Scout explains every payment that leaves the account. It checks invoices, files, email and chat, and asks the right person on Slack.
   background_color: "#1f6f4a"
 features:
   app_home:
@@ -11,7 +11,7 @@ features:
     messages_tab_enabled: true  # the DM tab where people talk to the bot
     messages_tab_read_only_enabled: false  # people may type in it (CEO chat)
   bot_user:
-    display_name: Autonomous CFO
+    display_name: Scout
     always_online: true
 oauth_config:
   scopes:
@@ -21,6 +21,13 @@ oauth_config:
       - im:history  # read DMs written to the bot (CEO chat)
       - users:read  # look up Slack user ids of employees
       - app_mentions:read  # answer when mentioned in a channel
+      - chat:write.customize  # post as "Scout" with the Scout icon
+      - reactions:write  # the eyes reaction on an incoming DM
+      - im:read  # DM channel info
+      - files:read  # download the PDF someone sends in a DM
+      - channels:read  # find the authorized channels (#finance)
+      - channels:history  # read the authorized channels for payment context
+      - groups:history  # same for private channels Scout is invited to
 settings:
   event_subscriptions:
     bot_events:

@@ -1,4 +1,4 @@
-"""Supplier invoices (AS-/FLV-) matching bank payments to the cent, as model, PDF and .eml."""
+"""Supplier invoices (AS-/FLV-/CWM-/PFB-) matching bank payments to the cent, as model, PDF and .eml."""
 
 from __future__ import annotations
 
@@ -43,6 +43,31 @@ SUPPLIERS = {
             ("Aperol 1 l", "15.80"), ("Pinot Grigio 0.75 l, case of 6", "39.00"),
         ],
         "remainder": "Assorted beverages and deposits",
+    },
+    "CWM": {
+        "name": "Central Wholesale Market",
+        "address": "Grossmarkthalle 3, 60314 Frankfurt am Main",
+        "email": "invoices@central-wholesale.example",
+        "vat": Decimal("0.07"),
+        "category": "food",
+        "catalog": [
+            ("Tomatoes, crate 10 kg", "18.40"), ("Rocket salad, 1 kg", "9.80"), ("Mushrooms champignons, 3 kg", "14.10"),
+            ("Red onions, 10 kg sack", "11.20"), ("Zucchini, 5 kg", "10.90"), ("Lemons, 5 kg", "12.30"),
+            ("Bell peppers mixed, 5 kg", "16.70"), ("Garlic, 1 kg", "7.40"),
+        ],
+        "remainder": "Assorted fresh produce",
+    },
+    "PFB": {
+        "name": "Pasta Fresca Bologna S.r.l.",
+        "address": "Via Indipendenza 22, 40121 Bologna",
+        "email": "amministrazione@pastafresca-bologna.example",
+        "vat": Decimal("0.07"),
+        "category": "food",
+        "catalog": [
+            ("Tagliatelle fresche, 5 kg", "34.00"), ("Tortellini ricotta e spinaci, 3 kg", "41.50"),
+            ("Ravioli al tartufo, 2 kg", "58.00"), ("Gnocchi di patate, 5 kg", "22.80"),
+        ],
+        "remainder": "Assorted fresh pasta",
     },
 }
 CUSTOMER = ["Pizzeria Amalfi", "Vincenzo Amalfi", "Main Street 12", "60311 Frankfurt am Main"]

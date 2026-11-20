@@ -21,7 +21,7 @@ from cfo.data import load, people
 from cfo.data.generate import generate
 from cfo.data.source import SourceNotFound, find_source_csv, load_bank_csv
 from cfo.db.repo import Repository
-from cfo.domain import Event, Invoice, Transaction
+from cfo.domain import Invoice, Transaction
 
 try:
     SOURCE = find_source_csv()
@@ -76,15 +76,11 @@ def test_deterministic_and_seed_sensitive(out, tmp_path):
     assert tree_hash(other) != tree_hash(out)
 
 
-def test_history_december_split(out):
+def test_history_stops_in_november_and_no_replay_events(out):
     history = [Transaction(**r) for r in jl(out / "bank" / "history.jsonl")]
-    events = [Event(**r) for r in jl(out / "events" / "december.jsonl")]
-    bank = [e for e in events if e.kind == "bank_transaction"]
     assert all(t.booking_date.month <= 11 for t in history)
-    assert len(history) + len(bank) == 1125
-    assert all(e.ts.month == 12 for e in events)
-    assert [e.ts for e in events] == sorted(e.ts for e in events)
-    assert len({e.id for e in events}) == len(events)
+    assert len(history) == 1022
+    assert not (out / "events").exists()  # the December replay is gone (Scout design 2026-11-21)
 
 
 # -- invoices -------------------------------------------------------------------------------------------------
@@ -177,17 +173,11 @@ def test_cost_metrics_and_cloud_spike(out):
     nov_cost, nov_orders = Decimal(cloud["2025-11-01"]["cost"]), Decimal(cloud["2025-11-01"]["metric_value"])
     for earlier, later in zip(sorted(cloud), sorted(cloud)[1:]):  # no spike during history
         assert Decimal(cloud[later]["cost"]) / Decimal(cloud[earlier]["cost"]) < Decimal("1.3")
-    events = [Event(**r) for r in jl(out / "events" / "december.jsonl")]
-    metric = {e.payload["metric"]: e.payload for e in events if e.kind == "metric"}
-    dec = metric["cloud_invoice"]
-    cost, orders = Decimal(dec["cost_metric"]["cost"]), Decimal(dec["cost_metric"]["metric_value"])
-    assert Decimal("1.49") <= cost / nov_cost <= Decimal("1.51")
-    assert Decimal("1.02") <= orders / nov_orders <= Decimal("1.04")
-    inv = Invoice(**dec["invoice"])
-    assert inv.total == cost and sum(ln.amount for ln in inv.lines) == cost
-    assert {r["ServiceName"] for r in dec["focus"]} >= {"Compute (app backend)", "Log ingestion and retention"}
-    assert "BilledCost" in dec["focus"][0] and "ServiceCategory" in dec["focus"][0]
-    assert {"ad_spend", "cloud_invoice", "monthly_orders"} == set(metric)
+    spike = json.loads((out / "scenario.json").read_text())["december"]["cloud_spike"]
+    assert Decimal(spike["previous_cloud_cost"]) == nov_cost
+    assert Decimal("1.49") <= Decimal(spike["cloud_cost"]) / nov_cost <= Decimal("1.51")
+    assert Decimal("1.02") <= Decimal(spike["online_orders"]) / nov_orders <= Decimal("1.04")
+    assert spike["line_that_exploded"] == "Log ingestion and retention"
 
 
 def test_one_equipment_purchase(out):
@@ -220,7 +210,7 @@ def repo():
     r.conn.close()
 
 
-def test_seed_and_december_replay(out, repo):
+def test_seed(out, repo):
     counts = load.seed(repo, out)
     assert counts["transactions"] == 1022 and counts["employees"] == 5
     assert repo.get_employee("grazyna").on_vacation(date(2025, 12, 30))
@@ -232,10 +222,3 @@ def test_seed_and_december_replay(out, repo):
     assert len(repo.list_cost_metrics("cloud_per_order")) == 11
     load.seed(repo, out)  # idempotent
     assert len(repo.list_transactions()) == 1022
-
-    for event in load.load_events(out):
-        load.apply_event(repo, event)
-    undocumented = {t.invoice_number for t in repo.list_transactions(since=date(2025, 12, 1), undocumented_only=True)}
-    assert undocumented == {"AS-69664", "FLV-42026"}
-    assert len(repo.list_cost_metrics("cloud_per_order")) == 12
-    assert repo.get_invoice_by_number("CLD-2025-12") is not None

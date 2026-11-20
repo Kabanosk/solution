@@ -37,9 +37,9 @@ spec:
               )
               shutil.rmtree("/app/data/generated", ignore_errors=True)
               for step in (
-                  ["cfo", "migrate"],
-                  ["cfo", "generate", "--out", "/app/data/generated"],
-                  ["cfo", "load", "--data", "/app/data/generated", "--reset"],
+                  # Scout seed: company tables + Scout tables, the statement shifted to end before today, the bank
+                  # mock's history and the demo evidence (Grazyna's folders, mailbox, reply PDF).
+                  ["cfo", "seed", "--reset", "--data", "/app/data/generated"],
               ):
                   print("+", *step, flush=True)
                   subprocess.run(step, check=True)

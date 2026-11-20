@@ -10,7 +10,6 @@ import pytest
 from cfo.analysis.cost_metrics import (
     PAIRS, detect_anomalies, line_items, load_series, monthly_series, to_api_series,
 )
-from cfo.api import stubs
 from cfo.api.schemas import Collection, CostMetricSeries
 from cfo.domain import CostMetric, CostMetricKind, Invoice, InvoiceLine
 
@@ -176,17 +175,10 @@ def test_generated_year_has_three_full_series_and_june_without_per_unit_cost(gen
     assert june[ADS].cost_per_unit is not None
 
 
-def test_computed_series_equal_the_api_stub_values(generated):
-    """T019 can swap the stub for this: same pairs, months, money and anomaly as the T018 stub."""
+def test_computed_series_flag_only_the_december_cloud_spike(generated):
     metrics, invoices = generated
     real = {s.kind: s for s in to_api_series(monthly_series(metrics, invoices))}
-    for stub in stubs.cost_metric_series():
-        got = real[stub.kind]
-        assert (got.label, got.team_id, got.unit) == (stub.label, stub.team_id, stub.unit)
-        assert len(got.points) == len(stub.points)
-        for g, s in zip(got.points, stub.points):
-            assert (g.month, g.cost, g.metric_value, g.cost_per_unit) == (s.month, s.cost, s.metric_value, s.cost_per_unit)
-            assert g.cost_change_pct == s.cost_change_pct and g.metric_change_pct == s.metric_change_pct
-            assert (g.anomaly is None) == (s.anomaly is None)
+    flagged = [(kind, p.month.month) for kind, s in real.items() for p in s.points if p.anomaly is not None]
+    assert flagged == [(CLOUD, 12)]
     dec = real[CLOUD].points[-1].anomaly
     assert dec.drivers[0].label == "Log ingestion and retention"

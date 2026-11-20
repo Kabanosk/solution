@@ -1,4 +1,4 @@
-# Lantern dashboard
+# Scout dashboard
 
 Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company records are loaded on the server at request time from the existing Postgres service. No statement, employee directory, salary fixture or balance is bundled into the application image or browser JavaScript.
 
@@ -8,7 +8,9 @@ Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company re
 - Year and Q4 expenses/inflows: bank transactions in the latest booking year; Q4 starts in October. All recorded inflows/outflows count, including partner investments.
 - Directory: `employees` joined to `teams`. Each salary is the sum of the latest recorded salary month matched by employee name. Missing matches display **Not recorded**.
 - Payroll and social contributions: latest month with salary bookings. These are historical records, not a future schedule.
-- Investigations: latest 50 `decisions`; pending approvals and undocumented invoice-reference payments are counted from their tables.
+- Agent tasks (`agent_tasks`, grouped by status), task detail at `/tasks/SC-123` (activity log from `agent_task_steps`, approvals, audit rows), Audit log, Connections and Access policies; see `backend/scout/schema.sql`. The old `#investigations` hash opens Agent tasks.
+- Approve / Reject, Connect Google and the dev demo panel (`SCOUT_DEMO=1`) call the API server-side through `/api/approve`, `/api/google` and `/api/demo` with `API_WRITE_TOKEN`; the token never reaches the browser.
+- `/scout-icon.svg` and `/scout-icon.png` (512×512) are public, for the Slack bot avatar.
 - Liquidity forecast: the documented `GET /v1/forecast/liquidity` on the internal CFO API. If unavailable, the chart shows a message; no invented forecast is substituted.
 
 Database queries use a repeatable-read, read-only transaction, a bounded connection pool and statement timeouts. Money remains integer cents until conversion for display/charting. The dashboard never writes company records. **Refresh records** loads current values from the server.
@@ -22,7 +24,7 @@ npm --prefix dashboard ci
 npm --prefix dashboard run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including chart, payroll and investigation examples. It works only in development; production always requires configured authentication and real services.
+Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including Pizzeria Amalfi agent tasks, activity logs, audit rows, connections and LLM usage; Scout chat still calls the real Scout API. It works only in development; production always requires configured authentication and real services.
 
 Light is the default theme. Use the theme button in the top bar to switch between light and dark; your choice is saved in this browser and restored before the page paints.
 
@@ -49,6 +51,16 @@ npm --prefix dashboard start
 Builds require no database, credentials or company data. The home page and `/api/dashboard` render dynamically; responses use `Cache-Control: private, no-store`. Both require authentication, including server-rendered React requests. Missing login configuration fails closed. `/healthz` returns only process health and is available for cluster probes.
 
 `Containerfile` packages Next.js standalone output with local fonts and static assets. It supports OpenShift's arbitrary non-root UID and a read-only root filesystem. See `deploy/openshift/dashboard/README.md` for deployment.
+
+## Scout chat
+
+Open `/#chat` (the old `/#llm` still works) or choose **Scout chat** in the sidebar. Send with Enter, Shift+Enter for a new line, stop or retry a response, **New chat** to clear it. The conversation stays in memory while you switch pages and is cleared by a reload; it is not stored by the dashboard.
+
+Authenticated `POST /api/chat` accepts `{ "model": "modelcar-granite-4-0-h-tiny", "messages": [{ "role": "user", "content": "hi" }] }`, validates it (alternating user/assistant roles, 64 messages, 16,000 characters per message, 64,000 total, 256 KiB body) and proxies it server-side to the Scout API's `POST ${CFO_API_URL}/v1/chat` with `API_WRITE_TOKEN`. Scout answers with its tools (missing invoices, forecast, tasks, costs). The response is private/no-store NDJSON: zero or more `{"type":"step","text":"…"}` tool lines, then `delta`, then `done` (optionally with `task_id`) or `error`. Events are validated before they reach the browser. The page shows the tool lines live above each answer and an **Open SC-123** link when Scout recorded a task. Generation has a 120-second timeout and stopping cancels the upstream request. `GET /api/chat` returns the model list (one Granite entry).
+
+## LLM usage
+
+Open `/#llm-usage` (Workspace › **LLM usage**) for requests, tokens, latency and estimated cost of the self-hosted model over 24 hours, 7 or 30 days, plus a live model snapshot. The page reads `GET /api/llm-usage?days=1|7|30`, which calls the CFO API's `/v1/llm/usage` and `/v1/llm/usage/live` server-side with the optional `CFO_API_TOKEN`.
 
 ## Access scope
 

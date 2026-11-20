@@ -961,6 +961,127 @@
         }
       }
     },
+    "/v1/llm/usage": {
+      "get": {
+        "tags": [
+          "llm-usage"
+        ],
+        "summary": "Usage and estimated cost of the LLM, per bucket and in total",
+        "description": "Requests, tokens, latency percentiles and cost per bucket, with two cost estimates (busy-time and\namortized), the cost per agent action, the same tokens at hosted list prices, and the `assumptions` used.",
+        "operationId": "get_llm_usage_v1_llm_usage_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start (inclusive), ISO 8601. Default: 7 days before `to`.",
+              "title": "From"
+            },
+            "description": "Start (inclusive), ISO 8601. Default: 7 days before `to`."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End (exclusive), ISO 8601. Default: now.",
+              "title": "To"
+            },
+            "description": "End (exclusive), ISO 8601. Default: now."
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "day",
+                "hour",
+                "event_type",
+                "purpose"
+              ],
+              "type": "string",
+              "description": "Bucket size or dimension.",
+              "default": "day",
+              "title": "Group By"
+            },
+            "description": "Bucket size or dimension."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmUsageReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query parameter or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/llm/usage/live": {
+      "get": {
+        "tags": [
+          "llm-usage"
+        ],
+        "summary": "Latest vLLM server snapshot: load, KV cache, token rates",
+        "operationId": "get_llm_usage_live_v1_llm_usage_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmUsageLive"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`metrics_unavailable`: no vLLM sample stored yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -985,6 +1106,59 @@
   },
   "components": {
     "schemas": {
+      "ActionCost": {
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "title": "Action Type",
+            "examples": [
+              "attach_invoice"
+            ]
+          },
+          "actions": {
+            "type": "integer",
+            "title": "Actions",
+            "description": "Decisions of this type in the range (at least those with attributed LLM calls)."
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests"
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "title": "Prompt Tokens"
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "title": "Completion Tokens"
+          },
+          "cost_busy_time": {
+            "$ref": "#/components/schemas/CostAmount"
+          },
+          "cost_amortized": {
+            "$ref": "#/components/schemas/CostAmount"
+          },
+          "cost_per_action_busy_time": {
+            "$ref": "#/components/schemas/CostAmount"
+          },
+          "cost_per_action_amortized": {
+            "$ref": "#/components/schemas/CostAmount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_type",
+          "actions",
+          "requests",
+          "prompt_tokens",
+          "completion_tokens",
+          "cost_busy_time",
+          "cost_amortized",
+          "cost_per_action_busy_time",
+          "cost_per_action_amortized"
+        ],
+        "title": "ActionCost"
+      },
       "Anomaly": {
         "properties": {
           "summary": {
@@ -1225,6 +1399,147 @@
         ],
         "title": "ApprovalStatus"
       },
+      "ClusterUsage": {
+        "properties": {
+          "samples": {
+            "type": "integer",
+            "title": "Samples",
+            "description": "Sample pairs behind the numbers."
+          },
+          "counter_resets": {
+            "type": "integer",
+            "title": "Counter Resets",
+            "description": "Pod restarts seen between samples (counters went down)."
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "title": "Prompt Tokens"
+          },
+          "generation_tokens": {
+            "type": "integer",
+            "title": "Generation Tokens"
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests"
+          },
+          "requests_by_finish_reason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Requests By Finish Reason",
+            "description": "Server-side requests by `finished_reason` (stop, length, abort, error, ...)."
+          },
+          "cached_prompt_tokens": {
+            "type": "integer",
+            "title": "Cached Prompt Tokens",
+            "description": "Prompt tokens served from the prefix cache (not recomputed)."
+          },
+          "computed_prompt_tokens": {
+            "type": "integer",
+            "title": "Computed Prompt Tokens",
+            "description": "Prompt tokens the GPU computed: prompt tokens minus cached."
+          },
+          "busy_seconds": {
+            "type": "number",
+            "title": "Busy Seconds",
+            "description": "GPU time of all requests in the range, for the cost below."
+          },
+          "busy_seconds_source": {
+            "type": "string",
+            "enum": [
+              "request_inference_time_seconds",
+              "e2e_request_latency_seconds"
+            ],
+            "title": "Busy Seconds Source",
+            "description": "Inference time (no queueing) when the server reports it, the e2e latency otherwise."
+          },
+          "cost_busy_time_all_traffic": {
+            "$ref": "#/components/schemas/CostAmount",
+            "description": "`busy_seconds` x hourly rate, all users of the server."
+          },
+          "cost_busy_time_our_share": {
+            "$ref": "#/components/schemas/CostAmount",
+            "description": "The same times `our_token_share`."
+          },
+          "avg_e2e_latency_seconds": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg E2E Latency Seconds"
+          },
+          "p50_e2e_latency_seconds": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 E2E Latency Seconds",
+            "description": "From the histogram buckets (interpolated)."
+          },
+          "p95_e2e_latency_seconds": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 E2E Latency Seconds"
+          },
+          "our_token_share": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Our Token Share",
+            "description": "Our tokens divided by all tokens the server processed.",
+            "examples": [
+              "0.37"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "samples",
+          "counter_resets",
+          "prompt_tokens",
+          "generation_tokens",
+          "requests",
+          "requests_by_finish_reason",
+          "cached_prompt_tokens",
+          "computed_prompt_tokens",
+          "busy_seconds",
+          "busy_seconds_source",
+          "cost_busy_time_all_traffic",
+          "cost_busy_time_our_share",
+          "avg_e2e_latency_seconds",
+          "p50_e2e_latency_seconds",
+          "p95_e2e_latency_seconds",
+          "our_token_share"
+        ],
+        "title": "ClusterUsage"
+      },
       "Collection_CostMetricSeries_": {
         "properties": {
           "stub": {
@@ -1246,6 +1561,32 @@
           "items"
         ],
         "title": "Collection[CostMetricSeries]"
+      },
+      "CostAmount": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{6}$",
+            "title": "Amount",
+            "description": "String decimal with six places (a call costs fractions of a cent).",
+            "examples": [
+              "0.001234"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "EUR",
+            "examples": [
+              "EUR"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "title": "CostAmount"
       },
       "CostMetricKind": {
         "type": "string",
@@ -1824,6 +2165,75 @@
         ],
         "title": "Health"
       },
+      "HostedComparison": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "input_per_million": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Input Per Million",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "output_per_million": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Output Per Million",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "price_currency": {
+            "type": "string",
+            "title": "Price Currency"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of",
+            "description": "Date the list price was read. Prices change."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostAmount",
+            "description": "Our tokens at this price, in EUR."
+          },
+          "vs_busy_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vs Busy Time",
+            "description": "Hosted cost divided by our busy-time cost."
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "input_per_million",
+          "output_per_million",
+          "price_currency",
+          "source",
+          "as_of",
+          "cost",
+          "vs_busy_time"
+        ],
+        "title": "HostedComparison"
+      },
       "Kpis": {
         "properties": {
           "stub": {
@@ -1953,6 +2363,249 @@
           "points"
         ],
         "title": "LiquidityForecast"
+      },
+      "LlmUsageLive": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "default": false
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Sampled At"
+          },
+          "age_seconds": {
+            "type": "number",
+            "title": "Age Seconds"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "The sample is older than VLLM_METRICS_STALE_SECONDS: the sampler is not running."
+          },
+          "requests_running": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests Running"
+          },
+          "requests_waiting": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests Waiting"
+          },
+          "kv_cache_usage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kv Cache Usage",
+            "description": "Fraction 0..1 of the KV cache in use; null if the server does not report it."
+          },
+          "kv_cache_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kv Cache Metric",
+            "description": "`vllm:kv_cache_usage_perc` or the older `vllm:gpu_cache_usage_perc`."
+          },
+          "prompt_tokens_per_second": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Tokens Per Second"
+          },
+          "generation_tokens_per_second": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.37"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Tokens Per Second"
+          },
+          "interval_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Seconds",
+            "description": "Time between the two samples the rates come from."
+          },
+          "counter_reset": {
+            "type": "boolean",
+            "title": "Counter Reset",
+            "description": "The server restarted in that interval; the rates use the new counters."
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "sampled_at",
+          "age_seconds",
+          "stale",
+          "requests_running",
+          "requests_waiting",
+          "kv_cache_usage",
+          "kv_cache_metric",
+          "prompt_tokens_per_second",
+          "generation_tokens_per_second",
+          "interval_seconds",
+          "counter_reset"
+        ],
+        "title": "LlmUsageLive"
+      },
+      "LlmUsageReport": {
+        "properties": {
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "default": false
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "EUR"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "title": "To"
+          },
+          "window_from": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window From",
+            "description": "Start of the priced wall-clock window (not before the first data)."
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window To"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "day",
+              "hour",
+              "event_type",
+              "purpose"
+            ],
+            "title": "Group By"
+          },
+          "total": {
+            "$ref": "#/components/schemas/UsageBucket"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "per_action": {
+            "items": {
+              "$ref": "#/components/schemas/ActionCost"
+            },
+            "type": "array",
+            "title": "Per Action",
+            "description": "Cost per decision, by action type."
+          },
+          "per_event": {
+            "$ref": "#/components/schemas/PerEvent"
+          },
+          "cluster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClusterUsage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the sampled vLLM counters; null when none were sampled."
+          },
+          "hosted_comparison": {
+            "items": {
+              "$ref": "#/components/schemas/HostedComparison"
+            },
+            "type": "array",
+            "title": "Hosted Comparison"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/UsageAssumptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "window_from",
+          "window_to",
+          "group_by",
+          "total",
+          "items",
+          "per_action",
+          "per_event",
+          "cluster",
+          "hosted_comparison",
+          "assumptions"
+        ],
+        "title": "LlmUsageReport"
       },
       "Money": {
         "properties": {
@@ -2113,6 +2766,42 @@
           "offset"
         ],
         "title": "Page[RuleOut]"
+      },
+      "PerEvent": {
+        "properties": {
+          "events": {
+            "type": "integer",
+            "title": "Events",
+            "description": "Distinct agent events that made at least one LLM call."
+          },
+          "cost_per_event_busy_time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostAmount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_per_event_amortized": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostAmount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "events",
+          "cost_per_event_busy_time",
+          "cost_per_event_amortized"
+        ],
+        "title": "PerEvent"
       },
       "PolicyLevel": {
         "type": "string",
@@ -2391,6 +3080,211 @@
         ],
         "title": "UndocumentedPayments"
       },
+      "UsageAssumptions": {
+        "properties": {
+          "gpu_hourly_cost_eur": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gpu Hourly Cost Eur",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "node_hourly_cost_eur": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Node Hourly Cost Eur",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "hourly_rate_eur": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Hourly Rate Eur",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "gpu_price_source": {
+            "type": "string",
+            "title": "Gpu Price Source"
+          },
+          "window_hours": {
+            "type": "number",
+            "title": "Window Hours",
+            "description": "Wall-clock hours the amortized method covers."
+          },
+          "token_share": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Token Share",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "token_share_source": {
+            "type": "string",
+            "enum": [
+              "vllm_metrics",
+              "assumed_all_traffic"
+            ],
+            "title": "Token Share Source"
+          },
+          "usd_to_eur": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Usd To Eur",
+            "examples": [
+              "0.37"
+            ]
+          },
+          "methods": {
+            "$ref": "#/components/schemas/UsageMethods"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gpu_hourly_cost_eur",
+          "node_hourly_cost_eur",
+          "hourly_rate_eur",
+          "gpu_price_source",
+          "window_hours",
+          "token_share",
+          "token_share_source",
+          "usd_to_eur",
+          "methods",
+          "notes"
+        ],
+        "title": "UsageAssumptions"
+      },
+      "UsageBucket": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Bucket label: a UTC day (`2026-11-20`), a UTC hour (`2026-11-20T14:00:00Z`), an event type, a purpose, or `total`.",
+            "examples": [
+              "2026-11-20"
+            ]
+          },
+          "bucket_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bucket Start",
+            "description": "Start of a day/hour bucket, UTC."
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests"
+          },
+          "failed_requests": {
+            "type": "integer",
+            "title": "Failed Requests",
+            "description": "Calls that raised an error (counted with the tokens they used: none)."
+          },
+          "estimated_requests": {
+            "type": "integer",
+            "title": "Estimated Requests",
+            "description": "Calls whose token counts are estimated (the server sent no `usage`)."
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "title": "Prompt Tokens"
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "title": "Completion Tokens"
+          },
+          "latency_p50_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency P50 Ms"
+          },
+          "latency_p95_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency P95 Ms"
+          },
+          "busy_seconds": {
+            "type": "number",
+            "title": "Busy Seconds",
+            "description": "Sum of request latency."
+          },
+          "cost_busy_time": {
+            "$ref": "#/components/schemas/CostAmount",
+            "description": "Busy seconds x hourly rate. Upper bound: overlapping requests count twice."
+          },
+          "cost_amortized": {
+            "$ref": "#/components/schemas/CostAmount",
+            "description": "Wall-clock hours x hourly rate x our share of the tokens the server processed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "requests",
+          "failed_requests",
+          "estimated_requests",
+          "prompt_tokens",
+          "completion_tokens",
+          "latency_p50_ms",
+          "latency_p95_ms",
+          "busy_seconds",
+          "cost_busy_time",
+          "cost_amortized"
+        ],
+        "title": "UsageBucket"
+      },
+      "UsageMethods": {
+        "properties": {
+          "busy_time": {
+            "type": "string",
+            "title": "Busy Time"
+          },
+          "amortized": {
+            "type": "string",
+            "title": "Amortized"
+          },
+          "hosted": {
+            "type": "string",
+            "title": "Hosted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "busy_time",
+          "amortized",
+          "hosted"
+        ],
+        "title": "UsageMethods"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2465,6 +3359,10 @@
     {
       "name": "simulator",
       "description": "Control of the December replay."
+    },
+    {
+      "name": "llm-usage",
+      "description": "What the LLM costs: usage per call and the vLLM server's load."
     },
     {
       "name": "system",

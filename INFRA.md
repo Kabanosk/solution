@@ -137,6 +137,11 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024). Read from the process environment only (not from `.env`), like every other `MLFLOW_*` variable |
 | `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error falls back to `FORECAST_MODEL_PATH` |
 | `MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_NAME` | unset | standard MLflow client variables, the code sets none of them. RHOAI MLflow: `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` (+ `MLFLOW_WORKSPACE=<project>` from another namespace). Suggested for the API pod: `MLFLOW_HTTP_REQUEST_MAX_RETRIES=1`, `MLFLOW_HTTP_REQUEST_TIMEOUT=10` |
+| `LLM_VERIFY_TLS` | `true` | `true`, `false` (self-signed certificate) or a CA bundle path for an https `LLM_BASE_URL`; the Granite service on the cluster is https with a self-signed certificate |
+| `VLLM_METRICS_URL` | unset (usage sampler off) | `https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc.cluster.local:8000/metrics` (T032) |
+| `VLLM_METRICS_VERIFY` | `true` | TLS check of the metrics URL: `true` / `false` / CA bundle path |
+| `GPU_HOURLY_COST_EUR`, `NODE_HOURLY_COST_EUR` | `0.70`, `0` | hourly rate of one L4 (AWS g6.xlarge based assumption, dated in `docs/api.md`) and an optional node share |
+| `HOSTED_PRICES_JSON`, `USD_TO_EUR`, `LLM_USAGE_RECORD`, `VLLM_METRICS_STALE_SECONDS`, `VLLM_METRICS_BEARER_TOKEN`, `VLLM_METRICS_TIMEOUT` | see `docs/api.md` | optional tuning of the LLM usage and cost estimate |
 | `API_PORT` | `8000` | image only |
 
 ## 6. Fill in (things only humans know)

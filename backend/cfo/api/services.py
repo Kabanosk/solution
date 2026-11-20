@@ -16,25 +16,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Callable
 
 import pandas as pd
-
 from cfo.analysis.cost_metrics import load_series, to_api_series
 from cfo.api.errors import ApiError
-from cfo.api.schemas import (
-    CostsByTeam,
-    ApprovalOut,
-    DecisionOut,
-    ForecastGap,
-    ForecastModelInfo,
-    ForecastPoint,
-    ForecastSummary,
-    Kpis,
-    LiquidityForecast,
-    MonthlyCost,
-    RuleOut,
-    TeamCosts,
-    UndocumentedPayments,
-    eur,
-)
+from cfo.api.schemas import (ApprovalOut, CostsByTeam, DecisionOut,
+                             ForecastGap, ForecastModelInfo, ForecastPoint,
+                             ForecastSummary, Kpis, LiquidityForecast,
+                             MonthlyCost, RuleOut, TeamCosts,
+                             UndocumentedPayments, eur)
 from cfo.api.settings import get_api_settings
 from cfo.config import get_settings
 from cfo.db.repo import Repository
@@ -44,7 +32,9 @@ from cfo.forecast import model as fmodel
 
 MAX_HORIZON_DAYS = 365
 KPI_HORIZON_DAYS = MAX_HORIZON_DAYS
-FIXED_COST_CATEGORIES = tuple(feat.DEFAULT_DUE_DAYS)  # payroll, rent, tax, social_security, utilities
+FIXED_COST_CATEGORIES = tuple(
+    feat.DEFAULT_DUE_DAYS
+)  # payroll, rent, tax, social_security, utilities
 INTERVAL_Z_80 = 1.2816  # one-sided z of a two-sided 80 % interval
 MODEL_NAME = "xgboost-liquidity"
 COMPANY_TEAM_NAME = "Company-wide (tax, social security)"
@@ -61,8 +51,12 @@ def _dec(value: Any) -> Decimal:
 def _transactions(repo: Repository, *, required: bool = True) -> pd.DataFrame:
     tx = feat.fetch_transactions(repo.conn)
     if required and tx.empty:
-        raise ApiError(503, "no_data", "The database has no transactions yet; seed it with "
-                                       "`python -m cfo.data.load --data data/generated`.")
+        raise ApiError(
+            503,
+            "no_data",
+            "The database has no transactions yet; seed it with "
+            "`python -m cfo.data.load --data data/generated`.",
+        )
     return tx
 
 
@@ -71,7 +65,8 @@ def _transactions(repo: Repository, *, required: bool = True) -> pd.DataFrame:
 
 def safety_buffer(tx: pd.DataFrame) -> Decimal:
     """`SAFETY_BUFFER_EUR` if set, else one month of fixed costs: the largest month of payroll, rent, tax, social
-    security and utilities in the data (17,730 EUR on the seeded year, D-013 says about 17.7k)."""
+    security and utilities in the data (17,730 EUR on the seeded year, D-013 says about 17.7k).
+    """
     configured = get_api_settings().safety_buffer_eur
     if configured is not None:
         return configured
@@ -93,7 +88,9 @@ MLFLOW_LOAD_TIMEOUT_SECONDS = 20.0
 
 _model_lock = threading.Lock()
 _model_cache: dict[tuple[str, int], fmodel.ForecastModel] = {}
-_mlflow_cache: dict[str, Any] = {}  # key (model uri, tracking uri), checked_at (monotonic), model or None
+_mlflow_cache: dict[str, Any] = (
+    {}
+)  # key (model uri, tracking uri), checked_at (monotonic), model or None
 
 
 def reset_forecast_cache() -> None:
@@ -132,7 +129,9 @@ def _mlflow_model() -> fmodel.ForecastModel | None:
     A failure is remembered for the same interval, so a dead MLflow costs one timeout a minute, not one per request.
     Call with `_model_lock` held.
     """
-    uri, tracking = get_settings().forecast_model_uri, os.environ.get("MLFLOW_TRACKING_URI")
+    uri, tracking = get_settings().forecast_model_uri, os.environ.get(
+        "MLFLOW_TRACKING_URI"
+    )
     if not (uri and tracking):
         _mlflow_cache.clear()
         return None
@@ -144,20 +143,32 @@ def _mlflow_model() -> fmodel.ForecastModel | None:
 
     def refresh() -> fmodel.ForecastModel:
         ref = fmodel.resolve_mlflow_model(uri)
-        if current and (current.mlflow_run_id, current.model_version) == (ref.run_id, ref.version):
+        if current and (current.mlflow_run_id, current.model_version) == (
+            ref.run_id,
+            ref.version,
+        ):
             return current
         return fmodel.ForecastModel.load_from_mlflow(uri)
 
     try:
         model = _within(MLFLOW_LOAD_TIMEOUT_SECONDS, refresh)
         if model is not current:
-            log.info("forecast model %s loaded from MLflow: version %s, run %s", uri, model.model_version,
-                     model.mlflow_run_id)
+            log.info(
+                "forecast model %s loaded from MLflow: version %s, run %s",
+                uri,
+                model.model_version,
+                model.mlflow_run_id,
+            )
     except Exception as exc:  # noqa: BLE001 - MLflow must never break the API
         model = current
-        log.warning("forecast model %s not loaded from MLflow at %s (%s: %s); using %s", uri, tracking,
-                    type(exc).__name__, str(exc).strip().splitlines()[0] if str(exc).strip() else "",
-                    "the version loaded earlier" if current else "the local model file")
+        log.warning(
+            "forecast model %s not loaded from MLflow at %s (%s: %s); using %s",
+            uri,
+            tracking,
+            type(exc).__name__,
+            str(exc).strip().splitlines()[0] if str(exc).strip() else "",
+            "the version loaded earlier" if current else "the local model file",
+        )
     _mlflow_cache.update(key=key, checked_at=now, model=model)
     return model
 
@@ -175,7 +186,9 @@ def forecast_model(tx: pd.DataFrame) -> tuple[fmodel.ForecastModel, datetime | N
             return registered, registered.trained_at
         meta = fmodel._meta_path(path)
         if not (path.is_file() and meta.is_file()):
-            if _mlflow_cache:  # the registry was asked and gave nothing: do not wait for MLflow a second time
+            if (
+                _mlflow_cache
+            ):  # the registry was asked and gave nothing: do not wait for MLflow a second time
                 fmodel.train(tx, log_to_mlflow=False).save(path)
             else:
                 fmodel.get_model(tx, path=path)  # trains and saves
@@ -192,7 +205,9 @@ def _sigma_daily(model: fmodel.ForecastModel) -> float:
     return float(m.get("holdout_rmse") or (m.get("train_mae", 0.0) * 1.25))
 
 
-def _forecast_frame(tx: pd.DataFrame, days: int) -> tuple[pd.DataFrame, fmodel.ForecastModel, datetime | None]:
+def _forecast_frame(
+    tx: pd.DataFrame, days: int
+) -> tuple[pd.DataFrame, fmodel.ForecastModel, datetime | None]:
     model, saved_at = forecast_model(tx)
     df = fmodel.liquidity_forecast(days, model=model, transactions=tx)
     return df, model, saved_at
@@ -206,13 +221,21 @@ def _gaps(balance: pd.Series, buffer: float) -> list[ForecastGap]:
             run.append(day)
         elif run:
             low = balance.loc[run].idxmin()
-            gaps.append(ForecastGap(start=run[0].date(), end=run[-1].date(), lowest_date=low.date(),
-                                    lowest_balance=eur(balance.loc[low])))
+            gaps.append(
+                ForecastGap(
+                    start=run[0].date(),
+                    end=run[-1].date(),
+                    lowest_date=low.date(),
+                    lowest_balance=eur(balance.loc[low]),
+                )
+            )
             run = []
     return gaps
 
 
-def liquidity_forecast(repo: Repository, horizon_days: int, granularity: str) -> LiquidityForecast:
+def liquidity_forecast(
+    repo: Repository, horizon_days: int, granularity: str
+) -> LiquidityForecast:
     tx = _transactions(repo)
     df, model, saved_at = _forecast_frame(tx, horizon_days)
     buffer = safety_buffer(tx)
@@ -222,7 +245,12 @@ def liquidity_forecast(repo: Repository, horizon_days: int, granularity: str) ->
         n = (day - pd.Timestamp(df.attrs["last_known_date"])).days
         band = INTERVAL_Z_80 * sigma * math.sqrt(n)
         bal = float(df.loc[day, "balance"])
-        return ForecastPoint(date=day.date(), balance=eur(bal), lower=eur(bal - band), upper=eur(bal + band))
+        return ForecastPoint(
+            date=day.date(),
+            balance=eur(bal),
+            lower=eur(bal - band),
+            upper=eur(bal + band),
+        )
 
     days = list(df.index)
     lowest_day = df["balance"].idxmin()
@@ -242,14 +270,20 @@ def liquidity_forecast(repo: Repository, horizon_days: int, granularity: str) ->
         safety_buffer=eur(buffer),
         lowest_point=point(lowest_day),
         gaps=_gaps(df["balance"], float(buffer)),
-        model=ForecastModelInfo(name=MODEL_NAME,
-                                version=model.model_version or f"trained-until-{model.trained_until.date()}",
-                                mlflow_run_id=model.mlflow_run_id, trained_at=saved_at),
+        model=ForecastModelInfo(
+            name=MODEL_NAME,
+            version=model.model_version
+            or f"trained-until-{model.trained_until.date()}",
+            mlflow_run_id=model.mlflow_run_id,
+            trained_at=saved_at,
+        ),
         points=[point(d) for d in sampled],
     )
 
 
-def forecast_summary(tx: pd.DataFrame, horizon_days: int = KPI_HORIZON_DAYS) -> ForecastSummary:
+def forecast_summary(
+    tx: pd.DataFrame, horizon_days: int = KPI_HORIZON_DAYS
+) -> ForecastSummary:
     df, _, _ = _forecast_frame(tx, horizon_days)
     buffer = safety_buffer(tx)
     low_day, low = fmodel.lowest_balance(df)
@@ -280,15 +314,23 @@ def kpis(repo: Repository) -> Kpis:
     months = tx["booking_date"].dt.to_period("M")
     last_month = as_of.to_period("M")
     month_end_reached = as_of == last_month.end_time.normalize()
-    complete = months if month_end_reached or months.nunique() == 1 else months[months < last_month]
+    complete = (
+        months
+        if month_end_reached or months.nunique() == 1
+        else months[months < last_month]
+    )
     n_months = max(complete.nunique(), 1)
     in_scope = amounts[months.isin(complete.unique())]
     inflows = sum((a for a in in_scope if a > 0), Decimal(0))
     outflows = sum((a for a in in_scope if a < 0), Decimal(0))
 
     undocumented = repo.list_transactions(undocumented_only=True)
-    pending = repo.conn.execute("SELECT count(*) AS n FROM approval_requests WHERE status = 'pending'").fetchone()
-    alerts = sum(1 for s in load_series(repo) if s.points and s.points[-1].anomaly is not None)
+    pending = repo.conn.execute(
+        "SELECT count(*) AS n FROM approval_requests WHERE status = 'pending'"
+    ).fetchone()
+    alerts = sum(
+        1 for s in load_series(repo) if s.points and s.points[-1].anomaly is not None
+    )
     return Kpis(
         stub=False,
         as_of=as_of.date(),
@@ -298,7 +340,9 @@ def kpis(repo: Repository) -> Kpis:
         avg_monthly_outflows=eur(outflows / n_months),
         forecast=forecast_summary(tx),
         undocumented_payments=UndocumentedPayments(
-            count=len(undocumented), total=eur(sum((-t.amount for t in undocumented), Decimal(0)))),
+            count=len(undocumented),
+            total=eur(sum((-t.amount for t in undocumented), Decimal(0))),
+        ),
         pending_approvals=int(pending["n"]),
         open_cost_alerts=alerts,
     )
@@ -315,7 +359,9 @@ def _month_starts(start: date, end: date) -> list[date]:
     return out
 
 
-def costs_by_team(repo: Repository, start: date | None, end: date | None) -> CostsByTeam:
+def costs_by_team(
+    repo: Repository, start: date | None, end: date | None
+) -> CostsByTeam:
     """Bank lines and unlinked invoices per team and month (T014 `monthly_cost_by_team`).
 
     Defaults: first day of the first booking month to the last booking day. Months whose first day lies in
@@ -327,7 +373,11 @@ def costs_by_team(repo: Repository, start: date | None, end: date | None) -> Cos
     last = tx["booking_date"].max().date() if not tx.empty else date.today()
     start, end = start or date(first.year, first.month, 1), end or last
     months = _month_starts(start, end)
-    monthly = feat.monthly_cost_by_team(tx, invoices) if not tx.empty else pd.DataFrame(columns=["month", "team_id", "cost"])
+    monthly = (
+        feat.monthly_cost_by_team(tx, invoices)
+        if not tx.empty
+        else pd.DataFrame(columns=["month", "team_id", "cost"])
+    )
     cost: dict[tuple[str, date], Decimal] = {}
     for row in monthly.itertuples():
         cost[(row.team_id, row.month.date())] = _dec(round(float(row.cost), 2))
@@ -335,7 +385,10 @@ def costs_by_team(repo: Repository, start: date | None, end: date | None) -> Cos
     teams = {t.id: t for t in repo.list_teams()}
     in_range = set(months)
     team_ids = sorted({t for t, m in cost if m in in_range} | set(teams))
-    totals = {t: sum((cost.get((t, m), Decimal(0)) for m in months), Decimal(0)) for t in team_ids}
+    totals = {
+        t: sum((cost.get((t, m), Decimal(0)) for m in months), Decimal(0))
+        for t in team_ids
+    }
     grand = sum(totals.values(), Decimal(0))
     items = []
     for team_id in team_ids:
@@ -343,18 +396,46 @@ def costs_by_team(repo: Repository, start: date | None, end: date | None) -> Cos
         if team is None and not totals[team_id]:
             continue
         total = totals[team_id]
-        items.append(TeamCosts(
-            team_id=team_id,
-            team_name=team.name if team else (COMPANY_TEAM_NAME if team_id == feat.UNASSIGNED_TEAM else team_id),
-            owner_id=team.owner_id if team else None,
-            monthly_budget=eur(team.monthly_budget) if team and team.monthly_budget is not None else None,
-            total=eur(total),
-            avg_monthly=eur(total / len(months)) if months else eur(0),
-            share=format((total / grand).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP), "f") if grand else "0.0000",
-            by_month=[MonthlyCost(month=m, cost=eur(cost.get((team_id, m), Decimal(0)))) for m in months],
-        ))
+        items.append(
+            TeamCosts(
+                team_id=team_id,
+                team_name=(
+                    team.name
+                    if team
+                    else (
+                        COMPANY_TEAM_NAME
+                        if team_id == feat.UNASSIGNED_TEAM
+                        else team_id
+                    )
+                ),
+                owner_id=team.owner_id if team else None,
+                monthly_budget=(
+                    eur(team.monthly_budget)
+                    if team and team.monthly_budget is not None
+                    else None
+                ),
+                total=eur(total),
+                avg_monthly=eur(total / len(months)) if months else eur(0),
+                share=(
+                    format(
+                        (total / grand).quantize(
+                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                        ),
+                        "f",
+                    )
+                    if grand
+                    else "0.0000"
+                ),
+                by_month=[
+                    MonthlyCost(month=m, cost=eur(cost.get((team_id, m), Decimal(0))))
+                    for m in months
+                ],
+            )
+        )
     items.sort(key=lambda t: Decimal(t.total.amount), reverse=True)
-    return CostsByTeam(stub=False, **{"from": start}, to=end, total=eur(grand), items=items)
+    return CostsByTeam(
+        stub=False, **{"from": start}, to=end, total=eur(grand), items=items
+    )
 
 
 # --- decisions, rules, cost metrics -----------------------------------------------------------------------
@@ -364,17 +445,32 @@ def _decision_out(d: Decision) -> DecisionOut:
     return DecisionOut(**{**d.model_dump(), "ts": _utc(d.ts)})
 
 
-def list_decisions(repo: Repository, *, level: str | None, status: str | None, action_type: str | None,
-                   limit: int, offset: int) -> tuple[list[DecisionOut], int]:
+def list_decisions(
+    repo: Repository,
+    *,
+    level: str | None,
+    status: str | None,
+    action_type: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[DecisionOut], int]:
     where, params = ["TRUE"], []
-    for column, value in (("level", level), ("status", status), ("action_type", action_type)):
+    for column, value in (
+        ("level", level),
+        ("status", status),
+        ("action_type", action_type),
+    ):
         if value is not None:
             where.append(f"{column} = %s")
             params.append(value)
     clause = " AND ".join(where)
-    total = repo.conn.execute(f"SELECT count(*) AS n FROM decisions WHERE {clause}", params).fetchone()["n"]
-    rows = repo._all(f"SELECT * FROM decisions WHERE {clause} ORDER BY ts DESC, id LIMIT %s OFFSET %s",
-                     [*params, limit, offset])
+    total = repo.conn.execute(
+        f"SELECT count(*) AS n FROM decisions WHERE {clause}", params
+    ).fetchone()["n"]
+    rows = repo._all(
+        f"SELECT * FROM decisions WHERE {clause} ORDER BY ts DESC, id LIMIT %s OFFSET %s",
+        [*params, limit, offset],
+    )
     return [_decision_out(Decision(**r)) for r in rows], int(total)
 
 
@@ -385,12 +481,17 @@ def get_decision(repo: Repository, decision_id: str) -> DecisionOut | None:
 
 def list_rules(repo: Repository, *, active: bool | None) -> list[RuleOut]:
     rules: list[Rule] = repo.list_rules(active_only=False)
-    return [RuleOut(**{**r.model_dump(), "created_at": _utc(r.created_at)}) for r in rules
-            if active is None or r.active == active]
+    return [
+        RuleOut(**{**r.model_dump(), "created_at": _utc(r.created_at)})
+        for r in rules
+        if active is None or r.active == active
+    ]
 
 
 def cost_metric_series(repo: Repository, kind: str | None) -> list:
-    return [s for s in to_api_series(load_series(repo)) if kind is None or s.kind == kind]
+    return [
+        s for s in to_api_series(load_series(repo)) if kind is None or s.kind == kind
+    ]
 
 
 # --- approvals ----------------------------------------------------------------------------------------------
@@ -405,15 +506,27 @@ APPROVAL_FILTERS = {  # `state` query value -> SQL condition on approval_request
 
 def approval_out(repo: Repository, req: ApprovalRequest) -> ApprovalOut:
     decision = get_decision(repo, req.decision_id)
-    return ApprovalOut(**{**req.model_dump(), "created_at": _utc(req.created_at),
-                          "resolved_at": _utc(req.resolved_at) if req.resolved_at else None, "decision": decision})
+    return ApprovalOut(
+        **{
+            **req.model_dump(),
+            "created_at": _utc(req.created_at),
+            "resolved_at": _utc(req.resolved_at) if req.resolved_at else None,
+            "decision": decision,
+        }
+    )
 
 
-def list_approvals(repo: Repository, *, state: str | None, limit: int, offset: int) -> tuple[list[ApprovalOut], int]:
+def list_approvals(
+    repo: Repository, *, state: str | None, limit: int, offset: int
+) -> tuple[list[ApprovalOut], int]:
     clause = APPROVAL_FILTERS[state] if state else "TRUE"
-    total = repo.conn.execute(f"SELECT count(*) AS n FROM approval_requests WHERE {clause}").fetchone()["n"]
-    rows = repo._all(f"SELECT * FROM approval_requests WHERE {clause} ORDER BY created_at DESC, id LIMIT %s OFFSET %s",
-                     [limit, offset])
+    total = repo.conn.execute(
+        f"SELECT count(*) AS n FROM approval_requests WHERE {clause}"
+    ).fetchone()["n"]
+    rows = repo._all(
+        f"SELECT * FROM approval_requests WHERE {clause} ORDER BY created_at DESC, id LIMIT %s OFFSET %s",
+        [limit, offset],
+    )
     return [approval_out(repo, ApprovalRequest(**r)) for r in rows], int(total)
 
 

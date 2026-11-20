@@ -37,10 +37,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import psycopg
-from xgboost import XGBRegressor
-
 from cfo.config import REPO_ROOT
 from cfo.forecast import features as feat
+from xgboost import XGBRegressor
 
 log = logging.getLogger(__name__)
 
@@ -53,14 +52,23 @@ MLFLOW_EXPERIMENT = "liquidity-forecast"  # `MLFLOW_EXPERIMENT_NAME` overrides
 REGISTERED_MODEL_NAME = "liquidity-forecast"
 CHAMPION_ALIAS = "champion"
 MLFLOW_MODEL_ARTIFACT = "model"
-META_ARTIFACT = "forecast_model.meta.json"  # the sidecar of `ForecastModel.save`, as a run artifact
+META_ARTIFACT = (
+    "forecast_model.meta.json"  # the sidecar of `ForecastModel.save`, as a run artifact
+)
 _REGISTRY_ALIAS_URI = re.compile(r"^models:/(?P<name>[^/@]+)@(?P<alias>[^/@]+)$")
 _REGISTRY_VERSION_URI = re.compile(r"^models:/(?P<name>[^/@]+)/(?P<version>\d+)$")
 
 # Small, shallow and deterministic: ~330 training days, strong calendar signal, no randomness.
 DEFAULT_PARAMS: dict[str, Any] = {
-    "n_estimators": 200, "max_depth": 3, "learning_rate": 0.05, "min_child_weight": 3,
-    "subsample": 1.0, "reg_lambda": 1.0, "random_state": 0, "n_jobs": 1, "tree_method": "hist",
+    "n_estimators": 200,
+    "max_depth": 3,
+    "learning_rate": 0.05,
+    "min_child_weight": 3,
+    "subsample": 1.0,
+    "reg_lambda": 1.0,
+    "random_state": 0,
+    "n_jobs": 1,
+    "tree_method": "hist",
 }
 
 
@@ -89,12 +97,15 @@ class ForecastModel:
     feature_columns: list[str] = field(default_factory=lambda: list(FEATURE_COLUMNS))
     # Where the model lives in MLflow (set by `log_to_mlflow_if_configured` / `load_from_mlflow`; not saved).
     mlflow_run_id: str | None = None
-    model_version: str | None = None  # registered model version, None when not from the registry
+    model_version: str | None = (
+        None  # registered model version, None when not from the registry
+    )
     trained_at: datetime | None = None  # start of the MLflow run
 
     def features_for(self, dates: Iterable[Any]) -> pd.DataFrame:
-        return feat.calendar_features(dates, shutdown_days=self.shutdown_days, due_days=self.due_days)[
-            self.feature_columns]
+        return feat.calendar_features(
+            dates, shutdown_days=self.shutdown_days, due_days=self.due_days
+        )[self.feature_columns]
 
     def predict(self, dates: Iterable[Any]) -> pd.Series:
         """Predicted daily net cash flow (EUR, without scheduled payments), indexed by date."""
@@ -104,9 +115,15 @@ class ForecastModel:
     def feature_importances(self) -> pd.Series:
         """Share of total gain per feature (sums to 1), largest first; features never used are 0."""
         gain = self.regressor.get_booster().get_score(importance_type="total_gain")
-        raw = pd.Series({c: gain.get(c, 0.0) for c in self.feature_columns}, dtype=float)
+        raw = pd.Series(
+            {c: gain.get(c, 0.0) for c in self.feature_columns}, dtype=float
+        )
         total = raw.sum()
-        return (raw / total if total else raw).sort_values(ascending=False).rename("importance")
+        return (
+            (raw / total if total else raw)
+            .sort_values(ascending=False)
+            .rename("importance")
+        )
 
     def contributions(self, dates: Iterable[Any]) -> pd.DataFrame:
         """Per-day SHAP contributions in EUR per feature plus a `bias` column; rows sum to `predict`."""
@@ -124,14 +141,25 @@ class ForecastModel:
         """
         days = pd.date_range(start, end, freq="D")
         contrib = self.contributions(days)
-        drivers = contrib.drop(columns="bias").sum().sort_values(key=lambda s: s.abs(), ascending=False)
+        drivers = (
+            contrib.drop(columns="bias")
+            .sum()
+            .sort_values(key=lambda s: s.abs(), ascending=False)
+        )
         return {
-            "start": str(days[0].date()), "end": str(days[-1].date()), "days": len(days),
+            "start": str(days[0].date()),
+            "end": str(days[-1].date()),
+            "days": len(days),
             "predicted_net_eur": round(float(contrib.sum().sum()), 2),
             "baseline_eur": round(float(contrib["bias"].sum()), 2),
-            "top_drivers": [{"feature": name, "contribution_eur": round(float(value), 2)}
-                            for name, value in drivers.head(top).items()],
-            "feature_importances": {k: round(float(v), 4) for k, v in self.feature_importances().head(top).items()},
+            "top_drivers": [
+                {"feature": name, "contribution_eur": round(float(value), 2)}
+                for name, value in drivers.head(top).items()
+            ],
+            "feature_importances": {
+                k: round(float(v), 4)
+                for k, v in self.feature_importances().head(top).items()
+            },
         }
 
     # -- persistence
@@ -148,19 +176,23 @@ class ForecastModel:
             "shutdown_days": sorted([m, d] for m, d in self.shutdown_days),
             "due_days": {k: list(v) for k, v in self.due_days.items()},
             "trained_until": str(self.trained_until.date()),
-            "params": self.params, "metrics": self.metrics,
+            "params": self.params,
+            "metrics": self.metrics,
             "excluded_categories": list(self.excluded_categories),
             "feature_columns": self.feature_columns,
         }
 
     @classmethod
-    def from_meta(cls, regressor: XGBRegressor, meta: Mapping[str, Any], **extra: Any) -> ForecastModel:
+    def from_meta(
+        cls, regressor: XGBRegressor, meta: Mapping[str, Any], **extra: Any
+    ) -> ForecastModel:
         return cls(
             regressor=regressor,
             shutdown_days=frozenset((int(m), int(d)) for m, d in meta["shutdown_days"]),
             due_days={k: tuple(v) for k, v in meta["due_days"].items()},
             trained_until=pd.Timestamp(meta["trained_until"]),
-            params=dict(meta["params"]), metrics=dict(meta["metrics"]),
+            params=dict(meta["params"]),
+            metrics=dict(meta["metrics"]),
             excluded_categories=tuple(meta["excluded_categories"]),
             feature_columns=list(meta["feature_columns"]),
             **extra,
@@ -187,7 +219,9 @@ class ForecastModel:
         ref = resolve_mlflow_model(uri)
         loaded = importlib.import_module("mlflow.xgboost").load_model(ref.uri)
         with tempfile.TemporaryDirectory() as tmp:
-            if isinstance(loaded, XGBRegressor):  # someone logged the sklearn wrapper instead of the booster
+            if isinstance(
+                loaded, XGBRegressor
+            ):  # someone logged the sklearn wrapper instead of the booster
                 regressor = loaded
             else:
                 booster_file = Path(tmp) / MODEL_FILENAME
@@ -195,34 +229,49 @@ class ForecastModel:
                 regressor = XGBRegressor()
                 regressor.load_model(booster_file)
             meta_file = mlflow.artifacts.download_artifacts(
-                run_id=ref.run_id, artifact_path=META_ARTIFACT, dst_path=tmp)
+                run_id=ref.run_id, artifact_path=META_ARTIFACT, dst_path=tmp
+            )
             meta = json.loads(Path(meta_file).read_text(encoding="utf-8"))
         started = mlflow.MlflowClient().get_run(ref.run_id).info.start_time
-        trained_at = datetime.fromtimestamp(started / 1000, tz=timezone.utc) if started else None
-        return cls.from_meta(regressor, meta, mlflow_run_id=ref.run_id, model_version=ref.version,
-                             trained_at=trained_at)
+        trained_at = (
+            datetime.fromtimestamp(started / 1000, tz=timezone.utc) if started else None
+        )
+        return cls.from_meta(
+            regressor,
+            meta,
+            mlflow_run_id=ref.run_id,
+            model_version=ref.version,
+            trained_at=trained_at,
+        )
 
 
 # -- training ---------------------------------------------------------------------------------------------
-def _training_table(transactions: pd.DataFrame, excluded: Iterable[str]) -> pd.DataFrame:
+def _training_table(
+    transactions: pd.DataFrame, excluded: Iterable[str]
+) -> pd.DataFrame:
     table = feat.daily_features(transactions, exclude_categories=tuple(excluded))
     return table.dropna(subset=["net_cash_flow"])
 
 
-def _backtest(table: pd.DataFrame, params: dict[str, Any], holdout_days: int) -> dict[str, float]:
+def _backtest(
+    table: pd.DataFrame, params: dict[str, Any], holdout_days: int
+) -> dict[str, float]:
     """Fit on all but the last `holdout_days`, score on them. One year of history cannot be cross-validated by
-    year (the shutdown occurs once), so the check is a time holdout of ordinary days, against a naive mean."""
+    year (the shutdown occurs once), so the check is a time holdout of ordinary days, against a naive mean.
+    """
     if holdout_days <= 0 or len(table) < 2 * holdout_days:
         return {}
     train, test = table.iloc[:-holdout_days], table.iloc[-holdout_days:]
-    regressor = XGBRegressor(**params).fit(train[FEATURE_COLUMNS], train["net_cash_flow"])
+    regressor = XGBRegressor(**params).fit(
+        train[FEATURE_COLUMNS], train["net_cash_flow"]
+    )
     pred = regressor.predict(test[FEATURE_COLUMNS])
     err = pred - test["net_cash_flow"].to_numpy()
     naive = test["net_cash_flow"].to_numpy() - train["net_cash_flow"].mean()
     return {
         "holdout_days": float(holdout_days),
         "holdout_mae": float(np.abs(err).mean()),
-        "holdout_rmse": float(np.sqrt((err ** 2).mean())),
+        "holdout_rmse": float(np.sqrt((err**2).mean())),
         "holdout_naive_mae": float(np.abs(naive).mean()),
         "holdout_total_error": float(err.sum()),
     }
@@ -248,23 +297,31 @@ def train(
     merged = {**DEFAULT_PARAMS, **(params or {})}
     table = _training_table(transactions, excluded)
     metrics = _backtest(table, merged, holdout_days)
-    regressor = XGBRegressor(**merged).fit(table[FEATURE_COLUMNS], table["net_cash_flow"])
+    regressor = XGBRegressor(**merged).fit(
+        table[FEATURE_COLUMNS], table["net_cash_flow"]
+    )
     fitted = regressor.predict(table[FEATURE_COLUMNS])
-    metrics["train_mae"] = float(np.abs(fitted - table["net_cash_flow"].to_numpy()).mean())
+    metrics["train_mae"] = float(
+        np.abs(fitted - table["net_cash_flow"].to_numpy()).mean()
+    )
     metrics["train_days"] = float(len(table))
     model = ForecastModel(
         regressor=regressor,
         shutdown_days=feat.infer_shutdown_days(transactions),
         due_days=feat.infer_due_days(transactions),
         trained_until=table.index.max(),
-        params=merged, metrics=metrics, excluded_categories=excluded,
+        params=merged,
+        metrics=metrics,
+        excluded_categories=excluded,
     )
     if log_to_mlflow:
         log_to_mlflow_if_configured(model, register=register)
     return model
 
 
-def train_from_db(conn: psycopg.Connection | None = None, **kwargs: Any) -> ForecastModel:
+def train_from_db(
+    conn: psycopg.Connection | None = None, **kwargs: Any
+) -> ForecastModel:
     return train(feat.fetch_transactions(conn), **kwargs)
 
 
@@ -304,13 +361,19 @@ def resolve_mlflow_model(uri: str) -> MlflowModelRef:
         pinned, version = uri, None
         run_id = mlflow.models.get_model_info(uri).run_id
     if not run_id:
-        raise ValueError(f"MLflow model {uri} has no source run; the forecast sidecar cannot be found")
+        raise ValueError(
+            f"MLflow model {uri} has no source run; the forecast sidecar cannot be found"
+        )
     return MlflowModelRef(uri=pinned, run_id=run_id, version=version)
 
 
-def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
-                                model_name: str = REGISTERED_MODEL_NAME,
-                                alias: str | None = CHAMPION_ALIAS) -> str | None:
+def log_to_mlflow_if_configured(
+    model: ForecastModel,
+    *,
+    register: bool = False,
+    model_name: str = REGISTERED_MODEL_NAME,
+    alias: str | None = CHAMPION_ALIAS,
+) -> str | None:
     """Log params, metrics, the booster and the sidecar to MLflow when `MLFLOW_TRACKING_URI` is set.
 
     Returns the run id, or None when nothing was logged. With `register=True` the logged booster becomes a new
@@ -326,24 +389,35 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
         mlflow = _mlflow()
         mlflow_xgboost = importlib.import_module("mlflow.xgboost")
     except ImportError:
-        log.warning("MLFLOW_TRACKING_URI is set but mlflow is not installed (uv sync --extra mlflow)")
+        log.warning(
+            "MLFLOW_TRACKING_URI is set but mlflow is not installed (uv sync --extra mlflow)"
+        )
         return None
     run_id: str | None = None
     try:
         import xgboost
 
-        mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT_NAME") or MLFLOW_EXPERIMENT)
-        with mlflow.start_run(run_name=f"xgb-until-{model.trained_until.date()}") as run:
+        mlflow.set_experiment(
+            os.environ.get("MLFLOW_EXPERIMENT_NAME") or MLFLOW_EXPERIMENT
+        )
+        with mlflow.start_run(
+            run_name=f"xgb-until-{model.trained_until.date()}"
+        ) as run:
             run_id = run.info.run_id
             mlflow.log_params({k: str(v) for k, v in model.params.items()})
             mlflow.log_param("excluded_categories", ",".join(model.excluded_categories))
             mlflow.log_metrics(model.metrics)
             # Pinned requirement: skips MLflow's slow import-based inference and is all the booster needs.
-            info = mlflow_xgboost.log_model(model.regressor.get_booster(), name=MLFLOW_MODEL_ARTIFACT,
-                                            pip_requirements=[f"xgboost=={xgboost.__version__}"])
+            info = mlflow_xgboost.log_model(
+                model.regressor.get_booster(),
+                name=MLFLOW_MODEL_ARTIFACT,
+                pip_requirements=[f"xgboost=={xgboost.__version__}"],
+            )
             with tempfile.TemporaryDirectory() as tmp:
                 importances = Path(tmp) / "feature_importances.json"
-                importances.write_text(model.feature_importances().to_json(indent=2), encoding="utf-8")
+                importances.write_text(
+                    model.feature_importances().to_json(indent=2), encoding="utf-8"
+                )
                 mlflow.log_artifact(str(importances))
                 meta = Path(tmp) / META_ARTIFACT
                 meta.write_text(json.dumps(model.meta(), indent=2), encoding="utf-8")
@@ -352,7 +426,9 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
         if register:
             version = mlflow.register_model(info.model_uri, model_name)
             if alias:
-                mlflow.MlflowClient().set_registered_model_alias(model_name, alias, version.version)
+                mlflow.MlflowClient().set_registered_model_alias(
+                    model_name, alias, version.version
+                )
             model.model_version = str(version.version)
         return run_id
     except Exception:  # noqa: BLE001 - tracking is best effort
@@ -360,29 +436,42 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
         return run_id
 
 
-def get_model(transactions: pd.DataFrame | None = None, *, path: str | Path | None = None,
-              retrain: bool = False, conn: psycopg.Connection | None = None) -> ForecastModel:
+def get_model(
+    transactions: pd.DataFrame | None = None,
+    *,
+    path: str | Path | None = None,
+    retrain: bool = False,
+    conn: psycopg.Connection | None = None,
+) -> ForecastModel:
     """The saved model, or a freshly trained (and saved) one when none exists or `retrain` is set."""
     target = Path(path) if path else default_model_path()
     if not retrain and target.is_file() and _meta_path(target).is_file():
         return ForecastModel.load(target)
-    model = train(transactions if transactions is not None else feat.fetch_transactions(conn))
+    model = train(
+        transactions if transactions is not None else feat.fetch_transactions(conn)
+    )
     model.save(target)
     return model
 
 
 # -- scheduled payments -----------------------------------------------------------------------------------
-def partner_tranche_schedule(transactions: pd.DataFrame, *, total: int = PARTNER_TRANCHES_TOTAL) -> pd.Series:
+def partner_tranche_schedule(
+    transactions: pd.DataFrame, *, total: int = PARTNER_TRANCHES_TOTAL
+) -> pd.Series:
     """Tranches of the silent partnership still to be paid: monthly, same day and amount as the last booked.
 
     Based on the number of `partner_investment` bookings so far (11 of 12 by end of November 2025 leaves the
     15 Dec 2025 payment; once all 12 are booked the schedule is empty). Amounts are as printed on the statement.
     """
-    rows = transactions[transactions["category"] == PARTNER_CATEGORY].sort_values("booking_date")
+    rows = transactions[transactions["category"] == PARTNER_CATEGORY].sort_values(
+        "booking_date"
+    )
     remaining = max(total - len(rows), 0)
     if rows.empty or remaining == 0:
         return pd.Series(dtype=float, index=pd.DatetimeIndex([], name="date"))
-    last_day, amount = rows["booking_date"].iloc[-1].normalize(), float(rows["amount"].iloc[-1])
+    last_day, amount = rows["booking_date"].iloc[-1].normalize(), float(
+        rows["amount"].iloc[-1]
+    )
     dates = [last_day + pd.DateOffset(months=i) for i in range(1, remaining + 1)]
     return pd.Series(amount, index=pd.DatetimeIndex(dates, name="date"))
 
@@ -390,15 +479,23 @@ def partner_tranche_schedule(transactions: pd.DataFrame, *, total: int = PARTNER
 def _as_series(payments: Any) -> pd.Series:
     if payments is None:
         return pd.Series(dtype=float, index=pd.DatetimeIndex([], name="date"))
-    series = pd.Series(payments, dtype=float) if not isinstance(payments, pd.Series) else payments.astype(float)
-    series.index = pd.DatetimeIndex(pd.to_datetime(series.index)).normalize().rename("date")
+    series = (
+        pd.Series(payments, dtype=float)
+        if not isinstance(payments, pd.Series)
+        else payments.astype(float)
+    )
+    series.index = (
+        pd.DatetimeIndex(pd.to_datetime(series.index)).normalize().rename("date")
+    )
     return series.groupby(level=0).sum()
 
 
 # -- the forecast -----------------------------------------------------------------------------------------
 def last_known_balance(transactions: pd.DataFrame) -> tuple[pd.Timestamp, float]:
     """(last booking day, running sum of all bookings): the statement has no opening balance."""
-    return transactions["booking_date"].max().normalize(), round(float(transactions["amount"].sum()), 2)
+    return transactions["booking_date"].max().normalize(), round(
+        float(transactions["amount"].sum()), 2
+    )
 
 
 def liquidity_forecast(
@@ -426,9 +523,15 @@ def liquidity_forecast(
     model = model or get_model(tx)
     last_day, known = last_known_balance(tx)
     start = known if start_balance is None else float(start_balance)
-    dates = pd.date_range(last_day + pd.Timedelta(days=1), periods=days, freq="D", name="date")
+    dates = pd.date_range(
+        last_day + pd.Timedelta(days=1), periods=days, freq="D", name="date"
+    )
     out = pd.DataFrame({"predicted_net": model.predict(dates)})
-    schedule = partner_tranche_schedule(tx) if scheduled_payments is None else _as_series(scheduled_payments)
+    schedule = (
+        partner_tranche_schedule(tx)
+        if scheduled_payments is None
+        else _as_series(scheduled_payments)
+    )
     out["scheduled"] = schedule.reindex(dates).fillna(0.0)
     out["net"] = out["predicted_net"] + out["scheduled"]
     out["balance"] = start + out["net"].cumsum()

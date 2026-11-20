@@ -3,12 +3,12 @@
 from decimal import Decimal
 from functools import lru_cache
 
+from cfo.config import REPO_ROOT
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from cfo.config import REPO_ROOT
-
 DEFAULT_CEO_ID = "vincenzo"
+
 
 class ApiSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -51,6 +51,7 @@ class ApiSettings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 @lru_cache
 def get_api_settings() -> ApiSettings:

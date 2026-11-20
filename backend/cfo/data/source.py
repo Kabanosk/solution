@@ -52,10 +52,14 @@ def find_source_csv() -> Path:
     for path in candidates:
         if path.is_file():
             return path
-    raise SourceNotFound(f"bank statement CSV not found; set SOURCE_CSV (tried {len(candidates)} locations)")
+    raise SourceNotFound(
+        f"bank statement CSV not found; set SOURCE_CSV (tried {len(candidates)} locations)"
+    )
 
 
-def _category(txn_type: str, party: str, reference: str) -> tuple[str | None, str | None]:
+def _category(
+    txn_type: str, party: str, reference: str
+) -> tuple[str | None, str | None]:
     if party in SUPPLIER_CATEGORY:
         return SUPPLIER_CATEGORY[party]
     if txn_type in ("CARD SETTLEMENT (DEBIT)", "CREDIT CARD PAYOUT"):
@@ -85,7 +89,9 @@ def load_bank_csv(path: Path | None = None) -> list[Transaction]:
     for n, row in enumerate(rows, start=1):
         reference = row["Payment Reference"]
         match = INVOICE_RE.search(reference)
-        category, team = _category(row["Transaction Type"], row["Beneficiary/Payer"], reference)
+        category, team = _category(
+            row["Transaction Type"], row["Beneficiary/Payer"], reference
+        )
         txns.append(
             Transaction(
                 id=f"txn_{n:04d}",

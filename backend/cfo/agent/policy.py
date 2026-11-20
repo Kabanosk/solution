@@ -23,18 +23,23 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
-
 from cfo.domain import PolicyLevel, Rule, Transaction
 from cfo.llm import LLM, Message, ToolSpec
 from cfo.usage.recorder import usage_context
+from pydantic import BaseModel, Field
 
 ROUTINE_TOLERANCE = Decimal("0.20")  # +-20% of the supplier's typical amount
 AUTO_SHARE = Decimal("0.01")  # < 1% of average monthly inflows
 APPROVAL_SHARE = Decimal("0.05")  # > 5% of average monthly inflows
 
 STRATEGIC_ACTION_TYPES = frozenset(
-    {"request_credit_line", "open_deposit", "make_investment", "fx_hedge", "change_team_budget"}
+    {
+        "request_credit_line",
+        "open_deposit",
+        "make_investment",
+        "fx_hedge",
+        "change_team_budget",
+    }
 )
 
 
@@ -55,8 +60,12 @@ class PolicyAction(BaseModel):
 class PolicyContext(BaseModel):
     """What the engine knows about the company. Build it with `context_from_transactions`."""
 
-    avg_monthly_inflows: Decimal | None = None  # None or 0: thresholds unknown, so be conservative
-    typical_amounts: dict[str, Decimal] = Field(default_factory=dict)  # known supplier -> typical amount
+    avg_monthly_inflows: Decimal | None = (
+        None  # None or 0: thresholds unknown, so be conservative
+    )
+    typical_amounts: dict[str, Decimal] = Field(
+        default_factory=dict
+    )  # known supplier -> typical amount
     rules: list[Rule] = Field(default_factory=list)  # CEO overrides
 
 
@@ -91,14 +100,23 @@ def _matching_rule(action: PolicyAction, rules: Iterable[Rule]) -> Rule | None:
 def classify(action: PolicyAction, context: PolicyContext) -> PolicyDecision:
     rule = _matching_rule(action, context.rules)
     if rule is not None:
-        return PolicyDecision(level=rule.level, reason=f'CEO rule "{rule.text}" applies, so this is {rule.level}.')
+        return PolicyDecision(
+            level=rule.level,
+            reason=f'CEO rule "{rule.text}" applies, so this is {rule.level}.',
+        )
 
     if _norm(action.action_type) in STRATEGIC_ACTION_TYPES:
         what = action.action_type.replace("_", " ")
-        return PolicyDecision(level=PolicyLevel.APPROVAL, reason=f"{what} always needs the CEO's approval.")
+        return PolicyDecision(
+            level=PolicyLevel.APPROVAL,
+            reason=f"{what} always needs the CEO's approval.",
+        )
 
     if action.amount is None:
-        return PolicyDecision(level=PolicyLevel.AUTO, reason="No money moves, so the agent acts on its own.")
+        return PolicyDecision(
+            level=PolicyLevel.AUTO,
+            reason="No money moves, so the agent acts on its own.",
+        )
 
     amount = abs(action.amount)
     supplier = _norm(action.supplier)
@@ -150,9 +168,12 @@ def classify(action: PolicyAction, context: PolicyContext) -> PolicyDecision:
     )
 
 
-def context_from_transactions(transactions: Iterable[Transaction], rules: Sequence[Rule] = ()) -> PolicyContext:
+def context_from_transactions(
+    transactions: Iterable[Transaction], rules: Sequence[Rule] = ()
+) -> PolicyContext:
     """Derive the context from the bank statement: typical amount = median outflow per counterparty,
-    average monthly inflows = total inflows over the calendar months the statement spans."""
+    average monthly inflows = total inflows over the calendar months the statement spans.
+    """
     txns = list(transactions)
     if not txns:
         return PolicyContext(rules=list(rules))
@@ -166,7 +187,9 @@ def context_from_transactions(transactions: Iterable[Transaction], rules: Sequen
             outflows[t.counterparty].append(-t.amount)
     return PolicyContext(
         avg_monthly_inflows=inflows / months,
-        typical_amounts={name: statistics.median(amounts) for name, amounts in outflows.items()},
+        typical_amounts={
+            name: statistics.median(amounts) for name, amounts in outflows.items()
+        },
         rules=list(rules),
     )
 
@@ -182,9 +205,15 @@ _RULE_TOOL = ToolSpec(
                 "enum": [lvl.value for lvl in PolicyLevel],
                 "description": "AUTO = do it alone, NOTIFY = do it and tell me, APPROVAL = ask me first",
             },
-            "category": {"type": "string", "description": "spending category, e.g. equipment, food, cloud"},
+            "category": {
+                "type": "string",
+                "description": "spending category, e.g. equipment, food, cloud",
+            },
             "supplier": {"type": "string", "description": "supplier name"},
-            "action_type": {"type": "string", "description": "e.g. request_credit_line, open_deposit, fx_hedge"},
+            "action_type": {
+                "type": "string",
+                "description": "e.g. request_credit_line, open_deposit, fx_hedge",
+            },
         },
         "required": ["level"],
     },
@@ -207,7 +236,10 @@ def parse_rule(text: str, llm: LLM, categories: Sequence[str] = ()) -> Rule:
         system += f" Known categories: {', '.join(categories)}."
     with usage_context(purpose="parse_rule"):
         response = llm.chat(
-            [Message(role="system", content=system), Message(role="user", content=f"Owner's sentence: {text}")],
+            [
+                Message(role="system", content=system),
+                Message(role="user", content=f"Owner's sentence: {text}"),
+            ],
             [_RULE_TOOL],
         )
     args: dict | None = None
@@ -227,7 +259,9 @@ def parse_rule(text: str, llm: LLM, categories: Sequence[str] = ()) -> Rule:
     try:
         level = PolicyLevel(str(args.get("level", "")).strip().upper())
     except ValueError:
-        raise ValueError(f"unknown level {args.get('level')!r} for rule: {text!r}") from None
+        raise ValueError(
+            f"unknown level {args.get('level')!r} for rule: {text!r}"
+        ) from None
 
     def text_arg(name: str) -> str | None:
         value = args.get(name)

@@ -5,32 +5,24 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from cfo.config import Settings
-from cfo.domain import (
-    ApprovalRequest,
-    CostMetric,
-    CostMetricKind,
-    Decision,
-    Employee,
-    Event,
-    EventKind,
-    Invoice,
-    InvoiceLine,
-    PolicyLevel,
-    Rule,
-    Team,
-    Transaction,
-    Vacation,
-)
+from cfo.domain import (ApprovalRequest, CostMetric, CostMetricKind, Decision,
+                        Employee, Event, EventKind, Invoice, InvoiceLine,
+                        PolicyLevel, Rule, Team, Transaction, Vacation)
 from cfo.llm import LLM, FakeLLM, Message, ToolSpec
 
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     for name in (
-        "DATABASE_URL", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY",
-        "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "WORKSTATIONS_ROOT", "SIM_SPEED",
+        "DATABASE_URL",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "SLACK_BOT_TOKEN",
+        "SLACK_APP_TOKEN",
+        "WORKSTATIONS_ROOT",
+        "SIM_SPEED",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -59,27 +51,67 @@ def test_policy_level_values():
 
 def _samples():
     txn = Transaction(
-        booking_date=date(2025, 12, 3), type="GIRO CARD PAYMENT", reference="Invoice AS-69664",
-        counterparty="Asimex", amount=Decimal("-1234.50"), invoice_number="AS-69664",
+        booking_date=date(2025, 12, 3),
+        type="GIRO CARD PAYMENT",
+        reference="Invoice AS-69664",
+        counterparty="Asimex",
+        amount=Decimal("-1234.50"),
+        invoice_number="AS-69664",
     )
     inv = Invoice(
-        number="AS-69664", supplier="Asimex", issue_date=date(2025, 12, 1), total=Decimal("1234.50"),
-        lines=[InvoiceLine(description="Flour 25kg", quantity=Decimal(10), unit_price=Decimal("123.45"),
-                           amount=Decimal("1234.50"))],
+        number="AS-69664",
+        supplier="Asimex",
+        issue_date=date(2025, 12, 1),
+        total=Decimal("1234.50"),
+        lines=[
+            InvoiceLine(
+                description="Flour 25kg",
+                quantity=Decimal(10),
+                unit_price=Decimal("123.45"),
+                amount=Decimal("1234.50"),
+            )
+        ],
         transaction_id=txn.id,
     )
-    emp = Employee(id="grazyna", name="Grazyna", role="office manager", manager_id="vincenzo",
-                   vacations=[Vacation(start=date(2025, 12, 20), end=date(2025, 12, 31))])
+    emp = Employee(
+        id="grazyna",
+        name="Grazyna",
+        role="office manager",
+        manager_id="vincenzo",
+        vacations=[Vacation(start=date(2025, 12, 20), end=date(2025, 12, 31))],
+    )
     return [
-        txn, inv, emp,
-        Team(id="kitchen", name="Kitchen", owner_id="rosa", monthly_budget=Decimal("9000")),
-        CostMetric(kind=CostMetricKind.CLOUD_PER_ORDER, month=date(2025, 11, 1), cost=Decimal("300"),
-                   metric_value=Decimal("150")),
+        txn,
+        inv,
+        emp,
+        Team(
+            id="kitchen",
+            name="Kitchen",
+            owner_id="rosa",
+            monthly_budget=Decimal("9000"),
+        ),
+        CostMetric(
+            kind=CostMetricKind.CLOUD_PER_ORDER,
+            month=date(2025, 11, 1),
+            cost=Decimal("300"),
+            metric_value=Decimal("150"),
+        ),
         Event(kind=EventKind.BANK_TRANSACTION, payload={"transaction_id": txn.id}),
-        Decision(action_type="attach_invoice", summary="Attached AS-69664", level=PolicyLevel.AUTO,
-                 reason="known supplier", executed_simulated=True),
-        ApprovalRequest(decision_id="dec_1", approver_id="vincenzo", question="Open a credit line?"),
-        Rule(text="equipment: always ask me", level=PolicyLevel.APPROVAL, category="equipment"),
+        Decision(
+            action_type="attach_invoice",
+            summary="Attached AS-69664",
+            level=PolicyLevel.AUTO,
+            reason="known supplier",
+            executed_simulated=True,
+        ),
+        ApprovalRequest(
+            decision_id="dec_1", approver_id="vincenzo", question="Open a credit line?"
+        ),
+        Rule(
+            text="equipment: always ask me",
+            level=PolicyLevel.APPROVAL,
+            category="equipment",
+        ),
     ]
 
 
@@ -94,15 +126,24 @@ def test_decision_defaults_not_simulated_and_vacation_logic():
     dec = Decision(action_type="x", summary="s", level=PolicyLevel.NOTIFY, reason="r")
     assert dec.executed_simulated is False
     emp = _samples()[2]
-    assert emp.on_vacation(date(2025, 12, 24)) and not emp.on_vacation(date(2025, 12, 10))
+    assert emp.on_vacation(date(2025, 12, 24)) and not emp.on_vacation(
+        date(2025, 12, 10)
+    )
     cm = _samples()[4]
     assert cm.cost_per_unit == Decimal(2)
 
 
 def test_fake_llm_tool_call():
-    tools = [ToolSpec(name="get_balance", description="Balance on a day",
-                      parameters={"type": "object", "properties": {"day": {"type": "string"}}})]
-    llm = FakeLLM([FakeLLM.tool_call("get_balance", day="2025-06-01"), "Balance is -20k."])
+    tools = [
+        ToolSpec(
+            name="get_balance",
+            description="Balance on a day",
+            parameters={"type": "object", "properties": {"day": {"type": "string"}}},
+        )
+    ]
+    llm = FakeLLM(
+        [FakeLLM.tool_call("get_balance", day="2025-06-01"), "Balance is -20k."]
+    )
     assert isinstance(llm, LLM)
 
     messages = [Message(role="user", content="What is the balance on 1 June?")]
@@ -110,7 +151,10 @@ def test_fake_llm_tool_call():
     assert first.tool_calls[0].name == "get_balance"
     assert first.tool_calls[0].arguments == {"day": "2025-06-01"}
 
-    messages += [first.as_message(), Message(role="tool", tool_call_id=first.tool_calls[0].id, content="-20000")]
+    messages += [
+        first.as_message(),
+        Message(role="tool", tool_call_id=first.tool_calls[0].id, content="-20000"),
+    ]
     second = llm.chat(messages, tools)
     assert second.content == "Balance is -20k." and not second.tool_calls
     assert len(llm.calls) == 2 and llm.calls[0]["tools"] == tools
@@ -124,5 +168,7 @@ def test_tls_verify_setting_maps_strings():
 
     assert tls_verify_setting("true") is True
     assert tls_verify_setting("FALSE") is False
-    assert tls_verify_setting("/etc/llm-ca/service-ca.crt") == "/etc/llm-ca/service-ca.crt"
+    assert (
+        tls_verify_setting("/etc/llm-ca/service-ca.crt") == "/etc/llm-ca/service-ca.crt"
+    )
     assert tls_verify_setting(False) is False

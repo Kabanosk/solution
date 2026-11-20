@@ -15,7 +15,10 @@ def main(argv: list[str]) -> int:
         return 2
     out = Path(argv[0])
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(create_app().openapi(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out.write_text(
+        json.dumps(create_app().openapi(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     print(f"wrote {out}")
     return 0
 

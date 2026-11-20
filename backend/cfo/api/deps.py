@@ -8,13 +8,12 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Annotated, Any, Protocol
 
-from fastapi import Query, Response
-
 from cfo.api.errors import ApiError
 from cfo.db.repo import Repository
 from cfo.domain import Event
 from cfo.sim import control as sim_control
 from cfo.sim.engine import SimStatus
+from fastapi import Query, Response
 
 LimitParam = Annotated[int, Query(ge=1, le=200, description="Page size.")]
 OffsetParam = Annotated[int, Query(ge=0, description="Number of items to skip.")]
@@ -52,7 +51,11 @@ def set_agent(agent: ApprovalResolver | None) -> None:
 def get_agent() -> ApprovalResolver:
     """The agent that resumes approvals. Tests replace it with `app.dependency_overrides[get_agent]`."""
     if _agent is None:
-        raise ApiError(503, "agent_unavailable", "No agent is running in this API process, approvals cannot be answered.")
+        raise ApiError(
+            503,
+            "agent_unavailable",
+            "No agent is running in this API process, approvals cannot be answered.",
+        )
     return _agent
 
 
@@ -98,8 +101,12 @@ class StreamConfig:
 
     repo_factory: Callable[[], AbstractContextManager[Repository]] = Repository.connect
     interval: float = 1.0  # seconds between polls
-    wait: Callable[[float], None] = time.sleep  # called with `interval` between two polls
-    keepalive_polls: int = 15  # a `: keepalive` comment after this many polls without news
+    wait: Callable[[float], None] = (
+        time.sleep
+    )  # called with `interval` between two polls
+    keepalive_polls: int = (
+        15  # a `: keepalive` comment after this many polls without news
+    )
     batch: int = 100  # at most this many rows per table and poll
     max_polls: int | None = None  # None = until the client disconnects
 

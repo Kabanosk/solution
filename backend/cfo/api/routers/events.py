@@ -1,10 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
-from fastapi.responses import StreamingResponse
-
 from cfo.api import stream
 from cfo.api.deps import StreamConfig, get_stream_config
+from fastapi import APIRouter, Depends, Header, Query
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/v1", tags=["events"])
 
@@ -21,17 +20,38 @@ database about once a second and sends a `: keepalive` comment when nothing happ
 """
 
 
-@router.get("/events", summary="Live stream of new decisions, approvals and events (SSE)", description=SSE_DESCRIPTION,
-            response_class=StreamingResponse,
-            responses={200: {"content": {"text/event-stream": {"schema": {"type": "string"}}},
-                             "description": "An endless `text/event-stream`."}})
+@router.get(
+    "/events",
+    summary="Live stream of new decisions, approvals and events (SSE)",
+    description=SSE_DESCRIPTION,
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+            "description": "An endless `text/event-stream`.",
+        }
+    },
+)
 def events(
-    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID", description="Resume token (set by EventSource).")] = None,
-    last_event_id_query: Annotated[str | None, Query(alias="last_event_id", description="Same as the header, for clients that cannot set it.")] = None,
+    last_event_id: Annotated[
+        str | None,
+        Header(alias="Last-Event-ID", description="Resume token (set by EventSource)."),
+    ] = None,
+    last_event_id_query: Annotated[
+        str | None,
+        Query(
+            alias="last_event_id",
+            description="Same as the header, for clients that cannot set it.",
+        ),
+    ] = None,
     config: StreamConfig = Depends(get_stream_config),
 ) -> StreamingResponse:
     return StreamingResponse(
         stream.stream(config, last_event_id or last_event_id_query),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )

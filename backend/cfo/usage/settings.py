@@ -10,10 +10,9 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Any
 
+from cfo.config import REPO_ROOT
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from cfo.config import REPO_ROOT
 
 # One NVIDIA L4 (the GPU of the RHOAI cluster, INFRA.md) on demand. Reference: AWS EC2 g6.xlarge (1x L4, 4 vCPU,
 # 16 GiB) is USD 0.8048 per hour in us-east-1 (https://instances.vantage.sh/aws/ec2/g6.xlarge, read 2026-11-20,
@@ -39,10 +38,20 @@ class HostedPrice(BaseModel):
 # OpenAI list prices (standard tier), read 2026-11-20 via search results quoting the model pages:
 # https://developers.openai.com/api/docs/models/gpt-5-mini and https://developers.openai.com/api/docs/models/gpt-5-nano
 DEFAULT_HOSTED_PRICES = [
-    HostedPrice(model="gpt-5-mini", input_per_million=Decimal("0.25"), output_per_million=Decimal("2.00"),
-                source="https://developers.openai.com/api/docs/models/gpt-5-mini", as_of="2026-11-20"),
-    HostedPrice(model="gpt-5-nano", input_per_million=Decimal("0.05"), output_per_million=Decimal("0.40"),
-                source="https://developers.openai.com/api/docs/models/gpt-5-nano", as_of="2026-11-20"),
+    HostedPrice(
+        model="gpt-5-mini",
+        input_per_million=Decimal("0.25"),
+        output_per_million=Decimal("2.00"),
+        source="https://developers.openai.com/api/docs/models/gpt-5-mini",
+        as_of="2026-11-20",
+    ),
+    HostedPrice(
+        model="gpt-5-nano",
+        input_per_million=Decimal("0.05"),
+        output_per_million=Decimal("0.40"),
+        source="https://developers.openai.com/api/docs/models/gpt-5-nano",
+        as_of="2026-11-20",
+    ),
 ]
 
 
@@ -59,7 +68,9 @@ class UsageSettings(BaseSettings):
     vllm_metrics_timeout: float = 5.0  # seconds per scrape
     # TLS check for an https URL: "true" (default), "false" (self-signed certificate, no check) or the path of a CA bundle.
     vllm_metrics_verify: str = "true"
-    vllm_metrics_bearer_token: str | None = None  # only if the endpoint sits behind an authenticating proxy
+    vllm_metrics_bearer_token: str | None = (
+        None  # only if the endpoint sits behind an authenticating proxy
+    )
     # The /live snapshot is flagged stale when older than this many seconds.
     vllm_metrics_stale_seconds: float = 300.0
 

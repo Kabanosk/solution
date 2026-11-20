@@ -17,7 +17,9 @@ def make_repo_factory(database_url: str | None = None, schema: str | None = None
     """
     url = database_url or get_settings().database_url
     if schema:
-        url += ("&" if "?" in url else "?") + "options=" + quote(f"-csearch_path={schema}")
+        url += (
+            ("&" if "?" in url else "?") + "options=" + quote(f"-csearch_path={schema}")
+        )
 
     def factory() -> Repository:
         return Repository.connect(url)

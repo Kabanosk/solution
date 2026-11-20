@@ -11,7 +11,14 @@ import threading
 from pathlib import Path
 
 from cfo.sim import control
-from cfo.sim.engine import SimStatus
+from cfo.sim.engine import SimStatus, _check_speed
+
+
+def _speed(text: str) -> float:
+    try:
+        return _check_speed(float(text))
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"{text!r}: speed must be a positive, finite number") from e
 
 
 def _print(st: SimStatus) -> None:
@@ -20,32 +27,17 @@ def _print(st: SimStatus) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cfo.sim")
-    parser.add_argument(
-        "--data",
-        type=Path,
-        default=None,
-        help="generated data dir (default data/generated)",
-    )
+    parser.add_argument("--data", type=Path, default=None, help="generated data dir (default data/generated)")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p_start = sub.add_parser(
-        "start", help="resume the clock (optionally set the speed)"
-    )
-    p_start.add_argument(
-        "--speed", type=float, default=None, help="sim-seconds per real second"
-    )
-    p_start.add_argument(
-        "--run", action="store_true", help="then run the worker loop in the foreground"
-    )
+    p_start = sub.add_parser("start", help="resume the clock (optionally set the speed)")
+    p_start.add_argument("--speed", type=_speed, default=None, help="sim-seconds per real second")
+    p_start.add_argument("--run", action="store_true", help="then run the worker loop in the foreground")
     sub.add_parser("pause", help="stop the clock")
     sub.add_parser("step", help="emit the next event now")
-    p_jump = sub.add_parser(
-        "jump", help="move forward to a date, emitting the events in between"
-    )
+    p_jump = sub.add_parser("jump", help="move forward to a date, emitting the events in between")
     p_jump.add_argument("to", help="YYYY-MM-DD or ISO datetime")
     sub.add_parser("status", help="print the state")
-    sub.add_parser(
-        "reset", help="back to 1 Dec 2025, paused (does not clear the events table)"
-    )
+    sub.add_parser("reset", help="back to 1 Dec 2025, paused (does not clear the events table)")
     sub.add_parser("run", help="worker loop in the foreground")
     args = parser.parse_args(argv)
 

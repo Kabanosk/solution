@@ -62,6 +62,26 @@ python3 -m unittest discover -s backend/tests -t backend       # or: uv run --pr
 uvx ruff check backend                                         # ruff is not a project dep
 ```
 
+Agent evaluation (T028; needs the `mlflow` extra, Postgres and an MLflow tracking URI):
+
+```sh
+MLFLOW_TRACKING_URI=sqlite:///mlflow.db uv run --project backend --extra mlflow python -m cfo.eval              # scripted model
+MLFLOW_TRACKING_URI=... LLM_BASE_URL=... LLM_MODEL=... uv run --project backend --extra mlflow python -m cfo.eval --llm real
+```
+
+It plays the 15 scenarios of `backend/cfo/eval/scenarios.yaml` (golden path + autonomy rules D-005/D-011/D-013)
+through the real agent graph and policy engine and logs one run to the MLflow experiment `cfo-agent-eval`:
+metrics `policy_level_correct/mean`, `action_correct/mean`, `no_execution_without_approval/mean`,
+`explanation_cites_amount/mean`, `latency_s/mean|max`, `pass_rate`; tags `llm_model`, `llm_mode`, `git_sha`; one
+trace per scenario with its scores (run page, tab Traces) and the table `eval_scenarios.json` (tab Artifacts).
+The scenario company lives in a Postgres schema of its own (`cfo_eval_<pid>`, created and dropped; the database
+user needs `CREATE` on the database) and the LLM calls are not written to `llm_usage`. Options: `--only id,id`,
+`--scenarios FILE`, `--judge` (one extra LLM-as-judge score from the same endpoint), `--strict` (exit 1 on a
+failed scenario), `--tracking-uri`, `--schema`. In an image without a git checkout set `GIT_SHA`. On the cluster
+run it where `LLM_BASE_URL` resolves (e.g. `oc exec deploy/<worker> -- python -m cfo.eval --llm real`, with
+`MLFLOW_TRACKING_URI` and the `MLFLOW_TRACKING_AUTH` settings of §5), or locally through `oc port-forward` to the
+model pod. The backend image installs the `mlflow` extra since T042; an older image stops with a message.
+
 ## 3. Backend image
 
 ```sh

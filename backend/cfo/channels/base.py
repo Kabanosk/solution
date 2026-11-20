@@ -21,12 +21,11 @@ from collections.abc import Callable, Sequence
 from enum import StrEnum
 from typing import Literal, Protocol, runtime_checkable
 
-from cfo.domain import Employee, PolicyLevel
 from pydantic import BaseModel
 
-SIMULATED = (
-    "SIMULATED"  # label for executed-but-not-real actions (D-005); not a policy level
-)
+from cfo.domain import Employee, PolicyLevel
+
+SIMULATED = "SIMULATED"  # label for executed-but-not-real actions (D-005); not a policy level
 Level = PolicyLevel | Literal["SIMULATED"]
 
 
@@ -50,10 +49,7 @@ class Action(BaseModel):
 
 def approval_actions(request_id: str) -> list[Action]:
     """The standard Approve / Reject pair for an `ApprovalRequest`."""
-    return [
-        Action(kind=ActionKind.APPROVE, request_id=request_id),
-        Action(kind=ActionKind.REJECT, request_id=request_id),
-    ]
+    return [Action(kind=ActionKind.APPROVE, request_id=request_id), Action(kind=ActionKind.REJECT, request_id=request_id)]
 
 
 class ApprovalAnswer(BaseModel):
@@ -87,11 +83,7 @@ ChatHandler = Callable[[ChatMessage], "str | ChatReply | None"]  # None: stay si
 @runtime_checkable
 class Notifier(Protocol):
     def send_dm(
-        self,
-        employee: Employee,
-        text: str,
-        level: Level,
-        actions: Sequence[Action] = (),
+        self, employee: Employee, text: str, level: Level, actions: Sequence[Action] = ()
     ) -> str:
         """DM `employee` with `text` labelled `level`, buttons under it if `actions`. Returns the message ref.
 

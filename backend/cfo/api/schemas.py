@@ -15,28 +15,19 @@ from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from cfo.domain import (ApprovalStatus, CostMetricKind, DecisionStatus,
-                        EventKind, PolicyLevel)
 from pydantic import BaseModel, Field
 
+from cfo.domain import ApprovalStatus, CostMetricKind, DecisionStatus, EventKind, PolicyLevel
+
 DecimalStr = Annotated[str, Field(pattern=r"^-?\d+(\.\d+)?$", examples=["50.0"])]
-Stub = Annotated[
-    bool,
-    Field(description="True while the data is a stub, not computed from the database."),
-]
+Stub = Annotated[bool, Field(description="True while the data is a stub, not computed from the database.")]
 
 T = TypeVar("T")
 
 
 class Money(BaseModel):
-    amount: Annotated[
-        str,
-        Field(
-            pattern=r"^-?\d+\.\d{2}$",
-            examples=["1234.50"],
-            description="String decimal, two places, negative = outflow.",
-        ),
-    ]
+    amount: Annotated[str, Field(pattern=r"^-?\d+\.\d{2}$", examples=["1234.50"],
+                                 description="String decimal, two places, negative = outflow.")]
     currency: str = Field(default="EUR", examples=["EUR"], description="ISO 4217 code.")
 
 
@@ -48,11 +39,7 @@ def eur(value: Decimal | str | int | float) -> Money:
 
 def pct(value: Decimal | None) -> str | None:
     """Percentage with one decimal as a string, e.g. Decimal('50.0') -> '50.0'."""
-    return (
-        None
-        if value is None
-        else format(value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP), "f")
-    )
+    return None if value is None else format(value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP), "f")
 
 
 class Page(BaseModel, Generic[T]):
@@ -60,9 +47,7 @@ class Page(BaseModel, Generic[T]):
 
     stub: Stub = False
     items: list[T]
-    total: int = Field(
-        description="Number of items matching the filters, across all pages."
-    )
+    total: int = Field(description="Number of items matching the filters, across all pages.")
     limit: int
     offset: int
 
@@ -103,24 +88,16 @@ class ForecastModelInfo(BaseModel):
 
 class LiquidityForecast(BaseModel):
     stub: Stub
-    as_of: date = Field(
-        description="Last day with actual data; the forecast starts the day after."
-    )
+    as_of: date = Field(description="Last day with actual data; the forecast starts the day after.")
     horizon_days: int
     granularity: Literal["day", "week"]
     currency: str
     opening_balance: Money
-    safety_buffer: Money = Field(
-        description="Safety buffer line to draw (D-013): by default the largest monthly "
-        "fixed cost (payroll, rent, tax, social security, utilities), "
-        "overridable with SAFETY_BUFFER_EUR."
-    )
-    lowest_point: ForecastPoint = Field(
-        description="Lowest predicted balance within the horizon."
-    )
-    gaps: list[ForecastGap] = Field(
-        description="Stretches of days with a predicted balance below `safety_buffer`."
-    )
+    safety_buffer: Money = Field(description="Safety buffer line to draw (D-013): by default the largest monthly "
+                                             "fixed cost (payroll, rent, tax, social security, utilities), "
+                                             "overridable with SAFETY_BUFFER_EUR.")
+    lowest_point: ForecastPoint = Field(description="Lowest predicted balance within the horizon.")
+    gaps: list[ForecastGap] = Field(description="Stretches of days with a predicted balance below `safety_buffer`.")
     model: ForecastModelInfo
     points: list[ForecastPoint]
 
@@ -129,9 +106,7 @@ class LiquidityForecast(BaseModel):
 
 
 class UndocumentedPayments(BaseModel):
-    count: int = Field(
-        description="Paid invoices without a document in the database (Belegpflicht risk, D-003)."
-    )
+    count: int = Field(description="Paid invoices without a document in the database (Belegpflicht risk, D-003).")
     total: Money
 
 
@@ -141,11 +116,8 @@ class ForecastSummary(BaseModel):
     lowest_date: date
     first_negative_date: date | None = None
     safety_buffer: Money
-    first_below_buffer_date: date | None = Field(
-        default=None,
-        description="First predicted day below the "
-        "safety buffer (D-013), null if none.",
-    )
+    first_below_buffer_date: date | None = Field(default=None, description="First predicted day below the "
+                                                                          "safety buffer (D-013), null if none.")
 
 
 class Kpis(BaseModel):
@@ -158,9 +130,7 @@ class Kpis(BaseModel):
     forecast: ForecastSummary
     undocumented_payments: UndocumentedPayments
     pending_approvals: int
-    open_cost_alerts: int = Field(
-        description="Cost-vs-metric pairs currently flagged as an anomaly (D-006)."
-    )
+    open_cost_alerts: int = Field(description="Cost-vs-metric pairs currently flagged as an anomaly (D-006).")
 
 
 # --- /v1/costs/by-team --------------------------------------------------------------------------------
@@ -178,10 +148,7 @@ class TeamCosts(BaseModel):
     monthly_budget: Money | None
     total: Money
     avg_monthly: Money
-    share: DecimalStr = Field(
-        description="Share of all teams' costs, 0..1, four decimals.",
-        examples=["0.6153"],
-    )
+    share: DecimalStr = Field(description="Share of all teams' costs, 0..1, four decimals.", examples=["0.6153"])
     by_month: list[MonthlyCost]
 
 
@@ -212,31 +179,19 @@ class Anomaly(BaseModel):
 class CostMetricPoint(BaseModel):
     month: date = Field(description="First day of the month.")
     cost: Money
-    metric_value: str = Field(
-        description="Orders / new customers / online orders in the month (integer string)."
-    )
-    cost_per_unit: Money | None = Field(
-        description="Cost per order / per new customer (CAC) / per online order. "
-        "Null when the metric is zero."
-    )
-    cost_change_pct: DecimalStr | None = Field(
-        description="Cost change vs previous month in percent."
-    )
-    metric_change_pct: DecimalStr | None = Field(
-        description="Metric change vs previous month in percent."
-    )
-    anomaly: Anomaly | None = Field(
-        default=None, description="Set when cost grew with no matching metric growth."
-    )
+    metric_value: str = Field(description="Orders / new customers / online orders in the month (integer string).")
+    cost_per_unit: Money | None = Field(description="Cost per order / per new customer (CAC) / per online order. "
+                                                    "Null when the metric is zero.")
+    cost_change_pct: DecimalStr | None = Field(description="Cost change vs previous month in percent.")
+    metric_change_pct: DecimalStr | None = Field(description="Metric change vs previous month in percent.")
+    anomaly: Anomaly | None = Field(default=None, description="Set when cost grew with no matching metric growth.")
 
 
 class CostMetricSeries(BaseModel):
     kind: CostMetricKind
     label: str
     team_id: str
-    unit: Literal["order", "new_customer", "online_order"] = Field(
-        description="What `cost_per_unit` is per."
-    )
+    unit: Literal["order", "new_customer", "online_order"] = Field(description="What `cost_per_unit` is per.")
     points: list[CostMetricPoint]
 
 
@@ -253,13 +208,9 @@ class DecisionOut(BaseModel):
     level: PolicyLevel
     reason: str = Field(description="Why the policy engine chose this level.")
     status: DecisionStatus
-    actor: str = Field(
-        description="'agent' or the employee id who decided (e.g. 'vincenzo')."
-    )
+    actor: str = Field(description="'agent' or the employee id who decided (e.g. 'vincenzo').")
     payload: dict[str, Any]
-    executed_simulated: bool = Field(
-        description="True: executed, but only simulated (D-005); show as SIMULATED."
-    )
+    executed_simulated: bool = Field(description="True: executed, but only simulated (D-005); show as SIMULATED.")
     approval_request_id: str | None = None
 
 
@@ -288,41 +239,30 @@ class ApprovalOut(BaseModel):
 
     id: str = Field(examples=["apr_8e2f6b3a1c47"])
     decision_id: str
-    approver_id: str = Field(
-        description="Employee id who may answer (normally the CEO).",
-        examples=["vincenzo"],
-    )
-    question: str = Field(
-        description="What the approver is asked, in one or two sentences."
-    )
+    approver_id: str = Field(description="Employee id who may answer (normally the CEO).", examples=["vincenzo"])
+    question: str = Field(description="What the approver is asked, in one or two sentences.")
     status: ApprovalStatus
     created_at: datetime
     resolved_at: datetime | None = None
-    channel_ref: str | None = Field(
-        default=None, description="Slack message reference, if the DM was sent."
-    )
+    channel_ref: str | None = Field(default=None, description="Slack message reference, if the DM was sent.")
     decision: DecisionOut | None = Field(
-        default=None,
-        description="The pending (or, after the answer, resolved) decision: action_type, summary, payload.",
-    )
+        default=None, description="The pending (or, after the answer, resolved) decision: action_type, summary, payload.")
 
 
 class ApprovalAnswer(BaseModel):
     """Body of `POST /v1/approvals/{id}:approve` and `:reject`."""
 
     by: str = Field(
-        min_length=1,
-        description="Employee id of the person answering; must be the approver.",
-        examples=["vincenzo"],
-    )
+        min_length=1, examples=["vincenzo"],
+        description="Employee id of the person answering; must be the approver. Ignored when the server has "
+                    "`API_WRITE_TOKEN` set: the token then stands for the CEO.")
 
 
 class ApprovalResult(ApprovalOut):
     """State of the approval after the call."""
 
     already_resolved: bool = Field(
-        description="True when the approval had been answered before; nothing was executed by this call."
-    )
+        description="True when the approval had been answered before; nothing was executed by this call.")
 
 
 # --- /v1/events (SSE) and /v1/sim -----------------------------------------------------------------------
@@ -345,26 +285,18 @@ class SimStatusOut(BaseModel):
     speed: float = Field(description="Simulated seconds per real second.")
     emitted: int = Field(description="Events written so far.")
     total: int = Field(description="Events in the replay.")
-    next_event_ts: datetime | None = Field(
-        description="Null when everything was replayed."
-    )
+    next_event_ts: datetime | None = Field(description="Null when everything was replayed.")
     finished: bool
 
 
 class SimStart(BaseModel):
     """Optional body of `POST /v1/sim:start`."""
 
-    speed: float | None = Field(
-        default=None,
-        gt=0,
-        description="New speed (sim seconds per real second); keeps the current one when omitted.",
-    )
+    speed: float | None = Field(default=None, gt=0, description="New speed (sim seconds per real second); keeps the current one when omitted.")
 
 
 class SimStepResult(BaseModel):
-    event: EventOut | None = Field(
-        description="The event that was emitted, null when the replay is finished."
-    )
+    event: EventOut | None = Field(description="The event that was emitted, null when the replay is finished.")
     status: SimStatusOut
 
 

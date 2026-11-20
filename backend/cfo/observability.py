@@ -48,10 +48,8 @@ class TracingSettings:
 
     @classmethod
     def from_env(cls) -> TracingSettings:
-        return cls(
-            os.environ.get("MLFLOW_TRACKING_URI", "").strip(),
-            os.environ.get("MLFLOW_AGENT_EXPERIMENT", "").strip() or "cfo-agent",
-        )
+        return cls(os.environ.get("MLFLOW_TRACKING_URI", "").strip(),
+                   os.environ.get("MLFLOW_AGENT_EXPERIMENT", "").strip() or "cfo-agent")
 
 
 _lock = threading.Lock()
@@ -81,30 +79,21 @@ def init_tracing(settings: Any = None) -> bool:
             try:
                 mlflow = importlib.import_module("mlflow")
             except ImportError:
-                log.warning(
-                    "MLFLOW_TRACKING_URI is set but mlflow is not installed (uv sync --extra mlflow); "
-                    "agent tracing is off"
-                )
+                log.warning("MLFLOW_TRACKING_URI is set but mlflow is not installed (uv sync --extra mlflow); "
+                            "agent tracing is off")
                 return False
             mlflow.set_tracking_uri(uri)
             mlflow.set_experiment(experiment)
             try:
                 # the real client (cfo.llm.OpenAICompatLLM) uses the `openai` package: token usage, latency, wire data
                 importlib.import_module("mlflow.openai").autolog()
-            except (
-                Exception
-            ) as exc:  # noqa: BLE001 - spans from our own wrappers still work
+            except Exception as exc:  # noqa: BLE001 - spans from our own wrappers still work
                 log.warning("mlflow.openai.autolog() failed: %s", exc)
             _mlflow = mlflow
             log.info("MLflow tracing on: %s, experiment %s", uri, experiment)
             return True
-        except (
-            Exception
-        ) as exc:  # noqa: BLE001 - observability must not stop the process from starting
-            log.warning(
-                "MLflow tracing could not be initialised, continuing without it: %s",
-                exc,
-            )
+        except Exception as exc:  # noqa: BLE001 - observability must not stop the process from starting
+            log.warning("MLflow tracing could not be initialised, continuing without it: %s", exc)
             return False
 
 
@@ -123,9 +112,7 @@ def reset_tracing() -> None:
 
 def _warn(what: str, exc: BaseException) -> None:
     global _warned
-    if (
-        not _warned
-    ):  # once: a dead tracking server would otherwise flood the log on every node
+    if not _warned:  # once: a dead tracking server would otherwise flood the log on every node
         _warned = True
         log.warning("MLflow tracing failed (%s): %s; the agent continues", what, exc)
 
@@ -169,22 +156,15 @@ class Span:
         self._call("set_outputs", _clip(value))
 
     def set_attributes(self, attributes: Mapping[str, Any]) -> None:
-        self._call(
-            "set_attributes", {k: v for k, v in attributes.items() if v is not None}
-        )
+        self._call("set_attributes", {k: v for k, v in attributes.items() if v is not None})
 
 
 _NOOP = Span()
 
 
 @contextmanager
-def span(
-    name: str,
-    span_type: str = "CHAIN",
-    inputs: Any = None,
-    attributes: Mapping[str, Any] | None = None,
-    not_errors: tuple[type[BaseException], ...] = (),
-) -> Iterator[Span]:
+def span(name: str, span_type: str = "CHAIN", inputs: Any = None, attributes: Mapping[str, Any] | None = None,
+         not_errors: tuple[type[BaseException], ...] = ()) -> Iterator[Span]:
     """A span under the current one (a new trace if there is none). No-op while tracing is off.
 
     Exceptions always propagate. They mark the span as failed, except `not_errors` (control flow such as a
@@ -232,17 +212,14 @@ def set_trace_tags(tags: Mapping[str, Any]) -> None:
     if mlflow is None:
         return
     try:
-        mlflow.update_current_trace(
-            tags={k: str(v) for k, v in tags.items() if v is not None}
-        )
+        mlflow.update_current_trace(tags={k: str(v) for k, v in tags.items() if v is not None})
     except Exception as exc:  # noqa: BLE001
         _warn("update_current_trace", exc)
 
 
 def _graph_control_flow() -> tuple[type[BaseException], ...]:
     try:
-        from langgraph.errors import \
-            GraphBubbleUp  # interrupt() and friends: not failures
+        from langgraph.errors import GraphBubbleUp  # interrupt() and friends: not failures
 
         return (GraphBubbleUp,)
     except ImportError:
@@ -275,20 +252,10 @@ class _TracedLLM:
     def chat(self, messages: Any, tools: Any = None, **kwargs: Any) -> Any:
         if _mlflow is None:
             return self._inner.chat(messages, tools, **kwargs)
-        inputs = {
-            "messages": list(messages),
-            "tools": [getattr(t, "name", str(t)) for t in tools or []],
-            **kwargs,
-        }
-        with span(
-            "llm.chat",
-            span_type="CHAT_MODEL",
-            inputs=inputs,
-            attributes={
-                "llm.model": getattr(self._inner, "model", None),
-                "llm.client": type(self._inner).__name__,
-            },
-        ) as s:
+        inputs = {"messages": list(messages), "tools": [getattr(t, "name", str(t)) for t in tools or []], **kwargs}
+        with span("llm.chat", span_type="CHAT_MODEL", inputs=inputs,
+                  attributes={"llm.model": getattr(self._inner, "model", None),
+                              "llm.client": type(self._inner).__name__}) as s:
             out = self._inner.chat(messages, tools, **kwargs)
             s.set_outputs(out)
             return out

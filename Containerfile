@@ -21,11 +21,11 @@ WORKDIR /app
 
 # Dependencies first (cached unless pyproject.toml or uv.lock change).
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version /app/backend/
-RUN uv sync --project /app/backend --frozen --no-dev --no-install-project --no-editable
+RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-install-project --no-editable
 
 # Project code.
 COPY backend/cfo /app/backend/cfo
-RUN uv sync --project /app/backend --frozen --no-dev --no-editable \
+RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-editable \
     && rm -rf /app/backend/cfo
 
 COPY deploy/cfo-entrypoint.sh /usr/local/bin/cfo

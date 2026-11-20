@@ -30,23 +30,13 @@ def token_share(our_tokens: int, cluster_tokens: float | None) -> tuple[Decimal,
     """(share 0..1, source). Share is capped at 1: the sampler may have missed a scrape, ours cannot exceed total."""
     if cluster_tokens is None or cluster_tokens <= 0:
         return Decimal(1), "assumed_all_traffic"
-    return (
-        min(Decimal(1), Decimal(our_tokens) / Decimal(str(cluster_tokens))),
-        "vllm_metrics",
-    )
+    return min(Decimal(1), Decimal(our_tokens) / Decimal(str(cluster_tokens))), "vllm_metrics"
 
 
-def amortized_cost(
-    wall_hours: float | Decimal, rate_per_hour: Decimal, share: Decimal
-) -> Decimal:
+def amortized_cost(wall_hours: float | Decimal, rate_per_hour: Decimal, share: Decimal) -> Decimal:
     return Decimal(str(wall_hours)) * rate_per_hour * share
 
 
-def hosted_cost_eur(
-    prompt_tokens: int, completion_tokens: int, price: HostedPrice, usd_to_eur: Decimal
-) -> Decimal:
-    usd = (
-        Decimal(prompt_tokens) / MILLION * price.input_per_million
-        + Decimal(completion_tokens) / MILLION * price.output_per_million
-    )
+def hosted_cost_eur(prompt_tokens: int, completion_tokens: int, price: HostedPrice, usd_to_eur: Decimal) -> Decimal:
+    usd = Decimal(prompt_tokens) / MILLION * price.input_per_million + Decimal(completion_tokens) / MILLION * price.output_per_million
     return usd * (usd_to_eur if price.currency.upper() == "USD" else Decimal(1))

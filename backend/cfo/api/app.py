@@ -6,15 +6,15 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from cfo.api.errors import install_error_handlers
-from cfo.api.routers import (approvals, cost_metrics, costs, decisions, events,
-                             forecast, kpis, llm_usage, rules, sim)
-from cfo.api.schemas import Health
-from cfo.api.settings import get_api_settings
-from cfo.observability import init_tracing
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+
+from cfo.api.errors import install_error_handlers
+from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, llm_usage, rules, sim
+from cfo.api.schemas import Health
+from cfo.api.settings import get_api_settings
+from cfo.observability import init_tracing
 
 VERSION = "0.1.0"
 
@@ -32,21 +32,12 @@ TAGS = [
     {"name": "dashboard", "description": "Headline numbers."},
     {"name": "forecast", "description": "Liquidity forecast."},
     {"name": "costs", "description": "Costs per team and cost-vs-metric pairs."},
-    {
-        "name": "decisions",
-        "description": "What the agent decided or did, by autonomy level.",
-    },
+    {"name": "decisions", "description": "What the agent decided or did, by autonomy level."},
     {"name": "rules", "description": "CEO overrides of the default policy."},
-    {
-        "name": "approvals",
-        "description": "Requests waiting for the CEO; approve or reject.",
-    },
+    {"name": "approvals", "description": "Requests waiting for the CEO; approve or reject."},
     {"name": "events", "description": "Live Server-Sent Events stream."},
     {"name": "simulator", "description": "Control of the December replay."},
-    {
-        "name": "llm-usage",
-        "description": "What the LLM costs: usage per call and the vLLM server's load.",
-    },
+    {"name": "llm-usage", "description": "What the LLM costs: usage per call and the vLLM server's load."},
     {"name": "system", "description": "Liveness."},
 ]
 
@@ -59,23 +50,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from cfo.run import attach_api
 
         attach_api()
-    except (
-        Exception
-    ):  # noqa: BLE001 - the read endpoints must come up even when the agent cannot be built
-        logging.getLogger(__name__).exception(
-            "could not attach the agent to the API process"
-        )
+    except Exception:  # noqa: BLE001 - the read endpoints must come up even when the agent cannot be built
+        logging.getLogger(__name__).exception("could not attach the agent to the API process")
     yield
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(
-        title="Autonomous CFO API",
-        version=VERSION,
-        description=DESCRIPTION,
-        openapi_tags=TAGS,
-        lifespan=lifespan,
-    )
+    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
+                  lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_api_settings().cors_origin_list,
@@ -84,26 +66,10 @@ def create_app() -> FastAPI:
         expose_headers=["X-Stub"],
     )
     install_error_handlers(app)
-    for module in (
-        kpis,
-        forecast,
-        costs,
-        cost_metrics,
-        decisions,
-        rules,
-        approvals,
-        events,
-        sim,
-        llm_usage,
-    ):
+    for module in (kpis, forecast, costs, cost_metrics, decisions, rules, approvals, events, sim, llm_usage):
         app.include_router(module.router)
 
-    @app.get(
-        "/healthz",
-        response_model=Health,
-        tags=["system"],
-        summary="Liveness probe (no database access)",
-    )
+    @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")
     def healthz() -> Health:
         return Health(status="ok", version=VERSION)
 

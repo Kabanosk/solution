@@ -1,8 +1,9 @@
+from fastapi import APIRouter, Depends
+
 from cfo.api import services
 from cfo.api.deps import get_repo
 from cfo.api.schemas import Kpis
 from cfo.db.repo import Repository
-from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/v1", tags=["dashboard"])
 

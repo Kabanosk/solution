@@ -7,6 +7,7 @@ schema is never touched). No test sleeps: clocks and the sampler's wait are inje
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -25,10 +26,14 @@ from cfo.llm import FakeLLM, LLMResponse, Message, OpenAICompatLLM, TokenUsage
 from cfo.usage import cost, recorder, report, sampler, store
 from cfo.usage.recorder import DbSink, UsageRecord, usage_context
 from cfo.usage.settings import UsageSettings
-from cfo.usage.vllm_metrics import (bucket_increase, counter_increase,
-                                    counter_increase_series,
-                                    histogram_quantile, parse_prometheus_text,
-                                    snapshots_from_text)
+from cfo.usage.vllm_metrics import (
+    bucket_increase,
+    counter_increase,
+    counter_increase_series,
+    histogram_quantile,
+    parse_prometheus_text,
+    snapshots_from_text,
+)
 from fastapi.testclient import TestClient
 
 UTC = timezone.utc
@@ -42,7 +47,7 @@ def at(day: int, hour: int, minute: int = 0) -> datetime:
 
 MODEL = "modelcar-granite-4-0-h-tiny"
 
-METRICS_NEW = f"""# HELP vllm:num_requests_running Number of requests in model execution batches.
+METRICS_NEW = f'''# HELP vllm:num_requests_running Number of requests in model execution batches.
 # TYPE vllm:num_requests_running gauge
 vllm:num_requests_running{{engine="0",model_name="{MODEL}"}} 2.0
 # HELP vllm:num_requests_waiting Number of requests waiting to be processed.
@@ -73,16 +78,12 @@ vllm:e2e_request_latency_seconds_sum{{engine="0",model_name="{MODEL}"}} 52.5
 vllm:e2e_request_latency_seconds_count{{engine="0",model_name="{MODEL}"}} 20.0
 python_gc_objects_collected_total{{generation="0"}} 1234.0
 process_cpu_seconds_total 12.5
-"""
+'''
 
 # vLLM 0.8 / 0.9: the KV gauge is called gpu_cache_usage_perc
-METRICS_OLD = METRICS_NEW.replace(
-    "kv_cache_usage_perc", "gpu_cache_usage_perc"
-).replace("0.37", "0.52")
+METRICS_OLD = METRICS_NEW.replace("kv_cache_usage_perc", "gpu_cache_usage_perc").replace("0.37", "0.52")
 # a release that exposes both during the transition: the new name wins
-METRICS_BOTH = (
-    METRICS_NEW + f'vllm:gpu_cache_usage_perc{{engine="0",model_name="{MODEL}"}} 0.99\n'
-)
+METRICS_BOTH = METRICS_NEW + f'vllm:gpu_cache_usage_perc{{engine="0",model_name="{MODEL}"}} 0.99\n'
 
 
 GRANITE_FIXTURE = Path(__file__).parent / "fixtures" / "vllm_metrics_granite.txt"
@@ -95,31 +96,15 @@ class TestRealGraniteMetrics:
         snaps = snapshots_from_text(GRANITE_FIXTURE.read_text(encoding="utf-8"))
         assert list(snaps) == [MODEL]
         s = snaps[MODEL]
-        assert (s.prompt_tokens_total, s.generation_tokens_total) == (
-            530.0,
-            271.0,
-        )  # `_created` series are not counted
+        assert (s.prompt_tokens_total, s.generation_tokens_total) == (530.0, 271.0)  # `_created` series are not counted
         assert s.requests_success_total == 14.0
-        assert s.requests_by_reason["stop"] == 14.0 and {
-            "length",
-            "abort",
-            "error",
-        } <= set(s.requests_by_reason)
-        assert (
-            s.kv_cache_metric == "vllm:kv_cache_usage_perc" and s.kv_cache_usage == 0.0
-        )
+        assert s.requests_by_reason["stop"] == 14.0 and {"length", "abort", "error"} <= set(s.requests_by_reason)
+        assert s.kv_cache_metric == "vllm:kv_cache_usage_perc" and s.kv_cache_usage == 0.0
         assert (s.requests_running, s.requests_waiting) == (0.0, 0.0)
         assert s.prompt_tokens_cached_total == 0.0
-        assert s.inference_time_count == 14.0 and s.inference_time_sum == pytest.approx(
-            5.196064621988626
-        )
-        assert s.e2e_latency_count == 14.0 and s.e2e_latency_sum == pytest.approx(
-            5.261658668518066
-        )
-        assert (
-            s.e2e_latency_buckets[float("inf")] == 14.0
-            and len(s.e2e_latency_buckets) > 5
-        )
+        assert s.inference_time_count == 14.0 and s.inference_time_sum == pytest.approx(5.196064621988626)
+        assert s.e2e_latency_count == 14.0 and s.e2e_latency_sum == pytest.approx(5.261658668518066)
+        assert s.e2e_latency_buckets[float("inf")] == 14.0 and len(s.e2e_latency_buckets) > 5
         assert histogram_quantile(0.95, s.e2e_latency_buckets) is not None
 
 
@@ -133,12 +118,7 @@ class TestParser:
         assert snap.kv_cache_usage == pytest.approx(0.37)
         assert snap.kv_cache_metric == "vllm:kv_cache_usage_perc"
         assert snap.e2e_latency_sum == 52.5 and snap.e2e_latency_count == 20.0
-        assert snap.e2e_latency_buckets == {
-            0.3: 0.0,
-            1.0: 5.0,
-            5.0: 18.0,
-            float("inf"): 20.0,
-        }
+        assert snap.e2e_latency_buckets == {0.3: 0.0, 1.0: 5.0, 5.0: 18.0, float("inf"): 20.0}
 
     def test_old_kv_name(self):
         snap = snapshots_from_text(METRICS_OLD)[MODEL]
@@ -159,28 +139,20 @@ class TestParser:
         assert set(snaps) == {MODEL, 'other "quoted" model'}
         assert snaps[MODEL].prompt_tokens_total == 15000.0
         assert snaps['other "quoted" model'].prompt_tokens_total == 7.0
-        assert (
-            snaps['other "quoted" model'].kv_cache_usage is None
-        )  # missing metric stays None
+        assert snaps['other "quoted" model'].kv_cache_usage is None  # missing metric stays None
 
     def test_garbage_and_foreign_metrics_are_ignored(self):
         assert snapshots_from_text("") == {}
         assert snapshots_from_text("not metrics at all\n# only comments\n") == {}
         assert snapshots_from_text("process_cpu_seconds_total 3\n") == {}
-        samples = parse_prometheus_text(
-            'a_metric{x="1"} NaN\nb_metric 4 1763000000000\nbroken line {\n'
-        )
-        assert [(s.name, s.value) for s in samples if s.name == "b_metric"] == [
-            ("b_metric", 4.0)
-        ]
+        samples = parse_prometheus_text('a_metric{x="1"} NaN\nb_metric 4 1763000000000\nbroken line {\n')
+        assert [(s.name, s.value) for s in samples if s.name == "b_metric"] == [("b_metric", 4.0)]
 
 
 class TestCounters:
     def test_increase_and_reset(self):
         assert counter_increase(10, 25) == 15
-        assert (
-            counter_increase(25, 4) == 4
-        )  # restart: the new value is the increase since it
+        assert counter_increase(25, 4) == 4  # restart: the new value is the increase since it
         assert counter_increase(None, 5) == 0 and counter_increase(5, None) == 0
 
     def test_series_with_a_reset_between_samples(self):
@@ -197,12 +169,8 @@ class TestCounters:
 
     def test_histogram_quantile(self):
         buckets = {1.0: 5.0, 5.0: 18.0, float("inf"): 20.0}
-        assert histogram_quantile(0.5, buckets) == pytest.approx(
-            1.0 + 4.0 * (10 - 5) / 13
-        )
-        assert histogram_quantile(0.95, buckets) == pytest.approx(
-            5.0
-        )  # rank 19 falls in +Inf: last finite bound
+        assert histogram_quantile(0.5, buckets) == pytest.approx(1.0 + 4.0 * (10 - 5) / 13)
+        assert histogram_quantile(0.95, buckets) == pytest.approx(5.0)  # rank 19 falls in +Inf: last finite bound
         assert histogram_quantile(0.5, {}) is None
 
 
@@ -221,26 +189,19 @@ class TestCostMath:
     def test_share_without_cluster_data_and_cap(self):
         assert cost.token_share(100, None) == (Decimal(1), "assumed_all_traffic")
         assert cost.token_share(100, 0.0) == (Decimal(1), "assumed_all_traffic")
-        assert cost.token_share(300, 100.0)[0] == Decimal(
-            1
-        )  # a missed scrape cannot make us bigger than the total
+        assert cost.token_share(300, 100.0)[0] == Decimal(1)  # a missed scrape cannot make us bigger than the total
 
     def test_hosted(self):
         price = UsageSettings().hosted_prices[0]  # gpt-5-mini 0.25 / 2.00 USD per 1M
         usd = cost.hosted_cost_eur(1_000_000, 500_000, price, Decimal(1))
         assert usd == Decimal("0.25") + Decimal("1.00")
-        assert cost.hosted_cost_eur(1_000_000, 0, price, Decimal("0.5")) == Decimal(
-            "0.125"
-        )
+        assert cost.hosted_cost_eur(1_000_000, 0, price, Decimal("0.5")) == Decimal("0.125")
 
     def test_defaults_are_documented_assumptions(self):
         s = UsageSettings()
         assert s.gpu_hourly_cost_eur == Decimal("0.70")
         assert "g6.xlarge" in s.gpu_price_source and "2026-11-20" in s.gpu_price_source
-        assert all(
-            p.source.startswith("https://") and p.as_of == "2026-11-20"
-            for p in s.hosted_prices
-        )
+        assert all(p.source.startswith("https://") and p.as_of == "2026-11-20" for p in s.hosted_prices)
 
 
 # --- recording through cfo.llm ----------------------------------------------------------------------------------
@@ -279,37 +240,18 @@ class TestRecording:
         llm = FakeLLM(["Hello there, this is the answer."])
         with usage_context(event_id="evt_1", event_type="bank_transaction"):
             with usage_context(purpose="explain"):
-                llm.chat(
-                    [
-                        Message(role="system", content="x" * 40),
-                        Message(role="user", content="y" * 20),
-                    ]
-                )
+                llm.chat([Message(role="system", content="x" * 40), Message(role="user", content="y" * 20)])
         (r,) = sink.records
         assert r.model == "fake"
         assert r.estimated is True and r.success is True
-        assert (
-            r.prompt_tokens == 16
-        )  # 61 characters (two messages and a separator) / 4, rounded up
+        assert r.prompt_tokens == 16  # 61 characters (two messages and a separator) / 4, rounded up
         assert r.completion_tokens == 8  # 32 characters / 4, rounded up
         assert r.latency_ms == pytest.approx(250.0)
-        assert (r.event_id, r.event_type, r.purpose, r.decision_id) == (
-            "evt_1",
-            "bank_transaction",
-            "explain",
-            None,
-        )
+        assert (r.event_id, r.event_type, r.purpose, r.decision_id) == ("evt_1", "bank_transaction", "explain", None)
         assert r.ts == at(20, 10)
 
     def test_server_usage_is_used_and_not_flagged(self, sink, fake_clock):
-        llm = FakeLLM(
-            [
-                LLMResponse(
-                    content="ok",
-                    usage=TokenUsage(prompt_tokens=123, completion_tokens=45),
-                )
-            ]
-        )
+        llm = FakeLLM([LLMResponse(content="ok", usage=TokenUsage(prompt_tokens=123, completion_tokens=45))])
         llm.chat([Message(role="user", content="hi")])
         (r,) = sink.records
         assert (r.prompt_tokens, r.completion_tokens, r.estimated) == (123, 45, False)
@@ -341,9 +283,7 @@ class TestRecording:
         g.add_edge("n", END)
         with usage_context(event_id="evt_graph", event_type="metric"):
             g.compile().invoke({})
-        assert [(r.event_id, r.event_type) for r in sink.records] == [
-            ("evt_graph", "metric")
-        ]
+        assert [(r.event_id, r.event_type) for r in sink.records] == [("evt_graph", "metric")]
 
     def test_a_failing_sink_never_breaks_the_call(self):
         class Broken:
@@ -386,10 +326,8 @@ class TestRecording:
                 if self.fail:
                     raise ConnectionError("down")
                 msg = SimpleNamespace(content="answer", tool_calls=None)
-                return SimpleNamespace(
-                    choices=[SimpleNamespace(message=msg)],
-                    usage=SimpleNamespace(prompt_tokens=321, completion_tokens=17),
-                )
+                return SimpleNamespace(choices=[SimpleNamespace(message=msg)],
+                                       usage=SimpleNamespace(prompt_tokens=321, completion_tokens=17))
 
         completions = Completions()
         llm = OpenAICompatLLM("http://localhost:1/v1", "granite")
@@ -400,13 +338,7 @@ class TestRecording:
         with pytest.raises(ConnectionError):
             llm.chat([Message(role="user", content="hi")])
         ok, failed = sink.records
-        assert (
-            ok.model,
-            ok.prompt_tokens,
-            ok.completion_tokens,
-            ok.estimated,
-            ok.success,
-        ) == ("granite", 321, 17, False, True)
+        assert (ok.model, ok.prompt_tokens, ok.completion_tokens, ok.estimated, ok.success) == ("granite", 321, 17, False, True)
         assert ok.latency_ms == pytest.approx(250.0)
         assert failed.success is False and failed.completion_tokens == 0
 
@@ -444,11 +376,7 @@ class TestSampler:
         conn = FakeConn()
         snaps = sampler.sample_once(conn, lambda: METRICS_NEW, now=lambda: at(20, 12))
         assert [s.model for s in snaps] == [MODEL]
-        assert (
-            len(conn.rows) == 1
-            and conn.rows[0][1][0] == at(20, 12)
-            and conn.commits == 1
-        )
+        assert len(conn.rows) == 1 and conn.rows[0][1][0] == at(20, 12) and conn.commits == 1
 
     def test_text_without_vllm_metrics_stores_nothing(self):
         conn = FakeConn()
@@ -477,24 +405,12 @@ class TestSampler:
             conns.append(FakeConn())
             return conns[-1]
 
-        done = sampler.run(
-            60.0,
-            connect,
-            fetch,
-            stop=RecordingStop(),
-            max_iterations=3,
-            now=lambda: at(20, 12),
-        )
+        done = sampler.run(60.0, connect, fetch, stop=RecordingStop(), max_iterations=3, now=lambda: at(20, 12))
         assert done == 3 and waits == [60.0, 60.0]
-        assert [len(c.rows) for c in conns] == [0, 1, 1] and all(
-            c.closed for c in conns
-        )
+        assert [len(c.rows) for c in conns] == [0, 1, 1] and all(c.closed for c in conns)
 
     def test_disabled_without_url(self):
-        assert (
-            sampler.start_background(settings=UsageSettings(vllm_metrics_url=None))
-            is None
-        )
+        assert sampler.start_background(settings=UsageSettings(vllm_metrics_url=None)) is None
 
     def test_tls_verify_options(self, tmp_path):
         assert sampler._ssl_context("true") is None
@@ -505,7 +421,7 @@ class TestSampler:
 
 # --- database: report and API -----------------------------------------------------------------------------------
 
-SCHEMA = "t032_test"
+SCHEMA = f"t032_test_{os.getpid()}"
 
 
 @pytest.fixture(scope="module")
@@ -535,28 +451,16 @@ def repo():
         conn.close()
 
 
-def _snapshot(
-    prompt, gen, ok, lat_sum, lat_count, buckets, *, running=0.0, waiting=0.0, kv=0.1
-):
+def _snapshot(prompt, gen, ok, lat_sum, lat_count, buckets, *, running=0.0, waiting=0.0, kv=0.1):
     from cfo.usage.vllm_metrics import VllmSnapshot
 
-    return VllmSnapshot(
-        model=MODEL,
-        prompt_tokens_total=prompt,
-        generation_tokens_total=gen,
-        requests_success_total=ok,
-        requests_by_reason={"stop": ok},
-        prompt_tokens_cached_total=prompt * 0.1,
-        inference_time_sum=lat_sum * 0.9,
-        inference_time_count=lat_count,
-        e2e_latency_sum=lat_sum,
-        e2e_latency_count=lat_count,
-        e2e_latency_buckets=buckets,
-        requests_running=running,
-        requests_waiting=waiting,
-        kv_cache_usage=kv,
-        kv_cache_metric="vllm:kv_cache_usage_perc",
-    )
+    return VllmSnapshot(model=MODEL, prompt_tokens_total=prompt, generation_tokens_total=gen,
+                        requests_success_total=ok, requests_by_reason={"stop": ok},
+                        prompt_tokens_cached_total=prompt * 0.1,
+                        inference_time_sum=lat_sum * 0.9, inference_time_count=lat_count,
+                        e2e_latency_sum=lat_sum, e2e_latency_count=lat_count,
+                        e2e_latency_buckets=buckets, requests_running=running, requests_waiting=waiting,
+                        kv_cache_usage=kv, kv_cache_metric="vllm:kv_cache_usage_perc")
 
 
 INF = float("inf")
@@ -568,81 +472,31 @@ def seeded(repo):
     conn = repo.conn
 
     def usage(ts, event, etype, purpose, p, c, ms, decision, estimated=False):
-        store.insert_usage(
-            conn,
-            UsageRecord(
-                ts=ts,
-                model=MODEL,
-                prompt_tokens=p,
-                completion_tokens=c,
-                latency_ms=ms,
-                estimated=estimated,
-                event_id=event,
-                event_type=etype,
-                purpose=purpose,
-                decision_id=decision,
-            ),
-        )
+        store.insert_usage(conn, UsageRecord(ts=ts, model=MODEL, prompt_tokens=p, completion_tokens=c, latency_ms=ms,
+                                             estimated=estimated, event_id=event, event_type=etype, purpose=purpose,
+                                             decision_id=decision))
 
-    repo.add_decision(
-        Decision(
-            id="d1",
-            ts=at(20, 10, 6),
-            action_type="attach_invoice",
-            summary="Attached AS-1",
-            level=PolicyLevel.AUTO,
-            reason="routine",
-        )
-    )
-    repo.add_decision(
-        Decision(
-            id="d2",
-            ts=at(20, 11, 1),
-            action_type="alert_cost_anomaly",
-            summary="Cloud cost up",
-            level=PolicyLevel.NOTIFY,
-            reason="anomaly",
-        )
-    )
-    usage(
-        at(20, 10), "e1", "bank_transaction", "extract_invoice", 1000, 200, 4000, "d1"
-    )
+    repo.add_decision(Decision(id="d1", ts=at(20, 10, 6), action_type="attach_invoice", summary="Attached AS-1",
+                               level=PolicyLevel.AUTO, reason="routine"))
+    repo.add_decision(Decision(id="d2", ts=at(20, 11, 1), action_type="alert_cost_anomaly", summary="Cloud cost up",
+                               level=PolicyLevel.NOTIFY, reason="anomaly"))
+    usage(at(20, 10), "e1", "bank_transaction", "extract_invoice", 1000, 200, 4000, "d1")
     usage(at(20, 10, 5), "e1", "bank_transaction", "explain", 500, 100, 2000, "d1")
     usage(at(20, 11), "e2", "metric", "explain", 800, 150, 3000, "d2", estimated=True)
     usage(at(21, 9), "e3", "bank_transaction", "extract_invoice", 600, 50, 1000, None)
     for ts, snap in [
         (at(20, 9), _snapshot(10000, 2000, 20, 40.0, 20, {1.0: 5, 5.0: 18, INF: 20})),
         (at(20, 12), _snapshot(14000, 2600, 28, 60.0, 28, {1.0: 8, 5.0: 26, INF: 28})),
-        (
-            at(21, 8),
-            _snapshot(500, 100, 2, 3.0, 2, {1.0: 1, 5.0: 2, INF: 2}),
-        ),  # restart
-        (
-            at(21, 10),
-            _snapshot(
-                2000,
-                500,
-                6,
-                13.0,
-                6,
-                {1.0: 2, 5.0: 6, INF: 6},
-                running=2.0,
-                waiting=1.0,
-                kv=0.37,
-            ),
-        ),
+        (at(21, 8), _snapshot(500, 100, 2, 3.0, 2, {1.0: 1, 5.0: 2, INF: 2})),  # restart
+        (at(21, 10), _snapshot(2000, 500, 6, 13.0, 6, {1.0: 2, 5.0: 6, INF: 6}, running=2.0, waiting=1.0, kv=0.37)),
     ]:
         store.insert_sample(conn, ts, snap)
     conn.commit()
     return repo
 
 
-CFG = UsageSettings(
-    vllm_metrics_url=None,
-    gpu_hourly_cost_eur=Decimal("0.70"),
-    node_hourly_cost_eur=Decimal("0"),
-    hosted_prices_json=None,
-)
+CFG = UsageSettings(vllm_metrics_url=None, gpu_hourly_cost_eur=Decimal("0.70"), node_hourly_cost_eur=Decimal("0"),
+                    hosted_prices_json=None)
 RANGE_FROM, RANGE_TO = at(20, 0), at(22, 0)
 
 
@@ -655,30 +509,19 @@ class TestReport:
         rows = store.samples_between(seeded.conn, RANGE_FROM, RANGE_TO)
         d = report.cluster_delta(rows, RANGE_FROM, RANGE_TO)
         assert d.samples == 3 and d.counter_resets == 1
-        assert (
-            d.prompt_tokens == 4000 + 500 + 1500
-        )  # +4000, restart (new value 500), +1500
+        assert d.prompt_tokens == 4000 + 500 + 1500  # +4000, restart (new value 500), +1500
         assert d.generation_tokens == 600 + 100 + 400
         assert d.requests == 8 + 2 + 4
 
     def test_baseline_sample_before_the_range_is_used(self, seeded):
         start, end = at(20, 10), at(20, 13)
-        d = report.cluster_delta(
-            store.samples_between(seeded.conn, start, end), start, end
-        )
+        d = report.cluster_delta(store.samples_between(seeded.conn, start, end), start, end)
         assert (d.prompt_tokens, d.generation_tokens, d.samples) == (4000, 600, 1)
 
     def test_totals_and_both_cost_methods(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG
-        )
+        r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)
         t = r["total"]
-        assert (
-            t["requests"],
-            t["prompt_tokens"],
-            t["completion_tokens"],
-            t["estimated_requests"],
-        ) == (4, 2900, 500, 1)
+        assert (t["requests"], t["prompt_tokens"], t["completion_tokens"], t["estimated_requests"]) == (4, 2900, 500, 1)
         assert t["busy_seconds"] == pytest.approx(10.0)
         assert t["latency_p50_ms"] == pytest.approx(2500.0)
         assert t["latency_p95_ms"] == pytest.approx(3850.0)
@@ -688,115 +531,63 @@ class TestReport:
         a = r["assumptions"]
         assert a["window_hours"] == pytest.approx(39.0)
         assert a["token_share_source"] == "vllm_metrics"
-        assert Decimal(a["token_share"]) == Decimal(
-            "0.4789"
-        )  # 3400 / 7100, shown with four places
+        assert Decimal(a["token_share"]) == Decimal("0.4789")  # 3400 / 7100, shown with four places
         expected = Decimal("39") * Decimal("0.70") * Decimal(3400) / Decimal(7100)
         assert abs(amount(t["cost_amortized"]) - expected) < Decimal("0.0001")
-        assert (
-            a["gpu_hourly_cost_eur"] == "0.70" and "g6.xlarge" in a["gpu_price_source"]
-        )
-        assert (
-            r["cluster"]["counter_resets"] == 1
-            and r["cluster"]["prompt_tokens"] == 6000
-        )
+        assert a["gpu_hourly_cost_eur"] == "0.70" and "g6.xlarge" in a["gpu_price_source"]
+        assert r["cluster"]["counter_resets"] == 1 and r["cluster"]["prompt_tokens"] == 6000
         c = r["cluster"]
         assert c["requests_by_finish_reason"] == {"stop": 14}
         assert c["cached_prompt_tokens"] + c["computed_prompt_tokens"] == 6000
         # cluster GPU time: inference time (0.9 x e2e) deltas 18 + 2.7 (restart) + 9 = 29.7 s, not the e2e 33 s
-        assert c["busy_seconds_source"] == "request_inference_time_seconds" and c[
-            "busy_seconds"
-        ] == pytest.approx(29.7)
-        assert abs(
-            amount(c["cost_busy_time_all_traffic"])
-            - Decimal("29.7") / 3600 * Decimal("0.70")
-        ) < Decimal("0.000001")
-        assert amount(c["cost_busy_time_our_share"]) < amount(
-            c["cost_busy_time_all_traffic"]
-        )
+        assert c["busy_seconds_source"] == "request_inference_time_seconds" and c["busy_seconds"] == pytest.approx(29.7)
+        assert abs(amount(c["cost_busy_time_all_traffic"]) - Decimal("29.7") / 3600 * Decimal("0.70")) < Decimal("0.000001")
+        assert amount(c["cost_busy_time_our_share"]) < amount(c["cost_busy_time_all_traffic"])
         assert r["currency"] == "EUR" and r["stub"] is False
 
     def test_day_buckets_cover_their_own_hours(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG
-        )
+        r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)
         assert [b["key"] for b in r["items"]] == ["2026-11-20", "2026-11-21"]
         d20, d21 = r["items"]
         assert (d20["requests"], d21["requests"]) == (3, 1)
         share = Decimal(3400) / Decimal(7100)
-        assert abs(
-            amount(d20["cost_amortized"]) - Decimal("15") * Decimal("0.70") * share
-        ) < Decimal(
-            "0.000001"
-        )  # 09:00-24:00
-        assert abs(
-            amount(d21["cost_amortized"]) - Decimal("24") * Decimal("0.70") * share
-        ) < Decimal("0.000001")
+        assert abs(amount(d20["cost_amortized"]) - Decimal("15") * Decimal("0.70") * share) < Decimal("0.000001")  # 09:00-24:00
+        assert abs(amount(d21["cost_amortized"]) - Decimal("24") * Decimal("0.70") * share) < Decimal("0.000001")
 
     def test_hour_buckets(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, RANGE_FROM, RANGE_TO, "hour", at(22, 0), CFG
-        )
-        assert [b["key"] for b in r["items"]] == [
-            "2026-11-20T10:00:00Z",
-            "2026-11-20T11:00:00Z",
-            "2026-11-21T09:00:00Z",
-        ]
+        r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "hour", at(22, 0), CFG)
+        assert [b["key"] for b in r["items"]] == ["2026-11-20T10:00:00Z", "2026-11-20T11:00:00Z", "2026-11-21T09:00:00Z"]
         assert r["items"][0]["requests"] == 2
 
     def test_group_by_dimension_sums_to_the_total(self, seeded):
-        for dim, keys in (
-            ("event_type", {"bank_transaction", "metric"}),
-            ("purpose", {"extract_invoice", "explain"}),
-        ):
-            r = report.build_usage_report(
-                seeded.conn, RANGE_FROM, RANGE_TO, dim, at(22, 0), CFG
-            )
+        for dim, keys in (("event_type", {"bank_transaction", "metric"}), ("purpose", {"extract_invoice", "explain"})):
+            r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, dim, at(22, 0), CFG)
             assert {b["key"] for b in r["items"]} == keys
-            assert abs(
-                sum(amount(b["cost_amortized"]) for b in r["items"])
-                - amount(r["total"]["cost_amortized"])
-            ) < Decimal("0.00001")
+            assert abs(sum(amount(b["cost_amortized"]) for b in r["items"]) - amount(r["total"]["cost_amortized"])) < Decimal("0.00001")
             assert sum(b["requests"] for b in r["items"]) == 4
 
     def test_cost_per_action(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG
-        )
+        r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)
         by = {a["action_type"]: a for a in r["per_action"]}
         assert set(by) == {"attach_invoice", "alert_cost_anomaly"}
         att = by["attach_invoice"]
         assert (att["actions"], att["requests"]) == (1, 2)
-        assert abs(
-            amount(att["cost_per_action_busy_time"])
-            - Decimal(6) / 3600 * Decimal("0.70")
-        ) < Decimal("0.000001")
+        assert abs(amount(att["cost_per_action_busy_time"]) - Decimal(6) / 3600 * Decimal("0.70")) < Decimal("0.000001")
         assert r["per_event"]["events"] == 3
-        assert abs(
-            amount(r["per_event"]["cost_per_event_busy_time"])
-            - amount(r["total"]["cost_busy_time"]) / 3
-        ) < Decimal("0.000001")
+        assert abs(amount(r["per_event"]["cost_per_event_busy_time"]) - amount(r["total"]["cost_busy_time"]) / 3) < Decimal("0.000001")
 
     def test_hosted_comparison(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG
-        )
+        r = report.build_usage_report(seeded.conn, RANGE_FROM, RANGE_TO, "day", at(22, 0), CFG)
         mini = next(h for h in r["hosted_comparison"] if h["model"] == "gpt-5-mini")
         # 2900 x 0.25/1M + 500 x 2.00/1M = 0.001725 USD x 0.87
         assert amount(mini["cost"]) == Decimal("0.001501")
         assert mini["as_of"] == "2026-11-20" and mini["source"].startswith("https://")
 
     def test_without_samples_the_share_is_assumed_to_be_one(self, seeded):
-        r = report.build_usage_report(
-            seeded.conn, at(5, 0), at(6, 0), "day", at(22, 0), CFG
-        )
+        r = report.build_usage_report(seeded.conn, at(5, 0), at(6, 0), "day", at(22, 0), CFG)
         assert r["total"]["requests"] == 0 and r["items"] == [] and r["cluster"] is None
-        r = report.build_usage_report(
-            seeded.conn, at(21, 8, 30), at(21, 23), "day", at(22, 0), CFG
-        )
-        assert (
-            r["assumptions"]["token_share_source"] == "vllm_metrics"
-        )  # the 08:00 sample is the baseline
+        r = report.build_usage_report(seeded.conn, at(21, 8, 30), at(21, 23), "day", at(22, 0), CFG)
+        assert r["assumptions"]["token_share_source"] == "vllm_metrics"  # the 08:00 sample is the baseline
 
     def test_live_snapshot_rates_and_stale_flag(self, seeded):
         live = report.build_live(seeded.conn, at(21, 10, 1), CFG)
@@ -829,56 +620,28 @@ class TestApi:
         assert r.status_code == 200
         body = r.json()
         assert body["group_by"] == "day" and body["total"]["requests"] == 4
-        assert (
-            body["from"] == "2026-11-15T00:00:00Z"
-            and body["to"] == "2026-11-22T00:00:00Z"
-        )
+        assert body["from"] == "2026-11-15T00:00:00Z" and body["to"] == "2026-11-22T00:00:00Z"
         assert body["total"]["cost_busy_time"]["currency"] == "EUR"
-        assert set(body["assumptions"]) >= {
-            "gpu_hourly_cost_eur",
-            "gpu_price_source",
-            "token_share",
-            "methods",
-        }
+        assert set(body["assumptions"]) >= {"gpu_hourly_cost_eur", "gpu_price_source", "token_share", "methods"}
 
     def test_usage_with_range_and_grouping(self, client):
-        r = client.get(
-            "/v1/llm/usage",
-            params={
-                "from": "2026-11-21T00:00:00Z",
-                "to": "2026-11-22T00:00:00Z",
-                "group_by": "purpose",
-            },
-        )
+        r = client.get("/v1/llm/usage", params={"from": "2026-11-21T00:00:00Z", "to": "2026-11-22T00:00:00Z",
+                                                "group_by": "purpose"})
         body = r.json()
         assert r.status_code == 200
-        assert body["total"]["requests"] == 1 and [i["key"] for i in body["items"]] == [
-            "extract_invoice"
-        ]
+        assert body["total"]["requests"] == 1 and [i["key"] for i in body["items"]] == ["extract_invoice"]
 
     def test_invalid_parameters_use_the_error_model(self, client):
         bad = client.get("/v1/llm/usage", params={"group_by": "week"})
-        assert (
-            bad.status_code == 422 and bad.json()["error"]["code"] == "validation_error"
-        )
-        backwards = client.get(
-            "/v1/llm/usage",
-            params={"from": "2026-11-22T00:00:00Z", "to": "2026-11-21T00:00:00Z"},
-        )
-        assert (
-            backwards.status_code == 422
-            and backwards.json()["error"]["code"] == "validation_error"
-        )
+        assert bad.status_code == 422 and bad.json()["error"]["code"] == "validation_error"
+        backwards = client.get("/v1/llm/usage", params={"from": "2026-11-22T00:00:00Z", "to": "2026-11-21T00:00:00Z"})
+        assert backwards.status_code == 422 and backwards.json()["error"]["code"] == "validation_error"
 
     def test_live(self, client):
         r = client.get("/v1/llm/usage/live")
         assert r.status_code == 200
         body = r.json()
-        assert (
-            body["model"] == MODEL
-            and body["requests_waiting"] == 1
-            and body["stale"] is True
-        )  # clock is 12 h later
+        assert body["model"] == MODEL and body["requests_waiting"] == 1 and body["stale"] is True  # clock is 12 h later
         assert body["sampled_at"] == "2026-11-21T10:00:00Z"
 
     def test_live_is_503_without_samples(self, repo):
@@ -901,17 +664,11 @@ class TestApi:
             app.dependency_overrides[get_repo] = override
             app.dependency_overrides[get_clock] = lambda: (lambda: at(22, 0))
             r = TestClient(app).get("/v1/llm/usage/live")
-            assert (
-                r.status_code == 503
-                and r.json()["error"]["code"] == "metrics_unavailable"
-            )
+            assert r.status_code == 503 and r.json()["error"]["code"] == "metrics_unavailable"
             # the usage endpoint still answers (empty) without any sampler data
             empty = TestClient(app).get("/v1/llm/usage")
             assert empty.status_code == 200 and empty.json()["total"]["requests"] == 0
-            assert (
-                empty.json()["assumptions"]["token_share_source"]
-                == "assumed_all_traffic"
-            )
+            assert empty.json()["assumptions"]["token_share_source"] == "assumed_all_traffic"
         finally:
             conn.rollback()
             conn.execute(f"DROP SCHEMA IF EXISTS {SCHEMA}_empty CASCADE")

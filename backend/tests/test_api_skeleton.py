@@ -7,10 +7,11 @@ import json
 import re
 
 import pytest
+from fastapi.testclient import TestClient
+
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo
 from cfo.api.export_openapi import main as export_main
-from fastapi.testclient import TestClient
 
 MONEY = re.compile(r"^-?\d+\.\d{2}$")
 
@@ -18,9 +19,7 @@ MONEY = re.compile(r"^-?\d+\.\d{2}$")
 @pytest.fixture(scope="module")
 def client():
     app = create_app()
-    app.dependency_overrides[get_repo] = (
-        lambda: None
-    )  # validation and routing never reach the database
+    app.dependency_overrides[get_repo] = lambda: None  # validation and routing never reach the database
     return TestClient(app)
 
 
@@ -45,47 +44,26 @@ def test_healthz(client):
 
 
 def test_forecast_validation_error(client):
-    assert_error(
-        client.get("/v1/forecast/liquidity", params={"horizon_days": 1}),
-        422,
-        "validation_error",
-    )
+    assert_error(client.get("/v1/forecast/liquidity", params={"horizon_days": 1}), 422, "validation_error")
     r = client.get("/v1/forecast/liquidity", params={"granularity": "hour"})
     assert_error(r, 422, "validation_error")
     assert r.json()["error"]["details"][0]["loc"] == ["query", "granularity"]
 
 
 def test_costs_by_team_bad_range(client):
-    assert_error(
-        client.get(
-            "/v1/costs/by-team", params={"from": "2025-05-01", "to": "2025-01-01"}
-        ),
-        422,
-        "validation_error",
-    )
-    assert_error(
-        client.get("/v1/costs/by-team", params={"from": "yesterday"}),
-        422,
-        "validation_error",
-    )
+    assert_error(client.get("/v1/costs/by-team", params={"from": "2025-05-01", "to": "2025-01-01"}), 422,
+                 "validation_error")
+    assert_error(client.get("/v1/costs/by-team", params={"from": "yesterday"}), 422, "validation_error")
 
 
 def test_cost_metrics_bad_kind(client):
-    assert_error(
-        client.get("/v1/cost-metrics", params={"kind": "nope"}), 422, "validation_error"
-    )
+    assert_error(client.get("/v1/cost-metrics", params={"kind": "nope"}), 422, "validation_error")
 
 
 def test_decisions_bad_params(client):
-    assert_error(
-        client.get("/v1/decisions", params={"limit": 0}), 422, "validation_error"
-    )
-    assert_error(
-        client.get("/v1/decisions", params={"limit": 1000}), 422, "validation_error"
-    )
-    assert_error(
-        client.get("/v1/decisions", params={"level": "MAYBE"}), 422, "validation_error"
-    )
+    assert_error(client.get("/v1/decisions", params={"limit": 0}), 422, "validation_error")
+    assert_error(client.get("/v1/decisions", params={"limit": 1000}), 422, "validation_error")
+    assert_error(client.get("/v1/decisions", params={"level": "MAYBE"}), 422, "validation_error")
 
 
 def test_unknown_route_and_method_use_error_model(client):
@@ -118,13 +96,8 @@ def test_unreachable_database_is_503_envelope():
 
 
 def test_cors_headers(client):
-    r = client.options(
-        "/v1/kpis",
-        headers={
-            "Origin": "http://localhost:5173",
-            "Access-Control-Request-Method": "GET",
-        },
-    )
+    r = client.options("/v1/kpis", headers={"Origin": "http://localhost:5173",
+                                            "Access-Control-Request-Method": "GET"})
     assert r.status_code == 200
     assert r.headers["access-control-allow-origin"] in ("*", "http://localhost:5173")
     g = client.get("/healthz", headers={"Origin": "http://localhost:5173"})
@@ -151,15 +124,7 @@ def test_openapi_document(tmp_path):
     assert export_main([str(out)]) == 0
     doc = json.loads(out.read_text())
     paths = set(doc["paths"])
-    assert {
-        "/healthz",
-        "/v1/kpis",
-        "/v1/forecast/liquidity",
-        "/v1/costs/by-team",
-        "/v1/cost-metrics",
-        "/v1/decisions",
-        "/v1/decisions/{decision_id}",
-        "/v1/rules",
-    } <= paths
+    assert {"/healthz", "/v1/kpis", "/v1/forecast/liquidity", "/v1/costs/by-team", "/v1/cost-metrics",
+            "/v1/decisions", "/v1/decisions/{decision_id}", "/v1/rules"} <= paths
     assert "ErrorResponse" in doc["components"]["schemas"]
     assert export_main([]) == 2

@@ -15,13 +15,13 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from fastapi.testclient import TestClient
+
 from cfo.api import services
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo
 from cfo.config import REPO_ROOT, get_settings
-from cfo.domain import (ApprovalRequest, Decision, DecisionStatus, PolicyLevel,
-                        Rule, utcnow)
-from fastapi.testclient import TestClient
+from cfo.domain import ApprovalRequest, Decision, DecisionStatus, PolicyLevel, Rule, utcnow
 
 NOV = f"t019_nov_{os.getpid()}"
 DEC = f"t019_dec_{os.getpid()}"
@@ -79,10 +79,7 @@ def _client(repo) -> TestClient:
 def model_in_tmp(tmp_path_factory):
     """The forecast model lives in a temp dir: first request trains and saves it, the repo's `models/` stays clean."""
     mp = pytest.MonkeyPatch()
-    mp.setenv(
-        "FORECAST_MODEL_PATH",
-        str(tmp_path_factory.mktemp("model") / "liquidity_xgb.json"),
-    )
+    mp.setenv("FORECAST_MODEL_PATH", str(tmp_path_factory.mktemp("model") / "liquidity_xgb.json"))
     services._model_cache.clear()
     yield
     services._model_cache.clear()
@@ -93,78 +90,23 @@ def model_in_tmp(tmp_path_factory):
 def nov_repo(tmp_path_factory):
     repo = _seeded_schema(NOV, december=False, tmp=tmp_path_factory.mktemp("nov"))
     now = utcnow()
-    repo.add_decision(
-        Decision(
-            id="dec_old",
-            ts=now - timedelta(hours=3),
-            action_type="attach_invoice",
-            summary="Found AS-1",
-            level=PolicyLevel.AUTO,
-            reason="routine",
-        )
-    )
-    repo.add_decision(
-        Decision(
-            id="dec_mid",
-            ts=now - timedelta(hours=2),
-            action_type="request_credit_line",
-            summary="Credit line",
-            level=PolicyLevel.APPROVAL,
-            reason="always asks",
-            status=DecisionStatus.EXECUTED,
-            actor="vincenzo",
-            executed_simulated=True,
-            payload={"amount": "25000.00"},
-            approval_request_id="apr_1",
-        )
-    )
-    repo.add_decision(
-        Decision(
-            id="dec_new",
-            ts=now - timedelta(hours=1),
-            action_type="pay_invoice",
-            summary="Pay oven",
-            level=PolicyLevel.APPROVAL,
-            reason="equipment rule",
-            status=DecisionStatus.PENDING,
-            approval_request_id="apr_2",
-        )
-    )
-    repo.add_approval_request(
-        ApprovalRequest(
-            id="apr_2", decision_id="dec_new", approver_id="vincenzo", question="Pay?"
-        )
-    )
-    repo.add_approval_request(
-        ApprovalRequest(
-            id="apr_1",
-            decision_id="dec_mid",
-            approver_id="vincenzo",
-            question="Credit?",
-            status="approved",
-        )
-    )
-    repo.add_rule(
-        Rule(
-            id="rule_a",
-            text="I always approve equipment myself",
-            level=PolicyLevel.APPROVAL,
-            category="equipment",
-            created_by="vincenzo",
-            created_at=now - timedelta(days=1),
-        )
-    )
-    repo.add_rule(
-        Rule(
-            id="rule_b",
-            text="Tell me about ads",
-            level=PolicyLevel.NOTIFY,
-            category="advertising",
-            created_by="vincenzo",
-            created_at=now - timedelta(days=2),
-            active=False,
-        )
-    )
+    repo.add_decision(Decision(id="dec_old", ts=now - timedelta(hours=3), action_type="attach_invoice",
+                               summary="Found AS-1", level=PolicyLevel.AUTO, reason="routine"))
+    repo.add_decision(Decision(id="dec_mid", ts=now - timedelta(hours=2), action_type="request_credit_line",
+                               summary="Credit line", level=PolicyLevel.APPROVAL, reason="always asks",
+                               status=DecisionStatus.EXECUTED, actor="vincenzo", executed_simulated=True,
+                               payload={"amount": "25000.00"}, approval_request_id="apr_1"))
+    repo.add_decision(Decision(id="dec_new", ts=now - timedelta(hours=1), action_type="pay_invoice",
+                               summary="Pay oven", level=PolicyLevel.APPROVAL, reason="equipment rule",
+                               status=DecisionStatus.PENDING, approval_request_id="apr_2"))
+    repo.add_approval_request(ApprovalRequest(id="apr_2", decision_id="dec_new", approver_id="vincenzo",
+                                              question="Pay?"))
+    repo.add_approval_request(ApprovalRequest(id="apr_1", decision_id="dec_mid", approver_id="vincenzo",
+                                              question="Credit?", status="approved"))
+    repo.add_rule(Rule(id="rule_a", text="I always approve equipment myself", level=PolicyLevel.APPROVAL,
+                       category="equipment", created_by="vincenzo", created_at=now - timedelta(days=1)))
+    repo.add_rule(Rule(id="rule_b", text="Tell me about ads", level=PolicyLevel.NOTIFY, category="advertising",
+                       created_by="vincenzo", created_at=now - timedelta(days=2), active=False))
     yield repo
     repo.conn.rollback()
     repo.conn.execute(f"DROP SCHEMA {NOV} CASCADE")
@@ -193,11 +135,7 @@ def dec(dec_repo):
 
 
 def assert_money(m):
-    assert (
-        set(m) == {"amount", "currency"}
-        and MONEY.match(m["amount"])
-        and m["currency"] == "EUR"
-    ), m
+    assert set(m) == {"amount", "currency"} and MONEY.match(m["amount"]) and m["currency"] == "EUR", m
 
 
 def amount(m) -> Decimal:
@@ -207,17 +145,9 @@ def amount(m) -> Decimal:
 # --- all endpoints are real now --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "path",
-    [
-        "/v1/kpis",
-        "/v1/forecast/liquidity",
-        "/v1/costs/by-team",
-        "/v1/cost-metrics",
-        "/v1/decisions",
-        "/v1/rules",
-    ],
-)
+@pytest.mark.parametrize("path", [
+    "/v1/kpis", "/v1/forecast/liquidity", "/v1/costs/by-team", "/v1/cost-metrics", "/v1/decisions", "/v1/rules",
+])
 def test_no_endpoint_is_a_stub(nov, path):
     r = nov.get(path)
     assert r.status_code == 200
@@ -230,21 +160,12 @@ def test_no_endpoint_is_a_stub(nov, path):
 
 def test_kpis_from_the_statement(nov):
     k = nov.get("/v1/kpis").json()
-    for key in (
-        "balance",
-        "balance_change_30d",
-        "avg_monthly_inflows",
-        "avg_monthly_outflows",
-    ):
+    for key in ("balance", "balance_change_30d", "avg_monthly_inflows", "avg_monthly_outflows"):
         assert_money(k[key])
     assert k["as_of"] == "2025-11-30"
-    assert (
-        k["balance"]["amount"] == "23552.09"
-    )  # running sum of the statement (T015 report)
+    assert k["balance"]["amount"] == "23552.09"  # running sum of the statement (T015 report)
     assert amount(k["avg_monthly_inflows"]) > 0 > amount(k["avg_monthly_outflows"])
-    assert (
-        k["undocumented_payments"]["count"] >= 6
-    )  # 3+2+1 history invoices only on the workstation or nowhere
+    assert k["undocumented_payments"]["count"] >= 6  # 3+2+1 history invoices only on the workstation or nowhere
     assert amount(k["undocumented_payments"]["total"]) > 0
     assert k["pending_approvals"] == 1  # apr_1 is approved, apr_2 pending
     assert k["open_cost_alerts"] == 0  # the cloud spike arrives in December
@@ -253,9 +174,7 @@ def test_kpis_from_the_statement(nov):
 def test_kpis_forecast_summary_and_buffer(nov):
     f = nov.get("/v1/kpis").json()["forecast"]
     assert f["horizon_days"] == 365
-    assert f["lowest_date"].startswith(
-        "2025-12"
-    )  # lowest of the horizon: the start, before December income
+    assert f["lowest_date"].startswith("2025-12")  # lowest of the horizon: the start, before December income
     assert f["safety_buffer"]["amount"] == "17730.00"  # one month of fixed costs, D-013
     assert f["first_negative_date"] is None  # D-013: the real forecast stays above zero
     assert amount(f["lowest_balance"]) > amount(f["safety_buffer"])
@@ -265,9 +184,7 @@ def test_kpis_forecast_summary_and_buffer(nov):
 def test_kpis_after_december_replay(dec):
     k = dec.get("/v1/kpis").json()
     assert k["as_of"] == "2025-12-31"
-    assert (
-        k["balance"]["amount"] == "32945.51"
-    )  # closing balance of the whole statement (T002); the T018 stub added December twice
+    assert k["balance"]["amount"] == "32945.51"  # closing balance of the whole statement (T002); the T018 stub added December twice
     assert k["open_cost_alerts"] == 1  # cloud +50 % vs online orders +2.9 %
     assert_money(k["balance_change_30d"])
 
@@ -303,48 +220,31 @@ def test_kpis_without_data_is_a_clean_error():
 
 def test_forecast_default_90_days_weekly(nov):
     f = nov.get("/v1/forecast/liquidity").json()
-    assert (
-        f["horizon_days"] == 90
-        and f["granularity"] == "week"
-        and f["currency"] == "EUR"
-    )
+    assert f["horizon_days"] == 90 and f["granularity"] == "week" and f["currency"] == "EUR"
     assert f["as_of"] == "2025-11-30"
     assert f["opening_balance"]["amount"] == "23552.09"
     assert f["safety_buffer"]["amount"] == "17730.00"
-    assert len(f["points"]) in (
-        13,
-        14,
-    )  # one per week, the trough is added when it falls between
+    assert len(f["points"]) in (13, 14)  # one per week, the trough is added when it falls between
     assert f["points"][0]["date"] > f["as_of"]
     for p in f["points"]:
         assert_money(p["balance"])
         assert amount(p["lower"]) < amount(p["balance"]) < amount(p["upper"])
     assert f["gaps"] == []
-    assert f["model"]["name"] == "xgboost-liquidity" and f["model"][
-        "trained_at"
-    ].endswith("Z")
+    assert f["model"]["name"] == "xgboost-liquidity" and f["model"]["trained_at"].endswith("Z")
     assert f["model"]["version"] == "trained-until-2025-11-30"
 
 
 def test_forecast_year_shows_the_june_dip_and_stays_above_the_buffer(nov):
-    f = nov.get(
-        "/v1/forecast/liquidity", params={"horizon_days": 365, "granularity": "day"}
-    ).json()
+    f = nov.get("/v1/forecast/liquidity", params={"horizon_days": 365, "granularity": "day"}).json()
     assert len(f["points"]) == 365
     by_day = {p["date"]: amount(p["balance"]) for p in f["points"]}
-    assert (
-        by_day["2026-06-30"] < by_day["2026-05-31"] - 10000
-    )  # the shutdown month (T015: net about -14k)
+    assert by_day["2026-06-30"] < by_day["2026-05-31"] - 10000  # the shutdown month (T015: net about -14k)
     low = amount(f["lowest_point"]["balance"])
     assert low == min(by_day.values())
-    assert (
-        amount(f["safety_buffer"]) < low
-    )  # D-013: balance never below the buffer, so no gap
+    assert amount(f["safety_buffer"]) < low  # D-013: balance never below the buffer, so no gap
     assert f["gaps"] == []
     june = [v for d, v in by_day.items() if d.startswith("2026-06")]
-    assert (
-        min(june) > amount(f["safety_buffer"]) and min(june) > 0
-    )  # T015: the dip stays at about 45k
+    assert min(june) > amount(f["safety_buffer"]) and min(june) > 0  # T015: the dip stays at about 45k
 
 
 def test_forecast_gap_appears_when_the_buffer_is_above_the_dip(nov, monkeypatch):
@@ -358,18 +258,12 @@ def test_forecast_gap_appears_when_the_buffer_is_above_the_dip(nov, monkeypatch)
         monkeypatch.undo()
         settings.get_api_settings.cache_clear()
     assert f["safety_buffer"]["amount"] == "50000.00"
-    june = [
-        g for g in f["gaps"] if g["start"] <= "2026-06-30" and g["end"] >= "2026-06-01"
-    ]
+    june = [g for g in f["gaps"] if g["start"] <= "2026-06-30" and g["end"] >= "2026-06-01"]
     assert len(june) == 1  # the June dip goes below a 50k buffer
     assert all(amount(g["lowest_balance"]) < Decimal(50000) for g in f["gaps"])
     gap = f["gaps"][0]
-    assert (
-        f["lowest_point"]["date"] == gap["lowest_date"]
-    )  # the first gap holds the lowest point (start of horizon)
-    assert any(
-        p["date"] == gap["lowest_date"] for p in f["points"]
-    )  # the trough is never sampled away
+    assert f["lowest_point"]["date"] == gap["lowest_date"]  # the first gap holds the lowest point (start of horizon)
+    assert any(p["date"] == gap["lowest_date"] for p in f["points"])  # the trough is never sampled away
 
 
 def test_forecast_model_is_cached_on_disk_after_first_request(nov):
@@ -377,11 +271,7 @@ def test_forecast_model_is_cached_on_disk_after_first_request(nov):
 
     nov.get("/v1/forecast/liquidity")
     assert default_model_path().is_file()
-    assert (
-        default_model_path()
-        .with_name(default_model_path().name + ".meta.json")
-        .is_file()
-    )
+    assert default_model_path().with_name(default_model_path().name + ".meta.json").is_file()
 
 
 def test_forecast_validation(nov):
@@ -401,37 +291,19 @@ def test_costs_by_team_defaults(nov):
     assert {"kitchen", "front", "marketing", "it", "equipment"} <= set(teams)
     assert c["items"][0]["team_id"] == "kitchen"
     assert len(teams["kitchen"]["by_month"]) == 11
-    assert (
-        teams["kitchen"]["owner_id"] == "rosa"
-        and teams["kitchen"]["monthly_budget"] is not None
-    )
-    assert (
-        teams["company"]["owner_id"] is None
-        and teams["company"]["monthly_budget"] is None
-    )
+    assert teams["kitchen"]["owner_id"] == "rosa" and teams["kitchen"]["monthly_budget"] is not None
+    assert teams["company"]["owner_id"] is None and teams["company"]["monthly_budget"] is None
     assert sum(amount(t["total"]) for t in c["items"]) == amount(c["total"])
-    assert sum(Decimal(t["share"]) for t in c["items"]) == pytest.approx(
-        Decimal(1), abs=Decimal("0.001")
-    )
-    assert all(
-        amount(t["total"]) == sum(amount(m["cost"]) for m in t["by_month"])
-        for t in c["items"]
-    )
+    assert sum(Decimal(t["share"]) for t in c["items"]) == pytest.approx(Decimal(1), abs=Decimal("0.001"))
+    assert all(amount(t["total"]) == sum(amount(m["cost"]) for m in t["by_month"]) for t in c["items"])
     assert teams["kitchen"]["by_month"][5]["month"] == "2025-06-01"
 
 
 def test_costs_by_team_range_and_equipment_oven(nov):
-    c = nov.get(
-        "/v1/costs/by-team", params={"from": "2025-10-01", "to": "2025-11-30"}
-    ).json()
+    c = nov.get("/v1/costs/by-team", params={"from": "2025-10-01", "to": "2025-11-30"}).json()
     teams = {t["team_id"]: t for t in c["items"]}
-    assert [m["month"] for m in teams["kitchen"]["by_month"]] == [
-        "2025-10-01",
-        "2025-11-01",
-    ]
-    assert (
-        teams["equipment"]["total"]["amount"] == "3581.90"
-    )  # the oven exists only as an invoice (T014)
+    assert [m["month"] for m in teams["kitchen"]["by_month"]] == ["2025-10-01", "2025-11-01"]
+    assert teams["equipment"]["total"]["amount"] == "3581.90"  # the oven exists only as an invoice (T014)
 
 
 def test_costs_by_team_bad_range(nov):
@@ -453,9 +325,7 @@ def test_cost_metrics_november_has_no_anomaly(nov):
 
 def test_cost_metrics_december_cloud_anomaly(dec):
     items = dec.get("/v1/cost-metrics").json()["items"]
-    flagged = [
-        (s["kind"], p["month"]) for s in items for p in s["points"] if p["anomaly"]
-    ]
+    flagged = [(s["kind"], p["month"]) for s in items for p in s["points"] if p["anomaly"]]
     assert flagged == [("cloud_per_order", "2025-12-01")]
     cloud = items[2]["points"][-1]
     assert cloud["cost_change_pct"] == "50.0" and cloud["metric_change_pct"] == "2.9"
@@ -484,19 +354,11 @@ def test_decisions_newest_first_with_pagination(nov):
 
 def test_decisions_filters_and_simulated(nov):
     appr = nov.get("/v1/decisions", params={"level": "APPROVAL"}).json()
-    assert appr["total"] == 2 and {d["status"] for d in appr["items"]} == {
-        "pending",
-        "executed",
-    }
+    assert appr["total"] == 2 and {d["status"] for d in appr["items"]} == {"pending", "executed"}
     assert any(d["executed_simulated"] for d in appr["items"])
     pend = nov.get("/v1/decisions", params={"status": "pending"}).json()
     assert pend["total"] == 1 and pend["items"][0]["approval_request_id"] == "apr_2"
-    assert (
-        nov.get("/v1/decisions", params={"action_type": "attach_invoice"}).json()[
-            "total"
-        ]
-        == 1
-    )
+    assert nov.get("/v1/decisions", params={"action_type": "attach_invoice"}).json()["total"] == 1
 
 
 def test_decisions_bad_params(nov):
@@ -519,15 +381,10 @@ def test_rules(nov):
     page = nov.get("/v1/rules").json()
     assert page["total"] == 2 and page["limit"] == 50
     assert [r["id"] for r in page["items"]] == ["rule_a", "rule_b"]  # newest first
-    assert (
-        page["items"][0]["text"] == "I always approve equipment myself"
-        and page["items"][0]["level"] == "APPROVAL"
-    )
+    assert page["items"][0]["text"] == "I always approve equipment myself" and page["items"][0]["level"] == "APPROVAL"
     assert page["items"][0]["created_at"].endswith("Z")
     active = nov.get("/v1/rules", params={"active": "true"}).json()
     assert active["total"] == 1 and all(r["active"] for r in active["items"])
     inactive = nov.get("/v1/rules", params={"active": "false"}).json()
     assert [r["id"] for r in inactive["items"]] == ["rule_b"]
-    assert (
-        len(nov.get("/v1/rules", params={"limit": 1, "offset": 1}).json()["items"]) == 1
-    )
+    assert len(nov.get("/v1/rules", params={"limit": 1, "offset": 1}).json()["items"]) == 1

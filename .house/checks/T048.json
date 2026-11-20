@@ -1,0 +1,54 @@
+{
+  "task": "T048",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_smoke.py",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.smoke --help",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-3",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "Run inside the cluster (oc rsh deploy/api cfo smoke or a Job) and paste the PASS output into reports/T048.md",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T16:55:25+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "....................................                                     [100%]\n36 passed in 1.19s",
+      "ran_at": "2026-11-20T18:54:05+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
+    },
+    "AC-2": {
+      "id": "AC-2",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "usage: cfo smoke [-h] [--llm-timeout LLM_TIMEOUT]\n\nCluster smoke check: LLM tool calling, the three MCP servers, Postgres seed,\nMLflow. Prints one PASS/FAIL line per check; exit status 1 on any FAIL.\n\noptions:\n  -h, --help            show this help message and exit\n  --llm-timeout LLM_TIMEOUT\n                        seconds per LLM request (default 60.0)",
+      "ran_at": "2026-11-20T18:54:05+01:00",
+      "commit": "878734b157a847259b40960748ebb3ef87c81676"
+    }
+  },
+  "reverted": {
+    "base": "0941ea515cde9150655943c95d7ccf8a220b1a35"
+  }
+}

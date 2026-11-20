@@ -17,14 +17,10 @@ def pdf_text(data: bytes) -> str:
     try:
         from pypdf import PdfReader
 
-        text = "\n".join(
-            (p.extract_text() or "") for p in PdfReader(io.BytesIO(data)).pages
-        ).strip()
+        text = "\n".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(data)).pages).strip()
         if text:
             return text
-    except (
-        Exception
-    ):  # noqa: BLE001 - any parser failure falls through to the crude extraction
+    except Exception:  # noqa: BLE001 - any parser failure falls through to the crude extraction
         pass
     return "\n".join(m.decode("latin-1") for m in re.findall(rb"\(([^()]*)\)", data))
 
@@ -49,16 +45,11 @@ def collect_text(gw: Gateway, employee: str, path: str, reason: str) -> str:
     elif kind == "binary":
         text = _binary_text(res)
     elif kind == "email":
-        parts = [
-            f"Subject: {res.get('headers', {}).get('Subject', '')}",
-            res.get("body", ""),
-        ]
+        parts = [f"Subject: {res.get('headers', {}).get('Subject', '')}", res.get("body", "")]
         for att in res.get("attachments", []):
             name = att.get("filename")
             if name and name.lower().endswith(".pdf"):
-                parts.append(
-                    _binary_text(gw.read_attachment(employee, path, name, reason))
-                )
+                parts.append(_binary_text(gw.read_attachment(employee, path, name, reason)))
         text = "\n".join(p for p in parts if p)
     else:
         text = ""

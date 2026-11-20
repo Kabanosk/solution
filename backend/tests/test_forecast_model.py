@@ -11,6 +11,7 @@ import types
 
 import pandas as pd
 import pytest
+
 from cfo.data.source import SourceNotFound, find_source_csv, load_bank_csv
 from cfo.forecast import features as f
 from cfo.forecast import model as m
@@ -39,9 +40,7 @@ def history() -> pd.DataFrame:
     rows: list[tuple] = []
     for day in pd.date_range("2025-01-01", "2025-11-30"):
         if day.month != 6:
-            rows.append(
-                (day, 300.0 if day.day_of_week >= 5 else 200.0, "revenue", None)
-            )
+            rows.append((day, 300.0 if day.day_of_week >= 5 else 200.0, "revenue", None))
         if day.day == 28:
             rows.append((day, -2000.0, "payroll", "kitchen"))
         if day.day == 1:
@@ -59,103 +58,54 @@ def trained(history) -> m.ForecastModel:
 # -- mechanics --------------------------------------------------------------------------------------------
 def test_partner_tranches_are_excluded_from_the_target(history):
     table = m._training_table(history, m.EXCLUDED_CATEGORIES)
-    assert (
-        table.loc["2025-03-15", "net_cash_flow"] == 300.0
-    )  # the tranche day (a Saturday) shows revenue only
-    assert (
-        table["net_cash_flow"].sum()
-        == history[history["category"] != "partner_investment"]["amount"].sum()
-    )
+    assert table.loc["2025-03-15", "net_cash_flow"] == 300.0  # the tranche day (a Saturday) shows revenue only
+    assert table["net_cash_flow"].sum() == history[history["category"] != "partner_investment"]["amount"].sum()
 
 
 def test_remaining_tranches_derived_from_bookings(history):
-    schedule = m.partner_tranche_schedule(
-        history
-    )  # 11 of 12 booked: the 15 Dec payment remains
-    assert (
-        list(schedule.index) == [pd.Timestamp("2025-12-15")]
-        and schedule.iloc[0] == -4000.0
-    )
-    complete = pd.concat(
-        [history, _tx([("2025-12-15", -4000.0, "partner_investment", None)])]
-    )
+    schedule = m.partner_tranche_schedule(history)  # 11 of 12 booked: the 15 Dec payment remains
+    assert list(schedule.index) == [pd.Timestamp("2025-12-15")] and schedule.iloc[0] == -4000.0
+    complete = pd.concat([history, _tx([("2025-12-15", -4000.0, "partner_investment", None)])])
     assert m.partner_tranche_schedule(complete).empty
-    assert m.partner_tranche_schedule(
-        history[history["category"] != "partner_investment"]
-    ).empty
+    assert m.partner_tranche_schedule(history[history["category"] != "partner_investment"]).empty
 
 
 def test_forecast_shape_balance_and_start_balance(trained, history):
     fc = m.liquidity_forecast(60, model=trained, transactions=history)
     assert list(fc.columns) == ["predicted_net", "scheduled", "net", "balance"]
-    assert (
-        fc.index[0] == pd.Timestamp("2025-12-01")
-        and len(fc) == 60
-        and fc.index.is_monotonic_increasing
-    )
+    assert fc.index[0] == pd.Timestamp("2025-12-01") and len(fc) == 60 and fc.index.is_monotonic_increasing
     assert fc.attrs["last_known_date"] == HISTORY_END
     assert fc.attrs["start_balance"] == pytest.approx(history["amount"].sum())
-    assert (
-        fc.loc["2025-12-15", "scheduled"] == -4000.0
-        and fc["scheduled"].sum() == -4000.0
-    )
-    assert fc["balance"].iloc[-1] == pytest.approx(
-        history["amount"].sum() + fc["net"].sum()
-    )
+    assert fc.loc["2025-12-15", "scheduled"] == -4000.0 and fc["scheduled"].sum() == -4000.0
+    assert fc["balance"].iloc[-1] == pytest.approx(history["amount"].sum() + fc["net"].sum())
 
-    shifted = m.liquidity_forecast(
-        60, start_balance=1_000.0, model=trained, transactions=history
-    )
+    shifted = m.liquidity_forecast(60, start_balance=1_000.0, model=trained, transactions=history)
     assert shifted["balance"].iloc[0] == pytest.approx(1_000.0 + shifted["net"].iloc[0])
-    assert (shifted["balance"] - fc["balance"]).round(
-        6
-    ).nunique() == 1  # a constant shift, same model
-    own = m.liquidity_forecast(
-        5, model=trained, transactions=history, scheduled_payments={"2025-12-02": -50.0}
-    )
+    assert (shifted["balance"] - fc["balance"]).round(6).nunique() == 1  # a constant shift, same model
+    own = m.liquidity_forecast(5, model=trained, transactions=history, scheduled_payments={"2025-12-02": -50.0})
     assert own["scheduled"].tolist() == [0.0, -50.0, 0.0, 0.0, 0.0]
-    assert (
-        m.liquidity_forecast(
-            5, model=trained, transactions=history, scheduled_payments=[]
-        )["scheduled"]
-        .eq(0)
-        .all()
-    )
+    assert m.liquidity_forecast(5, model=trained, transactions=history, scheduled_payments=[])["scheduled"].eq(0).all()
     with pytest.raises(ValueError):
         m.liquidity_forecast(0, model=trained, transactions=history)
 
 
 def test_synthetic_june_dip_reappears_next_year(trained, history):
-    fc = m.liquidity_forecast(
-        220, model=trained, transactions=history
-    )  # to 8 July 2026
+    fc = m.liquidity_forecast(220, model=trained, transactions=history)  # to 8 July 2026
     june = fc.loc["2026-06-01":"2026-06-30", "predicted_net"].sum()
     may = fc.loc["2026-05-01":"2026-05-31", "predicted_net"].sum()
     assert june < -2_000 and may > 0
-    assert (
-        fc.loc["2026-06-01":"2026-06-30", "predicted_net"].max() < 50
-    )  # no revenue day, only costs
+    assert fc.loc["2026-06-01":"2026-06-30", "predicted_net"].max() < 50  # no revenue day, only costs
     assert fc.loc["2026-05-31", "balance"] - fc.loc["2026-06-30", "balance"] > 2_000
 
 
 def test_save_load_roundtrip(trained, history, tmp_path):
     path = trained.save(tmp_path / "models" / "liquidity.json")
-    assert (
-        path.is_file() and (tmp_path / "models" / "liquidity.json.meta.json").is_file()
-    )
+    assert path.is_file() and (tmp_path / "models" / "liquidity.json.meta.json").is_file()
     loaded = m.ForecastModel.load(path)
     days = pd.date_range("2026-05-25", "2026-07-05")
-    assert loaded.predict(days).tolist() == pytest.approx(
-        trained.predict(days).tolist()
-    )
-    assert (
-        loaded.shutdown_days == trained.shutdown_days
-        and loaded.due_days == trained.due_days
-    )
-    assert (
-        loaded.trained_until == trained.trained_until
-        and loaded.metrics == trained.metrics
-    )
+    assert loaded.predict(days).tolist() == pytest.approx(trained.predict(days).tolist())
+    assert loaded.shutdown_days == trained.shutdown_days and loaded.due_days == trained.due_days
+    assert loaded.trained_until == trained.trained_until and loaded.metrics == trained.metrics
 
 
 def test_get_model_trains_once_then_loads(history, tmp_path):
@@ -179,22 +129,15 @@ def test_feature_importances_and_explanation(trained):
     imp = trained.feature_importances()
     assert set(imp.index) == set(m.FEATURE_COLUMNS) and imp.sum() == pytest.approx(1.0)
     assert imp.is_monotonic_decreasing and imp.iloc[0] > 0
-    assert {"shutdown_flag", "month", "day_of_year", "is_weekend", "weekday"} & set(
-        imp.index[:4]
-    )
+    assert {"shutdown_flag", "month", "day_of_year", "is_weekend", "weekday"} & set(imp.index[:4])
     contrib = trained.contributions(pd.date_range("2026-06-01", "2026-06-05"))
-    assert contrib.sum(axis=1).tolist() == pytest.approx(
-        trained.predict(contrib.index).tolist(), abs=1e-2
-    )
+    assert contrib.sum(axis=1).tolist() == pytest.approx(trained.predict(contrib.index).tolist(), abs=1e-2)
     why = trained.explain("2026-06-01", "2026-06-30", top=3)
     assert why["days"] == 30 and len(why["top_drivers"]) == 3
-    assert why["predicted_net_eur"] == pytest.approx(
-        trained.predict(pd.date_range("2026-06-01", "2026-06-30")).sum(), abs=1.0
-    )
+    assert why["predicted_net_eur"] == pytest.approx(trained.predict(pd.date_range("2026-06-01", "2026-06-30")).sum(),
+                                                    abs=1.0)
     names = [d["feature"] for d in why["top_drivers"]]
-    assert {"shutdown_flag", "month", "day_of_year"} & set(
-        names
-    )  # the shutdown explains June
+    assert {"shutdown_flag", "month", "day_of_year"} & set(names)  # the shutdown explains June
     assert why["top_drivers"][0]["contribution_eur"] < 0
 
 
@@ -204,26 +147,14 @@ class _FakeMlflow(types.ModuleType):
         super().__init__("mlflow")
         self.calls: list[tuple] = []
         self.xgboost = types.SimpleNamespace(
-            log_model=lambda booster, name, **kwargs: self.calls.append(("model", name))
-        )
+            log_model=lambda booster, name, **kwargs: self.calls.append(("model", name)))
 
-    def set_tracking_uri(self, uri):
-        self.calls.append(("uri", uri))
-
-    def set_experiment(self, name):
-        self.calls.append(("experiment", name))
-
-    def log_params(self, params):
-        self.calls.append(("params", sorted(params)))
-
-    def log_param(self, key, value):
-        self.calls.append(("param", key))
-
-    def log_metrics(self, metrics):
-        self.calls.append(("metrics", sorted(metrics)))
-
-    def log_artifact(self, path):
-        self.calls.append(("artifact", path.rsplit("/", 1)[-1]))
+    def set_tracking_uri(self, uri): self.calls.append(("uri", uri))
+    def set_experiment(self, name): self.calls.append(("experiment", name))
+    def log_params(self, params): self.calls.append(("params", sorted(params)))
+    def log_param(self, key, value): self.calls.append(("param", key))
+    def log_metrics(self, metrics): self.calls.append(("metrics", sorted(metrics)))
+    def log_artifact(self, path): self.calls.append(("artifact", path.rsplit("/", 1)[-1]))
 
     def start_run(self, run_name=None):
         calls = self.calls
@@ -235,9 +166,7 @@ class _FakeMlflow(types.ModuleType):
                 calls.append(("start", run_name))
                 return self_inner
 
-            def __exit__(self_inner, *exc):
-                calls.append(("end",))
-
+            def __exit__(self_inner, *exc): calls.append(("end",))
         return Run()
 
 
@@ -258,15 +187,10 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     model = m.train(history)
     kinds = [c[0] for c in fake.calls]
     assert kinds[:3] == ["uri", "experiment", "start"] and kinds[-1] == "end"
-    assert ("uri", "http://mlflow:5000") in fake.calls and (
-        "model",
-        "model",
-    ) in fake.calls
+    assert ("uri", "http://mlflow:5000") in fake.calls and ("model", "model") in fake.calls
     assert ("artifact", "feature_importances.json") in fake.calls
     assert ("artifact", m.META_ARTIFACT) in fake.calls
-    assert (
-        model.mlflow_run_id == "run-1" and model.model_version is None
-    )  # logged, not registered
+    assert model.mlflow_run_id == "run-1" and model.model_version is None  # logged, not registered
     logged_metrics = next(c[1] for c in fake.calls if c[0] == "metrics")
     assert "holdout_mae" in logged_metrics and set(logged_metrics) == set(model.metrics)
 
@@ -284,21 +208,10 @@ def statement() -> pd.DataFrame:
         txns = load_bank_csv(find_source_csv())
     except SourceNotFound:
         pytest.skip("bank statement CSV not available (set SOURCE_CSV)")
-    df = pd.DataFrame(
-        [
-            {
-                "booking_date": t.booking_date,
-                "amount": float(t.amount),
-                "category": t.category,
-                "team_id": t.team_id,
-            }
-            for t in txns
-        ]
-    )
+    df = pd.DataFrame([{"booking_date": t.booking_date, "amount": float(t.amount), "category": t.category,
+                        "team_id": t.team_id} for t in txns])
     df["booking_date"] = pd.to_datetime(df["booking_date"])
-    return df[df["booking_date"] <= HISTORY_END].reset_index(
-        drop=True
-    )  # Jan-Nov = the database history
+    return df[df["booking_date"] <= HISTORY_END].reset_index(drop=True)  # Jan-Nov = the database history
 
 
 @pytest.fixture(scope="module")
@@ -313,18 +226,12 @@ def test_statement_model_beats_naive_baseline(statement_model):
 
 
 def test_june_2026_dip_is_clearly_visible(statement, statement_model):
-    fc = m.liquidity_forecast(
-        240, model=statement_model, transactions=statement
-    )  # 1 Dec 2025 - 28 Jul 2026
-    assert fc.attrs["start_balance"] == pytest.approx(
-        23_552.09, abs=0.01
-    )  # end of November balance
+    fc = m.liquidity_forecast(240, model=statement_model, transactions=statement)  # 1 Dec 2025 - 28 Jul 2026
+    assert fc.attrs["start_balance"] == pytest.approx(23_552.09, abs=0.01)  # end of November balance
     monthly = fc["predicted_net"].resample("MS").sum()
     assert monthly["2026-06-01"] < MIN_JUNE_NET
     others = monthly.drop(pd.Timestamp("2026-06-01"))
-    assert (
-        others.iloc[:-1].gt(0).all() and monthly["2026-06-01"] < others.min() - 10_000
-    )  # Jul is a partial month
+    assert others.iloc[:-1].gt(0).all() and monthly["2026-06-01"] < others.min() - 10_000  # Jul is a partial month
 
     may_end, june_end = fc.loc["2026-05-31", "balance"], fc.loc["2026-06-30", "balance"]
     assert may_end - june_end > MIN_JUNE_DROP
@@ -332,32 +239,20 @@ def test_june_2026_dip_is_clearly_visible(statement, statement_model):
     drawdown = fc["balance"].cummax() - fc["balance"]
     assert pd.Timestamp("2026-06-01") <= drawdown.idxmax() <= pd.Timestamp("2026-07-15")
     assert drawdown.max() > MIN_JUNE_DROP
-    assert (
-        fc.loc["2026-06-30", "balance"] < fc.loc["2026-05-01", "balance"]
-    )  # June wipes out a month of recovery
+    assert fc.loc["2026-06-30", "balance"] < fc.loc["2026-05-01", "balance"]  # June wipes out a month of recovery
 
 
 def test_stress_balance_goes_negative_in_june(statement, statement_model):
     """Stress, not the base case: a thin buffer (balance 30k lower than the real one) goes negative in June
-    2026 and ends the month at its lowest point since March; June is where a credit line is needed.
-    """
-    fc = m.liquidity_forecast(
-        240,
-        start_balance=23_552.09 - 55_000.0,
-        model=statement_model,
-        transactions=statement,
-    )
+    2026 and ends the month at its lowest point since March; June is where a credit line is needed."""
+    fc = m.liquidity_forecast(240, start_balance=23_552.09 - 55_000.0, model=statement_model, transactions=statement)
     june = fc.loc["2026-06-01":"2026-06-30", "balance"]
-    assert fc.loc[
-        "2026-05-31", "balance"
-    ] > 0 > june.min() and june.idxmin() >= pd.Timestamp("2026-06-20")
+    assert fc.loc["2026-05-31", "balance"] > 0 > june.min() and june.idxmin() >= pd.Timestamp("2026-06-20")
     assert fc.loc["2026-05-31", "balance"] - june.min() > MIN_JUNE_DROP
 
 
 def test_partner_tranche_not_learned_but_scheduled(statement, statement_model):
-    assert m.partner_tranche_schedule(statement).to_dict() == {
-        pd.Timestamp("2025-12-15"): -4166.67
-    }
+    assert m.partner_tranche_schedule(statement).to_dict() == {pd.Timestamp("2025-12-15"): -4166.67}
     fc = m.liquidity_forecast(240, model=statement_model, transactions=statement)
     assert fc["scheduled"].sum() == pytest.approx(-4166.67)
     # no learned 15th-of-month outflow in 2026: the 15th is an ordinary day, not a -4k day

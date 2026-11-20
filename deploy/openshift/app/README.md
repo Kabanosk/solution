@@ -6,7 +6,7 @@ Part of `oc apply -k deploy/` (the root kustomization lists this directory). Use
 |---|---|
 | `imagestream.yaml`, `buildconfig.yaml` | Image `cfo-backend:latest`, built in the cluster from `https://github.com/Kabanosk/solution` (`main`, `Containerfile`) |
 | `configmap.yaml` | `cfo-config`: `LLM_BASE_URL`, `LLM_MODEL` (placeholders), MCP URLs, `SIM_SPEED`, `CORS_ORIGINS` |
-| `pvc.yaml` | `cfo-data` (1Gi), mounted at `/app/data` by `mcp-workstations` and by the seed Job (T022) |
+| `pvc.yaml` | `cfo-data` (1Gi), mounted at `/app/data` by `api`, `worker`, `mcp-workstations` (read-only) and by the seed Job (T022, writes) |
 | `api.yaml` | Deployment + Service + edge TLS Route `api` (`cfo api`, port 8000) |
 | `worker.yaml` | Deployment `worker` (`cfo worker` = `python -m cfo.run`: simulator, agent, Slack socket; no Service; mounts `cfo-data` read-only for the December replay) |
 | `mcp.yaml` | `mcp-company-db` :8001, `mcp-workstations` :8002, `mcp-hr` :8003 (Deployment + Service each, internal only) |
@@ -44,6 +44,26 @@ oc create secret generic slack \
   --from-literal=SLACK_USER_MAP='vincenzo=U...,grazyna=U...'
 oc rollout restart deploy/worker deploy/api
 ```
+
+### Write token for the API (`API_WRITE_TOKEN`)
+
+Without it the API is open: anyone who can reach the Route can approve as the CEO and drive the simulator. With it,
+approve/reject and `POST /v1/sim:start`, `:pause`, `:step` need `Authorization: Bearer <token>`; reads stay open and Slack
+approvals are unaffected (`docs/api.md`, "Write protection"). The token goes into the Secret **`slack`** (not `cfo-secrets`, which no manifest reads): that is the only Secret the
+api and worker Deployments import with `envFrom` (`api.yaml:30`, `worker.yaml:32`, optional), so every key in it,
+`API_WRITE_TOKEN` included, becomes an environment variable. No manifest change is needed; add the key and restart:
+
+```sh
+# Secret `slack` exists already (see above): add the key
+oc patch secret slack --type merge -p "{\"stringData\": {\"API_WRITE_TOKEN\": \"$(openssl rand -hex 24)\"}}"
+# or, if you have not created `slack` yet: oc create secret generic slack --from-literal=API_WRITE_TOKEN="$(openssl rand -hex 24)"
+oc rollout restart deploy/api deploy/worker
+oc get secret slack -o jsonpath='{.data.API_WRITE_TOKEN}' | base64 -d   # give it to the dashboard team
+oc exec deploy/api -- env | grep -c API_WRITE_TOKEN                     # 1 = the api pod sees it
+```
+
+Check that it protects: `curl -s -o /dev/null -w '%{http_code}' -X POST https://<api-host>/v1/sim:pause` must print 401.
+Surrounding whitespace in the value (a trailing newline) is ignored.
 
 The vLLM endpoint needs no API key (LLM_API_KEY defaults to EMPTY). Where the Slack tokens come from: `docs/slack-setup.md`.
 

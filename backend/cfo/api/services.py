@@ -311,6 +311,8 @@ def _month_starts(start: date, end: date) -> list[date]:
     out, cur = [], date(start.year, start.month, 1)
     while cur <= end:
         out.append(cur)
+        if cur.year == date.max.year and cur.month == 12:
+            break  # the next month would be January 10000
         cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
     return out
 

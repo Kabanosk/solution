@@ -390,3 +390,61 @@ def test_cors_preflight_allows_the_authorization_header(db_url):
         "Access-Control-Request-Headers": "authorization,content-type"})
     assert r.status_code == 200
     assert "authorization" in r.headers["access-control-allow-headers"].lower()
+
+
+# --- final review round --------------------------------------------------------------------------------------
+
+
+def test_missing_token_is_401_even_when_agent_and_database_are_unavailable(write_token):
+    from cfo.api.deps import set_agent
+
+    set_agent(None)
+    app = create_app()
+
+    def no_database():
+        raise psycopg.OperationalError("down")
+        yield  # pragma: no cover
+
+    app.dependency_overrides[get_repo] = no_database
+    client = TestClient(app, raise_server_exceptions=False)
+    for headers in ({}, {"Authorization": "Bearer wrong"}):
+        r = client.post("/v1/approvals/apr_1:approve", json={"by": "vincenzo"}, headers=headers)
+        assert r.status_code == 401, headers
+    # with the right token the dependencies are reached (503: no agent / database)
+    assert client.post("/v1/approvals/apr_1:approve", json={"by": "vincenzo"}, headers=AUTH).status_code in (503,)
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_ceo_id_falls_back_to_the_default_ceo(db_url, repo, write_token, monkeypatch, blank):
+    monkeypatch.setenv("CEO_ID", blank)
+    get_api_settings.cache_clear()
+    try:
+        add_approval(repo, 1, approver="grazyna")
+        agent = FakeAgent(db_url)
+        client = make_client(db_url, agent=agent)
+        r = client.post("/v1/approvals/apr_1:approve", json={"by": "grazyna"}, headers=AUTH)
+        assert r.status_code == 403  # answered as the CEO (vincenzo), never as the caller-supplied `by`
+        assert agent.calls == [("apr_1", True, "vincenzo")]
+    finally:
+        monkeypatch.delenv("CEO_ID")
+        get_api_settings.cache_clear()
+
+
+def test_token_with_a_trailing_newline_still_protects(db_url, monkeypatch):
+    monkeypatch.setenv("API_WRITE_TOKEN", TOKEN + "\n")  # `oc create secret --from-file` keeps the newline
+    get_api_settings.cache_clear()
+    try:
+        client = make_client(db_url, sim=FakeSim())
+        assert client.post("/v1/sim:pause").status_code == 401
+        assert client.post("/v1/sim:pause", headers=AUTH).status_code == 200
+    finally:
+        monkeypatch.delenv("API_WRITE_TOKEN")
+        get_api_settings.cache_clear()
+
+
+def test_range_ending_in_year_9999_is_not_a_500(db_url, repo):
+    add_january_booking(repo)
+    r = make_client(db_url).get("/v1/costs/by-team", params={"from": "9999-12-01", "to": "9999-12-31"})
+    assert r.status_code in (200, 422)
+    if r.status_code == 200:
+        assert r.json()["total"]["amount"] == "0.00"

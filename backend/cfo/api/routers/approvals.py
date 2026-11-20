@@ -61,6 +61,7 @@ def _answer(approval_id: str, approved: bool, by: str, repo: Repository, agent: 
 
 
 @router.post("/approvals/{approval_id}:approve", response_model=ApprovalResult, responses=ERRORS_ANSWER,
+             dependencies=[Depends(require_write_token)],  # first: 401 before the database or agent are touched
              summary="Approve: the agent executes the action (SIMULATED) and records the decision")
 def approve(approval_id: str, body: ApprovalAnswer, repo: Repository = Depends(get_repo),
             agent: ApprovalResolver = Depends(get_agent),
@@ -69,6 +70,7 @@ def approve(approval_id: str, body: ApprovalAnswer, repo: Repository = Depends(g
 
 
 @router.post("/approvals/{approval_id}:reject", response_model=ApprovalResult, responses=ERRORS_ANSWER,
+             dependencies=[Depends(require_write_token)],  # first: 401 before the database or agent are touched
              summary="Reject: nothing is executed, the decision is recorded as rejected")
 def reject(approval_id: str, body: ApprovalAnswer, repo: Repository = Depends(get_repo),
            agent: ApprovalResolver = Depends(get_agent),

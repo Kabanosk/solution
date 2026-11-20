@@ -95,7 +95,7 @@ Without the header, or with a wrong token or another scheme, the answer is `401 
 With a token, **`by` in the approval body is ignored**: the token stands for the CEO (`CEO_ID`, default `vincenzo`),
 so it can answer approvals addressed to the CEO and gets 403 for the others. Without a token `by` is still
 the caller's claim. Slack buttons do not use the API (the agent receives them directly) and keep working. In the
-cluster the token comes from a Secret, see `deploy/openshift/app/README.md`. The dashboard must keep the token out of
+cluster the token is the key `API_WRITE_TOKEN` of the Secret `slack` (the one the api Deployment imports), see `deploy/openshift/app/README.md`. The dashboard must keep the token out of
 the page source if the page is public; a shared secret is a minimum, not a login.
 
 ## Autonomy levels in the UI

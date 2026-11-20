@@ -6,3 +6,7 @@ labels:
       app.kubernetes.io/part-of: cfo
     includeSelectors: false
     includeTemplates: true
+    fields:
+      - {path: spec/template/metadata/labels, create: true, kind: Deployment}
+      - {path: spec/template/metadata/labels, create: true, kind: StatefulSet}
+      - {path: spec/template/metadata/labels, create: true, kind: Job}

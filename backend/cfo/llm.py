@@ -13,6 +13,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 from cfo.config import Settings, get_settings
+from cfo.usage import recorder
 
 
 class ToolSpec(BaseModel):
@@ -36,9 +37,17 @@ class Message(BaseModel):
     tool_call_id: str | None = None  # tool messages only: answers this call
 
 
+class TokenUsage(BaseModel):
+    """Token counts the server reported (OpenAI `usage` field)."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+
 class LLMResponse(BaseModel):
     content: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
+    usage: TokenUsage | None = None  # None: the server sent none; cfo.usage then estimates the count and flags it
 
     def as_message(self) -> Message:
         """The assistant message to append to the conversation before sending tool results."""
@@ -57,14 +66,39 @@ class LLM(Protocol):
     ) -> LLMResponse: ...
 
 
+def tls_verify_setting(value: str | bool) -> str | bool:
+    """Map LLM_VERIFY_TLS to httpx `verify`: true/false, or a CA bundle path kept as a string."""
+    if isinstance(value, bool):
+        return value
+    v = value.strip()
+    if v.lower() in {"", "1", "true", "yes", "on"}:
+        return True
+    if v.lower() in {"0", "false", "no", "off"}:
+        return False
+    return v
+
+
 class OpenAICompatLLM:
     """Chat completions against an OpenAI-compatible server."""
 
-    def __init__(self, base_url: str, model: str, api_key: str = "EMPTY", timeout: float = 120.0):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "EMPTY",
+        timeout: float = 120.0,
+        verify_tls: str | bool = True,
+    ):
+        import httpx
         from openai import OpenAI
 
         self.model = model
-        self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY", timeout=timeout)
+        self._client = OpenAI(
+            base_url=base_url,
+            api_key=api_key or "EMPTY",
+            timeout=timeout,
+            http_client=httpx.Client(verify=tls_verify_setting(verify_tls), timeout=timeout),
+        )
 
     @staticmethod
     def _to_wire(m: Message) -> dict[str, Any]:
@@ -98,7 +132,14 @@ class OpenAICompatLLM:
                 {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
                 for t in tools
             ]
-        msg = self._client.chat.completions.create(**kwargs).choices[0].message
+        started = recorder.perf_counter()
+        try:
+            completion = self._client.chat.completions.create(**kwargs)
+        except Exception:
+            recorder.record_call(model=self.model, messages=messages, tools=tools, response=None, started=started,
+                                 success=False)
+            raise
+        msg = completion.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
             try:
@@ -106,7 +147,11 @@ class OpenAICompatLLM:
             except json.JSONDecodeError:
                 args = {"_raw": c.function.arguments}  # small models emit broken JSON; let the caller decide
             calls.append(ToolCall(id=c.id, name=c.function.name, arguments=args))
-        return LLMResponse(content=msg.content, tool_calls=calls)
+        raw = getattr(completion, "usage", None)
+        usage = TokenUsage(prompt_tokens=raw.prompt_tokens or 0, completion_tokens=raw.completion_tokens or 0) if raw else None
+        response = LLMResponse(content=msg.content, tool_calls=calls, usage=usage)
+        recorder.record_call(model=self.model, messages=messages, tools=tools, response=response, started=started)
+        return response
 
 
 class FakeLLM:
@@ -137,16 +182,19 @@ class FakeLLM:
         max_tokens: int | None = None,
     ) -> LLMResponse:
         self.calls.append({"messages": list(messages), "tools": list(tools or [])})
+        started = recorder.perf_counter()
         if self._script:
             out = self._script.pop(0)
         elif self._handler:
             out = self._handler(messages, tools)
         else:
             raise AssertionError("FakeLLM script exhausted")
-        return LLMResponse(content=out) if isinstance(out, str) else out
+        response = LLMResponse(content=out) if isinstance(out, str) else out
+        recorder.record_call(model="fake", messages=messages, tools=tools, response=response, started=started)
+        return response
 
 
 def get_llm(settings: Settings | None = None) -> LLM:
     """The configured LLM client (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`)."""
     s = settings or get_settings()
-    return OpenAICompatLLM(s.llm_base_url, s.llm_model, s.llm_api_key)
+    return OpenAICompatLLM(s.llm_base_url, s.llm_model, s.llm_api_key, verify_tls=s.llm_verify_tls)

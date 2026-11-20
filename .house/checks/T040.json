@@ -1,0 +1,27 @@
+{
+  "task": "T040",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_data_integrity.py backend/tests/test_repo.py backend/tests/test_data.py backend/tests/test_mcp.py backend/tests/test_simulator.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:56:58+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "......................................................................   [100%]\n70 passed in 16.20s",
+      "ran_at": "2026-11-20T16:00:55+01:00",
+      "commit": "471e51a16abbff75de3bed67f0c741334f6b2364"
+    }
+  }
+}

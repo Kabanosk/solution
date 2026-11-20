@@ -1,6 +1,6 @@
 # The worker (`cfo worker` -> python -m cfo.run, T011) runs the simulator, the agent and the Slack
-# Socket Mode client; it only makes outbound connections, so there is no Service. Until T011 lands
-# the container exits and the pod restarts; that is expected.
+# Socket Mode client; it only makes outbound connections, so there is no Service. The simulated clock
+# stays paused until `POST /v1/sim:start` (or `cfo python -m cfo.sim start`).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,10 +14,19 @@ spec:
   template:
     metadata: {labels: {app: worker, app.kubernetes.io/component: worker}}
     spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
+      volumes:
+        - name: llm-ca
+          configMap: {name: llm-service-ca}
+        - name: data
+          persistentVolumeClaim: {claimName: cfo-data}
       containers:
         - name: worker
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
           args: [worker]
+          volumeMounts:
+            - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}
+            - {name: data, mountPath: /app/data, readOnly: true}
           envFrom:
             - configMapRef: {name: cfo-config}
             - secretRef: {name: cfo-secrets, optional: true}   # SLACK_*, LLM_API_KEY: see README.md
@@ -30,6 +39,9 @@ spec:
             - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
             - name: DATABASE_URL
               value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+            # The liquidity model is trained on the first forecast review when the file is missing.
+            - {name: FORECAST_MODEL_PATH, value: /tmp/liquidity_xgb.json}
           resources:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
+          # The December replay (data/generated/events/december.jsonl) comes from the seed Job's volume.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import threading
 from datetime import UTC, date, datetime, timedelta
@@ -19,7 +20,7 @@ from cfo.sim import __main__ as cli
 from cfo.sim import control
 from cfo.sim.engine import DEFAULT_START, Simulator, parse_when
 
-SCHEMA = "t010_test"
+SCHEMA = f"t010_test_{os.getpid()}"
 
 
 class FakeClock:

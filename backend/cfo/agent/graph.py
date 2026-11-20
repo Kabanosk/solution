@@ -55,6 +55,7 @@ from cfo.domain import (
     new_id,
 )
 from cfo.llm import LLM
+from cfo.usage import recorder as usage_recorder
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class Deps:
         self.notifier = notifier
         self.cfg = config
 
-    def dm(self, employee_id: str, text: str, level: PolicyLevel, actions: Sequence[ActionButton] = ()) -> str | None:
+    def dm(self, employee_id: str, text: str, level: PolicyLevel | str, actions: Sequence[ActionButton] = ()) -> str | None:
         try:
             return self.notifier.send_dm(employee_id, text, level, actions)
         except Exception:  # noqa: BLE001 - a Slack hiccup must not lose the decision that was already recorded
@@ -430,7 +431,8 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                 msg = f"Rejected. Nothing was done: {pending['summary']}."
             repo.add_decision(dec)
             repo.resolve_approval(ids["approval_id"], ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED)
-        d.dm(by, msg, PolicyLevel.APPROVAL)
+        # the confirmation of a simulated execution carries the SIMULATED label (demo-flow step 6)
+        d.dm(by, msg, "SIMULATED" if approved and pending["kind"] == "simulate" else PolicyLevel.APPROVAL)
         return {"steps": [f"approval {'approved' if approved else 'rejected'} by {by}"]}
 
     # -- cost anomalies (sub-agent) ------------------------------------------------------------
@@ -506,8 +508,11 @@ class Agent:
             return merged
         with self._lock:
             config = {"configurable": {"thread_id": f"evt:{event.id}"}}
-            self._graph.invoke({"event": event.model_dump(mode="json")}, config)
-            return self._result(config)
+            with usage_recorder.usage_context(event_id=event.id, event_type=event.kind.value):  # T032: cost attribution
+                self._graph.invoke({"event": event.model_dump(mode="json")}, config)
+            result = self._result(config)
+            usage_recorder.link_decision(event.id, result.decision_ids)
+            return result
 
     def resume_approval(self, approval_id: str, approved: bool, by: str) -> HandleResult:
         """Answer a pending approval. `by` must be the approver (PermissionError otherwise). Idempotent: a repeated

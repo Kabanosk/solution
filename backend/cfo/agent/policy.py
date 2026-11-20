@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from cfo.domain import PolicyLevel, Rule, Transaction
 from cfo.llm import LLM, Message, ToolSpec
+from cfo.usage.recorder import usage_context
 
 ROUTINE_TOLERANCE = Decimal("0.20")  # +-20% of the supplier's typical amount
 AUTO_SHARE = Decimal("0.01")  # < 1% of average monthly inflows
@@ -204,10 +205,11 @@ def parse_rule(text: str, llm: LLM, categories: Sequence[str] = ()) -> Rule:
     )
     if categories:
         system += f" Known categories: {', '.join(categories)}."
-    response = llm.chat(
-        [Message(role="system", content=system), Message(role="user", content=f"Owner's sentence: {text}")],
-        [_RULE_TOOL],
-    )
+    with usage_context(purpose="parse_rule"):
+        response = llm.chat(
+            [Message(role="system", content=system), Message(role="user", content=f"Owner's sentence: {text}")],
+            [_RULE_TOOL],
+        )
     args: dict | None = None
     for call in response.tool_calls:
         if call.name == _RULE_TOOL.name:

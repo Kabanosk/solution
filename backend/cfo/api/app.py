@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from cfo.api.errors import install_error_handlers
-from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, rules, sim
+from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, llm_usage, rules, sim
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
 from cfo.observability import init_tracing
@@ -35,13 +37,21 @@ TAGS = [
     {"name": "approvals", "description": "Requests waiting for the CEO; approve or reject."},
     {"name": "events", "description": "Live Server-Sent Events stream."},
     {"name": "simulator", "description": "Control of the December replay."},
+    {"name": "llm-usage", "description": "What the LLM costs: usage per call and the vLLM server's load."},
     {"name": "system", "description": "Liveness."},
 ]
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """With `AGENT_IN_API=1` the API process builds its own agent (approvals, `POST /v1/sim:step`); see `cfo.run`."""
     init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
+    try:
+        from cfo.run import attach_api
+
+        attach_api()
+    except Exception:  # noqa: BLE001 - the read endpoints must come up even when the agent cannot be built
+        logging.getLogger(__name__).exception("could not attach the agent to the API process")
     yield
 
 
@@ -56,7 +66,7 @@ def create_app() -> FastAPI:
         expose_headers=["X-Stub"],
     )
     install_error_handlers(app)
-    for module in (kpis, forecast, costs, cost_metrics, decisions, rules, approvals, events, sim):
+    for module in (kpis, forecast, costs, cost_metrics, decisions, rules, approvals, events, sim, llm_usage):
         app.include_router(module.router)
 
     @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")

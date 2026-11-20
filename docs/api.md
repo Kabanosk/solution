@@ -793,6 +793,254 @@ replay is finished.
   to it. Run the agent in the API process (single-process deployment) or use `start`/`pause` and let the worker tick.
 * The default control opens its own database connection per call and reads the events from `data/generated`.
 
+
+## `GET /v1/llm/usage` and `GET /v1/llm/usage/live`
+
+What running the agent costs on the cluster (T032, D-016). Two data sources:
+
+* **`llm_usage`**: one row per LLM call made through `cfo/llm.py` (time, model, prompt and completion tokens from the
+  server's `usage` field, latency, and which agent step it belonged to: event id and type, purpose such as
+  `extract_invoice` or `explain`, the decision the event ended with). Tokens are *estimated* (about 4 characters per
+  token) when the server sends no `usage`; such calls are flagged and counted in `estimated_requests`. Recording never
+  breaks a call: a database failure is logged and skipped. `FakeLLM` records too (model `fake`).
+* **`vllm_metrics_samples`**: snapshots of the vLLM `/metrics` endpoint, taken by `python -m cfo.usage sample --every 60`
+  (or `cfo.usage.sampler.start_background()` from the worker). Deltas between snapshots give the usage of the whole
+  server over any range and survive pod restarts (a counter that goes down is treated as a restart). `VLLM_METRICS_URL`
+  unset = no sampler; `/usage` still works from `llm_usage` alone and `/usage/live` answers 503.
+
+### Cost model (all rates are assumptions, listed in the response)
+
+| Method | Formula |
+|---|---|
+| `cost_busy_time` | sum of request latency x hourly rate. Overlapping requests count twice: an upper bound of the GPU time used |
+| `cost_amortized` | wall-clock hours of the window x hourly rate x **our share** of the tokens the server processed (`llm_usage` tokens / vLLM `prompt + generation` token deltas). Share is 1.0 when there are no vLLM samples (`token_share_source: assumed_all_traffic`). The window starts at the first recorded data and ends at `min(to, now)`; buckets without requests are not listed, so `total` can exceed the sum of listed buckets (idle time) |
+| `hosted_comparison` | the same prompt and completion tokens at a hosted model's list price per 1M tokens, converted to EUR (`usd_to_eur`) |
+
+Hourly rate = `GPU_HOURLY_COST_EUR` + `NODE_HOURLY_COST_EUR`. Default GPU rate **0.70 EUR/h**: one NVIDIA L4 on demand,
+AWS EC2 g6.xlarge (1x L4) USD 0.8048/h in us-east-1 (https://instances.vantage.sh/aws/ec2/g6.xlarge, read 2026-11-20, an
+aggregator), at an assumed 0.87 EUR/USD, rounded. Default hosted list prices (read 2026-11-20): gpt-5-mini USD 0.25 in /
+2.00 out per 1M tokens (https://developers.openai.com/api/docs/models/gpt-5-mini), gpt-5-nano USD 0.05 / 0.40
+(https://developers.openai.com/api/docs/models/gpt-5-nano). Override with `HOSTED_PRICES_JSON`. These are not quotes.
+
+**Costs use six decimals** (`{"amount": "0.001944", "currency": "EUR"}`): one call costs fractions of a cent. This is
+the one exception to the two-decimal money rule.
+
+### `GET /v1/llm/usage`
+
+| Query | Default | Meaning |
+|---|---|---|
+| `from` | `to` minus 7 days | start (inclusive), ISO 8601, naive values are UTC |
+| `to` | now | end (exclusive) |
+| `group_by` | `day` | `day`, `hour` (UTC buckets), `event_type` or `purpose` |
+
+Response: `total` and `items` (one per bucket: requests, failed and estimated requests, tokens, p50/p95 latency in ms,
+busy seconds, both costs), `per_action` (cost per decision, by action type: LLM calls are attributed to the *last*
+decision an event produced; `cost_per_action_*` divides by all decisions of that type in the range), `per_event`,
+`cluster` (vLLM totals for the range incl. restarts seen, split by `finished_reason`, cached vs computed prompt tokens,
+GPU time and its cost, p50/p95 latency from the histogram; null without samples), `hosted_comparison` and
+`assumptions` (rates, sources, window hours, token share, method descriptions, notes). `from > to` is a 422.
+
+```bash
+curl -s 'http://localhost:8080/v1/llm/usage?from=2026-11-20T00:00:00Z&to=2026-11-22T00:00:00Z&group_by=day'
+```
+
+```json
+{
+  "stub": false,
+  "currency": "EUR",
+  "from": "2026-11-20T00:00:00Z",
+  "to": "2026-11-22T00:00:00Z",
+  "window_from": "2026-11-20T09:00:00Z",
+  "window_to": "2026-11-21T10:01:00Z",
+  "group_by": "day",
+  "total": {
+    "key": "total",
+    "bucket_start": null,
+    "requests": 4,
+    "failed_requests": 0,
+    "estimated_requests": 1,
+    "prompt_tokens": 2900,
+    "completion_tokens": 500,
+    "latency_p50_ms": 2500.0,
+    "latency_p95_ms": 3849.9999999999995,
+    "busy_seconds": 10.0,
+    "cost_busy_time": {
+      "amount": "0.001944",
+      "currency": "EUR"
+    },
+    "cost_amortized": {
+      "amount": "8.385869",
+      "currency": "EUR"
+    }
+  },
+  "items": [
+    {
+      "key": "2026-11-20",
+      "bucket_start": "2026-11-20T00:00:00Z",
+      "requests": 3,
+      "failed_requests": 0,
+      "estimated_requests": 1,
+      "prompt_tokens": 2300,
+      "completion_tokens": 450,
+      "latency_p50_ms": 3000.0,
+      "latency_p95_ms": 3900.0,
+      "busy_seconds": 9.0,
+      "cost_busy_time": {
+        "amount": "0.001750",
+        "currency": "EUR"
+      },
+      "cost_amortized": {
+        "amount": "5.028169",
+        "currency": "EUR"
+      }
+    }
+  ],
+  "per_action": [
+    {
+      "action_type": "attach_invoice",
+      "actions": 1,
+      "requests": 2,
+      "prompt_tokens": 1500,
+      "completion_tokens": 300,
+      "cost_busy_time": {
+        "amount": "0.001167",
+        "currency": "EUR"
+      },
+      "cost_amortized": {
+        "amount": "4.439577",
+        "currency": "EUR"
+      },
+      "cost_per_action_busy_time": {
+        "amount": "0.001167",
+        "currency": "EUR"
+      },
+      "cost_per_action_amortized": {
+        "amount": "4.439577",
+        "currency": "EUR"
+      }
+    }
+  ],
+  "per_event": {
+    "events": 3,
+    "cost_per_event_busy_time": {
+      "amount": "0.000648",
+      "currency": "EUR"
+    },
+    "cost_per_event_amortized": {
+      "amount": "2.795290",
+      "currency": "EUR"
+    }
+  },
+  "cluster": {
+    "samples": 3,
+    "counter_resets": 1,
+    "prompt_tokens": 6000,
+    "generation_tokens": 1100,
+    "requests": 14,
+    "requests_by_finish_reason": {
+      "stop": 14
+    },
+    "cached_prompt_tokens": 600,
+    "computed_prompt_tokens": 5400,
+    "busy_seconds": 29.7,
+    "busy_seconds_source": "request_inference_time_seconds",
+    "cost_busy_time_all_traffic": {
+      "amount": "0.005775",
+      "currency": "EUR"
+    },
+    "cost_busy_time_our_share": {
+      "amount": "0.002765",
+      "currency": "EUR"
+    },
+    "avg_e2e_latency_seconds": "2.357",
+    "p50_e2e_latency_seconds": "1.889",
+    "p95_e2e_latency_seconds": "4.689",
+    "our_token_share": "0.4789"
+  },
+  "hosted_comparison": [
+    {
+      "model": "gpt-5-mini",
+      "input_per_million": "0.25",
+      "output_per_million": "2.00",
+      "price_currency": "USD",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "as_of": "2026-11-20",
+      "cost": {
+        "amount": "0.001501",
+        "currency": "EUR"
+      },
+      "vs_busy_time": "0.77"
+    }
+  ],
+  "assumptions": {
+    "gpu_hourly_cost_eur": "0.70",
+    "node_hourly_cost_eur": "0",
+    "hourly_rate_eur": "0.70",
+    "gpu_price_source": "AWS EC2 g6.xlarge (1x NVIDIA L4) on-demand USD 0.8048/h in us-east-1, https://instances.vantage.sh/aws/ec2/g6.xlarge, read 2026-11-20; converted at an assumed 0.87 EUR/USD and rounded to 0.70 EUR/h. Assumption, not a quote.",
+    "window_hours": 25.0167,
+    "token_share": "0.4789",
+    "token_share_source": "vllm_metrics",
+    "usd_to_eur": "0.87",
+    "methods": {
+      "busy_time": "Sum of request latency x hourly rate. Overlapping requests are counted twice, so this is an upper bound of the GPU time our requests used.",
+      "amortized": "Wall-clock hours of the window x hourly rate x our share of the tokens the server processed (llm_usage tokens / vLLM token counters). Share is 1.0 when there are no vLLM samples. Buckets with no request are not listed, so the total can exceed the sum of the listed buckets (idle time).",
+      "hosted": "The same prompt and completion tokens at a hosted API's list price per 1M tokens, converted to EUR at usd_to_eur. List prices change; they are assumptions with a date."
+    },
+    "notes": [
+      "1 request(s) have estimated token counts (the server sent no usage field, about 4 characters per token)."
+    ]
+  }
+}
+```
+
+(Shortened: `items`, `per_action` and `hosted_comparison` have more entries; example values come from a test fixture.)
+
+### `GET /v1/llm/usage/live`
+
+Newest vLLM snapshot and the token rates over the interval to the one before it. `kv_cache_usage` is a fraction 0..1
+from `vllm:kv_cache_usage_perc` (older servers: `vllm:gpu_cache_usage_perc`, named in `kv_cache_metric`); it is null if
+the server reports neither. `stale` is true when the sample is older than `VLLM_METRICS_STALE_SECONDS` (default 300): the
+sampler is not running. **503 `metrics_unavailable`** when no sample is stored.
+
+```bash
+curl -s http://localhost:8080/v1/llm/usage/live
+```
+
+```json
+{
+  "stub": false,
+  "model": "modelcar-granite-4-0-h-tiny",
+  "sampled_at": "2026-11-21T10:00:00Z",
+  "age_seconds": 60.0,
+  "stale": false,
+  "requests_running": 2,
+  "requests_waiting": 1,
+  "kv_cache_usage": "0.3700",
+  "kv_cache_metric": "vllm:kv_cache_usage_perc",
+  "prompt_tokens_per_second": "0.21",
+  "generation_tokens_per_second": "0.06",
+  "interval_seconds": 7200.0,
+  "counter_reset": false
+}
+```
+
+### Operating it
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VLLM_METRICS_URL` | unset (sampler off) | in-cluster `https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc.cluster.local:8000/metrics`; locally `oc port-forward svc/modelcar-granite-4-0-h-tiny-kserve-workload-svc 8000:8000 -n my-first-model` then `https://localhost:8000/metrics` |
+| `VLLM_METRICS_VERIFY` | `true` | TLS check: `true`, `false` (self-signed certificate, as on the cluster now) or a CA bundle path |
+| `VLLM_METRICS_BEARER_TOKEN` | unset | only if the endpoint needs a bearer token |
+| `VLLM_METRICS_TIMEOUT` / `VLLM_METRICS_STALE_SECONDS` | `5` / `300` | scrape timeout, staleness limit of `/live` |
+| `GPU_HOURLY_COST_EUR` / `NODE_HOURLY_COST_EUR` | `0.70` / `0` | rates, see above |
+| `HOSTED_PRICES_JSON` | gpt-5-mini, gpt-5-nano | list of `{"model", "input_per_million", "output_per_million", "currency", "source", "as_of"}` |
+| `USD_TO_EUR` | `0.87` | converts the (USD) hosted list prices |
+| `LLM_USAGE_RECORD` | `true` | `false` switches the per-call recording off |
+
+Scrape ONE server pod: counters of several replicas behind one service would look like restarts. The sampler
+(`python -m cfo.usage sample --every 60`) is a separate process or a thread of the worker; it needs the same
+`DATABASE_URL`.
+
 ---
 
 ## Coming next

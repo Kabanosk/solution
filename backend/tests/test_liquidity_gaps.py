@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+import os
 import pandas as pd
 import psycopg
 import pytest
@@ -308,7 +309,7 @@ def test_statement_oven_of_25k_only_just_touches_the_buffer(statement, statement
 
 
 # -- hand-off to the agent graph (needs Postgres) ------------------------------------------------------------
-SCHEMA = "t016_test"
+SCHEMA = f"t016_test_{os.getpid()}"
 
 
 class _Notifier:

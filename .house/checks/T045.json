@@ -1,0 +1,27 @@
+{
+  "task": "T045",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_forecast_leakage.py backend/tests/test_forecast_features.py backend/tests/test_forecast_model.py backend/tests/test_liquidity_gaps.py backend/tests/test_forecast_registry.py",
+        "expect": null,
+        "text": null,
+        "timeout": 1200
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:57:00+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "...........................................................              [100%]\n59 passed, 1 skipped in 9.39s",
+      "ran_at": "2026-11-20T15:59:42+01:00",
+      "commit": "471e51a16abbff75de3bed67f0c741334f6b2364"
+    }
+  }
+}

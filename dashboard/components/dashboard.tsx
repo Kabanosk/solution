@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowDownLeft, ArrowUpRight, Bell, CalendarClock, Inbox, LayoutGrid, ListTodo, Plug, Search, ShieldCheck, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, Bell, CalendarClock, Inbox, LayoutGrid, ListTodo, MessageSquare, Search, ShieldCheck, Wallet } from "lucide-react";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import { Connections } from "@/components/connections";
 import { AccessPolicies } from "@/components/access-policies";
 import { DemoPanel } from "@/components/demo-panel";
 import { Transactions } from "@/components/transactions";
+import { LlmChat } from "@/components/llm-chat";
+import { LlmUsage } from "@/components/llm-usage";
 import { GO_SHORTCUTS, navItem, viewFromHash, type View } from "@/lib/nav";
 import { formatShare, isOpen, money, shortDate, type AgentTask, type TaskDetail } from "@/lib/scout-model";
 
@@ -30,7 +32,7 @@ const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "cu
 const compact = (amount: number) => amount >= 1000 ? `€${(amount / 1000).toFixed(1)}k` : currency(amount);
 const mobileNavigation: { view: View; label: string; icon: typeof Inbox }[] = [
   { view: "inbox", label: "Inbox", icon: Inbox }, { view: "tasks", label: "Tasks", icon: ListTodo },
-  { view: "overview", label: "Overview", icon: LayoutGrid }, { view: "connections", label: "Connections", icon: Plug },
+  { view: "chat", label: "Chat", icon: MessageSquare }, { view: "overview", label: "Overview", icon: LayoutGrid },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
 
@@ -122,6 +124,8 @@ function DashboardContent({ data, detail }: { data: DashboardData; detail?: Task
 
   const searchItems = [
     { label: "Agent tasks", detail: `${openTasks.length} open tasks`, view: "tasks" as View, href: undefined as string | undefined },
+    { label: "Scout chat", detail: "Ask Scout; it answers with its tools", view: "chat" as View, href: undefined },
+    { label: "LLM usage", detail: "Model requests, tokens, latency and cost", view: "llm-usage" as View, href: undefined },
     { label: "Overview", detail: "Cash balance, forecast and expense mix", view: "overview" as View, href: undefined },
     { label: "Connections", detail: "Bank, invoicing, email, Slack and laptops", view: "connections" as View, href: undefined },
     { label: "Audit log", detail: "ALLOW / DENY decisions", view: "audit" as View, href: undefined },
@@ -150,6 +154,8 @@ function DashboardContent({ data, detail }: { data: DashboardData; detail?: Task
   else if (page === "connections") content = <Connections connections={scout.connections} />;
   else if (page === "audit") content = <AuditLog rows={scout.audit} />;
   else if (page === "policies") content = <AccessPolicies />;
+  else if (page === "llm-usage") content = <LlmUsage active />;
+  else if (page === "chat") content = null; // Kept mounted below so the conversation survives page switches.
   else content = <div id="scout-overview" className="space-y-6">
     <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
       <div className="space-y-2"><p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Scout · Your autonomous CFO</p><h1 className="text-3xl font-medium tracking-tight">Your finance overview</h1><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions. {attention} tasks wait on people. Every outcome connected to its evidence.</p></div>
@@ -218,6 +224,7 @@ function DashboardContent({ data, detail }: { data: DashboardData; detail?: Task
 
         <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={title} className="mx-auto w-full max-w-[1600px] min-w-0 px-4 pt-6 pb-28 outline-none md:px-8 md:pt-7 md:pb-10">
           {content}
+          {!detail && <div hidden={page !== "chat"}><LlmChat active={page === "chat"} /></div>}
         </section>
 
         <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-4 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">

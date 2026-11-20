@@ -1,13 +1,13 @@
 // Sidebar navigation model. Pure data so it can be tested without React.
 export type View =
-  | "inbox" | "my-tasks" | "tasks"
+  | "inbox" | "my-tasks" | "tasks" | "chat"
   | "loop-invoicing" | "loop-cost-control" | "loop-liquidity" | "loop-chat"
   | "overview" | "transactions" | "forecast" | "staffing"
-  | "connections" | "audit" | "policies";
+  | "connections" | "audit" | "policies" | "llm-usage";
 
 export type IconName =
   | "inbox" | "user-check" | "list-todo" | "refresh" | "layout" | "receipt" | "chart" | "users"
-  | "plug" | "scroll" | "shield";
+  | "plug" | "scroll" | "shield" | "message" | "cpu";
 
 export type CountKey = "inbox" | "myTasks" | "openTasks" | "loop";
 
@@ -31,6 +31,7 @@ export const NAV: NavSection[] = [
     item("inbox", "Inbox", "inbox", { countKey: "inbox" }),
     item("my-tasks", "My tasks", "user-check", { countKey: "myTasks" }),
     item("tasks", "Agent tasks", "list-todo", { countKey: "openTasks" }),
+    item("chat", "Scout chat", "message"),
   ] },
   { section: "Loops", collapsible: true, items: [
     item("loop-invoicing", "Invoicing", "refresh", { countKey: "loop", loop: "invoicing" }),
@@ -48,16 +49,18 @@ export const NAV: NavSection[] = [
     item("connections", "Connections", "plug"),
     item("audit", "Audit log", "scroll"),
     item("policies", "Access policies", "shield"),
+    item("llm-usage", "LLM usage", "cpu"),
   ] },
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV.flatMap(section => section.items);
 const VIEWS = new Set<string>(NAV_ITEMS.map(entry => entry.id));
 
-/** Hash (with or without '#') to view. Legacy #investigations opens Agent tasks. */
+/** Hash (with or without '#') to view. Legacy #investigations / #agent-jobs open Agent tasks, #llm opens Scout chat. */
 export function viewFromHash(hash: string): View {
   const value = hash.replace(/^#/, "");
-  if (value === "investigations") return "tasks";
+  if (value === "investigations" || value === "agent-jobs" || value.startsWith("agent-jobs/")) return "tasks";
+  if (value === "llm") return "chat";
   return VIEWS.has(value) ? value as View : "overview";
 }
 

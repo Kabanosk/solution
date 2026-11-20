@@ -9,7 +9,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const token = process.env.API_WRITE_TOKEN;
   if (!token) throw new Error("API_WRITE_TOKEN is not configured");
   return fetch(`${apiUrl()}${path}`, {
-    ...init, cache: "no-store", signal: AbortSignal.timeout(10000),
+    ...init, cache: "no-store", signal: init.signal ?? AbortSignal.timeout(10000),
     headers: { ...init.headers, Authorization: `Bearer ${token}` },
   });
 }

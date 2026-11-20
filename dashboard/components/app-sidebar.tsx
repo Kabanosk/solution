@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChartLine, ChevronDown, ChevronRight, Inbox, LayoutGrid, ListTodo, PanelLeftClose, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, UserCheck, Users, type LucideIcon } from "lucide-react";
+import { ChartLine, ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, UserCheck, Users, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<IconName, LucideIcon> = {
   inbox: Inbox, "user-check": UserCheck, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt,
-  chart: ChartLine, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck,
+  chart: ChartLine, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu,
 };
 const STORAGE_KEY = "scout-nav-collapsed";
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -10,6 +12,7 @@ from cfo.api.errors import install_error_handlers
 from cfo.api.routers import approvals, cost_metrics, costs, decisions, events, forecast, kpis, rules, sim
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
+from cfo.observability import init_tracing
 
 VERSION = "0.1.0"
 
@@ -36,8 +39,15 @@ TAGS = [
 ]
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS)
+    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
+                  lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_api_settings().cors_origin_list,

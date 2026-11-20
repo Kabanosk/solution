@@ -11,6 +11,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from cfo import observability as obs
 from cfo.agent.llm_tasks import explain
 from cfo.agent.tools import Gateway
 from cfo.analysis.cost_metrics import PAIRS, detect_anomalies
@@ -62,9 +63,8 @@ def build_investigation_graph(gw: Gateway, llm: LLM, threshold_pct: float = 20.0
         return {"findings": out}
 
     g = StateGraph(InvState)
-    g.add_node("gather", gather)
-    g.add_node("detect", detect)
-    g.add_node("explain", explain_node)
+    for name, fn in [("gather", gather), ("detect", detect), ("explain", explain_node)]:
+        g.add_node(name, obs.traced_node(f"investigate.{name}", fn))  # child spans of the caller's node (T027)
     g.add_edge(START, "gather")
     g.add_edge("gather", "detect")
     g.add_conditional_edges("detect", lambda s: "explain" if s["findings"] else END, ["explain", END])

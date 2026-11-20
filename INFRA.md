@@ -135,6 +135,7 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `SOURCE_CSV` | auto-detect | bank CSV for `cfo generate` |
 | `FORECAST_MODEL_PATH` | `models/liquidity_xgb.json` | path to the saved XGBoost model |
 | `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024) |
+| `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event (`cfo/observability.py`); auth via MLflow's own vars, e.g. `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` on RHOAI |
 | `API_PORT` | `8000` | image only |
 
 ## 6. Fill in (things only humans know)

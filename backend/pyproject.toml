@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mlflow = ["mlflow>=2.14"]
+mlflow = ["mlflow>=3"]
 
 [dependency-groups]
 dev = [

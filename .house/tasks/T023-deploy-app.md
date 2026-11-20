@@ -1,9 +1,9 @@
 ---
 id: T023
 title: OpenShift: API, agent worker, MCP servers, config
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T023-deploy-app
 depends_on: ["T021"]
 capabilities: []
 acceptance:

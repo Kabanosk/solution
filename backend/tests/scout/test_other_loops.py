@@ -180,7 +180,10 @@ def test_question_from_waitstaff_denied_ceo_answered(conn_factory, tmp_path):
     ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
     pay(ctx, "nowhere")
     denied = chat.run(ctx, dm("vanessa", "what did we pay Fattoria?", n=1))
-    assert "denied" in kinds(ctx, denied.id)
+    assert texts(ctx, denied.id)[1] == "Tried search payments(counterparty=Fattoria): access denied"
+    with conn_factory() as conn:
+        deny = conn.execute("SELECT * FROM audit_log WHERE decision='DENY' AND target='bank'").fetchall()
+    assert len(deny) == 1 and deny[0]["requester"] == "vanessa"
     ok = chat.run(ctx, dm("vincenzo", "what did we pay Fattoria?", n=2))
     assert "looked_up" in kinds(ctx, ok.id) and ctx.notifier.updates[-1]["text"].startswith("You paid Fattoria")
 

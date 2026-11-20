@@ -21,6 +21,11 @@ data:
   # Scout: the mock bank the worker polls (and the API posts demo payments to), and the job-queue threads.
   BANK_API_URL: "http://bank-mock:8010"
   SCOUT_WORKERS: "4"
+  DATA_DIR: "/app/data/generated"
+  WORKSTATIONS_ROOT: "/app/data/generated/workstations"
+  DASHBOARD_URL: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"  # task links; Slack icon at /scout-icon.png
+  GOOGLE_REDIRECT_URI: "https://api-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com/v1/connections/google/callback"
+  SCOUT_DEMO: "1"  # demo panel + POST /v1/demo/play (needs the write token anyway)
   # Browser origins allowed by the API; `*` until the dashboard has a fixed URL.
   CORS_ORIGINS: "*"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.

@@ -211,6 +211,22 @@ export function getPreviewData(): DashboardData {
       connections: [
         { id: "bank", kind: "bank", provider: "revolut-mock", enabled: true, displayName: "Revolut Business", config: { mocked: true }, status: "connected", lastSyncAt: at("11:02"), lastError: null },
         { id: "invoicing", kind: "invoicing", provider: "postgres", enabled: true, displayName: "Invoicing", config: { invoices: 4182 }, status: "connected", lastSyncAt: at("11:02"), lastError: null },
+        { id: "ksef", kind: "invoicing", provider: "ksef_test", enabled: true, displayName: "KSeF · test environment", status: "connected", lastSyncAt: at("11:03"), lastError: null, config: {
+          env: "test", api: "https://api-test.ksef.mf.gov.pl/v2", nip: "5621254863", company: "Pizzeria Amalfi Sp. z o.o.", phase: "done",
+          steps: [
+            { at: "2026-11-21T11:02:41Z", text: "Signed in to KSeF as NIP 5621254863 (XAdES, test seal)", ok: true },
+            { at: "2026-11-21T11:02:43Z", text: "Issued 4 test invoices from suppliers", ok: true },
+            { at: "2026-11-21T11:02:47Z", text: "Received 4 invoices from KSeF", ok: true },
+            { at: "2026-11-21T11:02:48Z", text: "Matched 3 invoices to bank payments", ok: true },
+          ],
+          issued: 4, received: 4, imported: 4, linked: 3, linked_total: "1727.30",
+          invoices: [
+            { number: "AS-12345", ksef_number: "5621254863-20261121-01B739400000-6F", supplier: "Asimex Wholesale Ltd", total: "623.48", currency: "EUR", linked: true },
+            { number: "FLV-42110", ksef_number: "5621254863-20261121-02C84A100000-3A", supplier: "Fattoria La Vino", total: "960.00", currency: "EUR", linked: true },
+            { number: "CB-7781", ksef_number: "5621254863-20261121-03D95B200000-8E", supplier: "Caseificio Bianchi", total: "143.82", currency: "EUR", linked: true },
+            { number: "CWM-9034", ksef_number: "5621254863-20261121-04EA6C300000-1B", supplier: "Central Wholesale Market", total: "512.10", currency: "EUR", linked: false },
+          ],
+        } },
         { id: "mail", kind: "mail", provider: "gmail", enabled: true, displayName: "Email", config: { account: "office@pizzeria-amalfi.example", label: "Amalfi" }, status: "disconnected", lastSyncAt: null, lastError: null },
         { id: "slack", kind: "chat", provider: "slack", enabled: true, displayName: "Slack", config: { channels: ["finance"], scopes: ["chat:write", "im:history", "channels:history", "files:read", "reactions:write"], missing_scopes: ["channels:join"] }, status: "connected", lastSyncAt: at("11:01"), lastError: null },
         { id: "laptops", kind: "files", provider: "workstations", enabled: true, displayName: "Company laptops", config: { hosts: ["grazyna-mbp.corp", "vincenzo-mbp.corp", "rosa-mbp.corp"] }, status: "connected", lastSyncAt: at("10:58"), lastError: null },

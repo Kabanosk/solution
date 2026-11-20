@@ -39,7 +39,15 @@ def _approval(ctx: JobContext, job: Job) -> Any:
         return None  # audited in resume; nothing to retry
 
 
+def _ksef_connect(ctx: JobContext, job: Job) -> Any:
+    from scout import ksef_sync
+    from scout.connectors.ksef import KsefClient
+
+    return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url)
+
+
 HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
+    "ksef_connect": _ksef_connect,
     "bank_txn": invoicing.run, "reminder": invoicing.run, "reply": invoicing.run,
     "cost_check": cost_control.run,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,

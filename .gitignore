@@ -1,0 +1,18 @@
+.env*
+!.env.example
+.worktrees/
+node_modules/
+__pycache__/
+.venv/
+
+# Confidential inputs must stay outside version control.
+*.csv
+*.docx
+*.zip
+*bank-statement*
+*liquidity*
+/confidential/
+/private-data/
+/dashboard/data/*
+!/dashboard/data/demo-bank-statement.csv
+!/dashboard/data/README.md

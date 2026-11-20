@@ -23,11 +23,12 @@ def _tx(rows: list[tuple]) -> pd.DataFrame:
     return df
 
 
-def _history(*, holdout_rows: list[tuple] = (), revenue_gap: tuple[str, str] | None = None) -> pd.DataFrame:
+def _history(*, holdout_rows: list[tuple] = (), revenue_gap: tuple[str, str] | None = None,
+             start: str = "2025-01-01") -> pd.DataFrame:
     """Jan-Dec 2025: daily revenue, payroll on the 28th, tax on the 12th only in Sep/Oct (two months: not a due
     day on training data alone). `holdout_rows` are extra bookings, `revenue_gap` removes revenue for those days."""
     rows: list[tuple] = []
-    for day in pd.date_range("2025-01-01", "2025-12-31"):
+    for day in pd.date_range(start, "2025-12-31"):
         if revenue_gap and revenue_gap[0] <= str(day.date()) <= revenue_gap[1]:
             continue
         rows.append((day, 200.0, "revenue", None))
@@ -64,11 +65,11 @@ def test_a_shutdown_that_only_exists_in_the_holdout_is_not_known_to_the_backtest
 
 
 def test_a_shutdown_in_the_training_window_is_applied_to_the_holdout_days_of_the_next_year():
-    gap = ("2025-03-03", "2025-03-16")
-    tx = _history(revenue_gap=gap)
-    train, test = _split(tx)
-    assert train.loc["2025-03-03":"2025-03-16", "shutdown_flag"].eq(1).all()
-    assert test["shutdown_flag"].sum() == 0  # no March days in the holdout, but the window is in the same key set
+    gap = ("2024-12-05", "2024-12-18")  # in the training window; the holdout (2 Nov - 31 Dec 2025) has the same days
+    train, test = _split(_history(revenue_gap=gap, start="2024-01-01"))
+    assert train.loc[gap[0]:gap[1], "shutdown_flag"].eq(1).all()
+    assert test.loc["2025-12-05":"2025-12-18", "shutdown_flag"].eq(1).all()
+    assert test["shutdown_flag"].sum() == 14  # and only those days
 
 
 def test_split_covers_every_day_once_and_targets_are_the_real_cash_flow():

@@ -14,6 +14,7 @@ Settings are the ones api/worker use (`cfo.config`, `LLM_VERIFY_TLS` as in `cfo.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import threading
@@ -56,8 +57,33 @@ class CheckResult:
     detail: str = ""
 
 
+MAX_DETAIL = 200
+
+
+def one_line(text: str, limit: int = MAX_DETAIL) -> str:
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 3] + "..."
+
+
 def render(results: list[CheckResult]) -> str:
-    return "\n".join(f"{r.status:<4}  {r.name:<24} {r.detail}".rstrip() for r in results)
+    return "\n".join(f"{r.status:<4}  {r.name:<24} {one_line(r.detail)}".rstrip() for r in results)
+
+
+def _city_problem(arguments: Any) -> str | None:
+    """Why `arguments` is not a usable get_weather call (`city` must be a non-empty string); None when fine."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments or "{}")
+        except json.JSONDecodeError:
+            return f"arguments are not valid JSON (need `city`): {arguments[:80]!r}"
+    city = arguments.get("city") if isinstance(arguments, dict) else None
+    if not isinstance(city, str) or not city.strip():
+        return f"required argument `city` is missing or empty: {arguments!r}"
+    return None
+
+
+def _auth(settings: Settings) -> dict[str, str]:
+    return {"Authorization": f"Bearer {settings.llm_api_key or 'EMPTY'}"}
 
 
 def exit_code(results: list[CheckResult]) -> int:
@@ -94,7 +120,7 @@ def _with_timeout(fn: Callable[[], Any], seconds: float) -> Any:
 # --- LLM -----------------------------------------------------------------------------------------------
 def check_models(settings: Settings, http: httpx.Client) -> CheckResult:
     name = "llm.models"
-    r = http.get(f"{settings.llm_base_url.rstrip('/')}/models")
+    r = http.get(f"{settings.llm_base_url.rstrip('/')}/models", headers=_auth(settings))
     if r.status_code != 200:
         return CheckResult(name, "FAIL", f"GET /models answered HTTP {r.status_code}")
     served = [m.get("id") for m in r.json().get("data", [])]
@@ -113,8 +139,7 @@ def check_tool_calling(settings: Settings, http: httpx.Client) -> CheckResult:
         "temperature": 0,
         "max_tokens": 128,
     }
-    headers = {"Authorization": f"Bearer {settings.llm_api_key or 'EMPTY'}"}
-    r = http.post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", json=body, headers=headers)
+    r = http.post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", json=body, headers=_auth(settings))
     if r.status_code == 400 and "tool" in r.text.lower():
         return CheckResult(name, "FAIL", f"HTTP 400, the endpoint rejects `tools`; {TOOLS_HINT}. "
                                          f"Answer: {r.text[:200]}")
@@ -126,6 +151,11 @@ def check_tool_calling(settings: Settings, http: httpx.Client) -> CheckResult:
         text = (choice.get("message", {}).get("content") or "")[:120]
         return CheckResult(name, "FAIL", f"no tool_calls in the answer (finish_reason={choice.get('finish_reason')}, "
                                          f"text={text!r}); check --tool-call-parser matches the model (hermes for Granite)")
+    fn = calls[0]["function"]
+    if fn["name"] != WEATHER.name:
+        return CheckResult(name, "FAIL", f"called {fn['name']!r} instead of {WEATHER.name!r}")
+    if problem := _city_problem(fn.get("arguments")):
+        return CheckResult(name, "FAIL", f"tool call {fn['name']}: {problem}")
     return CheckResult(name, "PASS", f"tool_calls: {calls[0]['function']['name']}({calls[0]['function']['arguments']}), "
                                      f"finish_reason={choice.get('finish_reason')}")
 
@@ -140,6 +170,8 @@ def check_fallback(settings: Settings, llm_factory: Callable[[Settings], LLM], n
         return CheckResult(name, bad, f"{type(e).__name__}: {e}")
     if not out.tool_calls or out.tool_calls[0].name != WEATHER.name:
         return CheckResult(name, bad, f"JSON-in-text answer did not parse into a tool call: {(out.content or '')[:120]!r}")
+    if problem := _city_problem(out.tool_calls[0].arguments):
+        return CheckResult(name, bad, f"JSON-in-text call {WEATHER.name}: {problem}")
     return CheckResult(name, "PASS", f"JSON-in-text call parsed: {out.tool_calls[0].name}({out.tool_calls[0].arguments})")
 
 
@@ -147,9 +179,9 @@ def llm_http_client(settings: Settings, timeout: float = LLM_TIMEOUT) -> httpx.C
     return httpx.Client(verify=tls_verify_setting(settings.llm_verify_tls), timeout=timeout)
 
 
-def fallback_llm(settings: Settings) -> LLM:
+def fallback_llm(settings: Settings, timeout: float = LLM_TIMEOUT) -> LLM:
     """The production client forced onto the JSON-in-text path (the one T041 uses when `tools` are rejected)."""
-    llm = OpenAICompatLLM(settings.llm_base_url, settings.llm_model, settings.llm_api_key, timeout=LLM_TIMEOUT,
+    llm = OpenAICompatLLM(settings.llm_base_url, settings.llm_model, settings.llm_api_key, timeout=timeout,
                           verify_tls=settings.llm_verify_tls)
     llm._tools_ok = False  # noqa: SLF001 - same package family; there is no public switch for this
     return llm
@@ -245,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
             toolbox=McpToolBox({k: v for k, v in urls.items() if v}),
             llm_http=llm_http,
             http=http,
-            llm_factory=fallback_llm,
+            llm_factory=lambda s: fallback_llm(s, args.llm_timeout),
             count_transactions=lambda: count_transactions_in_db(settings.database_url),
             mlflow_uri=os.environ.get("MLFLOW_TRACKING_URI", ""),
         )

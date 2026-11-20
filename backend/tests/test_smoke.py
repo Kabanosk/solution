@@ -14,7 +14,7 @@ import pytest
 from cfo import smoke
 from cfo.agent.tools import COMPANY_DB, HR, WORKSTATIONS, InProcessToolBox, McpToolBox, ToolError
 from cfo.config import Settings
-from cfo.llm import FakeLLM, LLMResponse, ToolCall
+from cfo.llm import FakeLLM, LLMResponse, OpenAICompatLLM, ToolCall
 
 SETTINGS = Settings(llm_base_url="http://llm.test:8080/v1", llm_model="granite", llm_verify_tls="true")
 URLS = {COMPANY_DB: "http://mcp-company-db:8001/mcp", HR: "http://mcp-hr:8003/mcp",
@@ -79,7 +79,8 @@ def toolbox(**overrides):
     return InProcessToolBox(**parts)
 
 
-def llm_server(*, models=("granite",), tool_status=200, tool_calls=True, tool_error="", seen=None):
+def llm_server(*, models=("granite",), tool_status=200, tool_calls=True, tool_error="", seen=None,
+               arguments='{"city": "Warsaw"}'):
     """httpx MockTransport standing in for the vLLM endpoint."""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -93,7 +94,7 @@ def llm_server(*, models=("granite",), tool_status=200, tool_calls=True, tool_er
         message = {"role": "assistant", "content": None if tool_calls else "It is sunny."}
         if tool_calls:
             message["tool_calls"] = [{"id": "c1", "type": "function",
-                                      "function": {"name": "get_weather", "arguments": '{"city": "Warsaw"}'}}]
+                                      "function": {"name": "get_weather", "arguments": arguments}}]
         return httpx.Response(200, json={"choices": [{"message": message,
                                                       "finish_reason": "tool_calls" if tool_calls else "stop"}]})
 
@@ -104,10 +105,11 @@ def mlflow_server(status=200):
     return httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, text="OK")))
 
 
-def fallback_llm(works=True):
+def fallback_llm(works=True, arguments=None):
     def factory(settings):
         if works:
-            return FakeLLM([LLMResponse(tool_calls=[ToolCall(id="t", name="get_weather", arguments={"city": "Warsaw"})])])
+            args = {"city": "Warsaw"} if arguments is None else arguments
+            return FakeLLM([LLMResponse(tool_calls=[ToolCall(id="t", name="get_weather", arguments=args)])])
         return FakeLLM(["I cannot say."])
 
     return factory
@@ -189,6 +191,50 @@ def test_fallback_failure_fails_when_native_tool_calling_is_down_too():
 def test_fallback_that_works_is_reported_even_when_native_calling_fails():
     results = by_name(run(llm_http=llm_server(tool_status=400, tool_error="tools")))
     assert results["llm.fallback"].status == "PASS"
+
+
+@pytest.mark.parametrize("arguments", ["{}", '{"city": ""}', '{"city": "  "}', "not json", "[]", '{"town": "Warsaw"}'])
+def test_native_tool_call_without_a_city_argument_fails(arguments):
+    r = by_name(run(llm_http=llm_server(arguments=arguments)))["llm.tool_calling"]
+    assert r.status == "FAIL" and "city" in r.detail
+
+
+@pytest.mark.parametrize("arguments", [{}, {"city": ""}, {"city": 3}])
+def test_fallback_tool_call_without_a_city_argument_fails(arguments):
+    r = by_name(run(llm_factory=fallback_llm(arguments=arguments)))["llm.fallback"]
+    assert r.status == "WARN" and "city" in r.detail
+
+
+def test_models_request_sends_the_api_key():
+    seen: list[httpx.Request] = []
+    run(llm_http=llm_server(seen=seen))
+    assert seen[0].headers["authorization"] == "Bearer EMPTY" == seen[1].headers["authorization"]
+    custom = Settings(llm_base_url=SETTINGS.llm_base_url, llm_model="granite", llm_api_key="sekret")
+    seen.clear()
+    smoke.run_smoke(custom, urls=URLS, toolbox=toolbox(), llm_http=llm_server(seen=seen), http=mlflow_server(),
+                    llm_factory=fallback_llm(), count_transactions=lambda: 1, mlflow_uri="")
+    assert [r.headers["authorization"] for r in seen] == ["Bearer sekret"] * 2
+
+
+def test_details_are_one_short_line():
+    r = smoke.CheckResult("x", "FAIL", "line one\nline two\r\n" + "y" * 500)
+    out = smoke.render([r])
+    assert "\n" not in out and "\r" not in out and len(out) < 260
+    assert len(smoke.render(run(llm_http=llm_server(tool_status=400, tool_error="tool\n" * 300)))
+               .splitlines()) == len(run())
+
+
+def test_llm_timeout_bounds_the_fallback_client(monkeypatch):
+    seen = {}
+
+    class Spy(OpenAICompatLLM):
+        def __init__(self, *a, timeout, **kw):
+            seen["timeout"] = timeout
+            super().__init__(*a, timeout=timeout, **kw)
+
+    monkeypatch.setattr(smoke, "OpenAICompatLLM", Spy)
+    assert smoke.fallback_llm(SETTINGS, 7.5)._tools_ok is False
+    assert seen["timeout"] == 7.5
 
 
 # --- MCP -----------------------------------------------------------------------------------------------

@@ -33,6 +33,7 @@ spec:
             - name: PGDATABASE
               valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
             - {name: CFO_API_URL, value: "http://api:8000"}
+            - {name: LLM_CHAT_BASE_URL, value: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1"}
           envFrom:
             - secretRef: {name: dashboard-auth}
           resources:

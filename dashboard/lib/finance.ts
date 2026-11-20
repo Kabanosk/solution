@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { Pool } from "pg";
 import { authorized } from "./auth";
 import { isDevelopmentPreview } from "./development-preview";
-import { decimalCents, displayCents, financePeriod, type DashboardData, type Decision, type Forecast } from "./finance-model";
+import { decimalCents, displayCents, financePeriod, type DashboardData, type Forecast } from "./finance-model";
+import { jobFromDecision, parseJobLog, type DecisionJobRecord, type JobLogEntry } from "./agent-jobs";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
 let pool: Pool | undefined;
@@ -37,6 +38,17 @@ async function forecast(): Promise<Forecast | null> {
   } catch {
     // Forecast availability must not hide the actual bank records.
     return null;
+  }
+}
+
+export async function getJobLog(id: string): Promise<JobLogEntry[] | null> {
+  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewJobLog(id);
+  try {
+    const result = await database().query("SELECT payload->'job_log' AS job_log FROM decisions WHERE id = $1", [id]);
+    return result.rows.length ? parseJobLog(result.rows[0].job_log) : null;
+  } catch {
+    throw new Error("Job log is temporarily unavailable");
   }
 }
 
@@ -90,10 +102,29 @@ export async function getDashboardData(): Promise<DashboardData> {
         AND date_trunc('month', booking_date) = (SELECT date_trunc('month', max(booking_date)) FROM transactions WHERE category = 'payroll')
       GROUP BY category`)).rows;
     const pendingApprovals = Number((await client.query("SELECT count(*)::text AS count FROM approval_requests WHERE status = 'pending'")).rows[0].count);
-    const decisions = (await client.query<Decision>(`SELECT id,
-      to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts,
-      summary, reason, level, status, executed_simulated
-      FROM decisions ORDER BY ts DESC, id DESC LIMIT 50`)).rows;
+    const records = (await client.query<DecisionJobRecord>(`
+      SELECT d.id, to_char(d.ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts,
+        d.summary, d.reason, d.level, d.status, d.executed_simulated, d.action_type, d.actor,
+        a.approval, u.usage
+      FROM (SELECT * FROM decisions ORDER BY ts DESC, id DESC LIMIT 50) d
+      LEFT JOIN LATERAL (
+        SELECT jsonb_build_object('id', id, 'status', status, 'approver', approver_id, 'question', question,
+          'createdAt', to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+          'resolvedAt', to_char(resolved_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS approval
+        FROM approval_requests WHERE decision_id = d.id ORDER BY created_at DESC, id DESC LIMIT 1
+      ) a ON true
+      LEFT JOIN LATERAL (
+        SELECT jsonb_build_object('calls', count(*), 'failedCalls', count(*) FILTER (WHERE NOT u.success),
+          'latencyMs', coalesce(sum(u.latency_ms), 0),
+          'tokens', coalesce(sum(u.prompt_tokens::bigint + u.completion_tokens::bigint), 0),
+          'estimated', coalesce(bool_or(u.estimated), false),
+          'events', coalesce(jsonb_agg(DISTINCT jsonb_build_object('id', u.event_id, 'kind', e.kind))
+            FILTER (WHERE u.event_id IS NOT NULL), '[]'::jsonb)) AS usage
+        FROM llm_usage u LEFT JOIN events e ON e.id = u.event_id WHERE u.decision_id = d.id
+      ) u ON true
+      ORDER BY d.ts DESC, d.id DESC`)).rows;
+    const decisions = records.map(({ id, ts, summary, reason, level, status, executed_simulated }) =>
+      ({ id, ts, summary, reason, level, status, executed_simulated }));
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -101,7 +132,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       closingBalance: displayCents(summary.balance), employees,
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
-      undocumentedPayments: Number(summary.undocumented), pendingApprovals, decisions,
+      undocumentedPayments: Number(summary.undocumented), pendingApprovals, decisions, jobs: records.map(jobFromDecision),
     };
   } catch {
     await client.query("ROLLBACK").catch(() => {});

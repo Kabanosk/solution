@@ -236,6 +236,28 @@ class Repository:
     def add_decision(self, dec: Decision) -> None:
         self._write("decisions", dec.model_dump(mode="json"))
 
+    def merge_decision_job_log(self, decision_ids: list[str], entries: list[dict[str, str]]) -> None:
+        """Merge checkpoint entries atomically, retaining failures outside a checkpoint.
+
+        Each emitted entry has a stable ID. Replayed snapshots therefore do not
+        duplicate earlier entries, while genuinely repeated actions stay distinct.
+        """
+        self.conn.execute(
+            """UPDATE decisions d SET payload = jsonb_set(d.payload, '{job_log}', (
+                SELECT coalesce(jsonb_agg(entry ORDER BY first_seen), '[]'::jsonb)
+                FROM (
+                    SELECT entry, min(position) AS first_seen
+                    FROM jsonb_array_elements(
+                        CASE WHEN jsonb_typeof(d.payload->'job_log') = 'array'
+                            THEN d.payload->'job_log' ELSE '[]'::jsonb END || %s::jsonb
+                    ) WITH ORDINALITY AS history(entry, position)
+                    GROUP BY entry ORDER BY min(position) DESC LIMIT 500
+                ) bounded
+            ), true) WHERE d.id = ANY(%s)""",
+            (Jsonb(entries), decision_ids),
+        )
+        self.conn.commit()
+
     def list_decisions(self, limit: int = 100) -> list[Decision]:
         return [Decision(**r) for r in self._all("SELECT * FROM decisions ORDER BY ts DESC LIMIT %s", (limit,))]
 

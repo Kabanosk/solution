@@ -27,6 +27,10 @@ def _num(v: Any) -> float | None:
     return None if v is None else float(v)
 
 
+def _round(v: float | None) -> float | None:
+    return None if v is None else round(v, 3)
+
+
 # --- cluster deltas from the sampled counters --------------------------------------------------------------
 
 
@@ -103,8 +107,8 @@ def _bucket(row: dict[str, Any], *, key: str, bucket_start: datetime | None, rat
         "estimated_requests": row["estimated_requests"],
         "prompt_tokens": row["prompt_tokens"],
         "completion_tokens": row["completion_tokens"],
-        "latency_p50_ms": _num(row["p50_ms"]),
-        "latency_p95_ms": _num(row["p95_ms"]),
+        "latency_p50_ms": _round(_num(row["p50_ms"])),
+        "latency_p95_ms": _round(_num(row["p95_ms"])),
         "busy_seconds": float(row["busy_seconds"]),
         "cost_busy_time": money(busy),
         "cost_amortized": money(amortized),

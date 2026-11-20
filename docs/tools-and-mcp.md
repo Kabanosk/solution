@@ -75,4 +75,4 @@ Native tool calling needs the server flags
 `tools`; `OpenAICompatLLM` then remembers it, stops sending `tools` and asks for one JSON object in plain text
 (`{"name": ..., "arguments": {...}}`), which is parsed back into a tool call. The chat loop works on both paths, but
 the native path is more reliable. The LLM endpoint may be a proxy; the code only sees an OpenAI-compatible URL
-(`LLM_BASE_URL`). `cfo smoke` checks tool calling against the real endpoint.
+(`LLM_BASE_URL`).

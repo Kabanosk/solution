@@ -24,8 +24,13 @@ RESET_TABLES = ["access_log", "approval_requests", "decisions", "rules", "events
 
 
 def reset(repo: Repository) -> None:
-    repo.conn.execute(f"TRUNCATE {', '.join(RESET_TABLES)} CASCADE")
-    repo.conn.commit()
+    """Empty all demo tables, including the simulator cursor (`sim_state`, created by the simulator on first use),
+    so a reseed replays December from the start. Commits unless called inside `repo.transaction()`."""
+    tables = list(RESET_TABLES)
+    if repo.conn.execute("SELECT to_regclass('sim_state') AS t").fetchone()["t"]:
+        tables.append("sim_state")
+    with repo.transaction():
+        repo.conn.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -46,7 +51,21 @@ def _in_manager_order(employees: list) -> list:
 
 
 def seed(repo: Repository, data_dir: Path) -> dict[str, int]:
-    """Load history into the database. Idempotent (upserts); use `reset` first for a clean demo state."""
+    """Load history into the database in one transaction (all or nothing). Idempotent (upserts); use `load`
+    with `reset_first` for a clean demo state."""
+    with repo.transaction():
+        return _seed(repo, data_dir)
+
+
+def load(repo: Repository, data_dir: Path, *, reset_first: bool = False) -> dict[str, int]:
+    """`reset` (optional) and `seed` in ONE transaction: a failing load leaves the previous data untouched."""
+    with repo.transaction():
+        if reset_first:
+            reset(repo)
+        return seed(repo, data_dir)
+
+
+def _seed(repo: Repository, data_dir: Path) -> dict[str, int]:
     for team in json.loads((data_dir / "teams.json").read_text(encoding="utf-8")):
         repo.add_team(Team(**team))
     employees = parse_hr_csv((data_dir / "hr" / "hr.csv").read_text(encoding="utf-8"))
@@ -100,9 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     apply_schema(get_settings().database_url)
     with Repository.connect() as repo:
-        if args.reset:
-            reset(repo)
-        counts = seed(repo, args.data)
+        counts = load(repo, args.data, reset_first=args.reset)
     print("seeded:", ", ".join(f"{k}={v}" for k, v in counts.items()))
     return 0
 

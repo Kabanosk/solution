@@ -14,5 +14,14 @@
     "protected": {}
   },
   "frozen_at": "2026-11-20T14:24:49+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/backend\nUninstalled 1 package in 1ms\nInstalled 47 packages in 347ms",
+      "ran_at": "2026-11-20T15:32:02+01:00",
+      "commit": "ed38f390653725905f5150af6e35eb423034de88"
+    }
+  }
 }

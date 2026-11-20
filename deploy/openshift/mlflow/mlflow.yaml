@@ -1,0 +1,72 @@
+# Self-hosted MLflow tracking server. Fallback for / alternative to the RHOAI-managed MLflow
+# (see deploy/openshift/mlflow/README.md). Backend store: SQLite on the PVC (no extra Postgres setup);
+# artifacts are proxied by the server (--serve-artifacts), so clients only need the HTTP URL.
+# In-cluster tracking URI: http://mlflow:5000 (set as MLFLOW_TRACKING_URI in ConfigMap cfo-config).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  labels: {app: mlflow, app.kubernetes.io/component: mlflow}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # RWO volume + SQLite: never two writers
+  selector: {matchLabels: {app: mlflow}}
+  template:
+    metadata: {labels: {app: mlflow, app.kubernetes.io/component: mlflow}}
+    spec:
+      containers:
+        - name: mlflow
+          # Pinned: the same server version Red Hat ships in OpenShift AI 3.4. Tag verified on ghcr.io.
+          image: ghcr.io/mlflow/mlflow:v3.10.1
+          command: [mlflow, server]
+          args:
+            - --host=0.0.0.0
+            - --port=5000
+            - --backend-store-uri=sqlite:////mlflow/mlflow.db
+            - --artifacts-destination=/mlflow/artifacts
+            - --serve-artifacts
+            # Host header check (MLflow >= 3.5 security middleware): service names, in-cluster FQDNs and the
+            # default Route host (mlflow-<namespace>.apps.<cluster>). If you give the Route a custom host, add it here.
+            - --allowed-hosts=mlflow,mlflow:5000,mlflow.cfo-agent-uwur.svc,mlflow.cfo-agent-uwur.svc:5000,mlflow.cfo-agent-uwur.svc.cluster.local,mlflow.cfo-agent-uwur.svc.cluster.local:5000,mlflow-cfo-agent-uwur.*,localhost:*,127.0.0.1:*
+            - --cors-allowed-origins=*
+          env:
+            - {name: HOME, value: /tmp}   # random UID on OpenShift: HOME must be writable
+          ports: [{name: http, containerPort: 5000}]
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 1Gi}
+          readinessProbe:
+            httpGet: {path: /health, port: 5000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 5000}
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - {name: data, mountPath: /mlflow}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: mlflow-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+  labels: {app: mlflow}
+spec:
+  selector: {app: mlflow}
+  ports: [{name: http, port: 5000, targetPort: 5000}]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mlflow
+  labels: {app: mlflow}
+spec:
+  to: {kind: Service, name: mlflow}
+  port: {targetPort: http}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

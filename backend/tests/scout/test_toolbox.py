@@ -99,3 +99,13 @@ def test_repair_broken_small_model_json():
 
 def test_slack_markdown():
     assert chat.slack_markdown("You have **€31,016.31**\n### Summary") == "You have *€31,016.31*\n*Summary*"
+
+
+def test_empty_arguments_use_the_question(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    run_txn(ctx, pay(ctx, "files"))
+    t = ctx.recorder.open("dm:q", "chat", "q")
+    b = Toolbox(ctx, "vincenzo", "ceo", t, question="Did we get the Asimex invoice AS-77012?")
+    rows = b.call("search_invoices", {})["rows"]
+    assert [(r["number"], r["linked_to_payment"]) for r in rows] == [("AS-77012", "True")]
+    assert Toolbox(ctx, "vincenzo", "ceo", t, question="hi").call("search_invoices", {})["error"] == "missing_arguments"

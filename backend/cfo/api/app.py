@@ -15,6 +15,7 @@ from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
 from cfo.observability import init_tracing
 from scout.api import router as scout_router
+from scout.chat_api import router as scout_chat_router
 
 VERSION = "0.1.0"
 
@@ -37,6 +38,7 @@ TAGS = [
     {"name": "audit", "description": "Every connector read, DM and access decision."},
     {"name": "connections", "description": "Systems Scout reads (bank, mail, files, Slack) and their status."},
     {"name": "demo", "description": "Demo triggers (bank mock payments)."},
+    {"name": "chat", "description": "Ask Scout in the dashboard (tools, streamed steps)."},
     {"name": "llm-usage", "description": "What the LLM costs: usage per call and the vLLM server's load."},
     {"name": "system", "description": "Liveness."},
 ]
@@ -63,6 +65,7 @@ def create_app() -> FastAPI:
     for module in (kpis, forecast, costs, cost_metrics, llm_usage):
         app.include_router(module.router)
     app.include_router(scout_router)
+    app.include_router(scout_chat_router)
 
     @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")
     def healthz() -> Health:

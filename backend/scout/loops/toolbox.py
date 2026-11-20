@@ -19,7 +19,7 @@ from typing import Any
 from cfo.llm import ToolSpec
 from scout.audit import check as access_check
 from scout.documents import document_text
-from scout.loops.context import JobContext, eur
+from scout.loops.context import JobContext, eur, invoice_number_in
 from scout.models import Task
 
 MAX_ROWS = 10
@@ -105,8 +105,13 @@ def _rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 class Toolbox:
     """The tools, bound to one asker and one task (for the audit log and the step log)."""
 
-    def __init__(self, ctx: JobContext, requester: str, role: str, task: Task):
+    def __init__(self, ctx: JobContext, requester: str, role: str, task: Task, question: str = ""):
         self.ctx, self.requester, self.role, self.task = ctx, requester, role, task
+        self.question = question
+
+    def _from_question(self) -> str | None:
+        """Small models often call a search with empty arguments: use the invoice number the user named."""
+        return invoice_number_in(self.question)
 
     # -- helpers -------------------------------------------------------------------------------------------
     def _person(self, name: str | None) -> str | None:
@@ -176,7 +181,11 @@ class Toolbox:
         ok, policy = self._allowed("invoicing", "invoices")
         if not ok:
             return {"error": "access_denied", "policy": policy}
-        sql, a = "SELECT number, supplier, issue_date, total, transaction_id FROM invoices WHERE TRUE", []
+        number = number or ("" if supplier else (self._from_question() or ""))
+        if not number and not supplier:
+            return {"error": "missing_arguments", "hint": "Call again with number (e.g. AS-77012) or supplier."}
+        sql, a = ("SELECT number, supplier, issue_date, total, transaction_id IS NOT NULL AS linked_to_payment "
+                  "FROM invoices WHERE TRUE"), []
         if number:
             sql += " AND upper(number) = upper(%s)"
             a.append(number)
@@ -245,7 +254,8 @@ class Toolbox:
         ok, policy = self._allowed(f"laptop:{who}", "company folders")
         if not ok:
             return {"error": "access_denied", "policy": policy, "person": self.ctx.hr.name(who)}
-        terms = [w for w in (words or "").replace(",", " ").split() if len(w) >= 3][:4] or ["pdf"]
+        terms = [w for w in (words or "").replace(",", " ").split() if len(w) >= 3][:4] or \
+            [t for t in [self._from_question()] if t] or ["pdf"]
         files = self.ctx.connectors.files.search(who, terms, task_id=self.task.id)
         return {"person": self.ctx.hr.name(who), "files": [f["path"] for f in files[:MAX_ROWS]]}
 
@@ -269,7 +279,9 @@ class Toolbox:
         mail = self.ctx.connectors.mail
         if not mail.available():
             return {"error": "email_not_connected"}
-        terms = [w for w in (words or "").split() if len(w) >= 3][:4]
+        terms = [w for w in (words or "").split() if len(w) >= 3][:4] or [t for t in [self._from_question()] if t]
+        if not terms:
+            return {"error": "missing_arguments", "hint": "Call again with words (supplier or invoice number)."}
         hits = mail.search(terms, self.ctx.now() - timedelta(days=min(int(days or 30), 365)), task_id=self.task.id)
         return {"mails": [{"from": h.sender, "subject": h.subject, "date": str(h.date)[:10] if h.date else None,
                            "attachments": h.attachments, "snippet": (h.snippet or h.body)[:200]}
@@ -278,7 +290,8 @@ class Toolbox:
     def t_search_chat(self, supplier: str = "", invoice_number: str = "", amount_eur: Any = None, days: int = 30,
                       **_: Any) -> dict[str, Any]:
         hits = self.ctx.connectors.chat.search(
-            since=self.ctx.now() - timedelta(days=min(int(days or 30), 90)), invoice_number=invoice_number or None,
+            since=self.ctx.now() - timedelta(days=min(int(days or 30), 90)),
+            invoice_number=invoice_number or (None if supplier or amount_eur else self._from_question()),
             supplier=supplier or None, amount=_num(amount_eur), task_id=self.task.id)
         return {"messages": [{"channel": f"#{h.channel}", "from": h.user_name or h.user, "text": h.text[:300]}
                              for h in hits[:MAX_ROWS]]}

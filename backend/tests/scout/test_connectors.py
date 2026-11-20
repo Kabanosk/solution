@@ -135,6 +135,7 @@ def test_gmail_query_and_label():
     assert '"AS-77001"' in svc.list_kwargs["q"] and "after:" in svc.list_kwargs["q"]
     assert svc.list_kwargs["labelIds"] == ["Label_7"]
     assert hit.subject == "Invoice AS-77001" and hit.attachments == ["AS-77001.pdf"]
+    assert GmailMail(None, None, service=FakeGmail()).query([], NOW).startswith("after:")  # no words: newest mails
 
 
 @pytest.mark.parametrize("text", ["refund of 1,250.00 EUR", "refund 1.250,00 €", "1250,00", "€1250", "1250 EUR"])

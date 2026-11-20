@@ -19,9 +19,9 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "...........................................................              [100%]\n59 passed, 1 skipped in 9.65s",
-      "ran_at": "2026-11-20T16:03:35+01:00",
-      "commit": "a00d49ff1982ca4750a3764e7609caab8a981bbc"
+      "output_tail": "......................................................................   [100%]\n=============================== warnings summary ===============================\ntests/test_forecast_registry.py::test_logging_returns_the_run_id_and_stores_the_sidecar\n  /home/wojciech.fiolka/house/contests/collabothon-2026/backend/.venv/lib/python3.12/site-packages/mlflow/store/tracking/sqlalchemy_store.py:356: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)\n    sqlalchemy.orm.configure_mappers()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n70 passed, 1 warning in 22.26s",
+      "ran_at": "2026-11-20T16:22:20+01:00",
+      "commit": "067b9c59b0c3d2187d6b77d8670f2efc24d8c3c3"
     }
   }
 }

@@ -4,6 +4,8 @@
 node_modules/
 __pycache__/
 .venv/
+dashboard/target/
+dashboard/dist/
 
 # Confidential inputs must stay outside version control.
 *.csv

@@ -40,6 +40,9 @@ Fix the agent findings of the Codex review; each fix gets a failing test first i
 - Starts after T011 (cfo.run, in-API agent) and T027 (tracing in graph.py) are merged: rebase on main first and
   keep their behaviour. Source reviews: `$HOUSE_DIR/reports/review-T003.md`, `review-T005.md`, `review-T007.md`,
   `review-T016.md`, `review-T001.md`. Confirm each finding at HEAD; report the ones that are wrong.
+- From T044: `cost_metrics` now flags a cost rising from 0, and then `cost_change_pct` is `Decimal("Infinity")`;
+  `cfo/agent/investigate.py` turns it into `float('inf')` in the facts. Map it to None / "new cost" in the alert
+  text and facts (test it).
 
 ## Out of scope
 Slack transport (T043), API (T046), data loader (T040).

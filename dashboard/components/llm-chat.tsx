@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
-import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
+import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, newConversationId, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -20,6 +20,8 @@ export function LlmChat({ active }: { active: boolean }) {
   const [copied, setCopied] = useState<string | null>(null);
   const [following, setFollowing] = useState(true);
   const [truncated, setTruncated] = useState(false);
+  const conversation = useRef(newConversationId());
+  const latestTaskTurn = [...messages].reverse().find(turn => turn.taskId)?.id;  // the chat's task, linked once
   const request = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -49,7 +51,7 @@ export function LlmChat({ active }: { active: boolean }) {
     const request_ = requestFor(history);
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: request_.messages }), signal: controller.signal });
+        body: JSON.stringify({ model, messages: request_.messages, conversationId: conversation.current }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         if (typeof body?.error === "string") failure = body.error;
@@ -94,6 +96,7 @@ export function LlmChat({ active }: { active: boolean }) {
 
   function newChat() {
     request.current?.abort(); request.current = null;
+    conversation.current = newConversationId();
     setMessages([]); setDraft(""); setBusy(false); setError(null); setNotice(""); setCopied(null); setTruncated(false);
     follow.current = true; setFollowing(true);
     input.current?.focus({ preventScroll: true });
@@ -164,7 +167,7 @@ export function LlmChat({ active }: { active: boolean }) {
                   : <span className="text-sm text-muted-foreground">No response received.</span>}
                 {(turn.taskId || (turn.content && turn.status !== "pending")) && <div className="flex items-center gap-1">
                   {turn.content && turn.status !== "pending" && <Button variant="ghost" size="sm" aria-label="Copy response" className="h-7 px-2 text-muted-foreground" onClick={() => void copy(turn)}>{copied === turn.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}</Button>}
-                  {turn.taskId && <Link href={`/#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
+                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`/#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
                 </div>}
               </div>
             </li>)}

@@ -58,7 +58,12 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
 
 export class ChatInputError extends Error {}
 
-export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[] } {
+const CONVERSATION_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** One dashboard conversation = one Scout chat task; "New chat" starts a new id. */
+export function newConversationId(): string { return crypto.randomUUID().replace(/-/g, ""); }
+
+export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[]; conversationId?: string } {
   if (!value || typeof value !== "object") throw new ChatInputError("Invalid chat request.");
   const row = value as Record<string, unknown>;
   if (!CHAT_MODELS.some(model => model.id === row.model)) throw new ChatInputError("Select an available model.");
@@ -78,7 +83,9 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
   });
   if (length > MAX_CONVERSATION_LENGTH) throw new ChatInputError("This conversation is too long. Start a new chat.");
   if (messages.at(-1)?.role !== "user") throw new ChatInputError("Write a message to continue.");
-  return { model: row.model as string, messages };
+  if (row.conversationId !== undefined && (typeof row.conversationId !== "string" || !CONVERSATION_ID.test(row.conversationId)))
+    throw new ChatInputError("Invalid conversation. Start a new chat.");
+  return row.conversationId ? { model: row.model as string, messages, conversationId: row.conversationId } : { model: row.model as string, messages };
 }
 
 // Unanswered/failed exchanges remain visible but do not become invented model

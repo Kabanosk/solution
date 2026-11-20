@@ -22,5 +22,22 @@
     "protected": {}
   },
   "frozen_at": "2026-11-20T14:24:51+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "",
+      "ran_at": "2026-11-20T22:34:58+01:00",
+      "commit": "82daef4b6c23a636cd7e0241a8d36a6629ae764f"
+    },
+    "AC-2": {
+      "id": "AC-2",
+      "passes": true,
+      "exit": null,
+      "output_tail": "evidence: /home/wojciech.fiolka/house/contests/collabothon-2026/.house/reports/T025.md",
+      "ran_at": "2026-11-20T22:35:06+01:00",
+      "commit": null
+    }
+  }
 }

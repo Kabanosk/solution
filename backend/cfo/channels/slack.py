@@ -6,9 +6,12 @@
   buttons are replaced by "Approved/Rejected by <name>". If the handler raises, the buttons stay (retry possible).
 * Direct messages and app mentions from known employees go to the chat handler; the reply is posted back,
   labelled too. Messages from bots, edits and strangers never reach the agent.
+* The answer to an `app_mention` in a channel is never posted in the channel: it goes to the asker as a DM and
+  the channel only gets an ephemeral "answered you in DM" that nobody else sees (financial data stays private).
+* Every message the bot sends, including the ephemeral error / refusal notes, starts with a level label.
 
-Employee <-> Slack user id: `Employee.slack_user_id`, overridden per employee by `SLACK_USER_MAP`
-(`vincenzo=U01ABC,grazyna=U02DEF`).
+Employee <-> Slack user id: `Employee.slack_user_id` (set in the database or in code; the HR CSV `slack_id`
+column is not read), overridden per employee by `SLACK_USER_MAP` (`vincenzo=U01ABC,grazyna=U02DEF`).
 """
 
 from __future__ import annotations
@@ -206,7 +209,7 @@ class SlackNotifier:
 
     def _ephemeral(self, channel: str, user: str, text: str) -> None:
         try:
-            self._client.chat_postEphemeral(channel=channel, user=user, text=text)
+            self._client.chat_postEphemeral(channel=channel, user=user, text=_label_text(text, PolicyLevel.NOTIFY))
         except Exception:  # noqa: BLE001 - best effort, never mask the original problem
             log.exception("could not send ephemeral message to %s", user)
 
@@ -245,19 +248,20 @@ class SlackNotifier:
     def _on_message(self, event: dict[str, Any]) -> None:
         if event.get("channel_type") != "im" or event.get("subtype") or event.get("bot_id"):
             return
-        self._route_chat(event, text=event.get("text", ""), thread_ts=None)
+        self._route_chat(event, text=event.get("text", ""), thread_ts=None, private=False)
 
     def _on_mention(self, event: dict[str, Any]) -> None:
         if event.get("bot_id"):
             return
         text = _MENTION.sub("", event.get("text", "")).strip()
-        self._route_chat(event, text=text, thread_ts=event.get("thread_ts") or event["ts"])
+        self._route_chat(event, text=text, thread_ts=event.get("thread_ts") or event["ts"], private=True)
 
-    def _route_chat(self, event: dict[str, Any], *, text: str, thread_ts: str | None) -> None:
+    def _route_chat(self, event: dict[str, Any], *, text: str, thread_ts: str | None, private: bool) -> None:
+        """`private`: the event happened in a shared channel, so the answer goes to the asker's DM."""
         channel = event["channel"]
         employee = self._by_slack_id.get(event.get("user", ""))
         if employee is None:
-            self._reply(channel, thread_ts, "I only talk to people registered with the CFO agent.", PolicyLevel.NOTIFY)
+            self._notice(event, thread_ts, "I only talk to people registered with the CFO agent.", private)
             return
         if self._chat_handler is None or not text:
             return
@@ -266,13 +270,30 @@ class SlackNotifier:
             reply = self._chat_handler(message)
         except Exception:  # noqa: BLE001
             log.exception("chat handler failed for message from %s", employee.id)
-            self._reply(channel, thread_ts, "Something went wrong on my side. Please try again.", PolicyLevel.NOTIFY)
+            self._notice(event, thread_ts, "Something went wrong on my side. Please try again.", private)
             return
         if reply is None:
             return
         if isinstance(reply, str):
             reply = ChatReply(text=reply)
-        self._reply(channel, thread_ts, reply.text, reply.level)
+        if not private:
+            self._reply(channel, thread_ts, reply.text, reply.level)
+            return
+        asker = event["user"]
+        try:
+            self._reply(asker, None, reply.text, reply.level)  # posting to a user id opens the DM
+        except Exception:  # noqa: BLE001
+            log.exception("could not DM the answer to %s", employee.id)
+            self._ephemeral(channel, asker, "I could not send you a direct message. Please DM me instead.")
+            return
+        self._ephemeral(channel, asker, "I answered you in a DM.")
+
+    def _notice(self, event: dict[str, Any], thread_ts: str | None, text: str, private: bool) -> None:
+        """Refusal / error note: ephemeral (only the asker sees it) in a shared channel, a labelled reply in a DM."""
+        if private:
+            self._ephemeral(event["channel"], event["user"], text)
+        else:
+            self._reply(event["channel"], thread_ts, text, PolicyLevel.NOTIFY)
 
     def _reply(self, channel: str, thread_ts: str | None, text: str, level: Level) -> None:
         self._post(channel, text, level, [_section(text, level)], thread_ts=thread_ts)

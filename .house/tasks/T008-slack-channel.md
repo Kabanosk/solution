@@ -1,7 +1,7 @@
 ---
 id: T008
 title: Slack bot (Socket Mode): DMs, CEO chat, approve/reject
-status: doing
+status: blocked
 owner: coder
 branch: task/T008-slack-channel
 depends_on: ["T001"]

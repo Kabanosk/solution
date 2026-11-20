@@ -71,3 +71,10 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** drobne pierwsze przelewy do nieznanych odbiorców to klasyczny wektor nadużyć; jury to bank. Rozstrzyga niejasność w D-005 zgłoszoną przez T003.
 - **Kto:** coordinator
 - **Data:** 2026-11-20 14:30
+
+## D-012 Zmiana kryteriów T011
+
+- **Decyzja:** nowe kryteria akceptacji T011: AC-1 (run), AC-2 (manual)
+- **Dlaczego:** deps updated after splitting T006/T009/T012 into small tasks
+- **Kto:** coordinator
+- **Data:** 2026-11-20 14:24

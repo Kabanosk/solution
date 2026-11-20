@@ -4,7 +4,7 @@ title: Wire everything: golden path end-to-end
 status: todo
 owner: null
 branch: null
-depends_on: ["T005", "T006", "T007", "T008", "T009", "T010"]
+depends_on: ["T005", "T007", "T008", "T010", "T016", "T019", "T020"]
 capabilities: []
 acceptance:
   - id: AC-1

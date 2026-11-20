@@ -1,0 +1,26 @@
+{
+  "task": "T025",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "test -s docs/deploy.md && grep -q \"oc apply -k\" docs/deploy.md",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "oc apply -k deploy/openshift on the team cluster brings up DB, app, MLflow; app reaches the model; judge records evidence",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T14:24:51+01:00",
+  "results": {}
+}

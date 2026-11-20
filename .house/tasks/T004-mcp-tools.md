@@ -1,7 +1,7 @@
 ---
 id: T004
 title: MCP servers: company DB, workstations, HR
-status: review
+status: done
 owner: coder
 branch: task/T004-mcp-tools
 depends_on: ["T001"]

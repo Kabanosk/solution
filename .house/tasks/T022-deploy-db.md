@@ -1,7 +1,7 @@
 ---
 id: T022
 title: OpenShift: Postgres and seed Job
-status: review
+status: done
 owner: coder
 branch: task/T022-deploy-db
 depends_on: ["T021"]

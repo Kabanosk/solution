@@ -1,9 +1,9 @@
 ---
 id: T002
 title: Synthetic company data consistent with the bank statement
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T002-synthetic-data
 depends_on: ["T001"]
 capabilities: []
 acceptance:

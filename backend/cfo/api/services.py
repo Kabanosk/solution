@@ -6,11 +6,14 @@ bank statement (`transactions`) and the invoices; the forecast comes from `cfo.f
 
 from __future__ import annotations
 
+import logging
 import math
+import os
 import threading
+import time
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -33,6 +36,7 @@ from cfo.api.schemas import (
     eur,
 )
 from cfo.api.settings import get_api_settings
+from cfo.config import get_settings
 from cfo.db.repo import Repository
 from cfo.domain import ApprovalRequest, Decision, Rule
 from cfo.forecast import features as feat
@@ -80,17 +84,101 @@ def safety_buffer(tx: pd.DataFrame) -> Decimal:
 
 # --- forecast -------------------------------------------------------------------------------------------
 
+log = logging.getLogger(__name__)
+
+# How often the registry alias is resolved again: a newly promoted version shows up without a restart.
+MLFLOW_RECHECK_SECONDS = 60.0
+# A request never waits longer than this for MLflow (its HTTP client retries for minutes when the server is down).
+MLFLOW_LOAD_TIMEOUT_SECONDS = 20.0
+
 _model_lock = threading.Lock()
 _model_cache: dict[tuple[str, int], fmodel.ForecastModel] = {}
+_mlflow_cache: dict[str, Any] = {}  # key (model uri, tracking uri), checked_at (monotonic), model or None
+
+
+def reset_forecast_cache() -> None:
+    """Forget the loaded models (tests; or to force a reload)."""
+    with _model_lock:
+        _model_cache.clear()
+        _mlflow_cache.clear()
+
+
+def _within(seconds: float, call: Callable[[], Any]) -> Any:
+    """Result of `call()`, or TimeoutError after `seconds` (the call is left to finish on a daemon thread)."""
+    box: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            box["value"] = call()
+        except BaseException as exc:  # noqa: BLE001 - handed to the caller
+            box["error"] = exc
+
+    worker = threading.Thread(target=run, daemon=True, name="forecast-mlflow")
+    worker.start()
+    worker.join(seconds)
+    if worker.is_alive():
+        raise TimeoutError(f"no answer from MLflow within {seconds:g} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
+
+
+def _mlflow_model() -> fmodel.ForecastModel | None:
+    """The model `FORECAST_MODEL_URI` points to, when that and `MLFLOW_TRACKING_URI` are set; None = use the file.
+
+    The alias is resolved at most every `MLFLOW_RECHECK_SECONDS`; the model is downloaded only when the resolved
+    run or version changed. An MLflow problem is logged as a warning and never raised: the version loaded
+    earlier keeps being served, and before any was loaded the caller falls back to the local model file.
+    A failure is remembered for the same interval, so a dead MLflow costs one timeout a minute, not one per request.
+    Call with `_model_lock` held.
+    """
+    uri, tracking = get_settings().forecast_model_uri, os.environ.get("MLFLOW_TRACKING_URI")
+    if not (uri and tracking):
+        _mlflow_cache.clear()
+        return None
+    key, now = (uri, tracking), time.monotonic()
+    same = _mlflow_cache.get("key") == key
+    if same and now - _mlflow_cache["checked_at"] < MLFLOW_RECHECK_SECONDS:
+        return _mlflow_cache["model"]
+    current: fmodel.ForecastModel | None = _mlflow_cache["model"] if same else None
+
+    def refresh() -> fmodel.ForecastModel:
+        ref = fmodel.resolve_mlflow_model(uri)
+        if current and (current.mlflow_run_id, current.model_version) == (ref.run_id, ref.version):
+            return current
+        return fmodel.ForecastModel.load_from_mlflow(uri)
+
+    try:
+        model = _within(MLFLOW_LOAD_TIMEOUT_SECONDS, refresh)
+        if model is not current:
+            log.info("forecast model %s loaded from MLflow: version %s, run %s", uri, model.model_version,
+                     model.mlflow_run_id)
+    except Exception as exc:  # noqa: BLE001 - MLflow must never break the API
+        model = current
+        log.warning("forecast model %s not loaded from MLflow at %s (%s: %s); using %s", uri, tracking,
+                    type(exc).__name__, str(exc).strip().splitlines()[0] if str(exc).strip() else "",
+                    "the version loaded earlier" if current else "the local model file")
+    _mlflow_cache.update(key=key, checked_at=now, model=model)
+    return model
 
 
 def forecast_model(tx: pd.DataFrame) -> tuple[fmodel.ForecastModel, datetime | None]:
-    """The saved model (memory, then disk), or trained on `tx` and saved on first use. Returns (model, saved at)."""
+    """The model to serve and when it was trained/saved.
+
+    From the MLflow registry when configured (`_mlflow_model`); otherwise the saved model (memory, then disk),
+    trained on `tx` and saved on first use.
+    """
     path = fmodel.default_model_path()
     with _model_lock:
+        registered = _mlflow_model()
+        if registered is not None:
+            return registered, registered.trained_at
         meta = fmodel._meta_path(path)
         if not (path.is_file() and meta.is_file()):
-            fmodel.get_model(tx, path=path)  # trains and saves
+            if _mlflow_cache:  # the registry was asked and gave nothing: do not wait for MLflow a second time
+                fmodel.train(tx, log_to_mlflow=False).save(path)
+            else:
+                fmodel.get_model(tx, path=path)  # trains and saves
         mtime = path.stat().st_mtime_ns
         key = (str(path), mtime)
         if key not in _model_cache:
@@ -154,8 +242,9 @@ def liquidity_forecast(repo: Repository, horizon_days: int, granularity: str) ->
         safety_buffer=eur(buffer),
         lowest_point=point(lowest_day),
         gaps=_gaps(df["balance"], float(buffer)),
-        model=ForecastModelInfo(name=MODEL_NAME, version=f"trained-until-{model.trained_until.date()}",
-                                mlflow_run_id=None, trained_at=saved_at),
+        model=ForecastModelInfo(name=MODEL_NAME,
+                                version=model.model_version or f"trained-until-{model.trained_until.date()}",
+                                mlflow_run_id=model.mlflow_run_id, trained_at=saved_at),
         points=[point(d) for d in sampled],
     )
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
+import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, newConversationId, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
 import { completionEvents } from "../lib/chat-stream.ts";
 
 const model = CHAT_MODELS[0].id;
@@ -135,4 +135,13 @@ test("very long uncompacted chats send only the newest exchanges that fit", () =
   assert.equal(messages[0].role, "user");
   assert.equal(sources.at(-1), "last");
   assert.doesNotThrow(() => parseChatRequest({ model, messages }));
+});
+
+test("a chat request carries its conversation id, and only a well-formed one", () => {
+  const model = CHAT_MODELS[0].id;
+  const user = { role: "user" as const, content: "hi" };
+  assert.deepEqual(parseChatRequest({ model, messages: [user], conversationId: "abc12345def" }),
+    { model, messages: [user], conversationId: "abc12345def" });
+  assert.throws(() => parseChatRequest({ model, messages: [user], conversationId: "bad id!" }), ChatInputError);
+  assert.match(newConversationId(), /^[A-Za-z0-9_-]{8,64}$/);
 });

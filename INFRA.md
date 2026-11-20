@@ -6,7 +6,9 @@ Where else to look, so nothing is written twice:
 - [`docs/cluster-setup.md`](docs/cluster-setup.md): getting `oc`, logging in, the base services (`postgres`,
   `files`), port-forward, the DB password, re-applying `deploy/`. Start there if you are new to the cluster.
 - [`docs/slack-setup.md`](docs/slack-setup.md): Slack app and tokens. [`docs/api.md`](docs/api.md): API endpoints.
-- [`deploy/openshift/app/README.md`](deploy/openshift/app/README.md): app manifests, LLM endpoint, secrets. `docs/deploy.md` (T025, planned).
+- [`deploy/openshift/app/README.md`](deploy/openshift/app/README.md): app manifests, LLM endpoint, secrets.
+- [`docs/deploy.md`](docs/deploy.md): deploy order from an empty project (OpenShift for Kubernetes people), the
+  Granite model arguments, updating and rollback.
 
 Keep this file short and current: when you change infra, update the table it touches.
 
@@ -18,14 +20,16 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 |---|---|---|---|
 | Postgres 16 | `docker compose up -d db` | Deployment `postgres`, svc `postgres:5432`, PVC `postgres-data` (5Gi), Secret `postgres` | ✅ |
 | Sample data (organizer CSV etc.) | `data/` (git-ignored) | Deployment `files`, svc `http://files:8080` (read-only), PVC `sample-data` | ✅ |
-| Backend image | `Containerfile` → `cfo-backend` | ImageStream + BuildConfig `cfo-backend` (`deploy/openshift/app/`) | 🟡 T021/T023 |
-| Seed Job (migrate + generate + load) | `cfo migrate/generate/load` | ⏳ | ⏳ T022 |
-| API (FastAPI) | `:8080` dev / `:8000` in image | Deployment + Service + Route `api` | 🟡 T023 |
-| MCP servers company-db / workstations / hr | `:8001` / `:8002` / `:8003` | Deployments + Services `mcp-*` (internal only) | 🟡 T023 |
-| Agent worker (sim + agent + Slack) | `cfo worker` | Deployment `worker` (needs T011 `cfo.run`) | 🟡 T023 |
-| LLM (vLLM, Llama 3.2 3B) | n/a | already on RHOAI (L4 24 GB) | ✅ (URL: see §6) |
-| NeMo Guardrails proxy | n/a | in front of vLLM, same `LLM_BASE_URL` switch | ⏳ Wojtek |
-| MLflow | optional (`MLFLOW_TRACKING_URI`) | ⏳ own Deployment or the RHOAI one | ⏳ T024 |
+| Backend image | `Containerfile` → `cfo-backend` | ImageStream + BuildConfig `cfo-backend` (`deploy/openshift/app/`), built from GitHub `main` | ✅ |
+| Seed Job (migrate + generate + load) | `cfo migrate/generate/load` | Job `cfo-seed` (`deploy/openshift/db/`) | ✅ |
+| API (FastAPI) | `:8080` dev / `:8000` in image | Deployment + Service + Route `api` | ✅ |
+| MCP servers company-db / workstations / hr | `:8001` / `:8002` / `:8003` | Deployments + Services `mcp-*` (internal only) | ✅ |
+| Agent worker (sim + agent + Slack) | `cfo worker` | Deployment `worker` (`cfo.run`) | ✅ |
+| LLM usage sampler | `python -m cfo.usage` | Deployment `usage-sampler` (vLLM `/metrics` → Postgres, T032) | ✅ |
+| Dashboard (Next.js) | `dashboard/` | Deployment + Route `dashboard`, own build (`deploy/openshift/dashboard/`), Basic login | ✅ |
+| LLM (vLLM, Granite 4.0 H Tiny) | n/a | InferenceService `modelcar-granite-4-0-h-tiny` in project `my-first-model` (L4, one GPU); args in §8 | ✅ |
+| NeMo Guardrails proxy | n/a | in front of vLLM, same `LLM_BASE_URL` switch | ⏳ T050–T052 (Wojtek) |
+| MLflow | optional (`MLFLOW_TRACKING_URI`) | Deployment + svc `mlflow:5000` (`deploy/openshift/mlflow/`); Route has no auth, prefer `oc port-forward svc/mlflow 5000:5000` | ✅ |
 
 Everything on the cluster carries `app.kubernetes.io/part-of=cfo`. Base manifests: `deploy/` (`oc apply -k deploy/`).
 
@@ -144,8 +148,8 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | Var | Default | Cluster value |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://cfo:cfo@localhost:5433/cfo` | `postgresql://cfo:<pw>@postgres:5432/cfo` |
-| `LLM_BASE_URL` | `http://localhost:8000/v1` | vLLM or the NeMo proxy, see §6 |
-| `LLM_MODEL` | `llama-3.2-3b` | the served model name, see §6 |
+| `LLM_BASE_URL` | `http://localhost:8000/v1` | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1` (or the NeMo proxy later) |
+| `LLM_MODEL` | `llama-3.2-3b` | `modelcar-granite-4-0-h-tiny` |
 | `LLM_API_KEY` | `EMPTY` | Secret if the endpoint needs a token |
 | `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` | empty | Secret (`xoxb-…` / `xapp-…`), see `docs/slack-setup.md` |
 | `SLACK_USER_MAP` | empty | `employee_id=SLACK_ID,…` |
@@ -158,23 +162,23 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event when `MLFLOW_TRACKING_URI` is set (`cfo/observability.py`, T027) |
 | `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error falls back to `FORECAST_MODEL_PATH` |
 | `MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_NAME` | unset | standard MLflow client variables, the code sets none of them. RHOAI MLflow: `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` (+ `MLFLOW_WORKSPACE=<project>` from another namespace). Suggested for the API pod: `MLFLOW_HTTP_REQUEST_MAX_RETRIES=1`, `MLFLOW_HTTP_REQUEST_TIMEOUT=10` |
-| `LLM_VERIFY_TLS` | `true` | `true`, `false` (self-signed certificate) or a CA bundle path for an https `LLM_BASE_URL`; the Granite service on the cluster is https with a self-signed certificate |
-| `VLLM_METRICS_URL` | unset (usage sampler off) | `https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc.cluster.local:8000/metrics` (T032) |
+| `LLM_VERIFY_TLS` | `true` | `true`, `false` (self-signed certificate) or a CA bundle path for an https `LLM_BASE_URL`; the cluster uses the plain-HTTP predictor service (D-020), so the CA path set in `cfo-config` is unused there |
+| `VLLM_METRICS_URL` | unset (usage sampler off) | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics` (T032) |
 | `VLLM_METRICS_VERIFY` | `true` | TLS check of the metrics URL: `true` / `false` / CA bundle path |
 | `GPU_HOURLY_COST_EUR`, `NODE_HOURLY_COST_EUR` | `0.70`, `0` | hourly rate of one L4 (AWS g6.xlarge based assumption, dated in `docs/api.md`) and an optional node share |
 | `HOSTED_PRICES_JSON`, `USD_TO_EUR`, `LLM_USAGE_RECORD`, `VLLM_METRICS_STALE_SECONDS`, `VLLM_METRICS_BEARER_TOKEN`, `VLLM_METRICS_TIMEOUT` | see `docs/api.md` | optional tuning of the LLM usage and cost estimate |
 | `API_PORT` | `8000` | image only |
 
-## 6. Fill in (things only humans know)
+## 6. Where things are
 
 | What | Value |
 |---|---|
-| Console URL | TODO |
-| API server URL (`oc login --server`) | TODO |
-| vLLM endpoint (`LLM_BASE_URL`) | TODO |
-| Served model name (`LLM_MODEL`) | TODO |
-| NeMo Guardrails proxy URL | TODO |
-| API Route (public URL for the dashboard) | TODO (after T023) |
+| Console URL | `oc whoami --show-console` |
+| API server URL (`oc login --server`) | `oc whoami --show-server` |
+| vLLM endpoint (`LLM_BASE_URL`) | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1` (in-cluster only) |
+| Served model name (`LLM_MODEL`) | `modelcar-granite-4-0-h-tiny` |
+| NeMo Guardrails proxy URL | not deployed yet (T051) |
+| API / dashboard Routes | `oc get route api dashboard` (hosts are not written here: the repo is public) |
 
 ## 7. Gotchas
 
@@ -195,3 +199,21 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 - **Secret/ConfigMap changes do not restart pods:** `oc rollout restart deploy/<name>`.
 - **Single node, RWO volumes:** `strategy: Recreate` for anything with a PVC, otherwise the new pod hangs on the
   volume.
+
+## 8. Granite on vLLM (InferenceService args)
+
+The InferenceService lives in project `my-first-model` and is not in `deploy/`; its vLLM arguments exist only on
+the cluster, so they are recorded here. Current list (2026-11-20):
+
+```
+--port=8080 --model=/mnt/models --served-model-name=modelcar-granite-4-0-h-tiny
+--enable-auto-tool-choice --tool-call-parser=hermes --enable-prefix-caching --max-model-len=32768
+```
+
+- Tool calling needs `--enable-auto-tool-choice --tool-call-parser=hermes`; without them `cfo smoke` fails
+  `llm.tool_calling` with HTTP 400 and the app runs on the JSON-in-text fallback.
+- Prefix caching on this hybrid Mamba model needs `--max-model-len=32768`: at the default 131072 tokens the engine
+  wants 10 GiB of KV cache, 6.15 GiB is free, and vLLM does not start.
+- A JSON patch with `add` or `replace` on `/spec/predictor/model/args` replaces the whole list: always send all
+  arguments. The command, the one-GPU pod swap and the rollback are in `docs/deploy.md` §3.
+- Llama 3.2 3B (`llama-32-3b-instruct`) is still listed as an InferenceService, stopped (`serving.kserve.io/stop: "true"`, no pod, no GPU); unused.

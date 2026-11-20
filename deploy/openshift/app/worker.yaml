@@ -14,15 +14,19 @@ spec:
   template:
     metadata: {labels: {app: worker, app.kubernetes.io/component: worker}}
     spec:
+      enableServiceLinks: false  # Service `api` would inject API_PORT=tcp://... and break the entrypoint
       volumes:
         - name: llm-ca
           configMap: {name: llm-service-ca}
+        - name: data
+          persistentVolumeClaim: {claimName: cfo-data}
       containers:
         - name: worker
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
           args: [worker]
           volumeMounts:
             - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}
+            - {name: data, mountPath: /app/data, readOnly: true}
           envFrom:
             - configMapRef: {name: cfo-config}
             - secretRef: {name: cfo-secrets, optional: true}   # SLACK_*, LLM_API_KEY: see README.md
@@ -41,8 +45,3 @@ spec:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
           # The December replay (data/generated/events/december.jsonl) comes from the seed Job's volume.
-          volumeMounts:
-            - {name: data, mountPath: /app/data, readOnly: true}
-      volumes:
-        - name: data
-          persistentVolumeClaim: {claimName: cfo-data}

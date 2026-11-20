@@ -22,5 +22,22 @@
     "protected": {}
   },
   "frozen_at": "2026-11-20T15:47:10+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "..............................................                           [100%]\n46 passed in 2.98s",
+      "ran_at": "2026-11-20T15:59:31+01:00",
+      "commit": "6467e0dc66ac991f7d77b154b1f39fd37c038b52"
+    },
+    "AC-2": {
+      "id": "AC-2",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "wrote docs/openapi.json",
+      "ran_at": "2026-11-20T15:59:33+01:00",
+      "commit": "6467e0dc66ac991f7d77b154b1f39fd37c038b52"
+    }
+  }
 }

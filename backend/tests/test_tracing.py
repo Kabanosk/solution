@@ -18,6 +18,7 @@ import pytest
 from cfo import observability as obs
 from cfo.domain import Event, EventKind
 
+import test_agent
 from test_agent import DOC, TS, bank, make_env  # noqa: F401  (make_env is a fixture)
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -80,6 +81,14 @@ def tracing(tmp_path):
     assert obs.init_tracing(settings) is True
     yield mlflow
     obs.reset_tracing()
+
+
+@pytest.fixture
+def agent_env(monkeypatch, request):
+    """`make_env` of test_agent in a schema of its own: other test runs (the full suite, other worktrees) use
+    test_agent's schema on the same Postgres at the same time."""
+    monkeypatch.setattr(test_agent, "SCHEMA", f"t027_test_{os.getpid()}")
+    return request.getfixturevalue("make_env")
 
 
 def traces(mlflow):
@@ -147,8 +156,8 @@ def test_init_never_raises(monkeypatch):
 
 
 @needs_mlflow
-def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, make_env):
-    env = make_env(files={"Downloads/AS-69664.txt": DOC})
+def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, agent_env):
+    env = agent_env(files={"Downloads/AS-69664.txt": DOC})
     res = env.agent.handle(bank("txn_0"))
     assert res.status == "done"
 
@@ -173,8 +182,8 @@ def test_golden_path_event_is_one_trace_with_node_and_llm_spans(tracing, make_en
 
 
 @needs_mlflow
-def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, make_env):
-    env = make_env()
+def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, agent_env):
+    env = agent_env()
     ev = Event(ts=TS, kind=EventKind.METRIC, payload={
         "signal": "liquidity_forecast", "month": "2026-02", "min_balance": "-5000", "requested_amount": "20000"})
     res = env.agent.handle(ev)
@@ -196,8 +205,8 @@ def test_approval_and_resume_are_traced_with_level_and_simulation(tracing, make_
 
 
 @needs_mlflow
-def test_sub_agent_investigation_spans_are_children_of_the_investigate_node(tracing, make_env):
-    env = make_env()
+def test_sub_agent_investigation_spans_are_children_of_the_investigate_node(tracing, agent_env):
+    env = agent_env()
     env.agent.handle(Event(ts=TS, kind=EventKind.METRIC, payload={"signal": "cost_metrics_updated"}))
     (trace,) = traces(tracing)
     assert [s.name for s in children(trace, "agent.handle")] == ["investigate", "alert"]

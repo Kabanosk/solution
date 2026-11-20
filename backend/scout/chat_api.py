@@ -48,6 +48,8 @@ class Turn(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[Turn] = Field(min_length=1, max_length=64)
+    # One dashboard conversation = one chat task; every question is a step on it. Absent: a task per question.
+    conversation_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
 
 
 def build_context(settings: ScoutSettings) -> JobContext:
@@ -118,9 +120,11 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
     asker = by or settings.ceo_id
     question = turns[-1]["content"]
     preview = question if len(question) <= 60 else question[:57] + "…"
-    task = ctx.recorder.open(f"web:{secrets.token_hex(8)}", "chat", f"{ctx.hr.name(asker)} (dashboard): “{preview}”",
-                             requested_by=asker, owner_id=asker)
-    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked in the dashboard chat", source="dashboard")
+    key = f"web:{body.conversation_id}" if body.conversation_id else f"web:{secrets.token_hex(8)}"
+    task = ctx.recorder.open(key, "chat", f"Dashboard chat: “{preview}”", requested_by=asker, owner_id=asker)
+    if task.status != "in_progress":
+        ctx.recorder.set_status(task.id, "in_progress")
+    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     files: list[dict[str, Any]] = []

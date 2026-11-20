@@ -135,3 +135,33 @@ def test_tool_results_shrink_when_one_answer_runs_long():
                                                    for i in range(12)], Message(role="user", content="q")]
     _shrink_tool_results(msgs, 26_000)
     assert _size(msgs) <= 26_000 and msgs[-2].content == "x" * 9000  # the newest result stays whole
+
+
+def test_one_conversation_is_one_chat_task(conn_factory, tmp_path, monkeypatch):
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=lambda m, t: "Answer."))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    c = TestClient(app)
+
+    def ask(msgs, conv):  # noqa: ANN001, ANN202
+        r = c.post("/v1/chat", json={"messages": msgs, "conversation_id": conv}, headers={"Authorization": "Bearer tok"})
+        return [json.loads(x) for x in r.text.splitlines()][-1]["task_id"]
+
+    first = ask([{"role": "user", "content": "who is Norbert?"}], "conv_abc12345")
+    second = ask([{"role": "user", "content": "who is Norbert?"}, {"role": "assistant", "content": "Answer."},
+                  {"role": "user", "content": "what's the day today"}], "conv_abc12345")
+    assert first == second
+    task = ctx.recorder.get(first)
+    assert task.status == "done" and "who is Norbert?" in task.title
+    asked = [s.text for s in ctx.recorder.steps(first) if s.kind == "picked_up"]
+    assert len(asked) == 2 and "what's the day today" in asked[1]
+    assert ask([{"role": "user", "content": "hi"}], "conv_other999") != first  # New chat: a new task
+    bad = c.post("/v1/chat", json={"messages": [{"role": "user", "content": "x"}], "conversation_id": "bad id!"},
+                 headers={"Authorization": "Bearer tok"})
+    assert bad.status_code == 422
+    get_api_settings.cache_clear()

@@ -1,9 +1,9 @@
 ---
 id: T007
 title: Cost vs metric anomaly detection (3 pairs)
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T007-cost-metrics
 depends_on: ["T002"]
 capabilities: []
 acceptance:

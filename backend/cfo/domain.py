@@ -102,6 +102,8 @@ class Invoice(BaseModel):
     lines: list[InvoiceLine] = Field(default_factory=list)
     transaction_id: str | None = None  # the payment it documents
     source: str = "db"  # "db" or a workstation path the agent found it at
+    category: str | None = None  # "food", "beverages", "cloud", "advertising", "equipment"
+    team_id: str | None = None  # the team whose costs it belongs to
 
 
 class Vacation(BaseModel):

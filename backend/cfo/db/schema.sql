@@ -33,8 +33,13 @@ CREATE TABLE IF NOT EXISTS invoices (
     total           NUMERIC(14,2) NOT NULL,
     currency        TEXT NOT NULL DEFAULT 'EUR',
     transaction_id  TEXT,
-    source          TEXT NOT NULL DEFAULT 'db'
+    source          TEXT NOT NULL DEFAULT 'db',
+    category        TEXT,
+    team_id         TEXT
 );
+-- Added by T002 (databases created before it): backward-compatible.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS team_id TEXT;
 
 CREATE TABLE IF NOT EXISTS invoice_lines (
     id          SERIAL PRIMARY KEY,

@@ -1,0 +1,9 @@
+# OpenShift injects the service-serving CA bundle (key service-ca.crt) into this ConfigMap.
+# Mounted at /etc/llm-ca in api and worker so TLS to the in-cluster vLLM endpoint is verified.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-service-ca
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+data: {}

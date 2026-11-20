@@ -11,10 +11,15 @@ spec:
   template:
     metadata: {labels: {app: api, app.kubernetes.io/component: api}}
     spec:
+      volumes:
+        - name: llm-ca
+          configMap: {name: llm-service-ca}
       containers:
         - name: api
           image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
           args: [api]
+          volumeMounts:
+            - {name: llm-ca, mountPath: /etc/llm-ca, readOnly: true}
           ports: [{containerPort: 8000}]
           envFrom:
             - configMapRef: {name: cfo-config}

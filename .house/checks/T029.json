@@ -1,0 +1,26 @@
+{
+  "task": "T029",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "test -s docs/mlflow.md && grep -q FORECAST_MODEL_URI docs/mlflow.md && grep -q MLFLOW_TRACKING_URI docs/mlflow.md",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "On the team cluster: workbench in project cfo-agent-uwur ran notebooks/forecast.ipynb; MLflow UI shows the training run and model liquidity-forecast@champion; API /v1/forecast/liquidity reports that mlflow_run_id; at least one agent trace in experiment cfo-agent. Judge records screenshots/URLs.",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:20:35+01:00",
+  "results": {}
+}

@@ -235,3 +235,36 @@ def test_consecutive_months_across_the_year_boundary_are_compared():
     rows = [cm(CLOUD, 12, 100, 100, year=2024), cm(CLOUD, 1, 200, 100, year=2025)]
     (a,) = detect_anomalies(rows)
     assert a.month == date(2025, 1, 1)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Codex review of T044
+def test_rejected_start_speed_has_no_side_effects_on_a_running_simulator(sim):
+    sim.start()
+    sim.fake.advance(30)  # events are overdue
+    with pytest.raises(ValueError):
+        sim.start(float("nan"))
+    assert sim.status().emitted == 0 and sim.got == []
+    assert [e.id for e in sim.tick()][:1] == ["evt_u1"]
+
+
+def test_cyclic_company_folder_symlink_is_denied_and_logged(ws):
+    tools, log, g = ws
+    (g / "Mail").rmdir()
+    (g / "Mail").symlink_to(g / "Mail")  # loop
+    assert tools.read_file("ann", "Mail/x.txt")["error"] == "access_denied"
+    assert tools.list_files("ann", "Mail")["error"] == "access_denied"
+    assert [e[1] for e in log.entries] == ["DENIED read_file", "DENIED list_files"]
+    assert tools.list_workstations()[0]["folders"] == ["Downloads", "Documents"]  # does not raise
+
+
+def test_cyclic_symlink_inside_a_company_folder_is_denied(ws):
+    tools, _, g = ws
+    (g / "Downloads" / "loop").symlink_to(g / "Downloads" / "loop")
+    assert tools.read_file("ann", "Downloads/loop/x.txt")["error"] == "access_denied"
+
+
+def test_zero_to_zero_metric_respects_the_growth_cap():
+    rows = [cm(CLOUD, 5, 100, 0), cm(CLOUD, 6, 150, 0)]
+    assert len(detect_anomalies(rows)) == 1
+    assert detect_anomalies(rows, metric_growth_max_pct=0) == []  # 0% growth is not below a cap of 0

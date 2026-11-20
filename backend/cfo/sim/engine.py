@@ -200,9 +200,12 @@ class Simulator:
         return self._run_locked()[1]
 
     def start(self, speed: float | None = None) -> SimStatus:
+        if speed is not None:
+            speed = _check_speed(speed)  # before any side effect (the lock flushes overdue events)
+
         def mutate(st: _State, now: float, out: list[Event]) -> None:
             if speed is not None:
-                st.speed = _check_speed(speed)
+                st.speed = speed
             st.paused = False
             st.last_tick = now
 

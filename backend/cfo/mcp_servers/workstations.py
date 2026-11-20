@@ -76,7 +76,10 @@ class WorkstationTools:
     def _employee_dir(self, employee: str) -> Path:
         if not isinstance(employee, str) or not _SLUG.fullmatch(employee):
             raise AccessDenied(f"unknown employee {employee!r}")
-        d = (self.root / employee).resolve()
+        try:
+            d = (self.root / employee).resolve()
+        except (RuntimeError, OSError):
+            raise AccessDenied(f"unknown employee {employee!r}") from None
         if d.parent != self.root or not d.is_dir():
             raise AccessDenied(f"unknown employee {employee!r}")
         return d
@@ -92,7 +95,10 @@ class WorkstationTools:
         # The company folder must be a real directory of this workstation (not a symlink to a private sibling or
         # elsewhere), and the fully resolved target must lie inside it.
         folder = self._real_company_folder(edir, parts[0])
-        target = (edir / rel).resolve()
+        try:
+            target = (edir / rel).resolve()
+        except (RuntimeError, OSError):  # symlink loop (RuntimeError before Python 3.13)
+            raise AccessDenied(f"path {rel!r} cannot be resolved") from None
         if folder is None or not (target == folder or folder in target.parents):
             raise AccessDenied(f"path {rel!r} resolves outside the company folder")
         return edir, target
@@ -100,7 +106,10 @@ class WorkstationTools:
     @staticmethod
     def _real_company_folder(edir: Path, name: str) -> Path | None:
         folder = edir / name
-        real = folder.resolve()
+        try:
+            real = folder.resolve()
+        except (RuntimeError, OSError):  # symlink loop
+            return None
         return real if real == folder and real.parent == edir else None
 
     def _audit(self, employee: str, action: str, path: str, reason: str | None) -> None:
@@ -128,7 +137,10 @@ class WorkstationTools:
         self._audit("*", "list_workstations", "*", None)
         out = []
         for d in sorted(p for p in self.root.iterdir() if p.is_dir() and _SLUG.fullmatch(p.name)) if self.root.is_dir() else []:
-            real_dir = d.resolve()
+            try:
+                real_dir = d.resolve()
+            except (RuntimeError, OSError):
+                continue
             if real_dir.parent != self.root:  # a symlinked workstation directory is not reachable by the other tools
                 continue
             folders = [f for f in self.company_folders

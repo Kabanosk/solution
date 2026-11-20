@@ -218,8 +218,8 @@ def _assess(prev: CostMetric, cur: CostMetric, invoices: Mapping[str, Invoice], 
     else:
         metric_pct = change_pct(cur.metric_value, prev.metric_value)
         assert metric_pct is not None
-        if metric_pct >= metric_growth_max_pct:
-            return None
+    if metric_pct >= metric_growth_max_pct:
+        return None
     cpu_now, cpu_prev = cur.cost_per_unit, prev.cost_per_unit
     drivers = _drivers(prev, cur, invoices)
     return CostAnomaly(

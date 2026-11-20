@@ -7,7 +7,12 @@ export function proxy(request: NextRequest) {
   // Health checks and the Slack avatar are public; everything else needs the dashboard login.
   if (PUBLIC_PATHS.has(request.nextUrl.pathname)) return NextResponse.next();
   const configured = process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD;
-  const response = authorized(request.headers.get("authorization"))
+  const allowed = authorized(request.headers.get("authorization"));
+  // Tasks open in place on the dashboard; answer old /tasks/<id> links with a plain redirect instead of streaming a page.
+  const task = /^\/tasks\/([^/]+)$/.exec(request.nextUrl.pathname);
+  const response = allowed && task
+    ? NextResponse.redirect(new URL(`/#task/${task[1]}`, request.url), 307)
+    : allowed
     ? NextResponse.next()
     : new NextResponse(configured ? "Authentication required" : "Dashboard access is not configured", {
         status: configured ? 401 : 503,

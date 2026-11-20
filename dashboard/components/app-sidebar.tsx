@@ -1,27 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChartLine, ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, UserCheck, Users, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { ScoutMark } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { NAV, type IconName, type NavItem, type View } from "@/lib/nav";
+import { NAV, type IconName, type NavItem, type Route } from "@/lib/nav";
+import { LOOP_SIGNAL_LABEL, type LoopSignal } from "@/lib/task-signals";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<IconName, LucideIcon> = {
-  inbox: Inbox, "user-check": UserCheck, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt,
-  chart: ChartLine, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu,
+  inbox: Inbox, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu,
 };
 const STORAGE_KEY = "scout-nav-collapsed";
 
-export type NavCounts = { inbox: number; myTasks: number; openTasks: number; loops: Record<string, number> };
+export type LoopStatus = { signal: LoopSignal; attention: number; results: number; running: number };
+export type NavCounts = { inbox: number; openTasks: number; loops: Record<string, number>; signals: Record<string, LoopStatus> };
+
+const DOT: Record<Exclude<LoopSignal, null>, string> = {
+  attention: "bg-amber-500",
+  result: "bg-emerald-500",
+  running: "bg-sky-500 motion-safe:animate-pulse",
+};
+
+function LoopDot({ status }: { status?: LoopStatus }) {
+  if (!status?.signal) return null;
+  const parts = [status.attention && `${status.attention} need a reaction`, status.results && `${status.results} new ${status.results === 1 ? "result" : "results"}`, status.running && `${status.running} in progress`].filter(Boolean).join(" · ");
+  return <span className={cn("size-1.5 shrink-0 rounded-full", DOT[status.signal])} role="img" data-loop-signal={status.signal} title={parts} aria-label={LOOP_SIGNAL_LABEL[status.signal]} />;
+}
 
 export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTask }: {
-  active: View | null; counts: NavCounts; user: { name: string; role: string };
-  onNavigate: (view: View) => void; onSearch: () => void; onNewTask: () => void;
+  active: string | null; counts: NavCounts; user: { name: string; role: string };
+  onNavigate: (route: Route) => void; onSearch: () => void; onNewTask: () => void;
 }) {
   const { toggleSidebar } = useSidebar();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -34,7 +46,7 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
     return next;
   });
   const count = (item: NavItem) => item.countKey === "loop" ? counts.loops[item.loop!] ?? 0
-    : item.countKey === "inbox" ? counts.inbox : item.countKey === "myTasks" ? counts.myTasks : item.countKey === "openTasks" ? counts.openTasks : null;
+    : item.countKey === "inbox" ? counts.inbox : item.countKey === "openTasks" ? counts.openTasks : null;
 
   return <Sidebar id="scout-sidebar" className="border-r" aria-label="Primary navigation">
     <SidebarHeader className="gap-2 px-2 pt-3 pb-1">
@@ -46,7 +58,7 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent id="scout-company-list" align="start" className="min-w-56">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your autonomous CFO</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your finance agent</DropdownMenuLabel>
             <DropdownMenuRadioGroup value="amalfi"><DropdownMenuRadioItem value="amalfi">Pizzeria Amalfi</DropdownMenuRadioItem></DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -69,10 +81,10 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
               const current = active === item.id;
               return <SidebarMenuItem key={item.id}>
                 <SidebarMenuButton id={`scout-nav-${item.id}`} asChild isActive={current} className="h-7 gap-2 px-2 text-[13px] font-normal hover:bg-sidebar-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium">
-                  <a href={item.href} aria-current={current ? "page" : undefined} onClick={event => { if (event.metaKey || event.ctrlKey) return; event.preventDefault(); onNavigate(item.id); }}>
+                  <a href={item.href} aria-current={current ? "page" : undefined} onClick={event => { if (event.metaKey || event.ctrlKey) return; event.preventDefault(); onNavigate(item.route); }}>
                     <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
                     <span className="flex-1 truncate">{item.label}</span>
-                    {item.loop && <span className="size-1.5 rounded-full bg-emerald-500" title="Loop running" aria-label="Live" />}
+                    {item.loop && <LoopDot status={counts.signals[item.loop]} />}
                     {value !== null && value > 0 && <span className={cn("min-w-4 text-right font-mono text-[11px] text-muted-foreground", item.id === "inbox" && "text-foreground")}>{value}</span>}
                   </a>
                 </SidebarMenuButton>
@@ -85,7 +97,6 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
     <SidebarFooter className="flex-row items-center gap-1 border-t px-2 py-2">
       <Avatar className="size-6"><AvatarFallback className="bg-primary text-[10px] text-primary-foreground">{user.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
       <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-[13px]">{user.name}</span><span className="block truncate text-[11px] text-muted-foreground">{user.role}</span></span>
-      <ThemeToggle className="size-7 border-0 shadow-none" />
       <Button id="scout-sidebar-collapse" variant="ghost" size="icon" className="size-7" aria-label="Collapse sidebar" title="Collapse sidebar  ⌘B" onClick={toggleSidebar}><PanelLeftClose className="size-4" aria-hidden="true" /></Button>
     </SidebarFooter>
   </Sidebar>;

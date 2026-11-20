@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Bot, CircleCheck, Database, FileText, Folder, Landmark, LineChart, Loader2, Mail, MessageSquare, MessagesSquare, Send, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AuditTable } from "@/components/audit-log";
 import { OwnerAvatar } from "@/components/tasks/task-list";
 import { StatusIcon } from "@/components/tasks/status-icon";
@@ -29,7 +30,7 @@ function Property({ label, children }: { label: string; children: React.ReactNod
   return <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-2 py-1.5 text-[13px]"><dt className="text-muted-foreground">{label}</dt><dd className="min-w-0">{children}</dd></div>;
 }
 
-export function TaskDetailView({ detail, names }: { detail: TaskDetail; names: Record<string, string> }) {
+export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetail; names: Record<string, string>; onChanged?: () => void }) {
   const { task, steps, approval, audit, transaction } = detail;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -51,12 +52,12 @@ export function TaskDetailView({ detail, names }: { detail: TaskDetail; names: R
       .catch(() => null);
     if (!response?.ok) { setMessage("Scout could not record the answer. Try again in a moment."); return; }
     setMessage(action === "approve" ? "Approved. Scout continues the task." : "Rejected. Scout closes the proposal.");
-    startTransition(() => router.refresh());
+    startTransition(() => { router.refresh(); onChanged?.(); });
   }
 
   return <div className="space-y-5">
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <Link href="/#tasks" className="hover:text-foreground">Agent tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
+      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
     </nav>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
@@ -119,6 +120,24 @@ export function TaskDetailView({ detail, names }: { detail: TaskDetail; names: R
           {task.outcome && <Property label="Outcome">{task.outcome}</Property>}
         </dl>
       </aside>
+    </div>
+  </div>;
+}
+
+/** Same layout as the task page while it loads, so opening a task never shows a blank screen. */
+export function TaskDetailSkeleton({ id }: { id: string }) {
+  return <div className="space-y-5" role="status" aria-label={`Loading ${id}`}>
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{id}</span>
+    </nav>
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0 space-y-5">
+        <div className="space-y-2"><Skeleton className="h-7 w-72" /><Skeleton className="h-4 w-96 max-w-full" /><Skeleton className="h-3 w-48" /></div>
+        <div className="rounded-xl border bg-card"><div className="border-b px-4 py-2.5 text-[13px] font-medium">Activity log</div>
+          <div className="space-y-4 px-4 py-4">{[0, 1, 2, 3].map(row => <div key={row} className="flex items-center gap-3"><Skeleton className="size-6 rounded-full" /><Skeleton className="h-4 flex-1" /><Skeleton className="h-3 w-10" /></div>)}</div>
+        </div>
+      </div>
+      <div className="h-fit space-y-3 rounded-xl border bg-card px-4 py-4">{[0, 1, 2, 3, 4, 5].map(row => <div key={row} className="grid grid-cols-[96px_1fr] gap-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-4" /></div>)}</div>
     </div>
   </div>;
 }

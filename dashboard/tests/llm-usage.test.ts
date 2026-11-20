@@ -61,3 +61,16 @@ test("development fixtures are explicitly labelled and their range totals match 
     assert.equal(data.reportUnavailable, false);
   }
 });
+
+test("usage buckets are zero-filled across the range", async () => {
+  const { fillBuckets } = await import("../lib/llm-usage-model.ts");
+  const base = { requests: 5, failedRequests: 1, estimatedRequests: 0, promptTokens: 10, completionTokens: 2, p50Ms: 1, p95Ms: 2, busyCost: "0.000001", amortizedCost: "0.000001" };
+  const days = fillBuckets({ from: "2026-11-14T09:00:00Z", to: "2026-11-21T09:00:00Z", buckets: [{ ...base, key: "2026-11-20" }] }, "day");
+  assert.equal(days.length, 8);
+  assert.equal(days.find(bucket => bucket.key === "2026-11-20")?.requests, 5);
+  assert.equal(days[0].requests, 0);
+  assert.equal(days.at(-2)?.label, "20 Nov");
+  const hours = fillBuckets({ from: "2026-11-20T10:00:00Z", to: "2026-11-21T10:00:00Z", buckets: [{ ...base, key: "2026-11-20T12:00:00+00:00" }] }, "hour");
+  assert.equal(hours.length, 24);
+  assert.equal(hours.find(bucket => bucket.label === "12:00")?.requests, 5);
+});

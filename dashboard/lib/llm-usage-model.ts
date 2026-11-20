@@ -114,3 +114,34 @@ export function previewLlmUsage(days: number): LlmUsageData {
   if (days === 1) report.totals = { ...report.buckets[0] };
   return { report, snapshot: { model: "Sample model", sampledAt: "2026-11-20T12:00:00.000Z", stale: false, running: 1, waiting: 0, cacheUsage: "0.24", promptRate: "145.8", generationRate: "32.6" }, reportUnavailable: false, snapshotUnavailable: false, fetchedAt: "2026-11-20T12:00:05.000Z", preview: true };
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export type ChartBucket = UsageTotals & { key: string; label: string };
+const emptyTotals = (): UsageTotals => ({ requests: 0, failedRequests: 0, estimatedRequests: 0, promptTokens: 0, completionTokens: 0, p50Ms: null, p95Ms: null, busyCost: "0.000000", amortizedCost: "0.000000" });
+
+/** One bucket per day (or hour) of the report range, zero-filled, so charts show quiet periods too. Keys are UTC. */
+export function fillBuckets(report: Pick<UsageReport, "from" | "to" | "buckets">, unit: "day" | "hour"): ChartBucket[] {
+  const width = unit === "day" ? 10 : 13; // "YYYY-MM-DD" or "YYYY-MM-DDTHH"
+  const keyOf = (value: string) => {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && value.length > 10 ? new Date(parsed).toISOString().slice(0, width) : value.slice(0, width);
+  };
+  const byKey = new Map(report.buckets.map(bucket => [keyOf(bucket.key), bucket]));
+  const step = unit === "day" ? 86_400_000 : 3_600_000;
+  const start = Date.parse(report.from);
+  const end = Date.parse(report.to);
+  const out: ChartBucket[] = [];
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start && (end - start) / step <= 800) {
+    for (let at = Math.floor(start / step) * step; at < end; at += step) {
+      const key = new Date(at).toISOString().slice(0, width);
+      const date = new Date(at);
+      const label = unit === "day" ? `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}` : `${String(date.getUTCHours()).padStart(2, "0")}:00`;
+      const bucket = byKey.get(key);
+      byKey.delete(key);
+      out.push({ ...(bucket ?? emptyTotals()), key, label });
+    }
+  }
+  // Buckets the range walk did not cover (odd keys) are still shown, at the end.
+  for (const [key, bucket] of byKey) out.push({ ...bucket, key, label: key });
+  return out;
+}

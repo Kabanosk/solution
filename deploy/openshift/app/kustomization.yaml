@@ -4,6 +4,7 @@ resources:
   - imagestream.yaml
   - buildconfig.yaml
   - configmap.yaml
+  - llm-service-ca.yaml
   - pvc.yaml
   - api.yaml
   - worker.yaml

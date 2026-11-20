@@ -1,0 +1,18 @@
+{
+  "task": "T043",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_slack.py backend/tests/test_slack_fixes.py",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T15:56:59+01:00",
+  "results": {}
+}

@@ -114,3 +114,8 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** informacja od Grzesia; Granite to model z rodziny Red Hat/IBM i dobrze radzi sobie z wywoływaniem narzędzi.
 - **Kto:** człowiek (Grzesiu)
 - **Data:** 2026-11-20 16:45
+
+## D-016 Izolacja schematów testów; T026 wmergowany ręcznie
+- **Decyzja:** testy używają schematów Postgresa z PID procesu (`tNNN_test_<pid>`), bo kilka sesji naraz odpala bramki i nadpisywały sobie wspólny `t005_test` (stąd cofnięcie T026). T026 wrócił przez revert rewertu i ręczną bramkę jak w D-014 (`house check --worktree` GREEN → `merge --no-ff` → `check --all` GREEN).
+- **Kto:** coordinator
+- **Data:** 2026-11-20 16:30

@@ -87,6 +87,7 @@ Upload the organizer bank CSV into the `files` volume before the first seed: `do
 ```sh
 oc diff -k deploy/            # optional: what will change
 oc apply -k deploy/           # postgres, files, seed job, api, worker, mcp-*, usage-sampler, mlflow
+oc delete route mlflow        # the MLflow Route has no auth: remove it right after every apply (see step 6)
 oc start-build cfo-backend --follow
 ```
 `deploy/kustomization.yaml` renders with the kustomize built into old `kubectl`/`oc` (v4.5) too; check with
@@ -107,12 +108,9 @@ http://localhost:5000.
 
 **MLflow security:** the MLflow server has no authentication, and `deploy/openshift/mlflow/mlflow.yaml` also creates
 a public Route `mlflow`: anyone who finds its hostname can read and write runs and models. Using port-forward
-yourself does not close it. Unless the Route is needed for a demo, delete it right after the apply (the app and
-`cfo smoke` use the internal service `http://mlflow:5000`, not the Route):
-```sh
-oc delete route mlflow
-```
-`oc apply -k deploy/` creates it again; delete it again after each apply.
+yourself does not close it. That is why every `oc apply -k deploy/` on this page is followed by `oc delete route mlflow`. The app and
+`cfo smoke` use the internal service `http://mlflow:5000`, not the Route. Keep the Route only for the time a demo
+needs the UI in a browser without port-forward.
 
 ## 7. Day to day: logs and debugging
 
@@ -131,9 +129,9 @@ More in `INFRA.md` §4.
 | Change | Do |
 |---|---|
 | Code merged to GitHub `main` | `oc start-build cfo-backend --follow`, then `oc rollout restart deploy/api deploy/worker deploy/mcp-company-db deploy/mcp-hr deploy/mcp-workstations deploy/usage-sampler` |
-| Manifests in `deploy/` | `oc apply -k deploy/` |
-| ConfigMap `cfo-config` or a Secret | pods do not restart on their own: `oc rollout restart deploy/api deploy/worker deploy/usage-sampler` (the sampler reads `VLLM_METRICS_*` from `cfo-config`) |
-| Fresh demo data (also resets the simulator) | `oc delete job cfo-seed && oc apply -k deploy/`; never during a live demo |
+| Manifests in `deploy/` | `oc apply -k deploy/ && oc delete route mlflow` |
+| ConfigMap `cfo-config` or a Secret | pods do not restart on their own: `oc rollout restart deploy/api deploy/worker deploy/mcp-company-db deploy/mcp-hr deploy/mcp-workstations deploy/usage-sampler` (all read `cfo-config` and/or Secret `postgres` as env vars) |
+| Fresh demo data (also resets the simulator) | `oc delete job cfo-seed && oc apply -k deploy/ && oc delete route mlflow`; never during a live demo |
 
 ## 9. Rollback
 

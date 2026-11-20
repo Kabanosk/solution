@@ -24,3 +24,12 @@ Format wpisu: nagłówek drugiego poziomu `Q-<kolejny numer, 3 cyfry> [open] <ty
 - **Poziom:** zawsze człowiek
 - **Domyślnie:** A
 - **Odpowiedź:** A, doprecyzowane w grillu 2026-11-20 → D-002…D-012
+
+## Q-002 [open] Czy wrzucamy CSV z wyciągiem pizzerii do publicznego repo?
+- **Kontekst:** paczka od organizatora leży lokalnie w `challenge/` (wyłączona z gita; challenge card ma znacznik „For business use only”). Generator danych (T002) i seed na klastrze (T012) potrzebują tego CSV. Repo jest publiczne, a Red Hat je przegląda.
+- **Opcje:** A) commit samego CSV do `data/source/` (dokument z danymi mówi „feel free to use this”) B) nie commitujemy; CSV trafia na klaster ręcznie (`oc create configmap --from-file`) C) zapytać organizatorów na Discordzie
+- **Rekomendacja:** B teraz (zero ryzyka, 1 komenda), C równolegle; A dopiero po zgodzie
+- **Blokuje:** T012 (seed na klastrze); T002 działa lokalnie z `SOURCE_CSV`
+- **Poziom:** zawsze człowiek
+- **Domyślnie:** B
+- **Odpowiedź:** —

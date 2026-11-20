@@ -1,0 +1,26 @@
+{
+  "task": "T050",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "reports/T050.md answers every question in the Objective with evidence (commands + output)",
+        "timeout": 600
+      },
+      {
+        "id": "AC-2",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "Decision logged by Wojtek as a D-### in DECISIONS.md: go / no-go, deployment path, model(s) per rail",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T16:59:31+01:00",
+  "results": {}
+}

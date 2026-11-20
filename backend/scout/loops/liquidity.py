@@ -48,23 +48,29 @@ def _default_forecaster(ctx: JobContext, outflows: list[dict[str, Any]]):  # noq
 def parse_month(text: str | None, today: date) -> date:
     """"2027-03", "March", "march 2027", "" -> the first day of that month (names: the next one from today)."""
     t = (text or "").strip().casefold()
+    this_month = today.replace(day=1)
+
+    def upcoming(d: date) -> date:  # a past month (the model's stale "2024-03") means the next one ahead
+        while d < this_month:
+            d = d.replace(year=d.year + 1)
+        return d
+
     try:
         y, m = t.split("-")[:2]
-        return date(int(y), int(m), 1)
+        return upcoming(date(int(y), int(m), 1))
     except ValueError:
         pass
     for i in range(1, 13):
         if month_name[i].casefold() in t or (len(t) >= 3 and month_name[i].casefold().startswith(t[:3])):
-            year = next((int(w) for w in t.split() if w.isdigit() and len(w) == 4), None)
-            if year is None:
-                year = today.year if i >= today.month else today.year + 1
-            return date(year, i, 1)
-    nxt = today.replace(day=1)
-    return date(nxt.year + (nxt.month == 12), nxt.month % 12 + 1, 1)
+            year = next((int(w) for w in t.split() if w.isdigit() and len(w) == 4), today.year)
+            return upcoming(date(year, i, 1))
+    return date(this_month.year + (this_month.month == 12), this_month.month % 12 + 1, 1)
 
 
 def parse_eur(value: Any) -> Decimal | None:
-    s = str(value or "").lower().replace("€", "").replace("eur", "").replace(",", "").replace(" ", "")
+    s = str(value or "").lower()
+    for junk in ("€", "eur", "$", "usd", ",", " "):
+        s = s.replace(junk, "")
     mult = Decimal(1000) if s.endswith("k") else Decimal(1)
     try:
         v = Decimal(s.rstrip("k")) * mult

@@ -47,3 +47,21 @@ in KSeF and files it. Needs a connected KSeF row (409 `ksef_not_connected` other
   line at one VAT rate (cent rounding), so `lines_for_gross` tries other rates or adds a small second line.
 * Settings: `KSEF_API_URL` (default: the test environment).
 * Tests: `backend/tests/scout/test_ksef.py` with a fake KSeF; `KSEF_LIVE=1` adds a round trip against TE.
+
+## Security
+
+KSeF TE is shared: anyone can sign in as any NIP (ours included) and issue invoices addressed to us. Everything
+downloaded from KSeF is untrusted input.
+
+* Import never overwrites an invoice that is already in the database. A received document whose number exists
+  is at most linked to that invoice's open payment, and only when amount and supplier match; a different document
+  under a known number is left for review. New rows get an id from a hash of the exact number, so look-alike
+  numbers (`as-12345`, `AS/12345`) cannot land on another invoice's row.
+* A payment is linked (sync) or an invoice filed automatically (agent rung) only when the number matches exactly,
+  the buyer NIP is ours, there is a single candidate, and the seller is a supplier we simulate or its name matches
+  the payment's counterparty. Otherwise the agent writes a note and continues down the ladder (a person decides).
+* Invoice numbers are validated, text fields are length-capped, XML is parsed with lxml defaults (no external
+  entities, no network). Writes go through the API write token (`ksef:connect`, demo) and the dashboard's
+  `checkWriteRequest` (login, same origin, JSON).
+* The signing key and access tokens live only in memory for one run; nothing KSeF-related is stored except the
+  test NIP and the run summary in `connections.config`. Only fictitious data goes to TE.

@@ -29,6 +29,7 @@ from scout.connectors.ksef import (
     seal_certificate,
     sign_auth_request,
 )
+from scout.demo_data import SCENARIOS
 from tests.scout.test_invoicing_loop import kinds, make_world, pay, run_txn, texts
 
 SELLER = Party("2443931649", "Asimex Wholesale Ltd", "Hafenstrasse 41", "60314 Frankfurt am Main")
@@ -158,7 +159,7 @@ def test_connect_issues_pulls_and_matches(company):
     assert repo.get_transaction("t_open").documented
     inv = repo.get_invoice_by_number("AS-12345")
     assert inv.source == "ksef" and inv.transaction_id == "t_open" and inv.total == Decimal("623.48")
-    assert repo.get_invoice_by_number("FLV-22166").source == "ksef"
+    assert repo.get_invoice_by_number("FLV-22166").transaction_id == "t_filed"
     conn.close()
     assert any("Signed in to KSeF" in s["text"] for s in cfg["steps"])
 
@@ -253,3 +254,49 @@ def test_every_cent_amount_up_to_100_eur_is_expressible():
             by_rate[ln.vat_rate] = by_rate.get(ln.vat_rate, Decimal(0)) + ln.unit_net
         total = sum(n + (n * r / 100).quantize(Decimal("0.01"), rounding="ROUND_HALF_UP") for r, n in by_rate.items())
         assert total == gross, gross
+
+
+def _forge(company_nip: str, number: str, total: str, supplier: str = "Evil Corp Sp. z o.o.") -> None:
+    """Anyone on the shared TE can issue an invoice to our NIP under any number."""
+    seller = Party(random_nip(), supplier, "ul. Ciemna 1", "00-001 Warszawa")
+    buyer = Party(company_nip, "Pizzeria Amalfi Sp. z o.o.", "ul. Neapolitańska 7", "00-001 Warszawa")
+    xml = fa3_xml(number, dt.date(2025, 3, 10), seller, buyer, lines_for_gross(Decimal(total), "Forged", 23))
+    FakeKsef().send(f"tok:{seller.nip}", [xml])
+
+
+def test_forged_invoices_never_overwrite_or_link(company):
+    with company() as conn:
+        ksef_sync.start(conn)
+    ksef_sync.run(company, Audit(company), FakeKsef, sleep=lambda s: None)
+    nip = _row(company)["config"]["nip"]
+    _forge(nip, "as-12345", "0.01")      # look-alike of a filed number (old id scheme collided on inv_as12345)
+    _forge(nip, "AS-12345", "99999.00")  # exact number, different document
+    _forge(nip, "FLV-22166", "312.00")   # exact number and amount, unknown seller
+    with company() as conn:
+        ksef_sync.start(conn)
+    res = ksef_sync.run(company, Audit(company), FakeKsef, sleep=lambda s: None)
+    assert res["review"] >= 2
+    conn = company()
+    repo = Repository(conn)
+    real = repo.get_invoice_by_number("AS-12345")
+    assert real.total == Decimal("623.48") and real.supplier == "Asimex Wholesale Ltd" and real.transaction_id == "t_open"
+    flv = repo.get_invoice_by_number("FLV-22166")
+    assert flv.supplier == "Fattoria La Vino GmbH" and flv.lines[0].description == "Prosecco"
+    lookalike = repo.get_invoice_by_number("as-12345")
+    assert lookalike is None or (lookalike.id != real.id and lookalike.transaction_id is None)
+    conn.close()
+
+
+def test_untrusted_seller_is_not_filed_automatically(conn_factory, tmp_path):
+    FakeKsef.reset()
+    ctx = make_world(conn_factory, tmp_path)
+    nip = random_nip()
+    s = SCENARIOS["ksef"]
+    _forge(nip, s.invoice_number, str(-s.amount))
+    ctx.connectors.ksef = KsefLookup(nip, "Pizzeria Amalfi", ctx.audit, client_factory=FakeKsef, sleep=lambda s: None)
+    task = run_txn(ctx, pay(ctx, "ksef"))
+    assert any(t.startswith("Not filed automatically: the seller") for t in texts(ctx, task.id))
+    assert task.resolved_via != "invoicing"
+    conn = conn_factory()
+    assert Repository(conn).get_invoice_by_number(s.invoice_number) is None
+    conn.close()

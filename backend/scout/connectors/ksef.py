@@ -339,8 +339,10 @@ class KsefLookup:
     label = "KSeF"
 
     def __init__(self, nip: str, company: str, audit: Any, *, base_url: str = TEST_URL,
-                 client_factory: Callable[[str], KsefClient] = KsefClient, sleep: Callable[[float], None] = time.sleep):
+                 client_factory: Callable[[str], KsefClient] = KsefClient, sleep: Callable[[float], None] = time.sleep,
+                 sellers: set[str] | None = None):
         self.nip, self.company, self._audit = nip, company, audit
+        self.sellers = sellers or set()  # seller NIPs trusted without a name match (our simulated suppliers)
         self._base_url, self._factory, self._sleep = base_url, client_factory, sleep
 
     def find(self, number: str, *, task_id: str | None = None, days: int = 60,

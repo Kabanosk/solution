@@ -146,18 +146,33 @@ def _rung_ksef(ctx: JobContext, task: Task, number: str | None) -> tuple[bool, I
         ctx.recorder.step(task.id, "checked_system", f"Searched KSeF (national e-invoice system) for {number}: "
                                                      "not issued there", source="ksef", result_count=0)
         return False, None
+    from scout.ksef_sync import trusted_seller
+
+    exact = [(d, k) for d, k in hits if d.get("number") == number and d.get("buyer_nip") == ksef.nip]
+    if not exact:
+        ctx.recorder.step(task.id, "checked_system", f"Searched KSeF for {number}: {len(hits)} look-alike "
+                                                     "invoice(s), none addressed to us under exactly this number",
+                          source="ksef", result_count=0)
+        return False, None
     mismatch = None
-    for doc, ksef_number in hits:
-        inv = InvoiceDoc(number=doc["number"] or number, supplier=doc["supplier"] or task.counterparty or "?",
+    for doc, ksef_number in exact:
+        inv = InvoiceDoc(number=number, supplier=(doc["supplier"] or task.counterparty or "?")[:200],
                          issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
-                         lines=[{"description": ln["description"], "quantity": ln["quantity"],
-                                 "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"]])
+                         lines=[{"description": (ln["description"] or "-")[:300], "quantity": ln["quantity"],
+                                 "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"][:200]])
         ctx.recorder.step(task.id, "checked_system",
-                          f"Found {inv.number} in KSeF as {ksef_number}: e-invoice from {inv.supplier} "
+                          f"Found {number} in KSeF as {ksef_number}: e-invoice from {inv.supplier} "
                           f"(NIP {doc.get('seller_nip')}), {eur(inv.total)}", source="ksef", result_count=len(hits),
                           detail={"ksef_number": ksef_number, "seller_nip": doc.get("seller_nip"),
                                   "lines": len(inv.lines)})
         if inv.total != abs(task.amount):
+            mismatch = mismatch or inv
+            continue
+        if len(exact) > 1 or not trusted_seller(doc, task.counterparty, ksef.sellers):
+            ctx.recorder.step(task.id, "note", f"Not filed automatically: the seller (NIP {doc.get('seller_nip')}) is "
+                                               f"not a known supplier and does not match {task.counterparty}"
+                              if len(exact) == 1 else f"Not filed automatically: {len(exact)} KSeF invoices carry "
+                                                      f"the number {number}", source="ksef")
             mismatch = mismatch or inv
             continue
         filed = _file(ctx, task, inv, via="invoicing",

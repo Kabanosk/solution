@@ -92,4 +92,7 @@ def build_ksef(rows: dict[str, dict[str, Any]], settings: ScoutSettings, audit: 
     cfg = (row or {}).get("config") or {}
     if not row or row["status"] != "connected" or not cfg.get("nip"):
         return None
-    return KsefLookup(cfg["nip"], cfg.get("company") or "Pizzeria Amalfi", audit, base_url=settings.ksef_api_url)
+    from scout.ksef_sync import known_sellers
+
+    return KsefLookup(cfg["nip"], cfg.get("company") or "Pizzeria Amalfi", audit, base_url=settings.ksef_api_url,
+                      sellers=known_sellers(cfg["nip"]))

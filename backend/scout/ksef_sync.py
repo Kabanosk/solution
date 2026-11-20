@@ -18,6 +18,7 @@ import datetime as dt
 import hashlib
 import logging
 import random
+import re
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -154,28 +155,69 @@ def _candidates(repo: Repository, already: set[str]) -> tuple[list[Any], list[In
     return open_, filed
 
 
-def _import(repo: Repository, doc: dict[str, Any], ksef_number: str) -> tuple[str, Decimal]:
-    """File one received invoice. Returns (outcome, linked amount): linked | on_file | mismatch | imported."""
+NUMBER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9/._-]{0,63}")
+_GENERIC = {"gmbh", "ltd", "limited", "srl", "s.r.l.", "spółka", "spolka", "sp.", "z", "o.o.", "inc", "the", "and", "company"}
+
+
+def _tokens(name: str | None) -> set[str]:
+    return {t for t in re.findall(r"[\w.]+", (name or "").lower()) if len(t) >= 4 and t not in _GENERIC}
+
+
+def known_sellers(company_nip: str) -> set[str]:
+    """NIPs of the suppliers Scout simulates on TE for this company (the only sellers it trusts blindly)."""
+    return {supplier_nip(company_nip, p) for p in [*SUPPLIERS, SCENARIOS["ksef"].invoice_number.split("-")[0]]}
+
+
+def trusted_seller(doc: dict[str, Any], counterparty: str | None, sellers: set[str]) -> bool:
+    """KSeF TE is shared: anyone can issue an invoice to our NIP. Link or file one only when its seller is a
+    supplier we know, or its name matches the payment's counterparty."""
+    return doc.get("seller_nip") in sellers or bool(_tokens(doc.get("supplier")) & _tokens(counterparty))
+
+
+def invoice_row_id(number: str) -> str:
+    return "inv_ksef_" + hashlib.sha256(number.encode()).hexdigest()[:16]
+
+
+def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip: str,
+            sellers: set[str]) -> tuple[str, Decimal]:
+    """File one received invoice. Returns (outcome, linked amount):
+    linked | on_file | mismatch | imported | review (not ours, odd number, conflicting or untrusted).
+
+    Never overwrites an invoice that is already in the database: a received document with a number we know is at
+    most linked to that invoice's open payment when everything matches; new numbers get their own row (id derived
+    from a hash of the exact number, so a look-alike number cannot land on another invoice's id)."""
     number, total = doc["number"], doc["total"]
+    if not NUMBER_RE.fullmatch(number or "") or doc.get("buyer_nip") != our_nip:
+        return "review", Decimal(0)
     with repo.transaction():
         repo.lock_invoice_number(number)
         existing = repo.get_invoice_by_number(number)
-        if existing and existing.transaction_id:
-            repo.conn.execute("UPDATE invoices SET source = 'ksef' WHERE id = %s", (existing.id,))
-            return "on_file", Decimal(0)
         txn = next((t for t in repo.list_transactions(undocumented_only=True) if t.invoice_number == number), None)
-        link = txn.id if txn is not None and -txn.amount == total else None
-        inv = Invoice(id=existing.id if existing else "inv_" + number.replace("-", "").replace("/", "").lower(),
-                      number=number, supplier=doc["supplier"] or "?", issue_date=doc["issue_date"], total=total,
-                      due_date=doc.get("due_date"),
-                      currency=doc["currency"], transaction_id=link, source="ksef",
-                      category=txn.category if txn else None, team_id=txn.team_id if txn else None,
-                      lines=[InvoiceLine(description=ln["description"] or "-", quantity=ln["quantity"],
-                                         unit_price=ln["unit_price"], amount=ln["amount"]) for ln in doc["lines"]])
+        if existing:
+            if existing.total != total or existing.supplier != (doc["supplier"] or existing.supplier):
+                return "review", Decimal(0)  # same number, different document: a person decides
+            if existing.transaction_id:
+                return "on_file", Decimal(0)
+            if txn is not None and -txn.amount == total and trusted_seller(doc, txn.counterparty, sellers):
+                repo.conn.execute("UPDATE invoices SET transaction_id = %s WHERE id = %s", (txn.id, existing.id))
+                repo.conn.execute("UPDATE transactions SET documented = TRUE, invoice_id = %s WHERE id = %s",
+                                  (existing.id, txn.id))
+                return "linked", total
+            return "on_file", Decimal(0)
+        row_id = invoice_row_id(number)
+        if repo.conn.execute("SELECT 1 FROM invoices WHERE id = %s", (row_id,)).fetchone():
+            return "review", Decimal(0)
+        trusted = txn is not None and trusted_seller(doc, txn.counterparty, sellers)
+        link = txn.id if trusted and -txn.amount == total else None
+        inv = Invoice(id=row_id, number=number, supplier=(doc["supplier"] or "?")[:200], issue_date=doc["issue_date"],
+                      total=total, due_date=doc.get("due_date"), currency=doc["currency"][:3], transaction_id=link,
+                      source="ksef", category=txn.category if link else None, team_id=txn.team_id if link else None,
+                      lines=[InvoiceLine(description=(ln["description"] or "-")[:300], quantity=ln["quantity"],
+                                         unit_price=ln["unit_price"], amount=ln["amount"]) for ln in doc["lines"][:200]])
+        if txn is not None and not link:
+            return ("mismatch" if trusted else "review"), Decimal(0)
         repo.add_invoice(inv, commit=False)
-    if link:
-        return "linked", total
-    return ("mismatch" if txn is not None else "imported"), Decimal(0)
+    return ("linked", total) if link else ("imported", Decimal(0))
 
 
 def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, *,
@@ -240,7 +282,7 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
             sleep(2.0)
         p.step(f"Queried KSeF for invoices addressed to NIP {nip}: {len(metas)} found", received=len(metas))
 
-        counts = {"linked": 0, "on_file": 0, "mismatch": 0, "imported": 0}
+        counts = {"linked": 0, "on_file": 0, "mismatch": 0, "imported": 0, "review": 0}
         linked_total = unpaid_total = Decimal(0)
         listing = []
         conn = conn_factory()
@@ -250,7 +292,7 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
                 doc = parse_fa3(client.download(token, m["ksefNumber"]))
                 if not doc["number"]:
                     continue
-                outcome, amount = _import(repo, doc, m["ksefNumber"])
+                outcome, amount = _import(repo, doc, m["ksefNumber"], our_nip=nip, sellers=known_sellers(nip))
                 counts[outcome] += 1
                 linked_total += amount
                 unpaid_total += doc["total"] if outcome == "imported" else Decimal(0)
@@ -269,6 +311,8 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
             text += f", {counts['imported']} new and not paid yet (€{unpaid_total:,.2f}, added to payables)"
         if counts["mismatch"]:
             text += f", {counts['mismatch']} with a different amount than the payment"
+        if counts["review"]:
+            text += f", {counts['review']} left for review (unknown seller, conflicting or not addressed to us)"
         p.step(text, imported=len(listing), linked=counts["linked"], linked_total=str(linked_total),
                on_file=counts["on_file"], unpaid=counts["imported"], unpaid_total=str(unpaid_total),
                invoices=listing[:30])

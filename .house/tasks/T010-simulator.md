@@ -1,9 +1,9 @@
 ---
 id: T010
 title: December event simulator with speed control
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T010-simulator
 depends_on: ["T002"]
 capabilities: []
 acceptance:

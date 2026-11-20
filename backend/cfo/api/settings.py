@@ -1,0 +1,29 @@
+"""API-only settings (same `.env` as cfo.config, kept separate so other tasks do not collide on config.py)."""
+
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from cfo.config import REPO_ROOT
+
+
+class ApiSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(REPO_ROOT / ".env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Comma-separated list of allowed browser origins, or "*" (the default, fine for the hackathon demo:
+    # the API has no cookies or credentials). Env var: CORS_ORIGINS.
+    cors_origins: str = Field(default="*")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+
+@lru_cache
+def get_api_settings() -> ApiSettings:
+    return ApiSettings()

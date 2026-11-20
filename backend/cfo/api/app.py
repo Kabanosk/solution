@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -37,8 +41,21 @@ TAGS = [
 ]
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """With `AGENT_IN_API=1` the API process builds its own agent (approvals, `POST /v1/sim:step`); see `cfo.run`."""
+    try:
+        from cfo.run import attach_api
+
+        attach_api()
+    except Exception:  # noqa: BLE001 - the read endpoints must come up even when the agent cannot be built
+        logging.getLogger(__name__).exception("could not attach the agent to the API process")
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS)
+    app = FastAPI(title="Autonomous CFO API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
+                  lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_api_settings().cors_origin_list,

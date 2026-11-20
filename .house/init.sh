@@ -3,5 +3,5 @@
 set -e
 root="$(git rev-parse --show-toplevel)"
 if [ -f "$root/docker-compose.yml" ]; then
-  docker compose -f "$root/docker-compose.yml" up -d --wait db >/dev/null
+  docker compose -p cfo -f "$root/docker-compose.yml" up -d --wait db >/dev/null
 fi

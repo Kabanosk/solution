@@ -1,7 +1,7 @@
 ---
 id: T026
 title: Forecast model: register in MLflow, load from the registry
-status: blocked
+status: review
 owner: coder
 branch: task/T026-forecast-mlflow-registry
 depends_on: ["T015"]

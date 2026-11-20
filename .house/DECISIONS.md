@@ -108,3 +108,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** prośba Wojtka; pokazuje jury koszt jednej decyzji agenta i przewagę własnego modelu na OpenShift AI.
 - **Kto:** człowiek
 - **Data:** 2026-11-20 16:30
+
+## D-017 Domyślny model: Granite 4.0 H Tiny (Llama 3.2 3B nie działa na klastrze)
+- **Decyzja:** domyślny model agenta to Granite 4.0 H Tiny serwowany przez KServe w namespace `my-first-model` (svc `modelcar-granite-4-0-h-tiny-kserve-workload-svc`, HTTPS z certyfikatem self-signed na 8000; `/v1` i `/metrics`). InferenceService `llama-32-3b-instruct` ma Ready=False. Kod zostaje model-agnostyczny (D-008), zmienia się tylko konfiguracja: `LLM_BASE_URL`, `LLM_MODEL` (dokładna nazwa z `/v1/models`), `VLLM_METRICS_URL`.
+- **Dlaczego:** informacja od Grzesia; Granite to model z rodziny Red Hat/IBM i dobrze radzi sobie z wywoływaniem narzędzi.
+- **Kto:** człowiek (Grzesiu)
+- **Data:** 2026-11-20 16:45

@@ -27,17 +27,17 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "...........                                                              [100%]\n11 passed in 7.19s",
-      "ran_at": "2026-11-20T15:17:41+01:00",
-      "commit": "9be7469c9fac19f852b12f959987efee148b42c9"
+      "output_tail": "...........                                                              [100%]\n11 passed in 6.73s",
+      "ran_at": "2026-11-20T15:20:58+01:00",
+      "commit": "0740ec4019b2c5a0b87dc08dc8a98e2eb67cab3c"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "generated into data/generated (seed 42); history undocumented-by-design: 7",
-      "ran_at": "2026-11-20T15:17:42+01:00",
-      "commit": "9be7469c9fac19f852b12f959987efee148b42c9"
+      "ran_at": "2026-11-20T15:20:58+01:00",
+      "commit": "0740ec4019b2c5a0b87dc08dc8a98e2eb67cab3c"
     }
   }
 }

@@ -90,3 +90,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** pierwotny revert był najpewniej flake'iem wspólnej bazy, a bramka ma błąd przy ponownym mergowaniu cofniętej gałęzi (do zgłoszenia w repo house).
 - **Kto:** coordinator
 - **Data:** 2026-11-20 18:00
+
+## D-015 MLflow: tracing + ewaluacja agenta, rejestr modelu prognozy; bez Data Science Pipelines
+- **Decyzja:** MLflow robimy w trzech częściach: (1) tracing każdego zdarzenia agenta (T027), (2) ewaluacja agenta na zestawie scenariuszy z deterministycznymi scorerami (T028), (3) model prognozy trenowany w notebooku na workbenchu RHOAI i rejestrowany w MLflow, a API ładuje wersję `champion` (T026, T017, T029). Data Science Pipelines (cykliczny retrening) pomijamy.
+- **Dlaczego:** bonus Red Hat brzmi dosłownie „Use MLflow for tracing and evaluating the agents”; trening w Jupyterze zalicza osobny bonus (Jupyter). Pipelines wymagają S3 i dodatkowych podów na jednym nodzie i nie dają punktów.
+- **Kto:** coordinator (człowiek: „ogarnijmy taski do MLflow”)
+- **Data:** 2026-11-20 15:30

@@ -1,9 +1,9 @@
 ---
 id: T049
 title: Cost alert sentence always states the cost change and the metric change in EUR
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T049-cost-alert-wording
 depends_on: ["T028", "T041"]
 capabilities: []
 acceptance:

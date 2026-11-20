@@ -43,3 +43,4 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-20 17:00 · codex · Dashboard korzysta z danych Postgresa w czasie żądania i działa jako osobny pod; konfiguracja środowiska usunięta ze źródeł, reguły ignorowania w głównym .gitignore, raport i aktualizacje dołączone do jednego commitu na bazie main; testy, porównanie z SQL i walidacja manifestów poprawne · reports/dashboard-deployment.md
 - 2026-11-20 T047: poprawki po review Codexa (uziemienie odpowiedzi, narzędzie spend_summary, strony wyników, parowanie wywołań narzędzi, awaria bazy) - check GREEN, status review.
 - 2026-11-20 17:26 T048 cofnięte po scaleniu: regresja w T011: AC-1 (exit 1)
+- 2026-11-20 18:10 T049: alert kosztowy zawsze podaje zmianę kosztu (procent, EUR przed → teraz), zmianę metryki i koszt jednostkowy w EUR; zdanie z LLM bez tych danych zastępuje szablon - check GREEN (AC-3 ręcznie u koordynatora), status review · reports/T049.md

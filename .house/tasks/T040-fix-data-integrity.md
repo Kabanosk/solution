@@ -1,9 +1,9 @@
 ---
 id: T040
 title: "Review fixes: data integrity of replay, reset and invoice attachment"
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T040-fix-data-integrity
 depends_on: []
 capabilities: []
 acceptance:

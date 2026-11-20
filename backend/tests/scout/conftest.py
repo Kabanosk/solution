@@ -59,8 +59,8 @@ class FakeSlack:
         self.channels = [{"id": "C_FIN", "name": "finance", "is_member": True}]
         self.files: dict[str, bytes] = {}
 
-    def _rec(self, name: str, **kw: Any) -> dict[str, Any]:
-        self.calls.append((name, kw))
+    def _rec(self, _call: str, **kw: Any) -> dict[str, Any]:
+        self.calls.append((_call, kw))
         return {"ok": True}
 
     def chat_postMessage(self, **kw: Any) -> dict[str, Any]:  # noqa: N802

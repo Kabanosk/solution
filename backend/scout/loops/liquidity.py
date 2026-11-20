@@ -197,6 +197,18 @@ def _propose(ctx: JobContext, task: Task, p: Any) -> None:
     _ask_approval(ctx, task, question)
 
 
+def _status_done(ctx: JobContext, p: dict[str, Any], task_id: str) -> Task:
+    """Replace the requester's "Working on it…" message with where the what-if ended."""
+    task = ctx.recorder.get(task_id)
+    if p.get("status_ref"):
+        steps = ctx.recorder.steps(task_id)
+        lines = "\n".join(f"• {s.text}" for s in steps[1:][-6:])
+        head = task.outcome or (f"Waiting for {ctx.hr.name(task.owner_id)}'s approval" if task.status == "waiting"
+                                else steps[-1].text)
+        ctx.notifier.update(p["status_ref"], f"{head} ({task.id})\n{lines}", task.level or "NOTIFY")
+    return task
+
+
 def on_what_if(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     amount = parse_eur(p.get("amount"))
@@ -207,13 +219,15 @@ def on_what_if(ctx: JobContext, job: Job) -> Task:
                              amount=-amount if amount else None, simulated=True)
     if ctx.recorder.steps(task.id):
         return task
+    if p.get("status_ref"):
+        ctx.notifier.track(task.id, p["status_ref"])
     ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(p.get('from_id'))} asked: what if we buy {what} for "
                                            f"{eur(amount) if amount else '?'} in {month:%B}", source="slack:dm")
     if amount is None:
         outcome = "Closed · I need the price to run the forecast"
         ctx.recorder.step(task.id, "resolved", outcome)
         ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via="forecast", level="AUTO")
-        return ctx.recorder.get(task.id)
+        return _status_done(ctx, p, task.id)
     forecaster = ctx.forecaster or _default_forecaster
     try:
         review = forecaster(ctx, [{"on": month, "amount": amount, "label": what}])
@@ -221,15 +235,15 @@ def on_what_if(ctx: JobContext, job: Job) -> Task:
         log.exception("forecast failed")
         ctx.recorder.step(task.id, "error", f"Couldn't run the forecast: {type(e).__name__}")
         ctx.recorder.set_status(task.id, "escalated", owner_id=ctx.settings.ceo_id)
-        return ctx.recorder.get(task.id)
+        return _status_done(ctx, p, task.id)
     proposal = _review_steps(ctx, task, review, f"{what} ({eur(amount)} in {month:%B})")
     if proposal is None or not review.gaps:
         outcome = f"Resolved · affordable: the balance stays above the {eur(review.buffer)} buffer"
         ctx.recorder.step(task.id, "resolved", outcome, source="forecast")
         ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via="forecast", level="AUTO")
-        return ctx.recorder.get(task.id)
+        return _status_done(ctx, p, task.id)
     _propose(ctx, task, proposal)
-    return ctx.recorder.get(task.id)
+    return _status_done(ctx, p, task.id)
 
 
 def on_review(ctx: JobContext, job: Job) -> Task | None:

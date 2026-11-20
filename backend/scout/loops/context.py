@@ -65,14 +65,17 @@ class LogNotifier:
 class HR:
     """People, roles, vacations and the manager chain (company HR tables)."""
 
-    def __init__(self, conn_factory: ConnFactory):
+    def __init__(self, conn_factory: ConnFactory, user_map: dict[str, str] | None = None):
         self._cf = conn_factory
+        self._by_slack = {v: k for k, v in (user_map or {}).items()}
 
     def employee(self, employee_id: str) -> dict[str, Any] | None:
         with self._cf() as conn:
             return conn.execute("SELECT * FROM employees WHERE id = %s", (employee_id,)).fetchone()
 
     def by_slack_id(self, slack_id: str) -> dict[str, Any] | None:
+        if slack_id in self._by_slack:
+            return self.employee(self._by_slack[slack_id])
         with self._cf() as conn:
             return conn.execute("SELECT * FROM employees WHERE slack_user_id = %s", (slack_id,)).fetchone()
 

@@ -1,0 +1,38 @@
+{
+  "name": "lantern-dashboard",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/prepare-assets.mjs",
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "node scripts/prepare-assets.mjs && next build --webpack",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "typecheck": "tsc --noEmit",
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "latest",
+    "next": "latest",
+    "pg": "^8.23.1",
+    "radix-ui": "^1.8.1",
+    "react": "latest",
+    "react-dom": "latest",
+    "recharts": "^3.8.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "latest",
+    "@types/node": "latest",
+    "@types/pg": "^8.23.1",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "postcss": "latest",
+    "tailwindcss": "latest",
+    "tw-animate-css": "latest",
+    "typescript": "latest"
+  }
+}

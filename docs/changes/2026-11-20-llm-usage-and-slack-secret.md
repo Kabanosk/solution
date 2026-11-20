@@ -32,7 +32,7 @@ Everything else follows the usual API conventions: money as a string plus curren
 ### Try it
 
 ```bash
-API=https://api-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com
+API="https://$(oc get route api -o jsonpath='{.spec.host}')"
 curl -s "$API/v1/llm/usage/live"
 curl -s "$API/v1/llm/usage?group_by=purpose"
 curl -s "$API/v1/llm/usage?from=2026-11-21T00:00:00Z&to=2026-11-22T00:00:00Z&group_by=hour"
@@ -93,7 +93,7 @@ like restarts.
 
 ## 2. Slack credentials: Secret `slack`
 
-- The team created the Secret `slack` in `cfo-agent-uwur` with the keys `SLACK_APP_TOKEN`, `SLACK_BOT_TOKEN` and
+- The team created the Secret `slack` in the selected project with the keys `SLACK_APP_TOKEN`, `SLACK_BOT_TOKEN` and
   `SLACK_USER_MAP` (for example `vincenzo=U…,grazyna=U…`). The values are not in git.
 - `deploy/openshift/app/worker.yaml` and `api.yaml` now load it with
   `envFrom: [{secretRef: {name: slack, optional: true}}]`.
@@ -101,11 +101,11 @@ like restarts.
   how to recreate `slack` if needed:
 
   ```bash
-  oc create secret generic slack -n cfo-agent-uwur \
+  oc create secret generic slack \
     --from-literal=SLACK_BOT_TOKEN='xoxb-…' \
     --from-literal=SLACK_APP_TOKEN='xapp-…' \
     --from-literal=SLACK_USER_MAP='vincenzo=U…,grazyna=U…'
-  oc rollout restart deploy/worker deploy/api -n cfo-agent-uwur
+  oc rollout restart deploy/worker deploy/api
   ```
 
 - Result: the worker restarted and opened its Slack Socket Mode session. DMs and the Approve and Reject buttons go

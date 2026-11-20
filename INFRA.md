@@ -14,7 +14,7 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 
 ## 1. Map
 
-| What | Local (laptop) | Cluster (`cfo-agent-uwur`) | Status |
+| What | Local (laptop) | Cluster (the selected project) | Status |
 |---|---|---|---|
 | Postgres 16 | `docker compose up -d db` | Deployment `postgres`, svc `postgres:5432`, PVC `postgres-data` (5Gi), Secret `postgres` | ✅ |
 | Sample data (organizer CSV etc.) | `data/` (git-ignored) | Deployment `files`, svc `http://files:8080` (read-only), PVC `sample-data` | ✅ |

@@ -119,3 +119,15 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Decyzja:** testy używają schematów Postgresa z PID procesu (`tNNN_test_<pid>`), bo kilka sesji naraz odpala bramki i nadpisywały sobie wspólny `t005_test` (stąd cofnięcie T026). T026 wrócił przez revert rewertu i ręczną bramkę jak w D-014 (`house check --worktree` GREEN → `merge --no-ff` → `check --all` GREEN).
 - **Kto:** coordinator
 - **Data:** 2026-11-20 16:30
+
+## D-018 Dashboard jako osobny pod, dane firmowe poza paczką aplikacji
+- **Decyzja:** zgodnie z poleceniem użytkownika dashboard działa jako osobny pod Next.js. Agregaty bankowe, pracownicy i decyzje są czytane z istniejącego Postgresa po stronie serwera w czasie żądania; prognoza pochodzi z wewnętrznego API. Usunięto lokalny CSV i stałe dane scenariusza z dashboardu. Dostęp do Route TLS wymaga hasła z osobnego Secret.
+- **Dlaczego:** poufne dane nie powinny trafiać do publicznego kodu ani obrazu; obecny kontrakt API nie zawiera katalogu pracowników, więc odczyt serwerowy pozwala wdrożyć dashboard bez zmian w backendzie zespołu.
+- **Kto:** człowiek (zakres), codex (realizacja)
+- **Data:** 2026-11-20
+
+## D-019 Usunięcie identyfikatorów środowiska z repozytorium
+- **Decyzja:** na żądanie użytkownika usunięto lokalne ścieżki i nazwę projektu z plików repozytorium. Manifesty korzystają z wybranego kontekstu OpenShift, lokalnych ImageStream i namespace poda z Downward API. Dokumentacja używa zmiennych środowiskowych i odczytu Route w czasie wykonania.
+- **Dlaczego:** konfiguracja środowiska nie powinna trafiać do publicznych źródeł. W opisie ręcznego kryterium T029 oraz jego zapisanej kopii zastąpiono wyłącznie nazwę projektu przez ogólny opis; wymagania i komendy weryfikacyjne pozostają równoważne. Narzędzie house nie jest dostępne na tej maszynie.
+- **Kto:** człowiek (polecenie), codex (realizacja)
+- **Data:** 2026-11-20

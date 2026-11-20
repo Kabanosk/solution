@@ -1,6 +1,6 @@
 # NeMo Guardrails od zera, czyli jak to działa i jak to postawić na naszym OpenShifcie
 
-Dla: Wojtek (D-009: NeMo robisz sam). Klaster: projekt `cfo-agent-uwur`, model Granite 4.0 H Tiny w `my-first-model` (D-017).
+Dla: Wojtek (D-009: NeMo robisz sam). Klaster: wybrany projekt, model Granite 4.0 H Tiny w `my-first-model` (D-017).
 Źródła: `.house/reports/guardrails-research.md` (z linkami). ⚠️ = w researchu niepotwierdzone. Sprawdź na klastrze,
 zanim na tym oprzesz demo.
 
@@ -112,7 +112,7 @@ zmiana jednej wartości w ConfigMapie.
 ### Krok 0. Czy operator to obsługuje?
 ```bash
 oc login ...                                    # patrz docs/cluster-setup.md
-oc project cfo-agent-uwur
+oc project "${OPENSHIFT_PROJECT:?Set OPENSHIFT_PROJECT to your project name}"
 oc api-resources | grep -i nemoguardrails       # oczekiwane: nemoguardrails  trustyai.opendatahub.io/v1alpha1
 oc explain nemoguardrails.spec                  # ⚠️ DOKŁADNY kształt pól: nemoConfigs[] vs configMaps[] vs nemoConfig
 oc explain nemoguardrails.spec --recursive | head -60

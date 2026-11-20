@@ -1,18 +1,18 @@
 # Cluster setup (team)
 
 How to get access to our OpenShift AI cluster and the shared base services.
-Namespace: `cfo-agent-uwur`.
+The namespace is selected through your local `oc` context; it is not stored in the manifests.
 
 ## 1. Install `oc`
 Download the CLI from the cluster web console (`?` → Command Line Tools) or from
 https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/ and put `oc` on your `PATH`.
 
 ## 2. Log in
-Web console → your name (top right) → **Copy login command** → **Display Token**, then:
+Web console → your name (top right) → **Copy login command** → **Display Token**. Set `OPENSHIFT_PROJECT` in your local environment, then:
 
 ```sh
 oc login --token=<token> --server=<api-url>
-oc project cfo-agent-uwur
+oc project "${OPENSHIFT_PROJECT:?Set OPENSHIFT_PROJECT to your project name}"
 ```
 
 ## 3. What is running

@@ -136,6 +136,38 @@ def _rung_system(ctx: JobContext, task: Task, number: str | None, day: date) -> 
     return False
 
 
+def _rung_ksef(ctx: JobContext, task: Task, number: str | None) -> tuple[bool, InvoiceDoc | None]:
+    """Poland: every B2B invoice goes through KSeF, so ask KSeF for the number before anyone's laptop."""
+    ksef = getattr(ctx.connectors, "ksef", None)
+    if ksef is None or not number:
+        return False, None
+    hits = _safe(ctx, task, "KSeF", lambda: ksef.find(number, task_id=task.id), [])
+    if not hits:
+        ctx.recorder.step(task.id, "checked_system", f"Searched KSeF (national e-invoice system) for {number}: "
+                                                     "not issued there", source="ksef", result_count=0)
+        return False, None
+    mismatch = None
+    for doc, ksef_number in hits:
+        inv = InvoiceDoc(number=doc["number"] or number, supplier=doc["supplier"] or task.counterparty or "?",
+                         issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
+                         lines=[{"description": ln["description"], "quantity": ln["quantity"],
+                                 "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"]])
+        ctx.recorder.step(task.id, "checked_system",
+                          f"Found {inv.number} in KSeF as {ksef_number}: e-invoice from {inv.supplier} "
+                          f"(NIP {doc.get('seller_nip')}), {eur(inv.total)}", source="ksef", result_count=len(hits),
+                          detail={"ksef_number": ksef_number, "seller_nip": doc.get("seller_nip"),
+                                  "lines": len(inv.lines)})
+        if inv.total != abs(task.amount):
+            mismatch = mismatch or inv
+            continue
+        filed = _file(ctx, task, inv, via="invoicing",
+                      evidence={"name": f"KSeF {ksef_number}", "kind": "invoice", "ref": f"ksef:{ksef_number}",
+                                "source": "ksef"})
+        if filed is True:
+            return True, None
+    return False, mismatch
+
+
 def _rung_files(ctx: JobContext, task: Task, number: str | None, day: date) -> tuple[bool, InvoiceDoc | None]:
     owner = ctx.settings.document_owner_id
     terms = [t for t in (number, (task.counterparty or "").split()[0] if task.counterparty else None) if t]
@@ -287,7 +319,11 @@ def on_bank_txn(ctx: JobContext, job: Job) -> Task:
                       detail={"reference": txn.reference, "amount": str(txn.amount), "card": txn.card_last4})
     if _rung_system(ctx, task, number, day):
         return ctx.recorder.get(task.id)
+    filed, mismatch_ksef = _rung_ksef(ctx, task, number)
+    if filed:
+        return ctx.recorder.get(task.id)
     filed, mismatch = _rung_files(ctx, task, number, day)
+    mismatch = mismatch or mismatch_ksef
     if filed:
         return ctx.recorder.get(task.id)
     filed, mismatch_mail = _rung_email(ctx, task, number, day)

@@ -15,7 +15,14 @@ from scout.connectors.chat import ChatConnector, NoChat, SlackChat
 from scout.connectors.crypto import open_
 from scout.connectors.files import FilesConnector, WorkstationFiles
 from scout.connectors.invoicing import InvoicingConnector, PostgresInvoicing
-from scout.connectors.mail import FolderMail, GmailMail, MailConnector, UnavailableMail, WorkspaceMail
+from scout.connectors.ksef import KsefLookup
+from scout.connectors.mail import (
+    FolderMail,
+    GmailMail,
+    MailConnector,
+    UnavailableMail,
+    WorkspaceMail,
+)
 from scout.db import ConnFactory
 
 log = logging.getLogger(__name__)
@@ -28,6 +35,7 @@ class Connectors:
     files: FilesConnector
     mail: MailConnector
     chat: ChatConnector
+    ksef: KsefLookup | None = None  # set when the KSeF connection is connected (it has a NIP)
 
 
 def _path(p: str) -> Path:
@@ -75,4 +83,13 @@ def build(conn_factory: ConnFactory, settings: ScoutSettings, slack_client: Any 
         files=WorkstationFiles(_path(settings.workstations_root), audit),
         mail=build_mail(rows, settings, audit),
         chat=chat,
+        ksef=build_ksef(rows, settings, audit),
     )
+
+
+def build_ksef(rows: dict[str, dict[str, Any]], settings: ScoutSettings, audit: Audit) -> KsefLookup | None:
+    row = rows.get("ksef")
+    cfg = (row or {}).get("config") or {}
+    if not row or row["status"] != "connected" or not cfg.get("nip"):
+        return None
+    return KsefLookup(cfg["nip"], cfg.get("company") or "Pizzeria Amalfi", audit, base_url=settings.ksef_api_url)

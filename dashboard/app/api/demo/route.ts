@@ -1,7 +1,7 @@
 import { apiFetch, checkWriteRequest, noStore } from "@/lib/scout-api";
 export const dynamic = "force-dynamic";
 
-const SCENARIOS = new Set(["files", "email", "chat_refund", "nowhere", "overspend_chat"]);
+const SCENARIOS = new Set(["files", "email", "chat_refund", "nowhere", "overspend_chat", "ksef"]);
 
 // Dev-only demo trigger (SCOUT_DEMO=1): POST {scenario} -> ${CFO_API_URL}/v1/demo/play/{scenario}
 export async function POST(request: Request) {

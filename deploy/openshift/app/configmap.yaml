@@ -6,12 +6,13 @@ kind: ConfigMap
 metadata:
   name: cfo-config
 data:
-  # Model (D-017): Granite 4.0 H Tiny on vLLM, LLMInferenceService in namespace my-first-model (one L4 GPU).
+  # Model (D-017): Granite 4.0 H Tiny on vLLM, KServe InferenceService in namespace my-first-model (one L4 GPU),
+  # plain HTTP on the headless predictor Service, container port 8080.
   # Swap model = change these two values. For the NeMo Guardrails proxy, point LLM_BASE_URL at the proxy.
-  LLM_BASE_URL: "https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc:8000/v1"
+  LLM_BASE_URL: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1"
   LLM_MODEL: "modelcar-granite-4-0-h-tiny"
-  # The endpoint's cert is signed by the OpenShift service CA, injected into ConfigMap llm-service-ca
-  # and mounted at /etc/llm-ca (api, worker). Values: true | false | path to a CA bundle.
+  # TLS check for an https endpoint: true | false | CA bundle path. The OpenShift service CA is injected into
+  # ConfigMap llm-service-ca and mounted at /etc/llm-ca (use it for an https in-cluster model endpoint).
   LLM_VERIFY_TLS: "/etc/llm-ca/service-ca.crt"
   # MCP servers (streamable HTTP, endpoint /mcp). Read by the worker (T011).
   MCP_COMPANY_DB_URL: "http://mcp-company-db:8001/mcp"
@@ -24,5 +25,5 @@ data:
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
   MLFLOW_TRACKING_URI: "http://mlflow:5000"
   # LLM usage and cost (T032): vLLM Prometheus metrics, scraped by Deployment usage-sampler.
-  VLLM_METRICS_URL: "https://modelcar-granite-4-0-h-tiny-kserve-workload-svc.my-first-model.svc:8000/metrics"
+  VLLM_METRICS_URL: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics"
   VLLM_METRICS_VERIFY: "/etc/llm-ca/service-ca.crt"

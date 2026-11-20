@@ -11,6 +11,7 @@ and errors returned as data ("access_denied", "not_found") so the model can expl
 from __future__ import annotations
 
 import json
+import re
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -70,6 +71,30 @@ def _num(v: Any) -> Decimal | None:
         return None
 
 
+_PAIR = re.compile(r'"(\w+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)')
+
+
+def repair_args(args: dict[str, Any] | None) -> dict[str, Any]:
+    """Small models often send cut-off or slightly broken JSON (the client then hands us `{"_raw": text}`):
+    keep every complete `"key": value` pair instead of dropping all of them."""
+    if not args or "_raw" not in args:
+        return dict(args or {})
+    raw = str(args["_raw"])
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except ValueError:
+        pass
+    out: dict[str, Any] = {}
+    for key, val in _PAIR.findall(raw):
+        try:
+            out[key] = json.loads(val)
+        except ValueError:
+            continue
+    return out
+
+
 def _rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: (str(v) if v is not None else None) for k, v in r.items()} for r in rows[:MAX_ROWS]]
 
@@ -102,8 +127,9 @@ class Toolbox:
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         if name not in NAMES:
             return {"error": "unknown_tool", "tools": sorted(NAMES)}
+        args = repair_args(args)
         try:
-            return getattr(self, f"t_{name}")(**{k: v for k, v in (args or {}).items() if v not in (None, "")})
+            return getattr(self, f"t_{name}")(**{k: v for k, v in args.items() if v not in (None, "")})
         except TypeError as e:
             return {"error": "bad_arguments", "detail": str(e)[:200]}
 

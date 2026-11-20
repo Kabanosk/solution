@@ -19,7 +19,7 @@ from scout.audit import check as access_check
 from scout.llm_tasks import route_dm
 from scout.loops import invoicing
 from scout.loops.context import INVOICE_NUMBER_RE, JobContext, eur
-from scout.loops.toolbox import SPECS, Toolbox, dumps, summarize
+from scout.loops.toolbox import SPECS, Toolbox, dumps, repair_args, summarize
 from scout.models import Job, Task
 from scout.policy import parse_rule
 
@@ -84,10 +84,11 @@ def _answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, r
             if key in seen:  # small models loop: answer from what they already have
                 result = {"note": "You already called this with the same arguments. Use that result and answer."}
             else:
-                result = box.call(call.name, call.arguments or {})
+                args = repair_args(call.arguments)
+                result = box.call(call.name, args)
                 seen[key] = "1"
-                ctx.recorder.step(task.id, "looked_up", summarize(call.name, call.arguments or {}, result),
-                                  source="scout", detail={"tool": call.name, "args": call.arguments})
+                ctx.recorder.step(task.id, "looked_up", summarize(call.name, args, result),
+                                  source="scout", detail={"tool": call.name, "args": args})
             messages.append(Message(role="tool", tool_call_id=call.id, content=dumps(result)))
     messages.append(Message(role="user", content="Answer now in two to four sentences from the results above."))
     try:
@@ -99,8 +100,15 @@ def _answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, r
 
 
 # -- handlers ---------------------------------------------------------------------------------------------
+def slack_markdown(text: str) -> str:
+    """Model markdown -> Slack mrkdwn (`**bold**` -> `*bold*`, `### Title` -> `*Title*`)."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
+    return re.sub(r"(?m)^#{1,6}\s*(.+)$", r"*\1*", text)
+
+
 def _finish(ctx: JobContext, task: Task, p: dict[str, Any], text: str, *, level: str = "AUTO",
             status: str = "done") -> Task:
+    text = slack_markdown(text)
     if p.get("status_ref"):
         ctx.notifier.update(p["status_ref"], text, level)
     else:

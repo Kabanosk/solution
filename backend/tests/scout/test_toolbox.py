@@ -82,3 +82,16 @@ def test_multi_step_answer_and_loop_guard(conn_factory, tmp_path):
     assert sum("scout tasks" in s for s in steps) == 1  # the repeated call was not run again
     assert ctx.notifier.updates[-1]["text"].startswith("Final: €869.62")
     assert len(calls) == chat.MAX_ROUNDS + 1  # bounded: 8 rounds, then one answer without tools
+
+
+def test_repair_broken_small_model_json():
+    from scout.loops.toolbox import repair_args
+
+    raw = '{\n  "counterparty": "Fattoria La Vino",\n  "days": 365,\n  "undocu'
+    assert repair_args({"_raw": raw}) == {"counterparty": "Fattoria La Vino", "days": 365}
+    assert repair_args({"_raw": '{"undocumented_only": true}'}) == {"undocumented_only": True}
+    assert repair_args({"a": 1}) == {"a": 1} and repair_args(None) == {}
+
+
+def test_slack_markdown():
+    assert chat.slack_markdown("You have **€31,016.31**\n### Summary") == "You have *€31,016.31*\n*Summary*"

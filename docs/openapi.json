@@ -98,7 +98,7 @@
           "costs"
         ],
         "summary": "Costs per team over a date range, with monthly breakdown",
-        "description": "Teams are sorted by total cost, highest first. Months are included when their first day is in range.\nCosts without a team (tax, social security) appear as team `company`.",
+        "description": "Teams are sorted by total cost, highest first. Months are included when their first day is in range.\nCosts without a team (tax, social security) appear as team `company`. The range (after defaults) must not be\ninverted and spans at most 120 months, otherwise 422.",
         "operationId": "get_costs_by_team_v1_costs_by_team_get",
         "parameters": [
           {
@@ -601,6 +601,11 @@
         ],
         "summary": "Approve: the agent executes the action (SIMULATED) and records the decision",
         "operationId": "approve_v1_approvals__approval_id__approve_post",
+        "security": [
+          {
+            "WriteToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "approval_id",
@@ -653,8 +658,18 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or wrong write token (only when the server has `API_WRITE_TOKEN` set).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "`by` is not the approver of this request.",
+            "description": "The caller (`by`, or the CEO when a write token is used) is not the approver of this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -693,6 +708,11 @@
         ],
         "summary": "Reject: nothing is executed, the decision is recorded as rejected",
         "operationId": "reject_v1_approvals__approval_id__reject_post",
+        "security": [
+          {
+            "WriteToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "approval_id",
@@ -745,8 +765,18 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or wrong write token (only when the server has `API_WRITE_TOKEN` set).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "`by` is not the approver of this request.",
+            "description": "The caller (`by`, or the CEO when a write token is used) is not the approver of this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -784,7 +814,7 @@
           "events"
         ],
         "summary": "Live stream of new decisions, approvals and events (SSE)",
-        "description": "Server-Sent Events (`text/event-stream`). Messages:\n\n* `event: decision`, `data` = a decision like `GET /v1/decisions/{id}`;\n* `event: approval`, `data` = an approval like `GET /v1/approvals/{id}` (sent when created and again when answered);\n* `event: event`, `data` = a simulator event (`id`, `ts`, `kind`, `payload`).\n\nEvery message has an `id:` that is a resume token: after a disconnect `EventSource` sends it back as `Last-Event-ID`\nand receives everything newer. Without it the stream starts from now (nothing is replayed). The server polls the\ndatabase about once a second and sends a `: keepalive` comment when nothing happens.",
+        "description": "Server-Sent Events (`text/event-stream`). Messages:\n\n* `event: decision`, `data` = a decision like `GET /v1/decisions/{id}`;\n* `event: approval`, `data` = an approval like `GET /v1/approvals/{id}` (sent when created and again when answered);\n* `event: event`, `data` = a simulator event (`id`, `ts`, `kind`, `payload`).\n\nThe first frame (`retry` and `: connected`) carries an `id:` too, the position the stream starts at. Every message has an `id:` that is a resume token: after a disconnect `EventSource` sends it back as `Last-Event-ID`\nand receives everything newer. Without it the stream starts from now (nothing is replayed). The server polls the\ndatabase about once a second and sends a `: keepalive` comment when nothing happens.",
         "operationId": "events_v1_events_get",
         "parameters": [
           {
@@ -905,6 +935,16 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or wrong write token (only when the server has `API_WRITE_TOKEN` set).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Invalid query parameter or body.",
             "content": {
@@ -915,7 +955,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "WriteToken": []
+          }
+        ]
       }
     },
     "/v1/sim:pause": {
@@ -935,8 +980,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Missing or wrong write token (only when the server has `API_WRITE_TOKEN` set).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "WriteToken": []
+          }
+        ]
       }
     },
     "/v1/sim:step": {
@@ -957,8 +1017,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Missing or wrong write token (only when the server has `API_WRITE_TOKEN` set).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "WriteToken": []
+          }
+        ]
       }
     },
     "/v1/llm/usage": {
@@ -1207,7 +1282,7 @@
             "type": "string",
             "minLength": 1,
             "title": "By",
-            "description": "Employee id of the person answering; must be the approver.",
+            "description": "Employee id of the person answering; must be the approver. Ignored when the server has `API_WRITE_TOKEN` set: the token then stands for the CEO.",
             "examples": [
               "vincenzo"
             ]
@@ -3324,6 +3399,13 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "WriteToken": {
+        "type": "http",
+        "description": "Shared secret `API_WRITE_TOKEN`. Required on write endpoints only when the server has it set.",
+        "scheme": "bearer"
       }
     }
   },

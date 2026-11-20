@@ -252,8 +252,10 @@ class ApprovalOut(BaseModel):
 class ApprovalAnswer(BaseModel):
     """Body of `POST /v1/approvals/{id}:approve` and `:reject`."""
 
-    by: str = Field(min_length=1, description="Employee id of the person answering; must be the approver.",
-                    examples=["vincenzo"])
+    by: str = Field(
+        min_length=1, examples=["vincenzo"],
+        description="Employee id of the person answering; must be the approver. Ignored when the server has "
+                    "`API_WRITE_TOKEN` set: the token then stands for the CEO.")
 
 
 class ApprovalResult(ApprovalOut):

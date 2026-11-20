@@ -21,6 +21,13 @@ class ApiSettings(BaseSettings):
     # the API has no cookies or credentials). Env var: CORS_ORIGINS.
     cors_origins: str = Field(default="*")
 
+    # Shared secret for the write endpoints (approve/reject, simulator controls): `Authorization: Bearer <token>`.
+    # Unset or empty = the API is open (local dev). Env var: API_WRITE_TOKEN (Secret in the cluster).
+    api_write_token: str | None = Field(default=None, repr=False)
+
+    # Employee id the write token stands for: approvals are answered as this person. Env var: CEO_ID.
+    ceo_id: str = Field(default="vincenzo")
+
     # Safety buffer for the liquidity forecast in EUR (D-013). Empty = the largest monthly fixed cost in the data.
     # Env var: SAFETY_BUFFER_EUR.
     safety_buffer_eur: Decimal | None = Field(default=None)

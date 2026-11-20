@@ -45,6 +45,19 @@ oc create secret generic slack \
 oc rollout restart deploy/worker deploy/api
 ```
 
+### Write token for the API (`API_WRITE_TOKEN`)
+
+Without it the API is open: anyone who can reach the Route can approve as the CEO and drive the simulator. With it,
+approve/reject and `POST /v1/sim:start|pause|step` need `Authorization: Bearer <token>`; reads stay open and Slack
+approvals are unaffected (`docs/api.md`, "Write protection"). The pods read it from the same Secret `slack`
+(`envFrom`, optional), so it needs no manifest change; add the key and restart the api:
+
+```sh
+oc patch secret slack --type merge -p "{\"stringData\": {\"API_WRITE_TOKEN\": \"$(openssl rand -hex 24)\"}}"
+oc rollout restart deploy/api deploy/worker
+oc get secret slack -o jsonpath='{.data.API_WRITE_TOKEN}' | base64 -d   # give it to the dashboard team
+```
+
 The vLLM endpoint needs no API key (LLM_API_KEY defaults to EMPTY). Where the Slack tokens come from: `docs/slack-setup.md`.
 
 ## Database

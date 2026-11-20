@@ -15,7 +15,7 @@ Server-Sent Events (`text/event-stream`). Messages:
 * `event: approval`, `data` = an approval like `GET /v1/approvals/{id}` (sent when created and again when answered);
 * `event: event`, `data` = a simulator event (`id`, `ts`, `kind`, `payload`).
 
-Every message has an `id:` that is a resume token: after a disconnect `EventSource` sends it back as `Last-Event-ID`
+The first frame (`retry` and `: connected`) carries an `id:` too, the position the stream starts at. Every message has an `id:` that is a resume token: after a disconnect `EventSource` sends it back as `Last-Event-ID`
 and receives everything newer. Without it the stream starts from now (nothing is replayed). The server polls the
 database about once a second and sends a `: keepalive` comment when nothing happens.
 """
@@ -25,7 +25,7 @@ database about once a second and sends a `: keepalive` comment when nothing happ
             response_class=StreamingResponse,
             responses={200: {"content": {"text/event-stream": {"schema": {"type": "string"}}},
                              "description": "An endless `text/event-stream`."}})
-def events(
+async def events(
     last_event_id: Annotated[str | None, Header(alias="Last-Event-ID", description="Resume token (set by EventSource).")] = None,
     last_event_id_query: Annotated[str | None, Query(alias="last_event_id", description="Same as the header, for clients that cannot set it.")] = None,
     config: StreamConfig = Depends(get_stream_config),

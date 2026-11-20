@@ -1,0 +1,34 @@
+{
+  "task": "T048",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_smoke.py",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.smoke --help",
+        "expect": null,
+        "text": null,
+        "timeout": 600
+      },
+      {
+        "id": "AC-3",
+        "kind": "manual",
+        "run": null,
+        "expect": null,
+        "text": "Run inside the cluster (oc rsh deploy/api cfo smoke or a Job) and paste the PASS output into reports/T048.md",
+        "timeout": 600
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T16:55:25+01:00",
+  "results": {}
+}

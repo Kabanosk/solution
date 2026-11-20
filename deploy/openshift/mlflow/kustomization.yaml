@@ -1,0 +1,6 @@
+# Self-hosted MLflow tracking server (T024). Namespace and part-of label come from deploy/kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - pvc.yaml
+  - mlflow.yaml

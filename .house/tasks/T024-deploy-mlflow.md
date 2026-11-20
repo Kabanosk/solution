@@ -1,9 +1,9 @@
 ---
 id: T024
 title: OpenShift: MLflow tracking server
-status: todo
-owner: null
-branch: null
+status: done
+owner: coder
+branch: task/T024-deploy-mlflow
 depends_on: []
 capabilities: []
 acceptance:

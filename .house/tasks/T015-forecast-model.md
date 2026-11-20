@@ -1,7 +1,7 @@
 ---
 id: T015
 title: Forecast model: XGBoost liquidity forecast with optional MLflow logging
-status: review
+status: done
 owner: coder
 branch: task/T015-forecast-model
 depends_on: ["T014"]

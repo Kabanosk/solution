@@ -55,7 +55,8 @@ SPECS: list[ToolSpec] = [
              "words in the file name or text. person = first name.", parameters=_p(person=S, words=S)),
     ToolSpec(name="read_file", description="Read the text of a file found with search_files.",
              parameters=_p(person=S, path=S)),
-    ToolSpec(name="search_email", description="Search the company mailbox by words (supplier, invoice number).",
+    ToolSpec(name="search_email", description="Search the company mailbox, newest first. words: supplier, invoice "
+             "number or subject words; leave words empty to list the newest mails. days: how far back (1 = today).",
              parameters=_p(words=S, days=I)),
     ToolSpec(name="search_chat", description="Search the authorized Slack channels for a supplier, invoice number "
              "or amount.", parameters=_p(supplier=S, invoice_number=S, amount_eur=S, days=I)),
@@ -280,12 +281,15 @@ class Toolbox:
         if not mail.available():
             return {"error": "email_not_connected"}
         terms = [w for w in (words or "").split() if len(w) >= 3][:4] or [t for t in [self._from_question()] if t]
-        if not terms:
-            return {"error": "missing_arguments", "hint": "Call again with words (supplier or invoice number)."}
-        hits = mail.search(terms, self.ctx.now() - timedelta(days=min(int(days or 30), 365)), task_id=self.task.id)
-        return {"mails": [{"from": h.sender, "subject": h.subject, "date": str(h.date)[:10] if h.date else None,
-                           "attachments": h.attachments, "snippet": (h.snippet or h.body)[:200]}
-                          for h in hits[:MAX_ROWS]]}
+        since = self.ctx.now() - timedelta(days=min(max(int(days or 30), 1), 365))
+        hits = mail.search(terms, since, task_id=self.task.id)  # no terms: the newest mails
+        out: dict[str, Any] = {"mails": [{"from": h.sender, "subject": h.subject,
+                                          "date": str(h.date)[:10] if h.date else None,
+                                          "attachments": h.attachments, "snippet": (h.snippet or h.body)[:200]}
+                                         for h in hits[:MAX_ROWS]]}
+        if not hits and terms:
+            out["hint"] = "No mail matches those words. Call again with empty words to list the newest mails."
+        return out
 
     def t_search_chat(self, supplier: str = "", invoice_number: str = "", amount_eur: Any = None, days: int = 30,
                       **_: Any) -> dict[str, Any]:

@@ -109,3 +109,14 @@ def test_empty_arguments_use_the_question(conn_factory, tmp_path):
     rows = b.call("search_invoices", {})["rows"]
     assert [(r["number"], r["linked_to_payment"]) for r in rows] == [("AS-77012", "True")]
     assert Toolbox(ctx, "vincenzo", "ceo", t, question="hi").call("search_invoices", {})["error"] == "missing_arguments"
+
+
+def test_email_without_words_lists_the_newest_mails(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    b = box(ctx, "vincenzo")
+    newest = b.call("search_email", {"days": 365})
+    assert newest["mails"] and "hint" not in newest
+    dates = [m["date"] for m in newest["mails"] if m["date"]]
+    assert dates == sorted(dates, reverse=True)
+    nothing = b.call("search_email", {"words": "topic", "days": 365})
+    assert nothing["mails"] == [] and "empty words" in nothing["hint"]

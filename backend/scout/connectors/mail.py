@@ -49,6 +49,13 @@ class UnavailableMail:
         return [], cursor
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _aware(d: datetime) -> datetime:
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
 def _matches(hit: MailHit, terms: list[str]) -> bool:
     hay = " ".join([hit.subject, hit.snippet, hit.body, *hit.attachments]).casefold()
     return any(t.casefold() in hay for t in terms if t)
@@ -86,7 +93,9 @@ class FolderMail:
     def search(self, terms, since, *, task_id=None):  # noqa: ANN001
         if self._audit:
             self._audit.record("agent", "search", f"mail:{self.mailbox}", " OR ".join(terms), task_id=task_id)
-        return [h for h, _ in self._all() if _matches(h, terms)]
+        hits = [h for h, _ in self._all() if (not terms or _matches(h, terms))
+                and (h.date is None or _aware(h.date) >= _aware(since))]
+        return sorted(hits, key=lambda h: _aware(h.date) if h.date else _EPOCH, reverse=True)
 
     def attachment(self, hit_id, name, *, task_id=None):  # noqa: ANN001
         path = self.root / hit_id
@@ -143,7 +152,8 @@ class GmailMail:
 
     def query(self, terms: list[str], since: datetime) -> str:
         quoted = " OR ".join(f'"{t}"' for t in terms if t)
-        return f"({quoted}) after:{int(since.timestamp())}"
+        after = f"after:{int(since.timestamp())}"
+        return f"({quoted}) {after}" if quoted else after  # no words: the newest mails
 
     def _hit(self, mid: str) -> MailHit:
         m = self._svc.users().messages().get(userId="me", id=mid, format="full").execute()

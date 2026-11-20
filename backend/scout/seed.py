@@ -166,6 +166,8 @@ def seed(conn_factory, *, data_dir: Path, csv: Path | None = None, reset: bool =
                 repo.add_cost_metric(CostMetric(**{**cm.model_dump(), "id": f"{cm.id.rsplit('_', 1)[0]}_{month:%Y%m}",
                                                    "month": month}))
         for c in DEFAULT_CONNECTIONS:
+            if c["id"] == "mail_folder":  # absolute: the installed package has no repo root to be relative to
+                c = {**c, "config": {"root": str((data_dir / "mailbox").resolve())}}
             conn.execute(
                 "INSERT INTO connections (id, kind, provider, display_name, config, status, enabled) "
                 "VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING",

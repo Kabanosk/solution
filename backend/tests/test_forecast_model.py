@@ -146,8 +146,7 @@ class _FakeMlflow(types.ModuleType):
     def __init__(self):
         super().__init__("mlflow")
         self.calls: list[tuple] = []
-        self.xgboost = types.SimpleNamespace(
-            log_model=lambda booster, name, **kwargs: self.calls.append(("model", name)))
+        self.xgboost = types.SimpleNamespace(log_model=lambda booster, name: self.calls.append(("model", name)))
 
     def set_tracking_uri(self, uri): self.calls.append(("uri", uri))
     def set_experiment(self, name): self.calls.append(("experiment", name))
@@ -160,12 +159,7 @@ class _FakeMlflow(types.ModuleType):
         calls = self.calls
 
         class Run:
-            info = types.SimpleNamespace(run_id="run-1")
-
-            def __enter__(self_inner):
-                calls.append(("start", run_name))
-                return self_inner
-
+            def __enter__(self_inner): calls.append(("start", run_name))
             def __exit__(self_inner, *exc): calls.append(("end",))
         return Run()
 
@@ -189,8 +183,6 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     assert kinds[:3] == ["uri", "experiment", "start"] and kinds[-1] == "end"
     assert ("uri", "http://mlflow:5000") in fake.calls and ("model", "model") in fake.calls
     assert ("artifact", "feature_importances.json") in fake.calls
-    assert ("artifact", m.META_ARTIFACT) in fake.calls
-    assert model.mlflow_run_id == "run-1" and model.model_version is None  # logged, not registered
     logged_metrics = next(c[1] for c in fake.calls if c[0] == "metrics")
     assert "holdout_mae" in logged_metrics and set(logged_metrics) == set(model.metrics)
 

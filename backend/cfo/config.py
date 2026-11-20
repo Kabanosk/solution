@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     workstations_root: Path = Field(default=Path("data/generated/workstations"))
     # Simulator speed multiplier: 1.0 = simulated time runs at real time, 3600 = one hour per second.
     sim_speed: float = 1.0
-    # Forecast model in the MLflow registry, e.g. models:/liquidity-forecast@champion. Used by the API only when
-    # MLFLOW_TRACKING_URI is set too; empty = the local model file (FORECAST_MODEL_PATH).
-    forecast_model_uri: str = ""
 
 
 @lru_cache

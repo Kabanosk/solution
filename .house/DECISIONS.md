@@ -130,3 +130,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Decyzja:** Granite 4.0 H Tiny działa teraz jako zwykły KServe InferenceService: `LLM_BASE_URL=http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`, `VLLM_METRICS_URL=http://…:8080/metrics` (bez TLS). Stare adresy https `…-kserve-workload-svc…:8000` z D-017 nie działają. Sekrety Slacka: Secret `slack` (envFrom w worker i api). Próbnik metryk działa jako Deployment `usage-sampler`; `/v1/llm/usage` i `/v1/llm/usage/live` odpowiadają na Route API (sprawdzone 2026-11-20 16:16).
 - **Kto:** człowiek (wdrożenie w sesji forka)
 - **Data:** 2026-11-20 16:20
+
+## D-021 Guardrails robi Wojtek sam, bez podpowiedzi AI (T050–T052)
+- **Decyzja:** NeMo Guardrails to taski ludzkie T050 (czy się da i jaki model), T051 (raile + deploy), T052 (podpięcie aplikacji + demo), zaklepane przez Wojtka (`status: doing`, `owner: Wojtek`). Agenci (coder, coder-codex, night, review, briefingi) ich nie biorą i nie podpowiadają rozwiązań, chyba że Wojtek sam zapyta. Merge kodu z T052 robi coordinator przez `house merge` na prośbę Wojtka.
+- **Dlaczego:** Wojtek chce to ogarnąć samodzielnie (rozwija D-009).
+- **Kto:** człowiek
+- **Data:** 2026-11-20 18:30

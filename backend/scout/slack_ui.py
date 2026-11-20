@@ -64,6 +64,7 @@ class SlackUI:
         self._last_edit: dict[str, float] = {}
         self._pending: dict[str, tuple[str, str]] = {}  # ref -> (text, level) held back by the throttle
         self._dm_channels: dict[str, str] = {}
+        self._origin: dict[str, tuple[str, str]] = {}  # status ref -> the DM it answers (channel, ts)
         recorder.add_listener(self.on_step)
 
     # -- outbound -------------------------------------------------------------------------------------------
@@ -109,6 +110,18 @@ class SlackUI:
             for t in [t for t, r in self._tracked.items() if r == ref]:
                 del self._tracked[t]
         self._edit(ref, text, level)
+        with self._lock:
+            origin = self._origin.pop(ref, None)
+        if origin:
+            self._mark_done(*origin)
+
+    def _mark_done(self, channel: str, ts: str) -> None:
+        """👀 -> ✅ on the DM once its final answer is out."""
+        for call, name in ((self.client.reactions_remove, "eyes"), (self.client.reactions_add, "white_check_mark")):
+            try:
+                call(channel=channel, timestamp=ts, name=name)
+            except Exception:  # noqa: BLE001 - a missing reaction or scope must not fail the answer
+                log.warning("could not set the %s reaction", name, exc_info=True)
 
     def track(self, task_id: str, status_ref: str) -> None:
         with self._lock:
@@ -171,6 +184,8 @@ class SlackUI:
                                            text="[WORKING] Working on it…",
                                            blocks=self._blocks("Working on it…", "WORKING", None, ()), **self._identity)
         status_ref = f"{res['channel']}:{res['ts']}"
+        with self._lock:
+            self._origin[status_ref] = (channel, ts)
         files = []
         for f in event.get("files") or []:
             url = f.get("url_private_download") or f.get("url_private")

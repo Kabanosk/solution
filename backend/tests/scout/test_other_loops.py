@@ -94,6 +94,11 @@ def test_parse_month():
     assert liquidity.parse_month("March", date(2026, 11, 20)) == date(2027, 3, 1)
     assert liquidity.parse_month("2027-05", date(2026, 11, 20)) == date(2027, 5, 1)
     assert liquidity.parse_month("december", date(2026, 11, 20)) == date(2026, 12, 1)
+    # small models hand over stale years ("2024-03" from "in march"): the next such month, never the past
+    assert liquidity.parse_month("2024-03", date(2026, 11, 20)) == date(2027, 3, 1)
+    assert liquidity.parse_month("march 2025", date(2026, 11, 20)) == date(2027, 3, 1)
+    assert liquidity.parse_month("2026-11", date(2026, 11, 20)) == date(2026, 11, 1)
+    assert liquidity.parse_eur("50k$") == Decimal(50000) and liquidity.parse_eur("$50,000 USD") == Decimal(50000)
     assert liquidity.parse_eur("30k") == Decimal(30000) and liquidity.parse_eur("€1,250.50") == Decimal("1250.50")
 
 

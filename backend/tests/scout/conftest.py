@@ -76,6 +76,9 @@ class FakeSlack:
     def reactions_add(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
         return self._rec("reactions_add", **kw)
 
+    def reactions_remove(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
+        return self._rec("reactions_remove", **kw)
+
     def conversations_open(self, **kw: Any) -> dict[str, Any]:  # noqa: N802
         self._rec("conversations_open", **kw)
         return {"ok": True, "channel": {"id": "D_" + str(kw.get("users"))}}

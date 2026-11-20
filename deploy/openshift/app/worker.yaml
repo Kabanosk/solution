@@ -1,0 +1,35 @@
+# The worker (`cfo worker` -> python -m cfo.run, T011) runs the simulator, the agent and the Slack
+# Socket Mode client; it only makes outbound connections, so there is no Service. Until T011 lands
+# the container exits and the pod restarts; that is expected.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels: {app: worker, app.kubernetes.io/component: worker}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"worker\")].image"}]'
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: worker}}
+  template:
+    metadata: {labels: {app: worker, app.kubernetes.io/component: worker}}
+    spec:
+      containers:
+        - name: worker
+          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          args: [worker]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+            - secretRef: {name: cfo-secrets, optional: true}   # SLACK_*, LLM_API_KEY: see README.md
+          env:
+            # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
+            # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password
+            # contains URL-special characters (@ : / ?) percent-encode it or pick an alphanumeric one.
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}

@@ -1,0 +1,157 @@
+# The three MCP servers (streamable HTTP, endpoint /mcp), internal only: no Routes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-company-db
+  labels: {app: mcp-company-db, app.kubernetes.io/component: mcp}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-company-db\")].image"}]'
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: mcp-company-db}}
+  template:
+    metadata: {labels: {app: mcp-company-db, app.kubernetes.io/component: mcp}}
+    spec:
+      containers:
+        - name: mcp-company-db
+          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          args: [mcp, company-db]
+          ports: [{containerPort: 8001}]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          env:
+            # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
+            # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password
+            # contains URL-special characters (@ : / ?) percent-encode it or pick an alphanumeric one.
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: 8001}
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 8001}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-company-db
+  labels: {app: mcp-company-db}
+spec:
+  selector: {app: mcp-company-db}
+  ports: [{name: http, port: 8001, targetPort: 8001}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-workstations
+  labels: {app: mcp-workstations, app.kubernetes.io/component: mcp}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-workstations\")].image"}]'
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: mcp-workstations}}
+  template:
+    metadata: {labels: {app: mcp-workstations, app.kubernetes.io/component: mcp}}
+    spec:
+      containers:
+        - name: mcp-workstations
+          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          args: [mcp, workstations]
+          ports: [{containerPort: 8002}]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          env:
+            # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
+            # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password
+            # contains URL-special characters (@ : / ?) percent-encode it or pick an alphanumeric one.
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+            - {name: WORKSTATIONS_ROOT, value: /app/data/generated/workstations}   # filled by the seed Job (T022)
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: 8002}
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 8002}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: cfo-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-workstations
+  labels: {app: mcp-workstations}
+spec:
+  selector: {app: mcp-workstations}
+  ports: [{name: http, port: 8002, targetPort: 8002}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-hr
+  labels: {app: mcp-hr, app.kubernetes.io/component: mcp}
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-hr\")].image"}]'
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: mcp-hr}}
+  template:
+    metadata: {labels: {app: mcp-hr, app.kubernetes.io/component: mcp}}
+    spec:
+      containers:
+        - name: mcp-hr
+          image: image-registry.openshift-image-registry.svc:5000/cfo-agent-uwur/cfo-backend:latest
+          args: [mcp, hr]
+          ports: [{containerPort: 8003}]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          env:
+            # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
+            # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password
+            # contains URL-special characters (@ : / ?) percent-encode it or pick an alphanumeric one.
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: 8003}
+            initialDelaySeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 8003}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-hr
+  labels: {app: mcp-hr}
+spec:
+  selector: {app: mcp-hr}
+  ports: [{name: http, port: 8003, targetPort: 8003}]

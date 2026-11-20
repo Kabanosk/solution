@@ -3,6 +3,7 @@
 from datetime import date
 from pathlib import Path
 
+import os
 import pandas as pd
 import psycopg
 import pytest
@@ -169,7 +170,7 @@ def seeded():
     from cfo.db.migrate import SCHEMA_PATH
     from cfo.db.repo import Repository
 
-    schema = "t014_test"
+    schema = f"t014_test_{os.getpid()}"
     repo = Repository.connect(url)
     repo.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     repo.conn.execute(f"CREATE SCHEMA {schema}")

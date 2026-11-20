@@ -1,9 +1,9 @@
 ---
 id: T001
 title: Backend skeleton: config, domain types, DB schema, LLM client
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T001-contract-skeleton
 depends_on: []
 capabilities: []
 acceptance:

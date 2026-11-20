@@ -1,0 +1,28 @@
+# Builds the backend image in the cluster from the public repo (no source secret needed).
+# Start a build:  oc start-build cfo-backend --follow
+# The Deployments carry an image trigger annotation, so a new cfo-backend:latest rolls them out.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: cfo-backend
+  labels: {app: cfo-backend}
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/Kabanosk/solution
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile   # the repo's `Dockerfile` is the sample-data file server, not the backend
+  output:
+    to: {kind: ImageStreamTag, name: "cfo-backend:latest"}
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "4", memory: 6Gi}
+  successfulBuildsHistoryLimit: 3
+  failedBuildsHistoryLimit: 3
+  triggers:
+    - type: ConfigChange

@@ -194,7 +194,8 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
             ctx.audit.record("agent", "create_rule", "rules", text[:200], "DENY", task_id=task.id, requester=sender,
                              role=role, policy="rules: owner-only")
             ctx.recorder.step(task.id, "denied", "Only the owner can set rules", source="iam")
-            return _finish(ctx, task, p, "Only Vincenzo can change what I may do on my own. I've logged the request.",
+            return _finish(ctx, task, p, f"Only {ctx.hr.name(ctx.settings.ceo_id)} (the owner) can change what I may do "
+                                         "on my own. I've logged the request.",
                            level="NOTIFY")
         try:
             rule = parse_rule(text, ctx.llm)

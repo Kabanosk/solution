@@ -20,7 +20,7 @@
       }
     ],
     "protected": {
-      "backend/tests/test_golden_path.py": null
+      "backend/tests/test_golden_path.py": "5aa51851e305acb921a6e7fa315a33fe435bc2cdc301c1e41ff4c0e490f3de8d"
     }
   },
   "frozen_at": "2026-11-20T14:24:51+01:00",
@@ -29,9 +29,9 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "..................                                                       [100%]\n18 passed in 12.29s",
-      "ran_at": "2026-11-20T15:58:19+01:00",
-      "commit": "10992539977ba6ae593284864462498a26733d98"
+      "output_tail": "..................                                                       [100%]\n18 passed in 12.99s",
+      "ran_at": "2026-11-20T16:02:22+01:00",
+      "commit": "70c4c6d3d431ec3c8b3ffffc9ba673cd0fa5122f"
     }
   }
 }

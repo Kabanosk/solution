@@ -1,9 +1,9 @@
 ---
 id: T044
 title: "Review fixes: workstation folder containment, simulator stepping, cost-metric edge cases"
-status: todo
-owner: null
-branch: null
+status: review
+owner: coder
+branch: task/T044-fix-workstations-sim-metrics
 depends_on: []
 capabilities: []
 acceptance:

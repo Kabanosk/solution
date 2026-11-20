@@ -22,5 +22,22 @@
     "protected": {}
   },
   "frozen_at": "2026-11-20T13:52:23+01:00",
-  "results": {}
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "..........................                                               [100%]\n26 passed in 0.18s",
+      "ran_at": "2026-11-20T14:22:29+01:00",
+      "commit": "f2267c1dd052dd3bbbb9068ad8f15fa952a97ffc"
+    },
+    "AC-2": {
+      "id": "AC-2",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "",
+      "ran_at": "2026-11-20T14:22:29+01:00",
+      "commit": "f2267c1dd052dd3bbbb9068ad8f15fa952a97ffc"
+    }
+  }
 }

@@ -38,6 +38,9 @@ class Notifier(Protocol):
     def update(self, ref: str, text: str, level: str) -> None:
         """Replace the text of a message sent before (and drop its buttons)."""
 
+    def track(self, task_id: str, status_ref: str) -> None:
+        """Show this task's steps live in the "Working on it…" message `status_ref`."""
+
 
 class LogNotifier:
     """No Slack configured: messages go to the log and to `sent` (tests)."""
@@ -45,6 +48,7 @@ class LogNotifier:
     def __init__(self) -> None:
         self.sent: list[dict[str, Any]] = []
         self.updates: list[dict[str, Any]] = []
+        self.tracked: dict[str, str] = {}
 
     def dm(self, employee_id, text, level, *, task_id=None, buttons=(), thread=None):  # noqa: ANN001
         self.sent.append({"to": employee_id, "text": text, "level": level, "task_id": task_id,
@@ -53,6 +57,9 @@ class LogNotifier:
 
     def update(self, ref, text, level):  # noqa: ANN001
         self.updates.append({"ref": ref, "text": text, "level": level})
+
+    def track(self, task_id, status_ref):  # noqa: ANN001
+        self.tracked[task_id] = status_ref
 
 
 class HR:
@@ -120,6 +127,8 @@ class JobContext:
     settings: ScoutSettings
     hr: HR
     clock: Any = field(default=lambda: datetime.now(timezone.utc))
+    checkpointer: Any = None  # LangGraph saver for approvals (Postgres in the worker, in-memory in tests)
+    forecaster: Any = None  # (ctx, outflows) -> LiquidityReview; default: cfo.forecast.liquidity on the company data
 
     def now(self) -> datetime:
         return self.clock()

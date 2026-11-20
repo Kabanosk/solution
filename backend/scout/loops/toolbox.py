@@ -324,6 +324,12 @@ def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
     shown = ", ".join(f"{k}={v}" for k, v in (args or {}).items() if v not in (None, ""))[:80]
     if "error" in result:
         return f"Tried {label}({shown}): {result['error'].replace('_', ' ')}"
+    if "balance" in result:
+        return f"Looked at the cash position: balance {result['balance']}"
+    if "series" in result:
+        return f"Looked at cost trends: {len(result['series'])} cost pairs"
+    if result.get("started"):
+        return "Started a cash forecast (what-if)"
     n = next((len(v) for v in result.values() if isinstance(v, list)), None)
     return f"Looked at {label}({shown})" + (f": {n} result(s)" if n is not None else "")
 

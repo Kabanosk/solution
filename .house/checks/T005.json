@@ -17,11 +17,11 @@
   "results": {
     "AC-1": {
       "id": "AC-1",
-      "passes": true,
-      "exit": 0,
-      "output_tail": ".......................                                                  [100%]\n23 passed in 10.00s",
-      "ran_at": "2026-11-20T15:32:30+01:00",
-      "commit": "ed38f390653725905f5150af6e35eb423034de88"
+      "passes": false,
+      "exit": 1,
+      "output_tail": "            if binary:\n                cur.format = BINARY\n    \n            if isinstance(query, Template):\n                if params is not None:\n                    raise TypeError(\n                        \"'execute()' with string template query doesn't support parameters\"\n                    )\n                return cur.execute(query, prepare=prepare)\n            else:\n                return cur.execute(query, params, prepare=prepare)\n        except e._NO_TRACEBACK as ex:\n>           raise ex.with_traceback(None)\nE           psycopg.errors.UniqueViolation: duplicate key value violates unique constraint \"pg_namespace_nspname_index\"\nE           DETAIL:  Key (nspname)=(t005_test) already exists.\n\nbackend/.venv/lib/python3.12/site-packages/psycopg/connection.py:304: UniqueViolation\n=========================== short test summary info ============================\nERROR backend/tests/test_agent.py::test_document_appearing_before_reminder_resolves_it\n22 passed, 1 error in 10.71s",
+      "ran_at": "2026-11-20T15:36:43+01:00",
+      "commit": "8d7808df2ebbc07023b519a0528bbc87cb6be399"
     }
   }
 }

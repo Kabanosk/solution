@@ -102,3 +102,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** człowiek: „odpal codexa i rób review wszystkiego”.
 - **Kto:** coordinator (człowiek)
 - **Data:** 2026-11-20 15:45
+
+## D-016 Koszt użycia agenta z metryk vLLM zamiast rozbicia kosztów pizzerii pod dashboard
+- **Decyzja:** T030/T031 (endpointy kosztów pizzerii i paczka dla Pawła) odrzucone — źle zrozumiałem prośbę; dane firmy są już w Postgresie na klastrze. Zamiast tego T032: szacowanie kosztu działania agenta na klastrze — zapis użycia każdego wywołania LLM (tokeny, czas, który krok agenta) + próbkowanie metryk Prometheus z vLLM, model kosztu (czas GPU wg stawki L4, amortyzacja, porównanie z hostowanym API), endpointy `/v1/llm/usage` i `/v1/llm/usage/live`.
+- **Dlaczego:** prośba Wojtka; pokazuje jury koszt jednej decyzji agenta i przewagę własnego modelu na OpenShift AI.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 16:30

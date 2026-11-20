@@ -1,7 +1,7 @@
 ---
 id: T041
 title: "Review fixes: agent graph correctness and small-model robustness"
-status: review
+status: done
 owner: coder
 branch: task/T041-fix-agent-robustness
 depends_on: ["T011", "T027"]

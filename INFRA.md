@@ -6,7 +6,7 @@ Where else to look, so nothing is written twice:
 - [`docs/cluster-setup.md`](docs/cluster-setup.md): getting `oc`, logging in, the base services (`postgres`,
   `files`), port-forward, the DB password, re-applying `deploy/`. Start there if you are new to the cluster.
 - [`docs/slack-setup.md`](docs/slack-setup.md): Slack app and tokens. [`docs/api.md`](docs/api.md): API endpoints.
-- `docs/deploy.md` (T025, planned): deploying the app itself.
+- [`deploy/openshift/app/README.md`](deploy/openshift/app/README.md): app manifests, LLM endpoint, secrets. `docs/deploy.md` (T025, planned).
 
 Keep this file short and current: when you change infra, update the table it touches.
 
@@ -18,11 +18,11 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 |---|---|---|---|
 | Postgres 16 | `docker compose up -d db` | Deployment `postgres`, svc `postgres:5432`, PVC `postgres-data` (5Gi), Secret `postgres` | ✅ |
 | Sample data (organizer CSV etc.) | `data/` (git-ignored) | Deployment `files`, svc `http://files:8080` (read-only), PVC `sample-data` | ✅ |
-| Backend image | `Containerfile` → `cfo-backend` | ⏳ registry / BuildConfig | 🟡 T021 |
+| Backend image | `Containerfile` → `cfo-backend` | ImageStream + BuildConfig `cfo-backend` (`deploy/openshift/app/`) | 🟡 T021/T023 |
 | Seed Job (migrate + generate + load) | `cfo migrate/generate/load` | ⏳ | ⏳ T022 |
-| API (FastAPI) | `:8080` dev / `:8000` in image | ⏳ Deployment + Service + Route | ⏳ T023 |
-| MCP servers company-db / workstations / hr | `:8001` / `:8002` / `:8003` | ⏳ Deployments + Services (internal only) | ⏳ T023 |
-| Agent worker (sim + agent + Slack) | `cfo worker` | ⏳ Deployment | ⏳ T011/T023 |
+| API (FastAPI) | `:8080` dev / `:8000` in image | Deployment + Service + Route `api` | 🟡 T023 |
+| MCP servers company-db / workstations / hr | `:8001` / `:8002` / `:8003` | Deployments + Services `mcp-*` (internal only) | 🟡 T023 |
+| Agent worker (sim + agent + Slack) | `cfo worker` | Deployment `worker` (needs T011 `cfo.run`) | 🟡 T023 |
 | LLM (vLLM, Llama 3.2 3B) | n/a | already on RHOAI (L4 24 GB) | ✅ (URL: see §6) |
 | NeMo Guardrails proxy | n/a | in front of vLLM, same `LLM_BASE_URL` switch | ⏳ Wojtek |
 | MLflow | optional (`MLFLOW_TRACKING_URI`) | ⏳ own Deployment or the RHOAI one | ⏳ T024 |

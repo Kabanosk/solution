@@ -1,0 +1,22 @@
+# Non-secret settings shared by api, worker and the MCP servers (envFrom).
+# Fill in the two LLM_* values, then:  oc apply -k deploy/  &&  oc rollout restart deploy/api deploy/worker
+# (see README.md in this directory). Secrets live in Secret `cfo-secrets`, not here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cfo-config
+data:
+  # vLLM (Llama 3.2 3B) or the NeMo Guardrails proxy in front of it; must be an OpenAI-compatible /v1 base URL.
+  # PLACEHOLDER: the real service URL is not known yet. Find it in the RHOAI console (the model's
+  # internal endpoint) or `oc get inferenceservice,svc`, and write it to INFRA.md section 6.
+  LLM_BASE_URL: "http://CHANGE-ME-vllm-service.cfo-agent-uwur.svc.cluster.local:8080/v1"
+  # PLACEHOLDER: the served model name (`curl <LLM_BASE_URL>/models`).
+  LLM_MODEL: "CHANGE-ME-served-model-name"
+  # MCP servers (streamable HTTP, endpoint /mcp). Read by the worker (T011).
+  MCP_COMPANY_DB_URL: "http://mcp-company-db:8001/mcp"
+  MCP_WORKSTATIONS_URL: "http://mcp-workstations:8002/mcp"
+  MCP_HR_URL: "http://mcp-hr:8003/mcp"
+  # Simulator speed: 1 = real time, 3600 = one simulated hour per second (demo).
+  SIM_SPEED: "1"
+  # Browser origins allowed by the API; `*` until the dashboard has a fixed URL.
+  CORS_ORIGINS: "*"

@@ -66,7 +66,7 @@ def _balance_on(day: date) -> Decimal:
 
 def _point(day: date) -> ForecastPoint:
     balance = _balance_on(day)
-    # The 80 % interval widens with the distance from the last actual day: +-1.5 % of 1000 EUR per week ahead.
+    # The 80 % interval widens with the distance from the last actual day: 400 EUR plus 22 EUR per day ahead.
     band = Decimal("400") + Decimal((day - AS_OF).days) * Decimal("22")
     return ForecastPoint(date=day, balance=eur(balance), lower=eur(balance - band), upper=eur(balance + band))
 

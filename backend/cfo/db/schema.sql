@@ -137,3 +137,46 @@ CREATE TABLE IF NOT EXISTS access_log (
     path      TEXT NOT NULL,
     reason    TEXT
 );
+
+-- T032: one row per LLM call made through cfo.llm (attribution of usage and cost to events and purposes).
+-- Written best-effort: a failed insert never breaks the call. `estimated` = tokens are a heuristic, the server
+-- sent no `usage` field.
+CREATE TABLE IF NOT EXISTS llm_usage (
+    id                 BIGSERIAL PRIMARY KEY,
+    ts                 TIMESTAMPTZ NOT NULL,
+    model              TEXT NOT NULL,
+    prompt_tokens      INTEGER NOT NULL DEFAULT 0,
+    completion_tokens  INTEGER NOT NULL DEFAULT 0,
+    latency_ms         DOUBLE PRECISION NOT NULL DEFAULT 0,
+    estimated          BOOLEAN NOT NULL DEFAULT FALSE,
+    success            BOOLEAN NOT NULL DEFAULT TRUE,
+    event_id           TEXT,
+    event_type         TEXT,
+    purpose            TEXT,
+    decision_id        TEXT
+);
+CREATE INDEX IF NOT EXISTS llm_usage_ts_idx ON llm_usage (ts);
+CREATE INDEX IF NOT EXISTS llm_usage_event_idx ON llm_usage (event_id);
+
+-- T032: snapshots of the vLLM /metrics endpoint (cumulative counters, gauges, latency histogram), one row per
+-- model and scrape. Deltas between rows give usage over a range; a counter that went down means a pod restart.
+CREATE TABLE IF NOT EXISTS vllm_metrics_samples (
+    id                       BIGSERIAL PRIMARY KEY,
+    ts                       TIMESTAMPTZ NOT NULL,
+    model                    TEXT NOT NULL,
+    prompt_tokens_total      DOUBLE PRECISION,
+    generation_tokens_total  DOUBLE PRECISION,
+    requests_success_total   DOUBLE PRECISION,
+    requests_by_reason       JSONB NOT NULL DEFAULT '{}',
+    prompt_tokens_cached_total DOUBLE PRECISION,
+    inference_time_sum       DOUBLE PRECISION,
+    inference_time_count     DOUBLE PRECISION,
+    e2e_latency_sum          DOUBLE PRECISION,
+    e2e_latency_count        DOUBLE PRECISION,
+    e2e_latency_buckets      JSONB NOT NULL DEFAULT '{}',
+    requests_running         DOUBLE PRECISION,
+    requests_waiting         DOUBLE PRECISION,
+    kv_cache_usage           DOUBLE PRECISION,
+    kv_cache_metric          TEXT
+);
+CREATE INDEX IF NOT EXISTS vllm_metrics_samples_ts_idx ON vllm_metrics_samples (ts);

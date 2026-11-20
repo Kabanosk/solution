@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:8000/v1"
     llm_model: str = "llama-3.2-3b"
     llm_api_key: str = "EMPTY"  # vLLM accepts any non-empty key
+    # TLS check for an https LLM_BASE_URL: "true" (default), "false" (self-signed certificate) or a CA bundle path.
+    llm_verify_tls: str = "true"
     slack_bot_token: str = ""  # xoxb-...
     slack_app_token: str = ""  # xapp-... (Socket Mode)
     slack_user_map: str = ""  # employee_id=SLACK_USER_ID pairs, comma separated; overrides HR data

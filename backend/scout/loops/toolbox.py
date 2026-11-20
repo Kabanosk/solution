@@ -10,6 +10,9 @@ and errors returned as data ("access_denied", "not_found") so the model can expl
 
 from __future__ import annotations
 
+import base64
+import csv
+import io
 import json
 import re
 from datetime import timedelta
@@ -31,6 +34,7 @@ def _p(**props: dict[str, Any]) -> dict[str, Any]:
 
 S = {"type": "string"}
 I = {"type": "integer"}
+B = {"type": "boolean"}
 
 SPECS: list[ToolSpec] = [
     ToolSpec(name="missing_invoices", description="Outgoing payments that still have no invoice, and what Scout is "
@@ -60,6 +64,9 @@ SPECS: list[ToolSpec] = [
              parameters=_p(words=S, days=I)),
     ToolSpec(name="search_chat", description="Search the authorized Slack channels for a supplier, invoice number "
              "or amount.", parameters=_p(supplier=S, invoice_number=S, amount_eur=S, days=I)),
+    ToolSpec(name="send_invoices", description="Send the asker a CSV list of invoices as a file in Slack (and here). "
+             "Optional: supplier, days back (default 90), unpaid_only.",
+             parameters=_p(supplier=S, days=I, unpaid_only=B)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -300,6 +307,44 @@ class Toolbox:
         return {"messages": [{"channel": f"#{h.channel}", "from": h.user_name or h.user, "text": h.text[:300]}
                              for h in hits[:MAX_ROWS]]}
 
+    def t_send_invoices(self, supplier: str = "", days: int = 90, unpaid_only: Any = False,
+                        **_: Any) -> dict[str, Any]:
+        ok, policy = self._allowed("invoicing", "invoices")
+        if not ok:
+            return {"error": "access_denied", "policy": policy}
+        since = (self.ctx.now() - timedelta(days=min(max(int(days or 90), 1), 3650))).date()
+        sql, a = ("SELECT number, supplier, issue_date, due_date, total, currency, transaction_id FROM invoices "
+                  "WHERE issue_date >= %s"), [since]
+        if supplier:
+            sql += " AND supplier ILIKE %s"
+            a.append(f"%{supplier}%")
+        if str(unpaid_only).casefold() in ("true", "1", "yes"):
+            sql += " AND transaction_id IS NULL"
+        rows = self._q(sql + " ORDER BY issue_date DESC, number LIMIT 500", a)
+        if not rows:
+            return {"invoices": 0, "note": "No invoices match; nothing was sent."}
+        buf = io.StringIO()
+        w = csv.writer(buf, lineterminator="\n")
+        w.writerow(["number", "supplier", "issue_date", "due_date", "total", "currency", "paid_by_transaction"])
+        for r in rows:
+            w.writerow([r["number"], r["supplier"], r["issue_date"], r["due_date"] or "", r["total"], r["currency"],
+                        r["transaction_id"] or ""])
+        content = buf.getvalue().encode()
+        total = sum((Decimal(r["total"]) for r in rows), Decimal(0))
+        name = f"invoices-{self.ctx.now():%Y-%m-%d}.csv"
+        comment = (f"{len(rows)} invoice(s){' from ' + supplier if supplier else ''} since {since:%d %b %Y}, "
+                   f"total {eur(total)}.")
+        try:
+            link = self.ctx.notifier.upload(self.requester, name, content, comment)
+        except Exception:  # noqa: BLE001 - the list still reaches the dashboard chat
+            link = None
+        self.ctx.recorder.step(self.task.id, "sent_file", f"Sent {name} ({len(rows)} invoices)"
+                               + (" to Slack" if link else ""), source="scout",
+                               detail={"name": name, "mime": "text/csv", "sent_to_slack": bool(link),
+                                       "data_b64": base64.b64encode(content).decode()})
+        return {"invoices": len(rows), "total": eur(total), "file": name, "sent_to_slack": bool(link),
+                "newest": _rows(rows[:5])}
+
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)
         people = [who] if who else [e["id"] for e in self.ctx.hr.all()]
@@ -307,7 +352,8 @@ class Toolbox:
         out = []
         for p in people:
             e = self.ctx.hr.employee(p) or {}
-            out.append({"name": e.get("name"), "role": e.get("role"), "manager": self.ctx.hr.name(e.get("manager_id"))
+            out.append({"name": self.ctx.hr.full_name(p),
+                        "role": e.get("role"), "manager": self.ctx.hr.name(e.get("manager_id"))
                         if e.get("manager_id") else None, "on_vacation_today": self.ctx.hr.on_vacation(p, today)})
         return {"people": out}
 

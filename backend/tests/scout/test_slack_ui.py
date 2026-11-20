@@ -151,3 +151,11 @@ def test_linked_people_show_as_real_slack_people(conn_factory, db, fake_slack):
     body = post["blocks"][0]["text"]["text"]
     assert "<@U_GRA> is on vacation, asked <@U_VIN> on Slack" in body
     assert "Wojciech Fiołka" in post["text"]  # the notification text stays readable
+
+
+def test_upload_sends_the_file_to_the_dm(conn_factory, fake_slack):
+    s, _, _ = ui(conn_factory, fake_slack)
+    assert s.upload("grazyna", "invoices.csv", b"a,b\n", "3 invoices") == "https://slack.test/files/F1"
+    [up] = fake_slack.named("files_upload_v2")
+    assert up["channel"] == "D_U_GRA" and up["filename"] == "invoices.csv" and up["content"] == b"a,b\n"
+    assert up["initial_comment"] == "3 invoices"

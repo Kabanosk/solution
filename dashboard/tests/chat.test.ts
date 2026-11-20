@@ -80,3 +80,13 @@ test("Scout events are validated before reaching the browser", () => {
   assert.deepEqual(sanitizeChatEvent({ type: "error" }), { type: "error", message: "Scout could not answer. Try again." });
   assert.equal((sanitizeChatEvent({ type: "step", text: "x".repeat(900) }) as { text: string }).text.length, 500);
 });
+
+test("file events are validated; unknown events stay dropped", () => {
+  const csv = Buffer.from("number,total\nFLV-1,120.00\n").toString("base64");
+  assert.deepEqual(sanitizeChatEvent({ type: "file", name: "../../invoices-2026-11-21.csv", mime: "text/csv", data_b64: csv, sent_to_slack: true }),
+    { type: "file", name: "invoices-2026-11-21.csv", mime: "text/csv", data_b64: csv, sent_to_slack: true });
+  assert.equal((sanitizeChatEvent({ type: "file", name: "x.html", mime: "text/html", data_b64: csv }) as { mime: string }).mime, "application/octet-stream");
+  assert.equal(sanitizeChatEvent({ type: "file", name: "x.csv", mime: "text/csv", data_b64: "not base64!" }), null);
+  assert.equal(sanitizeChatEvent({ type: "file", name: "x.csv", mime: "text/csv" }), null);
+  assert.equal(sanitizeChatEvent({ type: "surprise", text: "x" }), null);
+});

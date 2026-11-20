@@ -2,12 +2,20 @@ export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 
 export const MAX_MESSAGE_LENGTH = 16000;
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 /** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it. */
-export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string };
+export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[] };
+/** A file Scout produced for the answer (e.g. an invoice list as CSV); data is base64. */
+export type ChatFile = { name: string; mime: string; dataB64: string; sentToSlack: boolean };
 export type ChatEvent =
   | { type: "step"; text: string }
   | { type: "delta"; text: string }
   | { type: "done"; truncated: boolean; task_id?: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean };
+
+/** Files Scout may hand over, by MIME type; anything else is offered as a plain download. */
+const FILE_MIMES = new Set(["text/csv", "text/plain", "application/json", "application/pdf",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+export const MAX_FILE_B64 = 4 * 1024 * 1024;
 
 const TASK_ID = /^[A-Z]{2,5}-\d{1,9}$/;
 
@@ -21,6 +29,14 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
     case "delta": return text !== null ? { type: "delta", text } : null;
     case "done": return typeof event.task_id === "string" && TASK_ID.test(event.task_id)
       ? { type: "done", truncated: event.truncated === true, task_id: event.task_id } : { type: "done", truncated: event.truncated === true };
+    case "file": {
+      const data = typeof event.data_b64 === "string" ? event.data_b64.replace(/\s+/g, "") : "";
+      if (!data || data.length > MAX_FILE_B64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return null;
+      // A bare file name: no paths, control characters or leading dots.
+      const name = (typeof event.name === "string" ? event.name : "").split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f"<>:|?*]/g, "").replace(/^\.+/, "").trim().slice(0, 120) || "scout-file";
+      const mime = typeof event.mime === "string" && FILE_MIMES.has(event.mime) ? event.mime : "application/octet-stream";
+      return { type: "file", name, mime, data_b64: data, sent_to_slack: event.sent_to_slack === true };
+    }
     case "error": return { type: "error", message: typeof event.message === "string" && event.message.trim() ? event.message.slice(0, 500) : "Scout could not answer. Try again." };
     default: return null;
   }

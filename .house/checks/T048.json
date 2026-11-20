@@ -35,17 +35,20 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "....................................                                     [100%]\n36 passed in 1.23s",
-      "ran_at": "2026-11-20T17:04:03+01:00",
-      "commit": "c0d6ad3c2f28f8d80bbd5588332a584d6cb30e6a"
+      "output_tail": "....................................                                     [100%]\n36 passed in 1.55s",
+      "ran_at": "2026-11-20T17:18:00+01:00",
+      "commit": "b0b1ec5eb11230e84c3989e9f42ce83279c5123a"
     },
     "AC-2": {
       "id": "AC-2",
       "passes": true,
       "exit": 0,
       "output_tail": "usage: cfo smoke [-h] [--llm-timeout LLM_TIMEOUT]\n\nCluster smoke check: LLM tool calling, the three MCP servers, Postgres seed,\nMLflow. Prints one PASS/FAIL line per check; exit status 1 on any FAIL.\n\noptions:\n  -h, --help            show this help message and exit\n  --llm-timeout LLM_TIMEOUT\n                        seconds per LLM request (default 60.0)",
-      "ran_at": "2026-11-20T17:04:03+01:00",
-      "commit": "c0d6ad3c2f28f8d80bbd5588332a584d6cb30e6a"
+      "ran_at": "2026-11-20T17:18:00+01:00",
+      "commit": "b0b1ec5eb11230e84c3989e9f42ce83279c5123a"
     }
+  },
+  "reverted": {
+    "base": "0941ea515cde9150655943c95d7ccf8a220b1a35"
   }
 }

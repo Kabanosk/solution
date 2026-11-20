@@ -1,7 +1,7 @@
 ---
 id: T048
 title: "Cluster smoke check: Granite tool calling and the three MCP servers"
-status: review
+status: blocked
 owner: coder
 branch: task/T048-cluster-smoke-llm-mcp
 depends_on: []

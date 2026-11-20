@@ -285,7 +285,7 @@ def build_runtime(*, repo_factory: Callable[[], Repository], tools: ToolBox, llm
     config = config or AgentConfig()
     agent = build_agent(tools, repo_factory, llm, AgentNotifier(channel, repo_factory), config, checkpointer)
     runtime: Runtime
-    chat = ChatRouter(agent=agent, llm=llm, repo_factory=repo_factory, ceo_id=config.ceo_id,
+    chat = ChatRouter(agent=agent, llm=llm, repo_factory=repo_factory, ceo_id=config.ceo_id, tools=tools,
                       review=lambda outflows: runtime.review_liquidity(outflows))
     runtime = Runtime(agent=agent, channel=channel, chat=chat, repo_factory=repo_factory,
                       cost_check_hours=cost_check_hours, liquidity_check_hours=liquidity_check_hours)

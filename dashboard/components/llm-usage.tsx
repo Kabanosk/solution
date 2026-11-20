@@ -34,6 +34,22 @@ const actionConfig = { cost: { label: "Cost per action", color: "var(--chart-for
 
 // Responses per range survive view switches, so coming back to LLM usage shows numbers at once and refreshes quietly.
 const cache = new Map<Range, LlmUsageData>();
+const inflight = new Map<Range, Promise<LlmUsageData>>();
+function fetchUsage(days: Range, signal?: AbortSignal): Promise<LlmUsageData> {
+  const running = inflight.get(days);
+  if (running && !signal) return running;
+  const request = fetch(`/api/llm-usage?days=${days}`, { signal, cache: "no-store" })
+    .then(response => response.json() as Promise<LlmUsageData>)
+    .then(body => { cache.set(days, body); return body; })
+    .finally(() => { if (inflight.get(days) === request) inflight.delete(days); });
+  if (!signal) inflight.set(days, request);
+  return request;
+}
+
+/** Warm the default range while the browser is idle, so the view opens with numbers. */
+export function prefetchLlmUsage(days: Range) {
+  if (!cache.has(days) && !inflight.has(days)) fetchUsage(days).catch(() => {});
+}
 
 /** Model telemetry from GET /api/llm-usage (the CFO API's /v1/llm/usage endpoints, read server-side). */
 export function LlmUsage({ active }: { active: boolean }) {
@@ -47,8 +63,7 @@ export function LlmUsage({ active }: { active: boolean }) {
     const controller = new AbortController();
     setFailed(false); setLoading(true);
     setData(cache.get(days) ?? null);
-    fetch(`/api/llm-usage?days=${days}`, { signal: controller.signal, cache: "no-store" })
-      .then(response => response.json()).then(body => { cache.set(days, body as LlmUsageData); setData(body as LlmUsageData); })
+    (inflight.get(days) ?? fetchUsage(days, controller.signal)).then(body => { if (!controller.signal.aborted) setData(body); })
       .catch(() => { if (!controller.signal.aborted) setFailed(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();

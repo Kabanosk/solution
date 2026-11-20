@@ -1,11 +1,11 @@
 import "server-only";
 import { headers } from "next/headers";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { authorized } from "./auth";
 import { isDevelopmentPreview } from "./development-preview";
 import { decimalCents, displayCents, financePeriod, type DashboardData, type Forecast } from "./finance-model";
-import { loadScout, loadTaskDetail } from "./scout";
-import type { TaskDetail } from "./scout-model";
+import { loadRecords, loadScout, loadTaskDetail } from "./scout";
+import type { RecordKind, ScoutRecords, TaskDetail } from "./scout-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
 let pool: Pool | undefined;
@@ -131,22 +131,34 @@ export async function getDashboardData(): Promise<DashboardData> {
   return { ...result, forecast: await forecastPromise };
 }
 
-/** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
-export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
-  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
-  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewTask(id);
+/** Runs read-only queries in one REPEATABLE READ transaction; errors never expose SQL or connection details. */
+async function readOnly<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const detail = await loadTaskDetail(client, id);
+    const value = await work(client);
     await client.query("COMMIT");
-    return detail;
+    return value;
   } catch {
     await client.query("ROLLBACK").catch(() => {});
     throw new Error("Company data is temporarily unavailable");
   } finally {
     client.release();
   }
+}
+
+/** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
+export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
+  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewTask(id);
+  return readOnly(client => loadTaskDetail(client, id));
+}
+
+/** The audit log or the transaction list, for the views that show them. */
+export async function getRecords<K extends RecordKind>(kind: K): Promise<ScoutRecords[K]> {
+  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
+  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewRecords()[kind];
+  return readOnly(client => loadRecords(client, kind));
 }

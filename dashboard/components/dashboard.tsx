@@ -30,6 +30,9 @@ import { activeItem, GO_SHORTCUTS, hashFromRoute, routeFromHash, VIEW_LABEL, typ
 import { formatShare, isOpen, LOOP_LABEL, money, shortDate, type AgentTask, type TaskDetail } from "@/lib/scout-model";
 import { inInbox, loopSignal, needsReaction } from "@/lib/task-signals";
 import { useSeenTasks } from "@/lib/use-seen-tasks";
+import { prefetchRecords, useRecords } from "@/lib/use-records";
+import { ViewSkeleton } from "@/components/view-skeletons";
+import { prefetchLlmUsage } from "@/components/llm-usage";
 import { cn } from "@/lib/utils";
 
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
@@ -152,6 +155,13 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
   useEffect(() => { mainRef.current?.focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }, [page, route.taskId]);
 
+  // Once the first view is on screen, warm the data of the views that load separately, so switching to them is instant.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((callback: () => void) => window.setTimeout(callback, 1200));
+    const handle = idle(() => { prefetchRecords("transactions"); prefetchRecords("audit"); prefetchLlmUsage(7); });
+    return () => { (window.cancelIdleCallback ?? window.clearTimeout)(handle as number); };
+  }, []);
+
   // The open task, in place.
   const listTask = route.taskId ? scout.tasks.find(task => task.id === route.taskId) : undefined;
   const task = useTaskDetail(route.taskId, listTask?.updatedAt, !!listTask && LIVE(listTask));
@@ -199,16 +209,16 @@ function DashboardContent({ data }: { data: DashboardData }) {
       onFilter={next => navigate({ view: "tasks", filter: next }, { replace: true })} />
   </div>;
   else if (page === "staffing") content = <Staffing data={data} onBack={() => navigate({ view: "overview" })} />;
-  else if (page === "transactions") content = <Transactions rows={scout.transactions} tasks={scout.tasks} />;
+  else if (page === "transactions") content = <TransactionsView tasks={scout.tasks} />;
   else if (page === "connections") content = <Connections connections={scout.connections} />;
-  else if (page === "audit") content = <AuditLog rows={scout.audit} />;
+  else if (page === "audit") content = <AuditView />;
   else if (page === "policies") content = <AccessPolicies />;
   else if (page === "llm-usage") content = <LlmUsage active />;
   else if (page === "chat") content = null; // Kept mounted below so the conversation survives page switches.
   else content = <div id="scout-overview" className="space-y-6">
     <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
       <div className="space-y-2"><p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Scout · Your finance agent</p><h1 className="text-3xl font-medium tracking-tight">Your finance overview</h1><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {data.asOf}. {attention} tasks wait on people. Every outcome connected to its evidence.</p></div>
-      <Button id="scout-refresh" className="min-h-11 shrink-0 gap-2" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}><Activity className={cn("size-4", refreshing && "motion-safe:animate-spin")} aria-hidden="true" />{refreshing ? "Refreshing…" : "Refresh records"}</Button>
+      <Button id="scout-refresh" className="min-h-11 shrink-0 gap-2" disabled={refreshing} aria-busy={refreshing} onClick={() => startRefresh(() => router.refresh())}><Activity className={cn("size-4", refreshing && "motion-safe:animate-spin")} aria-hidden="true" />Refresh records</Button>
     </section>
 
     {scout.demo && <DemoPanel />}
@@ -291,6 +301,20 @@ function DashboardContent({ data }: { data: DashboardData }) {
       <Dialog open={notice !== null} onOpenChange={open=>{if(!open)setNotice(null);}}><DialogContent onCloseAutoFocus={event=>{event.preventDefault();noticeOrigin.current?.focus();}}><DialogHeader><DialogTitle>{notice?.title}</DialogTitle><DialogDescription className="pt-2 leading-7">{notice?.description}</DialogDescription></DialogHeader><Button variant="secondary" onClick={()=>setNotice(null)}>Close</Button></DialogContent></Dialog>
     </>
   );
+}
+
+function RecordsError({ onRetry }: { onRetry: () => void }) {
+  return <div role="alert" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">These records could not be loaded. <Button variant="link" className="h-auto p-0" onClick={onRetry}>Try again</Button></div>;
+}
+
+function TransactionsView({ tasks }: { tasks: AgentTask[] }) {
+  const { data, error, reload } = useRecords("transactions");
+  return data ? <Transactions rows={data} tasks={tasks} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="transactions" />;
+}
+
+function AuditView() {
+  const { data, error, reload } = useRecords("audit");
+  return data ? <AuditLog rows={data} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="audit" />;
 }
 
 function CashEvents({ data }: { data: DashboardData }) {

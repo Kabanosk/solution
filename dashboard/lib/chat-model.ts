@@ -1,8 +1,10 @@
 export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 4.0 H Tiny" }] as const;
 export const MAX_MESSAGE_LENGTH = 16000;
 export type ChatMessage = { role: "user" | "assistant"; content: string };
-/** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it. */
-export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[] };
+/** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it.
+ *  kind "summary": Scout compacted the earlier conversation into `content`; `replaced` counts the messages it stands for. */
+export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[];
+  kind?: "summary"; replaced?: number };
 /** A file Scout produced for the answer (e.g. an invoice list as CSV); data is base64. */
 export type ChatFile = { name: string; mime: string; dataB64: string; sentToSlack: boolean };
 export type ChatEvent =
@@ -10,7 +12,13 @@ export type ChatEvent =
   | { type: "delta"; text: string }
   | { type: "done"; truncated: boolean; task_id?: string }
   | { type: "error"; message: string }
-  | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean };
+  | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean }
+  | { type: "compacted"; summary: string; replaced: number };
+
+export const SUMMARY_PREFIX = "Summary of the earlier conversation:";
+/** The backend accepts 64 messages; keep a little room. */
+export const MAX_REQUEST_MESSAGES = 62;
+export const MAX_CONVERSATION_LENGTH = 120000;
 
 /** Files Scout may hand over, by MIME type; anything else is offered as a plain download. */
 const FILE_MIMES = new Set(["text/csv", "text/plain", "application/json", "application/pdf",
@@ -37,6 +45,12 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
       const mime = typeof event.mime === "string" && FILE_MIMES.has(event.mime) ? event.mime : "application/octet-stream";
       return { type: "file", name, mime, data_b64: data, sent_to_slack: event.sent_to_slack === true };
     }
+    case "compacted": {
+      const summary = typeof event.summary === "string" ? event.summary.trim().slice(0, 8000) : "";
+      const replaced = event.replaced;
+      if (!summary || typeof replaced !== "number" || !Number.isSafeInteger(replaced) || replaced < 1 || replaced > 64) return null;
+      return { type: "compacted", summary, replaced };
+    }
     case "error": return { type: "error", message: typeof event.message === "string" && event.message.trim() ? event.message.slice(0, 500) : "Scout could not answer. Try again." };
     default: return null;
   }
@@ -50,33 +64,64 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
   if (!CHAT_MODELS.some(model => model.id === row.model)) throw new ChatInputError("Select an available model.");
   if (!Array.isArray(row.messages) || !row.messages.length || row.messages.length > 64) throw new ChatInputError("Start a new chat to continue.");
   let length = 0;
+  // A compacted conversation starts with Scout's summary of the earlier turns; user/assistant alternate after it.
+  const first = row.messages[0] as Record<string, unknown> | null;
+  const offset = first && first.role === "assistant" && typeof first.content === "string" && first.content.startsWith(SUMMARY_PREFIX) ? 1 : 0;
   const messages = row.messages.map((value: unknown, index: number): ChatMessage => {
     if (!value || typeof value !== "object") throw new ChatInputError("Invalid chat message.");
     const message = value as Record<string, unknown>;
-    const expected = index % 2 === 0 ? "user" : "assistant";
+    const expected = index < offset || (index - offset) % 2 === 1 ? "assistant" : "user";
     if (message.role !== expected || typeof message.content !== "string" || !message.content.trim()) throw new ChatInputError("Invalid conversation. Start a new chat.");
     if (message.content.length > MAX_MESSAGE_LENGTH) throw new ChatInputError("Keep each message under 16,000 characters.");
     length += message.content.length;
     return { role: expected, content: message.content };
   });
-  if (length > 64000) throw new ChatInputError("This conversation is too long. Start a new chat.");
+  if (length > MAX_CONVERSATION_LENGTH) throw new ChatInputError("This conversation is too long. Start a new chat.");
   if (messages.at(-1)?.role !== "user") throw new ChatInputError("Write a message to continue.");
   return { model: row.model as string, messages };
 }
 
 // Unanswered/failed exchanges remain visible but do not become invented model
 // context. A stopped response is included only if actual content was received.
-export function conversationForRequest(turns: ChatTurn[]): ChatMessage[] {
-  const messages: ChatMessage[] = [];
-  for (let index = 0; index < turns.length; index += 2) {
+// `sources[i]` is the id of the turn message i came from, so a "compacted" answer can be mapped back.
+export function requestFor(turns: ChatTurn[]): { messages: ChatMessage[]; sources: string[] } {
+  const summary = turns[0]?.kind === "summary" ? turns[0] : null;
+  const pairs: { messages: ChatMessage[]; sources: string[] }[] = [];
+  for (let index = summary ? 1 : 0; index < turns.length; index += 2) {
     const user = turns[index];
     const answer = turns[index + 1];
-    if (!answer) messages.push({ role: "user", content: user.content });
+    if (!answer) pairs.push({ messages: [{ role: "user", content: user.content }], sources: [user.id] });
     else if ((answer.status === "complete" || answer.status === "stopped") && answer.content.trim()) {
-      messages.push({ role: "user", content: user.content }, { role: "assistant", content: answer.content });
+      pairs.push({ messages: [{ role: "user", content: user.content }, { role: "assistant", content: answer.content.slice(0, MAX_MESSAGE_LENGTH) }], sources: [user.id, answer.id] });
     }
   }
-  return messages;
+  // Fallback for very long chats the backend has not compacted: the newest whole exchanges that fit.
+  const room = MAX_REQUEST_MESSAGES - (summary ? 1 : 0);
+  let kept = pairs, length = 0;
+  for (let index = pairs.length - 1, count = 0; index >= 0; index--) {
+    count += pairs[index].messages.length;
+    length += pairs[index].messages.reduce((sum, message) => sum + message.content.length, 0);
+    if (count > room || length > MAX_CONVERSATION_LENGTH - 9000) { kept = pairs.slice(index + 1); break; }
+  }
+  const head = summary ? { messages: [{ role: "assistant" as const, content: `${SUMMARY_PREFIX}\n${summary.content}`.slice(0, MAX_MESSAGE_LENGTH) }], sources: [summary.id] } : null;
+  const all = head ? [head, ...kept] : kept;
+  return { messages: all.flatMap(pair => pair.messages), sources: all.flatMap(pair => pair.sources) };
+}
+
+export function conversationForRequest(turns: ChatTurn[]): ChatMessage[] {
+  return requestFor(turns).messages;
+}
+
+/** Scout summarized the first `replaced` messages it was sent: put one summary item in their place.
+ *  Turns before the last summarized one (including failed exchanges that were never sent) go with them. */
+export function applyCompaction(turns: ChatTurn[], sources: string[], event: { summary: string; replaced: number }, id: string): ChatTurn[] {
+  const covered = new Set(sources.slice(0, event.replaced));
+  let last = -1;
+  turns.forEach((turn, index) => { if (covered.has(turn.id)) last = index; });
+  if (last < 0) return turns;
+  const replaced = turns.slice(0, last + 1).filter(turn => covered.has(turn.id))
+    .reduce((sum, turn) => sum + (turn.kind === "summary" ? turn.replaced ?? 1 : 1), 0);
+  return [{ id, role: "assistant", kind: "summary", content: event.summary, status: "complete", replaced }, ...turns.slice(last + 1)];
 }
 
 export async function readChatBody(request: Request): Promise<unknown> {
@@ -90,7 +135,7 @@ export async function readChatBody(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > 262144) { await reader.cancel(); throw new ChatInputError("This conversation is too long. Start a new chat."); }
+      if (bytes > 524288) { await reader.cancel(); throw new ChatInputError("This conversation is too long. Start a new chat."); }
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();

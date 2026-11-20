@@ -35,6 +35,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [answering, setAnswering] = useState<"approve" | "reject" | null>(null);
   const owner = task.ownerId ? names[task.ownerId] ?? task.ownerId : null;
   const running = task.status === "in_progress";
   const evidence = [...task.evidence, ...steps.flatMap(step => step.evidence ? [step.evidence] : [])]
@@ -47,9 +48,10 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
 
   async function answer(action: "approve" | "reject") {
     if (!approval) return;
-    setMessage(null);
+    setMessage(null); setAnswering(action);
     const response = await fetch("/api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: approval.id, action }) })
       .catch(() => null);
+    setAnswering(null);
     if (!response?.ok) { setMessage("Scout could not record the answer. Try again in a moment."); return; }
     setMessage(action === "approve" ? "Approved. Scout continues the task." : "Rejected. Scout closes the proposal.");
     startTransition(() => { router.refresh(); onChanged?.(); });
@@ -94,8 +96,8 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
             <Badge variant="outline" className="font-normal">{approval.status}</Badge></div>
           <p className="text-sm">{approval.question}</p>
           {approval.status === "pending" ? <div className="flex gap-2">
-            <Button size="sm" disabled={pending} onClick={() => answer("approve")}>Approve</Button>
-            <Button size="sm" variant="outline" disabled={pending} onClick={() => answer("reject")}>Reject</Button>
+            <Button id="scout-approval-approve" size="sm" disabled={pending || answering !== null} aria-busy={answering === "approve"} onClick={() => answer("approve")}>{answering === "approve" && <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}Approve</Button>
+            <Button id="scout-approval-reject" size="sm" variant="outline" disabled={pending || answering !== null} aria-busy={answering === "reject"} onClick={() => answer("reject")}>{answering === "reject" && <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}Reject</Button>
           </div> : <p className="text-xs text-muted-foreground">Answered by {approval.answeredBy ? names[approval.answeredBy] ?? approval.answeredBy : "—"}{approval.answeredAt ? ` · ${fullTimestamp(approval.answeredAt)}` : ""}</p>}
           {message && <p role="status" className="text-xs">{message}</p>}
         </section>}

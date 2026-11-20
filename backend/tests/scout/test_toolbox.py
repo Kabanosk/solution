@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 14
+    assert len(SPECS) == 15
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -120,3 +120,30 @@ def test_email_without_words_lists_the_newest_mails(conn_factory, tmp_path):
     assert dates == sorted(dates, reverse=True)
     nothing = b.call("search_email", {"words": "topic", "days": 365})
     assert nothing["mails"] == [] and "empty words" in nothing["hint"]
+
+
+def test_send_invoices_uploads_a_csv_to_the_askers_dm(conn_factory, tmp_path):
+    import base64
+
+    from datetime import date
+    from decimal import Decimal
+
+    from cfo.db.repo import Repository
+    from cfo.domain import Invoice
+
+    conn = conn_factory()
+    Repository(conn).add_invoice(Invoice(id="inv_as77012", number="AS-77012", supplier="Asimex Wholesale Ltd",
+                                         issue_date=date(2026, 11, 2), total=Decimal("1286.40")))
+    conn.close()
+    ctx = make_world(conn_factory, tmp_path)
+    b = box(ctx, "vincenzo")
+    out = b.call("send_invoices", {"supplier": "Asimex", "days": 3650})
+    assert out["invoices"] >= 1 and out["sent_to_slack"] is True and out["file"].endswith(".csv")
+    [up] = ctx.notifier.files
+    assert up["to"] == "vincenzo" and up["name"] == out["file"]
+    csv_text = up["content"].decode()
+    assert csv_text.splitlines()[0] == "number,supplier,issue_date,due_date,total,currency,paid_by_transaction"
+    assert "Asimex" in csv_text
+    [step] = [s for s in ctx.recorder.steps(b.task.id) if s.kind == "sent_file"]
+    assert base64.b64decode(step.detail["data_b64"]) == up["content"] and step.detail["sent_to_slack"] is True
+    assert box(ctx, "vanessa").call("send_invoices", {})["error"] == "access_denied"

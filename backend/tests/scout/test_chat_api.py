@@ -44,3 +44,36 @@ def test_chat_streams_steps_then_answer(conn_factory, tmp_path, monkeypatch):
     assert task.loop == "chat" and task.status == "done" and task.requested_by == "vincenzo"
     assert seen_history[0] == ["system", "user", "assistant", "user"]
     get_api_settings.cache_clear()
+
+
+def test_chat_streams_a_sent_file(conn_factory, tmp_path, monkeypatch):
+    def handler(messages, tools):  # noqa: ANN001
+        if not any(m.role == "tool" for m in messages):
+            return FakeLLM.tool_call("send_invoices", supplier="Asimex", days=3650)
+        return "Sent the Asimex invoices to your Slack DM."
+
+    from datetime import date
+    from decimal import Decimal
+
+    from cfo.db.repo import Repository
+    from cfo.domain import Invoice
+
+    conn = conn_factory()
+    Repository(conn).add_invoice(Invoice(id="inv_as77012", number="AS-77012", supplier="Asimex Wholesale Ltd",
+                                         issue_date=date(2026, 11, 2), total=Decimal("1286.40")))
+    conn.close()
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    r = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": "send me the invoices"}]},
+                             headers={"Authorization": "Bearer tok"})
+    events = [json.loads(line) for line in r.text.splitlines()]
+    assert [e["type"] for e in events] == ["step", "file", "delta", "done"]
+    f = events[1]
+    assert f["name"].endswith(".csv") and f["mime"] == "text/csv" and f["sent_to_slack"] is True and f["data_b64"]
+    get_api_settings.cache_clear()

@@ -125,6 +125,16 @@ class SlackUI:
                                            thread_ts=thread_ts, unfurl_links=False, **self._identity)
         return f"{res['channel']}:{res['ts']}"
 
+    def upload(self, employee_id: str, name: str, content: bytes, comment: str) -> str | None:
+        channel = self._channel_for(employee_id)
+        if not channel:
+            log.info("no Slack id for %s; file %s not sent", employee_id, name)
+            return None
+        res = self.client.files_upload_v2(channel=channel, filename=name, title=name, content=content,
+                                          initial_comment=comment)
+        f = res.get("file") or {}
+        return f.get("permalink") or "sent"
+
     def update(self, ref: str, text: str, level: str) -> None:
         """Final text of a message: the throttle forgets it, tracking of it stops."""
         with self._lock:

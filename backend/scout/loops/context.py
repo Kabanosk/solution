@@ -41,6 +41,9 @@ class Notifier(Protocol):
     def track(self, task_id: str, status_ref: str) -> None:
         """Show this task's steps live in the "Working on it…" message `status_ref`."""
 
+    def upload(self, employee_id: str, name: str, content: bytes, comment: str) -> str | None:
+        """Send a file to the person's DM; returns its link, or None when it could not be sent."""
+
 
 class LogNotifier:
     """No Slack configured: messages go to the log and to `sent` (tests)."""
@@ -49,6 +52,11 @@ class LogNotifier:
         self.sent: list[dict[str, Any]] = []
         self.updates: list[dict[str, Any]] = []
         self.tracked: dict[str, str] = {}
+        self.files: list[dict[str, Any]] = []
+
+    def upload(self, employee_id, name, content, comment):  # noqa: ANN001
+        self.files.append({"to": employee_id, "name": name, "content": content, "comment": comment})
+        return f"log://{name}"
 
     def dm(self, employee_id, text, level, *, task_id=None, buttons=(), thread=None):  # noqa: ANN001
         self.sent.append({"to": employee_id, "text": text, "level": level, "task_id": task_id,
@@ -92,6 +100,12 @@ class HR:
             return self._slack_names[employee_id]  # a real person on Slack plays this role
         e = self.employee(employee_id)
         return ((e or {}).get("name") or "").split()[:1][0] if (e or {}).get("name") else employee_id
+
+    def full_name(self, employee_id: str) -> str:
+        """The whole name: the linked Slack person's, else the HR record's."""
+        if self._slack_names.get(employee_id):
+            return self._slack_names[employee_id]
+        return (self.employee(employee_id) or {}).get("name") or employee_id
 
     def role(self, employee_id: str) -> str:
         text = ((self.employee(employee_id) or {}).get("role") or "").casefold()

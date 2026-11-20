@@ -139,7 +139,8 @@ def _rung_files(ctx: JobContext, task: Task, number: str | None, day: date) -> t
     for f in files[:MAX_CANDIDATES]:
         data = _safe(ctx, task, f["name"], lambda f=f: ctx.connectors.files.read(owner, f["path"], task_id=task.id), None)
         if data:
-            cands.append((data, f["name"], {"name": f["name"], "kind": "pdf", "ref": f"files:{owner}/{f['path']}",
+            cands.append((data, f["name"], {"name": f["name"], "kind": "pdf", "path": f["path"], "location": f"{ctx.hr.name(owner)}'s {f['path'].split('/')[0]}",
+                                            "ref": f"files:{owner}/{f['path']}",
                                             "source": f"workstation:{owner}"}))
     m = _match(ctx, task, cands, number, day)
     found = (f"found {m.name}" if m.doc else "found a document with a different amount" if m.mismatch
@@ -168,7 +169,7 @@ def _rung_email(ctx: JobContext, task: Task, number: str | None, day: date) -> t
             if name.lower().endswith(".pdf"):
                 data = _safe(ctx, task, name, lambda h=h, name=name: mail.attachment(h.id, name, task_id=task.id), None)
                 if data:
-                    cands.append((data, name, {"name": f"{h.subject} · {name}", "kind": "email",
+                    cands.append((data, name, {"name": name, "subject": h.subject, "from": h.sender, "kind": "email",
                                                "ref": f"{mail.name}:{h.id}", "source": f"mail:{h.mailbox}"}))
     m = _match(ctx, task, cands, number, day)
     found = (f"found {m.name}" if m.doc else "found a different amount" if m.mismatch else "no receipt")
@@ -189,11 +190,13 @@ def _rung_chat(ctx: JobContext, task: Task, number: str | None) -> bool:
         if verdict.label == "unrelated":
             continue
         quote = h.text if len(h.text) <= 220 else h.text[:217] + "…"
-        evidence = {"name": f"#{h.channel}: “{quote}”", "kind": "chat", "ref": h.permalink or f"slack:{h.channel}:{h.ts}",
+        emp = _employee_of_slack(ctx, h.user) if h.user else None
+        who = ctx.hr.name(emp) if emp else (h.user_name or "a colleague")
+        evidence = {"kind": "chat", "quote": quote, "author": who, "channel": f"#{h.channel}",
+                    "permalink": h.permalink, "ref": h.permalink or f"slack:{h.channel}:{h.ts}",
                     "source": f"slack:#{h.channel}"}
         ctx.recorder.step(task.id, "checked_chat", f"Checked authorized chat history: found context in #{h.channel}",
                           source=f"slack:#{h.channel}", result_count=len(hits), evidence=evidence)
-        who = ctx.hr.name(_employee_of_slack(ctx, h.user)) if h.user else (h.user_name or "a colleague")
         if verdict.label == "refund_expected":
             amount = verdict.refund_amount or abs(task.amount)
             on = verdict.refund_by or (ctx.now().date() + timedelta(days=7))
@@ -350,7 +353,7 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
                                 "NOTIFY", task_id=task.id, thread=p.get("thread") or task.slack_ref)
             return ctx.recorder.get(task.id)
         cands = [(base64.b64decode(f["data_b64"]), f["name"],
-                  {"name": f["name"], "kind": "pdf", "ref": f"{via}:{f['name']}",
+                  {"name": f["name"], "kind": "pdf", "location": f"sent by {who}", "ref": f"{via}:{f['name']}",
                    "source": "slack:dm" if via == "slack_dm" else "mail"}) for f in pdfs]
         m = _match(ctx, task, cands, number, ctx.now().date())
         mismatch = m.mismatch
@@ -373,7 +376,8 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
     text = (p.get("text") or "").strip()
     quote = text if len(text) <= 160 else text[:157] + "…"
     ctx.recorder.step(task.id, "reply_received", f"{who} replied: “{quote}”", source="slack:dm",
-                      evidence={"name": f"{who}: “{quote}”", "kind": "chat", "ref": p.get("permalink") or "slack:dm",
+                      evidence={"kind": "chat", "quote": quote, "author": who, "channel": "Slack DM",
+                                "permalink": p.get("permalink"), "ref": p.get("permalink") or "slack:dm",
                                 "source": "slack:dm"})
     label, category = classify_reply(ctx.llm, text, {"supplier": task.counterparty, "amount_eur": str(abs(task.amount)),
                                                      "invoice": number})

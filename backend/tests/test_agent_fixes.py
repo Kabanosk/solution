@@ -380,3 +380,70 @@ def test_one_percent_message_matches_the_comparison():
     d = classify(PolicyAction(action_type="pay_invoice", amount=Decimal("1000"), supplier="New Co"), ctx)
     assert d.level == PolicyLevel.APPROVAL  # exactly 1% is not "below 1%"
     assert "above 1%" not in d.reason and "at least 1%" in d.reason
+
+
+# -- review round: approved alert nobody received, odd fallback name, non-finite amounts -----------------
+class DownNotifier(FlakyNotifier):
+    """Delivers the first `ok_first` DMs, then fails for good."""
+
+    def __init__(self, ok_first):
+        super().__init__(failures=0)
+        self.ok_first = ok_first
+
+    def send_dm(self, employee_id, text, level, actions=()):
+        if len(self.sent) >= self.ok_first:
+            raise RuntimeError("slack is down")
+        return super().send_dm(employee_id, text, level, actions)
+
+
+def test_approved_alert_that_reached_nobody_is_failed_and_retried_later(make_env):
+    env = make_env()
+    seed_cloud(env)
+    alert_rule(env)
+    notifier = DownNotifier(ok_first=1)  # the approval question gets through, the alert does not
+    agent = build_agent(env.tools, env.factory, env.llm, notifier, AgentConfig())
+    res = agent.handle(metric_event())
+    agent.resume_approval(res.approval_id, True, "vincenzo")
+    (dec,) = decisions(env, "alert_cost_anomaly")
+    assert dec.status != DecisionStatus.EXECUTED and dec.payload.get("failed") is True
+    assert "not" in dec.summary.lower()
+    # a later run is not suppressed by the failed month: the CEO is asked again
+    again = agent.handle(metric_event())
+    assert again.status == "awaiting_approval"
+
+
+def test_approved_alert_that_reached_someone_is_executed(make_env):
+    env = make_env()
+    seed_cloud(env)
+    alert_rule(env)
+    res = env.agent.handle(metric_event())
+    env.agent.resume_approval(res.approval_id, True, "vincenzo")
+    (dec,) = decisions(env, "alert_cost_anomaly")
+    assert dec.status == DecisionStatus.EXECUTED and not dec.payload.get("failed")
+
+
+@pytest.mark.parametrize("name", [["submit"], {"a": 1}, 3, None])
+@pytest.mark.parametrize("tools", [[SUBMIT], [SUBMIT, ToolSpec(name="other", description="d")]])
+def test_fallback_json_with_a_non_string_name_is_plain_text(name, tools):
+    import json
+
+    content = json.dumps({"name": name, "arguments": {"x": "1"}})
+    out = llm_with(Completions(reject_tools=Rejected(), content=content)).chat(HI, tools)
+    assert out.tool_calls == [] and out.content == content
+
+
+@pytest.mark.parametrize("total", [float("inf"), float("-inf"), float("nan"), "inf", "NaN", 1e309, "1e309"])
+def test_non_finite_totals_are_no_extraction(total):
+    llm = FakeLLM([FakeLLM.tool_call("submit_invoice", number="AS-1", total=total)])
+    assert extract_invoice(llm, "Invoice AS-1") is None
+
+
+def test_non_finite_line_amounts_are_skipped():
+    from cfo.agent.llm_tasks import parse_amount
+
+    llm = FakeLLM([FakeLLM.tool_call("submit_invoice", number="AS-1", total="10.00", lines=[
+        {"description": "bad", "amount": float("inf")}, {"description": "ok", "amount": "10.00"}])])
+    ex = extract_invoice(llm, "Invoice AS-1")
+    assert ex is not None and [ln.description for ln in ex.lines] == ["ok"]
+    assert parse_amount(Decimal("Infinity")) is None and parse_amount(Decimal("NaN")) is None
+    assert parse_amount(float("inf")) is None and parse_amount(1e309) is None

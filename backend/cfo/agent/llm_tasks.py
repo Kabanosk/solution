@@ -72,13 +72,35 @@ class ExtractedInvoice(BaseModel):
     lines: list[InvoiceLine] = Field(default_factory=list)
 
 
+MAX_AMOUNT = Decimal(10) ** 15  # nothing in this company is larger; also keeps 1e309 out of the database
+
+
 def parse_amount(value: Any) -> Decimal | None:
-    """'1.234,50', '1,234.50', '120.50', 'EUR 120,50', 120.5 -> Decimal, or None."""
+    """'1.234,50', '1,234.50', '120.50', 'EUR 120,50', 120.5 -> Decimal, or None. Non-finite or absurdly large
+    numbers (inf, NaN, 1e309) are invalid: None."""
+    amount = _parse_amount(value)
+    if amount is None or not amount.is_finite() or abs(amount) > MAX_AMOUNT:
+        return None
+    return amount
+
+
+def _parse_amount(value: Any) -> Decimal | None:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float, Decimal)):
-        return Decimal(str(value))
-    s = re.sub(r"[^\d,.\-]", "", str(value))
+        try:
+            return Decimal(str(value))
+        except InvalidOperation:
+            return None
+    text = str(value)
+    if re.fullmatch(r"\s*[+-]?(inf(inity)?|nan)\s*", text, re.IGNORECASE):
+        return None
+    if re.fullmatch(r"\s*[+-]?(\d+\.?\d*|\.\d+)[eE][+-]?\d+\s*", text):  # scientific notation, not "1309"
+        try:
+            return Decimal(text.strip())
+        except InvalidOperation:
+            return None
+    s = re.sub(r"[^\d,.\-]", "", text)
     if not re.search(r"\d", s):
         return None
     if "," in s and "." in s:

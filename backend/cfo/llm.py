@@ -36,8 +36,11 @@ def _calls_from_text(content: str | None, tools: Sequence[ToolSpec]) -> list[Too
     if not isinstance(data, dict):
         return []
     names = {t.name for t in tools}
-    if data.get("name") in names and isinstance(data.get("arguments"), dict):
-        return [ToolCall(id="call_text", name=data["name"], arguments=data["arguments"])]
+    name = data.get("name")
+    if "name" in data and not isinstance(name, str):
+        return []  # a list / object / number as the function name is not a call
+    if name in names and isinstance(data.get("arguments"), dict):
+        return [ToolCall(id="call_text", name=name, arguments=data["arguments"])]
     if len(tools) == 1:
         return [ToolCall(id="call_text", name=tools[0].name, arguments=data)]
     return []

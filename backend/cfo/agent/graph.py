@@ -476,9 +476,17 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                     msg = f"Approved. {pending['summary']}." + (" Execution is SIMULATED (nothing was sent to a bank)." if simulated else "")
                 if pending["kind"] == "alert":
                     recipients = pending["args"]["recipients"]
-                    for who in recipients:
-                        d.dm(who, pending["args"]["text"], PolicyLevel.NOTIFY)
-                    msg = "" if by in recipients else f"Approved. The alert was sent to {', '.join(recipients)}."
+                    reached = [w for w in recipients if d.send(w, pending["args"]["text"], PolicyLevel.NOTIFY)[0]]
+                    if reached:
+                        msg = "" if by in reached else f"Approved. The alert was sent to {', '.join(reached)}."
+                    else:  # nobody got it: not EXECUTED, and the month is asked about again on a later run
+                        failure = "the alert could not be delivered to anyone"
+                        dec.status, dec.executed_simulated = DecisionStatus.ESCALATED, False
+                        dec.payload = {**dec.payload, "failed": True, "error": failure}
+                        dec.summary = dec.summary.removesuffix(f" Approved by {by}.") + (
+                            f" Approved by {by}, but NOT executed: {failure}.")
+                        msg = (f"You approved this cost alert, but I could not deliver it to anyone ({failure}). "
+                               "I will ask again at the next check.")
             else:
                 dec.status = DecisionStatus.REJECTED
                 dec.summary += f" Rejected by {by}."
@@ -498,7 +506,8 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
 
     def alert(state: AgentState) -> AgentState:
         # pending and rejected alerts count as decided: a month is asked about once
-        done = {(x.payload.get("kind"), x.payload.get("month")) for x in d.decisions_of_type("alert_cost_anomaly")}
+        done = {(x.payload.get("kind"), x.payload.get("month")) for x in d.decisions_of_type("alert_cost_anomaly")
+                if not x.payload.get("failed")}  # an alert nobody received is retried
         owners = {t["id"]: t.get("owner_id") for t in gw.teams()}
         ids_out: list[str] = []
         pending: dict[str, Any] | None = None

@@ -1,4 +1,4 @@
-# Lantern dashboard
+# Scout dashboard
 
 Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company records are loaded on the server at request time from the existing Postgres service. No statement, employee directory, salary fixture or balance is bundled into the application image or browser JavaScript.
 
@@ -8,7 +8,9 @@ Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company re
 - Year and Q4 expenses/inflows: bank transactions in the latest booking year; Q4 starts in October. All recorded inflows/outflows count, including partner investments.
 - Directory: `employees` joined to `teams`. Each salary is the sum of the latest recorded salary month matched by employee name. Missing matches display **Not recorded**.
 - Payroll and social contributions: latest month with salary bookings. These are historical records, not a future schedule.
-- Investigations: latest 50 `decisions`; pending approvals and undocumented invoice-reference payments are counted from their tables.
+- Agent tasks (`agent_tasks`, grouped by status), task detail at `/tasks/SC-123` (activity log from `agent_task_steps`, approvals, audit rows), Audit log, Connections and Access policies; see `backend/scout/schema.sql`. The old `#investigations` hash opens Agent tasks.
+- Approve / Reject, Connect Google and the dev demo panel (`SCOUT_DEMO=1`) call the API server-side through `/api/approve`, `/api/google` and `/api/demo` with `API_WRITE_TOKEN`; the token never reaches the browser.
+- `/scout-icon.svg` and `/scout-icon.png` (512×512) are public, for the Slack bot avatar.
 - Liquidity forecast: the documented `GET /v1/forecast/liquidity` on the internal CFO API. If unavailable, the chart shows a message; no invented forecast is substituted.
 
 Database queries use a repeatable-read, read-only transaction, a bounded connection pool and statement timeouts. Money remains integer cents until conversion for display/charting. The dashboard never writes company records. **Refresh records** loads current values from the server.
@@ -22,7 +24,7 @@ npm --prefix dashboard ci
 npm --prefix dashboard run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including chart, payroll and investigation examples. It works only in development; production always requires configured authentication and real services.
+Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including Pizzeria Amalfi agent tasks, activity logs, audit rows and connections. It works only in development; production always requires configured authentication and real services.
 
 Light is the default theme. Use the theme button in the top bar to switch between light and dark; your choice is saved in this browser and restored before the page paints.
 

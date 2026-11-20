@@ -43,7 +43,7 @@ export function PlotPanSurface({ viewport, onPan, onZoom, onReset, onFocus }: {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
-  return <rect id="lantern-plot-pan-surface" ref={surface} x={area.x} y={area.y} width={area.width} height={area.height}
+  return <rect id="scout-plot-pan-surface" ref={surface} x={area.x} y={area.y} width={area.width} height={area.height}
     fill="transparent" aria-hidden="true" className={dragging ? "touch-none cursor-grabbing" : "touch-none cursor-grab"}
     onPointerDown={event => {
       if (!event.isPrimary || event.button !== 0) return;

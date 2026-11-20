@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect id="background" width="32" height="32" rx="7" fill="#101010"/>
-  <path id="lantern-mark" d="M10 7v18h13v-4h-9V7z" fill="#42c994"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7.04" fill="#141416"/><g transform="translate(3.5199999999999996 3.5199999999999996) scale(1.04)"><path fill="#ffffff" fill-rule="evenodd" transform="translate(1.5 2.7) scale(.26)" d="M16 43l3-19c1-6 5-9 9-9 5-1 9 3 13 2 5-1 6-6 12-6 4 0 6 3 7 6l8 18 7-2c3-1 5 2 3 5-7 11-23 19-43 21-11 1-23 0-30-5-3-2-3-5 0-7l11-4Zm9 2c11 5 28 1 39-7-5 9-28 15-39 7Z"/></g></svg>

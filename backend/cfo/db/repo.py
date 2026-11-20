@@ -236,6 +236,14 @@ class Repository:
     def add_decision(self, dec: Decision) -> None:
         self._write("decisions", dec.model_dump(mode="json"))
 
+    def set_decision_job_log(self, decision_ids: list[str], entries: list[dict[str, str]]) -> None:
+        """Replace the checkpoint's log snapshot without changing any other payload fields."""
+        self.conn.execute(
+            "UPDATE decisions SET payload = jsonb_set(payload, '{job_log}', %s::jsonb, true) WHERE id = ANY(%s)",
+            (Jsonb(entries), decision_ids),
+        )
+        self.conn.commit()
+
     def list_decisions(self, limit: int = 100) -> list[Decision]:
         return [Decision(**r) for r in self._all("SELECT * FROM decisions ORDER BY ts DESC LIMIT %s", (limit,))]
 

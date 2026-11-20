@@ -542,8 +542,35 @@ curl -s "http://localhost:8080/v1/decisions?level=APPROVAL&limit=2"
 }
 ```
 
-`payload` is free-form and depends on `action_type` (do not build UI logic on it beyond showing key/value pairs).
+`payload` is free-form and depends on `action_type`. The optional `payload.job_log` key has the documented shape below; other keys remain action-specific.
 `approval_request_id` links to an approval (`GET /v1/approvals/{id}`).
+
+### Job log in decision payloads
+
+The agent records factual action history in the existing `decisions.payload` JSONB column under `job_log`. It is included by the existing decision list/detail endpoints without changing the response envelope or requiring a database migration:
+
+```json
+{
+  "job_log": [
+    {
+      "ts": "2026-11-20T12:00:00.120Z",
+      "level": "info",
+      "source": "find_docs",
+      "message": "Searched company folders: 2 candidates"
+    },
+    {
+      "ts": "2026-11-20T12:00:02.240Z",
+      "level": "info",
+      "source": "request_approval",
+      "message": "Waiting for approval"
+    }
+  ]
+}
+```
+
+Entries are ordered by execution, with UTC recording times, levels `info` / `warning` / `error`, a node/action `source`, and a factual `message`. The persisted snapshot retains the latest 500 entries with at most 2,000 characters per message, preserving other payload keys. The checkpoint carries pre-decision history and approval-resume history; once a decision exists, visited nodes persist the available snapshot. A normal approval interrupt is not an error. Exceptions after a decision exists record a generic error without exposing raw exception details; failures before a decision exists are not separate jobs. Logging is best-effort and does not prevent business actions. Existing decisions can omit `job_log`; clients must treat a missing or invalid value as no recorded log. There is no historical backfill. Logs are action summaries, not model reasoning or raw prompts/documents.
+
+The Next.js dashboard exposes its own authenticated `GET /api/jobs/{decision_id}/log` for loading one job's log on demand as `{ "entries": [...] }`; this route belongs to the dashboard origin, not the CFO API. See `dashboard/README.md` for its status codes and UI behavior. Deploy the updated agent to produce new log entries; the dashboard itself does not write company data.
 
 ### `GET /v1/decisions/{decision_id}`
 

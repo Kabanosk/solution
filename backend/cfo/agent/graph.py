@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from cfo import observability as obs
 from cfo.agent.documents import collect_text
 from cfo.agent.investigate import build_investigation_graph
+from cfo.agent.job_log import recorded_node
 from cfo.agent.llm_tasks import alternative_queries, explain, extract_invoice, parse_amount
 from cfo.agent.policy import PolicyAction, PolicyContext, classify, context_from_transactions
 from cfo.agent.ports import ActionButton, Notifier
@@ -104,6 +105,7 @@ class AgentState(TypedDict, total=False):
     next_reminder_hours: float | None
     decision_ids: Annotated[list[str], operator.add]
     steps: Annotated[list[str], operator.add]
+    job_log: Annotated[list[dict[str, str]], operator.add]
 
 
 class Deps:
@@ -541,7 +543,7 @@ def build_graph(d: Deps, checkpointer: BaseCheckpointSaver):
                      ("attach", attach), ("ask", ask), ("propose_credit_line", propose_credit_line),
                      ("request_approval", request_approval), ("await_approval", await_approval),
                      ("investigate", investigate), ("alert", alert)]:
-        g.add_node(name, obs.traced_node(name, fn))  # one MLflow span per visited node (no-op when off)
+        g.add_node(name, obs.traced_node(name, recorded_node(name, fn, d.repo_factory)))  # one MLflow span per visited node (no-op when off)
     g.add_conditional_edges(START, route, ["load_txn", "propose_credit_line", "investigate", "ignore"])
     g.add_edge("ignore", END)
     g.add_conditional_edges("load_txn", lambda s: "find_docs" if s.get("txn") else END, ["find_docs", END])

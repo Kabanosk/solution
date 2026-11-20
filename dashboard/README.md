@@ -8,10 +8,26 @@ Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company re
 - Year and Q4 expenses/inflows: bank transactions in the latest booking year; Q4 starts in October. All recorded inflows/outflows count, including partner investments.
 - Directory: `employees` joined to `teams`. Each salary is the sum of the latest recorded salary month matched by employee name. Missing matches display **Not recorded**.
 - Payroll and social contributions: latest month with salary bookings. These are historical records, not a future schedule.
-- Investigations: latest 50 `decisions`; pending approvals and undocumented invoice-reference payments are counted from their tables.
+- Agent jobs: latest 50 `decisions`, enriched with `approval_requests`, attributed `llm_usage` and linked `events`. Pending approvals and undocumented invoice-reference payments are counted from their tables.
 - Liquidity forecast: the documented `GET /v1/forecast/liquidity` on the internal CFO API. If unavailable, the chart shows a message; no invented forecast is substituted.
 
 Database queries use a repeatable-read, read-only transaction, a bounded connection pool and statement timeouts. Money remains integer cents until conversion for display/charting. The dashboard never writes company records. **Refresh records** loads current values from the server.
+
+## Agent jobs
+
+Open `/#agent-jobs` for the jobs list. Search by title, action, actor, job ID or linked event ID; combine search with a status filter. Each job links to `/#agent-jobs/<id>` with its reasoning, approval request, recorded activity and model usage. Browser Back returns to the list. The previous `/#investigations` link remains supported. There are no pipeline stages.
+
+The current database stores action outcomes rather than job lifecycles. This first view uses one decision per job, preserving the decision ID. `executed` maps to Completed; a pending approval maps to Waiting for approval; rejected and escalated outcomes remain distinct. Unknown outcomes are Recorded. A failed model call does not override a successful action. Model time is the sum of attributed call latency, not elapsed job duration. Missing telemetry stays missing. `llm_usage` attribution is best-effort and links an event's calls to its final decision, so it does not describe every action or every execution step.
+
+For real queued/running states, retries and job duration, the agent should write a dedicated **`agent_jobs`** lifecycle table: `id`, `trigger_event_id`, `status`, `created_at`, `started_at`, `finished_at`, `last_heartbeat_at`, `attempt`, `error_summary`. Add `job_id` attribution to decisions and model usage so several decisions can belong to one job and retries remain distinguishable. These remain proposed additions; active jobs are not inferred from simulator events. Running and queued examples currently exist only in the explicitly labelled development preview.
+
+### Job log
+
+Each job detail page includes a timestamped **Job log** with **Refresh log**, loading, empty and retry states. Entries are loaded on demand from the dashboard's authenticated `GET /api/jobs/<decision-id>/log`, separate from the jobs list. This returns `{ "entries": [...] }` with `Cache-Control: private, no-store`; unknown decisions return 404, invalid IDs 400, unauthorized requests 401 (or the existing proxy's unconfigured-auth 503), and unavailable storage 503. This is a dashboard route, not a new CFO backend endpoint.
+
+The agent writes factual action messages into the existing Postgres JSONB field **`decisions.payload.job_log`**. No schema migration, extra column or new table is required. The LangGraph checkpoint accumulates the actions before a decision exists; once a node creates a decision, its available history is saved. Later nodes refresh that snapshot. Approval interrupts are not errors, and approval responses extend the checkpoint's history. A node error after a decision exists saves a generic error entry and rethrows the original exception. Other payload keys are preserved. Logs contain up to 500 entries, with messages capped at 2,000 characters, in execution order.
+
+Each entry has `ts` (UTC timestamp), `level` (`info`, `warning`, `error`), `source` (action/node name) and `message`. Logs describe observed actions, not internal model reasoning, prompts or full document bodies. Persistence is best-effort: a log-write failure never repeats or blocks a business action. Decisions produced by the same graph invocation share the history available at their last update. Failures before any decision exists cannot appear as a decision-backed job. Historical decisions without `job_log` show an empty log; no history is invented or backfilled. New logs require rolling out the updated agent backend. The dashboard remains read-only.
 
 ## Local development
 
@@ -22,7 +38,7 @@ npm --prefix dashboard ci
 npm --prefix dashboard run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including chart, payroll and investigation examples. It works only in development; production always requires configured authentication and real services.
+Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including chart, payroll and agent job examples. It works only in development; production always requires configured authentication and real services.
 
 Light is the default theme. Use the theme button in the top bar to switch between light and dark; your choice is saved in this browser and restored before the page paints.
 

@@ -46,3 +46,13 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-20 18:10 T049: alert kosztowy zawsze podaje zmianę kosztu (procent, EUR przed → teraz), zmianę metryki i koszt jednostkowy w EUR; zdanie z LLM bez tych danych zastępuje szablon - check GREEN (AC-3 ręcznie u koordynatora), status review · reports/T049.md
 - T048 zamknięty: `cfo smoke` na klastrze 11/11 PASS (Granite z tool callingiem, 3 serwery MCP, Postgres, MLflow).
 - T025 zamknięty: docs/deploy.md (deploy krok po kroku dla ludzi z k8s) + INFRA.md zgodne z klastrem, argumenty Granite zapisane.
+
+
+- 2026-11-20: Dodano domyślny jasny motyw dashboardu, zapisany przełącznik motywów i lokalny podgląd z danymi przykładowymi; poprawiono odstępy zakładek oraz przewijanie wykresu w obu osiach przy powiększeniu. Build, testy i kontrola przeglądarkowa 320–1440 px oraz 200% zoom zakończone powodzeniem.
+
+- 2026-11-20: Rozszerzono wykres prognozy o zoom obu osi przez Ctrl+/Ctrl−, przesuwanie myszą i dotykiem, klawisze strzałek, przyciski przesuwania oraz reset dwuklikiem/Ctrl0. Typecheck, testy obliczeń i kontrola przeglądarkowa na desktopie oraz telefonie zakończone powodzeniem.
+
+- 2026-11-20: Dodano zoom obu osi przez Ctrl + przewijanie nad wykresem, zakotwiczony w pozycji kursora, bez konieczności kliknięcia. Sprawdzono rzeczywiste zdarzenia myszy, zachowanie zwykłego przewijania i skrótów poza wykresem; typecheck i testy zakończone powodzeniem.
+- 2026-11-20: Zaktualizowano main do 5a5b1ce; zmiany dashboardu zapisano w commicie 6bcdfd1 i wypchnięto na feature/dashboard-preview-controls. Testy i typecheck poprawne; zmiany .house pozostawiono lokalnie poza commitem.
+- 2026-11-20: Panel Investigations zastąpiono Agent jobs: zwięzła lista w stylu Linear, bez etapów, z wyszukiwaniem, filtrami i szczegółami. Dane z decisions, approval_requests, llm_usage i events; stany running/queued tylko w podglądzie do czasu dodania rejestru cyklu zadań. Testy, typecheck i przeglądarka 320–1440 px, oba motywy oraz nawigacja poprawne.
+- 2026-11-20: Na prośbę użytkownika zapisano stan pracy na feature/agent-jobs-logs po rebase na main 07e3251 i zakończono sesję. Dodano log zadania w decisions.payload.job_log, widok i endpoint oraz dokumentację; 5 testów backendu poprawnych. Pozostała kontrola logu w przeglądarce i z Postgres; LLM zapisano jako T047, bez uruchamiania subagenta przed odłączeniem sieci. Szczegóły: reports/agent-jobs-handoff.md.

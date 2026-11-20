@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowDownLeft, ArrowUpRight, Bell, ChevronDown, FileText, LayoutDashboard, Search, Sparkles, Users, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, Bell, ChevronDown, GitBranch, LayoutDashboard, Search, Sparkles, Users, Wallet } from "lucide-react";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,16 +13,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { FinancialCharts } from "@/components/financial-charts";
-import { Investigation } from "@/components/investigation";
+import { AgentJobs } from "@/components/agent-jobs";
 import { Staffing } from "@/components/staffing";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { DomIds } from "@/components/dom-ids";
 
-type Page = "overview" | "staffing" | "investigations";
+type Page = "overview" | "staffing" | "agent-jobs";
 const navigation = [
   { page: "overview" as const, label: "Overview", icon: LayoutDashboard },
   { page: "staffing" as const, label: "Staffing", icon: Users },
-  { page: "investigations" as const, label: "Investigations", icon: FileText },
+  { page: "agent-jobs" as const, label: "Agent jobs", icon: GitBranch },
 ];
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
 const compact = (amount: number) => amount >= 1000 ? `€${(amount / 1000).toFixed(1)}k` : currency(amount);
@@ -53,15 +53,16 @@ function DashboardContent({ data }: { data: DashboardData }) {
     searchNavigated.current = searchOpen;
     setOpenMobile(false);
     setPage(next);
-    requestAnimationFrame(() => mainRef.current?.focus());
+    requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
     if (window.location.hash !== `#${next}`) window.location.hash = next;
     setSearchOpen(false);
   };
 
   useEffect(() => {
     const fromHash = () => {
-      const value = window.location.hash.slice(1);
-      if (value === "overview" || value === "staffing" || value === "investigations") setPage(value);
+      const value = window.location.hash.slice(1).split("/")[0];
+      if (value === "investigations") setPage("agent-jobs");
+      else if (value === "overview" || value === "staffing" || value === "agent-jobs") setPage(value);
       else if (!value) setPage("overview");
     };
     const shortcut = (event: KeyboardEvent) => {
@@ -81,12 +82,16 @@ function DashboardContent({ data }: { data: DashboardData }) {
     };
   }, []);
 
-  useEffect(() => { mainRef.current?.focus({ preventScroll: false }); }, [page]);
+  useEffect(() => {
+    mainRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0 });
+  }, [page]);
 
   const searchItems = [
     { label: "Overview", detail: "Account balance, cash forecast and expense mix", page: "overview" as Page },
     { label: "Staffing & payroll", detail: "Team, salaries and payroll export", page: "staffing" as Page },
-    ...data.decisions.map(decision => ({ label: decision.summary, detail: `${decision.level} · ${decision.status}`, page: "investigations" as Page })),
+    { label: "Agent jobs", detail: "Agent activity, outcomes and approvals", page: "agent-jobs" as Page },
+    ...data.jobs.map(job => ({ label: job.title, detail: `${job.action.replaceAll("_", " ")} · ${job.status}`, page: "agent-jobs" as Page })),
     ...data.employees.map((person) => ({ label: person.name, detail: `${person.role} · ${person.team}`, page: "staffing" as Page })),
   ].filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(search.toLowerCase().trim()));
 
@@ -150,7 +155,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
           <SidebarTrigger className="md:hidden" aria-label="Open navigation" />
           <div className="flex min-w-0 flex-1 items-center gap-3 text-xs">
             <span className="hidden text-muted-foreground lg:inline">Finance workspace</span><span className="hidden text-muted-foreground lg:inline" aria-hidden="true">/</span>
-            <strong className="truncate font-medium">{page === "overview" ? data.asOf : page === "staffing" ? "People" : "Agent decisions"}</strong>
+            <strong className="truncate font-medium">{page === "overview" ? data.asOf : page === "staffing" ? "People" : "Agent jobs"}</strong>
           </div>
           <Button id="lantern-search-trigger" variant="outline" onClick={openSearch} className="hidden h-10 w-full max-w-sm justify-start gap-3 bg-card text-muted-foreground lg:flex">
             <Search className="size-4" aria-hidden="true" /><span className="flex-1 text-left text-xs font-normal">Search transactions, people…</span><kbd className="rounded border px-1.5 py-0.5 font-mono text-[10px]">⌘ K</kbd>
@@ -158,10 +163,10 @@ function DashboardContent({ data }: { data: DashboardData }) {
           <Button id="lantern-search-compact" variant="ghost" size="icon" className="size-10 shrink-0 lg:hidden" aria-label="Search workspace" onClick={openSearch}><Search className="size-4" aria-hidden="true" /></Button>
           <ThemeToggle />
           <span className="hidden items-center gap-2 text-[11px] text-muted-foreground xl:flex"><span className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />Company records</span>
-          <Button id="lantern-notifications" variant="outline" size="icon" aria-label="Notifications" className="size-10 shrink-0" onClick={() => setNotice({title:"Workspace notifications",description:`${data.undocumentedPayments} undocumented payments and ${data.pendingApprovals} pending approvals. Open Investigations to review the latest recorded agent decisions.`})}><Bell className="size-4" aria-hidden="true" /></Button>
+          <Button id="lantern-notifications" variant="outline" size="icon" aria-label="Notifications" className="size-10 shrink-0" onClick={() => setNotice({title:"Workspace notifications",description:`${data.undocumentedPayments} undocumented payments and ${data.pendingApprovals} pending approvals. Open Agent jobs to review the agent’s work.`})}><Bell className="size-4" aria-hidden="true" /></Button>
         </header>
 
-        <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={page === "overview" ? "Overview" : page === "staffing" ? "Staffing and payroll" : "Invoice investigation"} className="mx-auto w-full max-w-[1600px] min-w-0 px-4 pt-7 pb-28 outline-none md:px-8 md:pt-8 md:pb-10">
+        <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={page === "overview" ? "Overview" : page === "staffing" ? "Staffing and payroll" : "Agent jobs"} className="mx-auto w-full max-w-[1600px] min-w-0 px-4 pt-7 pb-28 outline-none md:px-8 md:pt-8 md:pb-10">
           {page === "overview" ? (
             <div id="lantern-overview" className="space-y-6">
               <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -191,8 +196,8 @@ function DashboardContent({ data }: { data: DashboardData }) {
               <Card id="lantern-priority-inbox" aria-labelledby="priority-title" className="gap-5">
                 <CardHeader className="flex flex-row justify-between gap-4"><div className="space-y-1.5"><CardTitle id="priority-title" className="text-base font-medium">Priority inbox</CardTitle><CardDescription>Evidence gathered by the autonomous finance loop</CardDescription></div><Badge variant="outline" className="h-fit shrink-0 border-warning-border text-warning">{attention} open</Badge></CardHeader>
                 <CardContent className="divide-y">
-                  <PriorityItem label="Documents" title={`${data.undocumentedPayments} payments without invoice documents`} description="Counted from bank bookings with an invoice reference that are not documented." action="Review decisions" tone="red" onClick={() => navigate("investigations")} />
-                  <PriorityItem label="Approvals" title={`${data.pendingApprovals} pending approvals`} description="Review the agent’s reasoning in its recorded decisions." action="View decisions" tone="orange" onClick={() => navigate("investigations")} />
+                  <PriorityItem label="Documents" title={`${data.undocumentedPayments} payments without invoice documents`} description="Counted from bank bookings with an invoice reference that are not documented." action="Review jobs" tone="red" onClick={() => navigate("agent-jobs")} />
+                  <PriorityItem label="Approvals" title={`${data.pendingApprovals} pending approvals`} description="Review the agent’s reasoning in its recorded jobs." action="View jobs" tone="orange" onClick={() => navigate("agent-jobs")} />
                 </CardContent>
               </Card>
 
@@ -201,7 +206,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
                 <Card id="lantern-recorded-payroll" className="gap-4"><CardHeader><CardTitle className="text-base font-medium">Latest recorded payroll</CardTitle><CardDescription>Latest month with salary bookings</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center justify-between gap-3"><div><span className="text-xs text-muted-foreground">{data.employees.filter(employee => employee.salary !== null).length} recorded recipients</span><strong className="mt-1 block font-mono text-2xl font-medium tracking-tight">{currency(data.monthlyPayroll)}</strong></div><div className="flex -space-x-2" aria-label="Team members">{data.employees.map(employee=><Avatar key={employee.id} className="size-8 border-2 border-card"><AvatarFallback className="bg-secondary text-[10px]">{employee.initials}</AvatarFallback></Avatar>)}</div></div><Button variant="secondary" size="sm" className="min-h-10" onClick={() => navigate("staffing")}>Review staffing</Button></CardContent></Card>
               </section>
             </div>
-          ) : page === "staffing" ? <Staffing data={data} onBack={() => navigate("overview")} /> : <Investigation data={data} />}
+          ) : page === "staffing" ? <Staffing data={data} onBack={() => navigate("overview")} /> : <AgentJobs jobs={data.jobs} />}
         </section>
 
         <nav id="lantern-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-3 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
@@ -210,7 +215,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
       </SidebarInset>
 
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <DialogContent id="lantern-search-dialog" onCloseAutoFocus={event=>{event.preventDefault();if(searchNavigated.current){mainRef.current?.focus();searchNavigated.current=false;}else{searchOrigin.current?.focus();}}} className="max-w-xl"><DialogHeader><DialogTitle>Search your workspace</DialogTitle><DialogDescription>Find views, people and recorded agent decisions.</DialogDescription></DialogHeader><Input id="lantern-search-input" aria-label="Search workspace" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions, people…" /><div className="max-h-80 space-y-1 overflow-y-auto" aria-live="polite">{searchItems.length ? searchItems.map(item=><Button key={item.label} variant="ghost" className="h-auto min-h-16 w-full justify-start px-3 py-3 text-left" onClick={()=>navigate(item.page)}><span><span className="block text-sm">{item.label}</span><span className="mt-1 block whitespace-normal text-xs font-normal text-muted-foreground">{item.detail}</span></span></Button>):<p className="p-3 text-sm text-muted-foreground">No matching records.</p>}</div></DialogContent>
+        <DialogContent id="lantern-search-dialog" onCloseAutoFocus={event=>{event.preventDefault();if(searchNavigated.current){mainRef.current?.focus();searchNavigated.current=false;}else{searchOrigin.current?.focus();}}} className="max-w-xl"><DialogHeader><DialogTitle>Search your workspace</DialogTitle><DialogDescription>Find views, people and agent jobs.</DialogDescription></DialogHeader><Input id="lantern-search-input" aria-label="Search workspace" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions, people…" /><div className="max-h-80 space-y-1 overflow-y-auto" aria-live="polite">{searchItems.length ? searchItems.map(item=><Button key={item.label} variant="ghost" className="h-auto min-h-16 w-full justify-start px-3 py-3 text-left" onClick={()=>navigate(item.page)}><span><span className="block text-sm">{item.label}</span><span className="mt-1 block whitespace-normal text-xs font-normal text-muted-foreground">{item.detail}</span></span></Button>):<p className="p-3 text-sm text-muted-foreground">No matching records.</p>}</div></DialogContent>
       </Dialog>
       <Dialog open={notice !== null} onOpenChange={open=>{if(!open)setNotice(null);}}><DialogContent onCloseAutoFocus={event=>{event.preventDefault();noticeOrigin.current?.focus();}}><DialogHeader><DialogTitle>{notice?.title}</DialogTitle><DialogDescription className="pt-2 leading-7">{notice?.description}</DialogDescription></DialogHeader><Button variant="secondary" onClick={()=>setNotice(null)}>Close</Button></DialogContent></Dialog>
     </>

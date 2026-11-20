@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Lantern · Autonomous CFO",
-  description: "An interconnected finance workspace with evidence-based investigations, bank-statement analytics and a simulated autonomous CFO loop.",
+  description: "An interconnected finance workspace with agent jobs, bank-statement analytics and a simulated autonomous CFO loop.",
 };
 export const viewport: Viewport = { themeColor: "#f7f7f7" };
 

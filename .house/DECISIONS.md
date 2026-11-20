@@ -171,3 +171,15 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 ## D-027 — pitch i scenariusz demo robi Piotrek poza repo (2026-11-20)
 - Pitch i scenariusz demo prowadzi Piotrek, poza repo; zespół dokończy je razem 21.11. Agent `pitch` tego nie rusza.
 - Agenci mogą najwyżej dostarczyć mu fakty (architektura, liczby z evalu i smoke'a) na prośbę.
+
+## D-020 Jasny motyw i lokalny podgląd dashboardu
+- **Decyzja:** zgodnie z poleceniem użytkownika jasny motyw jest domyślny; ciemny pozostaje dostępny przez przełącznik z zapisem wyboru. Lokalny podgląd działa na localhost:3000 po ustawieniu DASHBOARD_PREVIEW=1, wyłącznie w trybie development, z oznaczonymi fikcyjnymi danymi. Produkcja nadal wymaga uwierzytelnienia i usług firmowych.
+- **Dlaczego:** użytkownik chce na bieżąco oglądać zmiany interfejsu bez konfiguracji klastra. Wskazana w AGENTS.md ścieżka house nie istnieje na tej maszynie; użyto kopii .house w repozytorium.
+- **Kto:** człowiek (zakres), codex (realizacja)
+- **Data:** 2026-11-20
+
+## D-021 Agent jobs: zwięzła lista pracy agenta bez etapów
+- **Decyzja:** panel Investigations zastępuje Agent jobs w stylu listy zgłoszeń Linear: identyfikator, ikona stanu i tytuł, wyszukiwanie, filtry i szczegóły. Na żądanie użytkownika usunięto etapy. Obecny odczyt opiera się na decisions z approval_requests, llm_usage i events; nie zmienia schematu ani procesu agenta. Rzeczywiste stany queued/running wymagają przyszłego agent_jobs z zapisem cyklu zadania; obecnie są tylko w oznaczonym podglądzie.
+- **Dlaczego:** istniejące tabele przechowują wyniki działań i częściową telemetrię; zdarzenie symulatora nie dowodzi rozpoczęcia lub zakończenia pracy agenta.
+- **Kto:** człowiek (zakres i styl), codex (realizacja)
+- **Data:** 2026-11-20

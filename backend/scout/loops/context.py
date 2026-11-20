@@ -65,9 +65,11 @@ class LogNotifier:
 class HR:
     """People, roles, vacations and the manager chain (company HR tables)."""
 
-    def __init__(self, conn_factory: ConnFactory, user_map: dict[str, str] | None = None):
+    def __init__(self, conn_factory: ConnFactory, user_map: dict[str, str] | None = None,
+                 slack_names: dict[str, str] | None = None):
         self._cf = conn_factory
         self._by_slack = {v: k for k, v in (user_map or {}).items()}
+        self._slack_names = dict(slack_names or {})  # employee id -> the real person's Slack name
 
     def employee(self, employee_id: str) -> dict[str, Any] | None:
         with self._cf() as conn:
@@ -86,8 +88,10 @@ class HR:
     def name(self, employee_id: str | None) -> str:
         if not employee_id:
             return "someone"
+        if self._slack_names.get(employee_id):
+            return self._slack_names[employee_id]  # a real person on Slack plays this role
         e = self.employee(employee_id)
-        return (e or {}).get("name", "").split()[0] or employee_id
+        return ((e or {}).get("name") or "").split()[:1][0] if (e or {}).get("name") else employee_id
 
     def role(self, employee_id: str) -> str:
         text = ((self.employee(employee_id) or {}).get("role") or "").casefold()

@@ -41,6 +41,23 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def slack_names(client: Any, user_map: Mapping[str, str]) -> dict[str, str]:
+    """Employee id -> the real name of the Slack user linked to it (skipped when Slack can't tell)."""
+    out: dict[str, str] = {}
+    for emp, uid in user_map.items():
+        if not uid:
+            continue
+        try:
+            u = client.users_info(user=uid)["user"]
+        except Exception:  # noqa: BLE001 - missing users:read or a deleted user: keep the persona name
+            log.warning("could not look up Slack user %s", uid, exc_info=True)
+            continue
+        name = u.get("real_name") or (u.get("profile") or {}).get("real_name") or u.get("name")
+        if name:
+            out[emp] = name
+    return out
+
+
 def _split(ref: str) -> tuple[str, str]:
     channel, _, ts = ref.partition(":")
     return channel, ts
@@ -50,10 +67,13 @@ class SlackUI:
     def __init__(self, client: Any, user_map: Mapping[str, str], jobs: JobQueue, recorder: TaskRecorder, *,
                  conn_factory: Any = None, audit: Audit | None = None, bot_token: str = "", dashboard_url: str = "",
                  icon_url: str | None = None, username: str = "Scout", download: Callable[[str], bytes] | None = None,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic, names: Mapping[str, str] | None = None):
         self.client = client
         self._slack = dict(user_map)  # employee id -> Slack user id
         self._emp = {v: k for k, v in self._slack.items()}
+        # "Wojciech Fiołka" in a message -> <@U…>, longest names first so one name never eats another
+        self._mentions = sorted(((_escape(n), self._slack[e]) for e, n in (names or {}).items()
+                                 if n and self._slack.get(e)), key=lambda p: -len(p[0]))
         self._jobs, self._recorder, self._cf, self._audit = jobs, recorder, conn_factory, audit
         self._token, self._dash = bot_token, dashboard_url.rstrip("/")
         self._identity = {"username": username, **({"icon_url": icon_url} if icon_url else {})}
@@ -70,6 +90,8 @@ class SlackUI:
     # -- outbound -------------------------------------------------------------------------------------------
     def _blocks(self, text: str, level: str, task_id: str | None, buttons: Sequence[Button]) -> list[dict[str, Any]]:
         body = _escape(text)
+        for name, uid in self._mentions:
+            body = body.replace(name, f"<@{uid}>")
         body = body if len(body) <= MAX_TEXT else body[: MAX_TEXT - 1] + "…"
         blocks: list[dict[str, Any]] = [{"type": "section", "text": {"type": "mrkdwn", "text": f"*[{level}]* {body}"}}]
         if buttons:

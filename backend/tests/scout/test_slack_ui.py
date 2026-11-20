@@ -134,3 +134,20 @@ def test_dm_with_buttons_and_link(conn_factory, fake_slack):
     assert post["blocks"][1]["elements"][0]["value"] == "apr_1"
     assert "https://scout.test/tasks/SC-101" in post["blocks"][2]["elements"][0]["text"]
     assert s.dm("rosa", "hi", "NOTIFY") is None  # no Slack id: nothing sent
+
+
+def test_linked_people_show_as_real_slack_people(conn_factory, db, fake_slack):
+    from scout.loops.context import HR
+    from scout.slack_ui import slack_names
+
+    names = slack_names(fake_slack, {"vincenzo": "U_VIN", "grazyna": "U_GRA", "rosa": ""})
+    assert names == {"vincenzo": "U_VIN", "grazyna": "U_GRA"}  # FakeSlack's real_name is the id
+    names = {"vincenzo": "Wojciech Fiołka", "grazyna": "Piotr Warząchowski"}
+    hr = HR(conn_factory, USERS, names)
+    assert hr.name("vincenzo") == "Wojciech Fiołka" and hr.name("rosa") == "rosa"  # unlinked, not in HR: the id, no crash
+    s, _, _ = ui(conn_factory, fake_slack, names=names)
+    s.dm("grazyna", "Piotr Warząchowski is on vacation, asked Wojciech Fiołka on Slack", "NOTIFY")
+    post = fake_slack.named("chat_postMessage")[-1]
+    body = post["blocks"][0]["text"]["text"]
+    assert "<@U_GRA> is on vacation, asked <@U_VIN> on Slack" in body
+    assert "Wojciech Fiołka" in post["text"]  # the notification text stays readable

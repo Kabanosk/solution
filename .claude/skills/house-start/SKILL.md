@@ -3,12 +3,12 @@ name: house-start
 description: Contest intake - fill .house/spec.yaml from the pasted task statement, rules and judging criteria, check the rules, raise questions for gaps.
 disable-model-invocation: true
 ---
-You are the coordinator (see AGENTS.md). Run **stage 1: Intake** of `/home/kabanosk/house/contests/collabothon-2026/.house/playbooks/lifecycle.md`.
+You are the coordinator (see AGENTS.md). Run **stage 1: Intake** of `/home/wojciech.fiolka/house/contests/collabothon-2026/.house/playbooks/lifecycle.md`.
 
 Input: `$ARGUMENTS` plus anything the human pasted (task statement, rules, judging criteria, timeline, links).
 If nothing was given, ask for it in one short message and stop.
 
-1. Fill `/home/kabanosk/house/contests/collabothon-2026/.house/spec.yaml` with what the human gave. Keep their values verbatim.
+1. Fill `/home/wojciech.fiolka/house/contests/collabothon-2026/.house/spec.yaml` with what the human gave. Keep their values verbatim.
 2. Dispatch the `researcher` agent for the rules check (links/text from the input) and any missing facts.
    Also list every external API key the contest or likely ideas need (e.g. sponsor APIs) and verify each key works
    with one cheap real call (see `build.md` principle 0); a missing or failing key is a question for the human now.

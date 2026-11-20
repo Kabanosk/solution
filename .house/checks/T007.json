@@ -1,0 +1,27 @@
+{
+  "task": "T007",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_cost_metrics.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T13:52:23+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "................                                                         [100%]\n16 passed in 0.12s",
+      "ran_at": "2026-11-20T14:58:16+01:00",
+      "commit": "d23a088720c2d22d792034044d181b83f645137d"
+    }
+  }
+}

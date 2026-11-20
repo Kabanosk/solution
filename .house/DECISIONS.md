@@ -9,3 +9,84 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Kto:** człowiek | judge | coordinator
 - **Data:** YYYY-MM-DD HH:MM
 ```
+
+## D-001 Rdzeń produktu: połączone dane firmy w jednym harnessie
+- **Decyzja:** produkt to jeden harness agentowy z konektorami (MCP) do: wyciągu bankowego, bazy faktur, metryk produktu/userów, symulowanych komputerów pracowników (pliki, wiadomości). Agenci liquidity / tax / investment / anomalie kosztów (chmura, marketing vs userzy) to „soczewki” na tych samych połączonych danych. Wyjście: Slack (DM, zatwierdzanie), czat CEO, dashboard.
+- **Dlaczego:** tak opisał zespół (whiteboard + wyjaśnienie); wartość jest w łączeniu źródeł, a wymagany use case (liquidity) wynika z niego naturalnie.
+- **Kto:** człowiek
+- **Data:** 2026-11-20
+
+## D-002 Scenariusz: rozbudowana Pizzeria Amalfi, historia sty–lis 2025, grudzień na żywo
+- **Decyzja:** dane organizatora (wyciąg 2025) + dogenerowane: faktury dostawców (AS-/FLV-), księgowa/office manager „Grażyna” z firmowym folderem i skrzynką, arkusz HR (manager, urlopy), sprzęt, reklamy, apka do zamówień online (chmura, zamówienia, nowi klienci). Historia w bazie: 01–11.2025; grudzień 2025 wrzuca symulator jako nowe zdarzenia (tempo sterowane na demo). Agent widzi czerwcową dziurę w historii i proponuje linię kredytową przed czerwcem 2026.
+- **Dlaczego:** jury zna te dane; wymagany use case liquidity zostaje; wszystkie przepływy zespołu mają gdzie żyć.
+- **Kto:** człowiek (grill)
+- **Data:** 2026-11-20 13:30
+
+## D-003 Faktury tylko po stronie wydatków
+- **Decyzja:** przepływ: zapłacona faktura (AS-/FLV-) bez dokumentu w systemie → agent szuka na firmowym komputerze Grażyny → LLM wyciąga pozycje → porównanie kwoty z przelewem → zapis; niezgodność → prośba o wyjaśnienie + powiadomienie Grażyny; brak → DM, przypomnienie po X h, manager, przy urlopie wyżej aż do CEO. Brak dokumentu = ryzyko podatkowe (Belegpflicht), więc to też soczewka „Tax”. Faktur sprzedażowych nie robimy.
+- **Dlaczego:** wpływy pizzerii to tylko rozliczenia kart, bez faktur.
+- **Kto:** coordinator (człowiek: „zdecyduj”)
+- **Data:** 2026-11-20 13:30
+
+## D-004 Dostęp tylko do danych firmowych
+- **Decyzja:** agent czyta tylko firmowe foldery/skrzynki na firmowych komputerach (VPN; na demo: symulowany folder + pliki .eml przez MCP), nigdy prywatnych. Każdy dostęp jest logowany, a pracownik dostaje DM, że agent zajrzał.
+- **Dlaczego:** cel to ciągłość pracy (urlop, zapomniana faktura), nie nadzór; jury to bank („Obey the laws”).
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-005 Autonomia: rutynowe kontra nietypowe, progi względem wpływów
+- **Decyzja:** sam robi: wydatki rutynowe (znany dostawca, kwota ±20% typowej) i wszystko < 1% średnich miesięcznych wpływów; robi i informuje: nietypowe ≤ 5%; pyta CEO: > 5%, nowy dostawca, kredyt, lokata, hedge FX, zmiana budżetu zespołu. CEO nadpisuje reguły zdaniem (zapisane jako reguła, widoczne w historii). Wykonanie zawsze symulowane („SIMULATED”). Agent sam odpala pod-agentów do dochodzeń.
+- **Dlaczego:** progi skalują się z firmą; autonomia tam, gdzie nudne i powtarzalne; spełnia rozróżnienie z challenge card.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-006 Koszt kontra metryka: trzy pary
+- **Decyzja:** koszt jedzenia ↔ zamówienia (food cost %), reklamy ↔ nowi klienci (CAC), chmura apki ↔ zamówienia online (koszt/zamówienie). Wzrost kosztu bez wzrostu metryki → alert z wyjaśnieniem do CEO / właściciela kosztu.
+- **Kto:** coordinator (człowiek: „zdecyduj”)
+- **Data:** 2026-11-20 13:30
+
+## D-007 Kanały: najpierw Slack
+- **Decyzja:** bot Slack (Socket Mode): DM do pracowników, czat CEO, Zatwierdź/Odrzuć. Kanał za interfejsem (Signal/opencode później). Wspólna historia decyzji dla kanałów, osobne rozmowy.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-008 Stack
+- **Decyzja:** Python, LangGraph (przerwanie + wznowienie przy zgodzie), MCP do narzędzi, Postgres na klastrze jako baza firmy/udawany ERP, FastAPI z OpenAPI dla frontu. Model przez vLLM, model-agnostycznie: `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` w `.env`, domyślnie Llama 3.2 3B (już na klastrze, L4 24 GB). Bez ogx (nic nie dodaje do vLLM+LangGraph, Tech Preview). Deploy: zwykłe YAML-e (`oc apply`), bez Terraformu.
+- **Dlaczego:** zespół zna Pythona; klaster żyje 2 dni; decyzję o modelu podejmiemy później.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-009 Bonusy: vLLM, NeMo Guardrails, MLflow, Jupyter
+- **Decyzja:** prognozy XGBoost/drzewo trenowane w Jupyterze na RHOAI, śledzone w MLflow; LLM tylko tłumaczy wynik. NeMo Guardrails robi Wojtek sam (osobny czat); kod ma tylko przełącznik: zapytania do LLM idą przez jeden `LLM_BASE_URL`, który może wskazać proxy NeMo. Bramka płatności jest w LangGraph (NeMo nie sprawdza kwot). Research: reports/guardrails-research.md.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-010 Podział pracy i termin
+- **Decyzja:** Wojtek + Grzesiu: backend + OpenShift; Paweł + Piotrek: demo, prezentacja, dashboard (front). API REST z OpenAPI i docs; front zgłasza nowe endpointy przez issues. Deadline niedziela 22.11 10:00, cel 09:00. Makiety DM-a i dashboardu po postawieniu Slacka.
+- **Kto:** człowiek
+- **Data:** 2026-11-20 13:30
+
+## D-011 Nowy dostawca nigdy nie jest AUTO
+- **Decyzja:** płatność do nowego dostawcy poniżej 1% wpływów → NOTIFY (nie AUTO); powyżej → APPROVAL. Rutynowe płatności zostają AUTO niezależnie od kwoty.
+- **Dlaczego:** drobne pierwsze przelewy do nieznanych odbiorców to klasyczny wektor nadużyć; jury to bank. Rozstrzyga niejasność w D-005 zgłoszoną przez T003.
+- **Kto:** coordinator
+- **Data:** 2026-11-20 14:30
+
+## D-012 Zmiana kryteriów T011
+
+- **Decyzja:** nowe kryteria akceptacji T011: AC-1 (run), AC-2 (manual)
+- **Dlaczego:** deps updated after splitting T006/T009/T012 into small tasks
+- **Kto:** coordinator
+- **Data:** 2026-11-20 14:24
+
+## D-013 Próg płynności = bufor bezpieczeństwa; kredyt w scenariuszu „co jeśli”
+- **Decyzja:** „dziura” to prognozowane saldo poniżej bufora bezpieczeństwa (domyślnie 1 miesiąc kosztów stałych ≈ 17,7 tys. €, konfigurowalne), nie poniżej zera. Prognoza z prawdziwych danych pokazuje czerwcowy spadek (net czerwca ok. −14 tys. €), ale saldo zostaje ok. 45 tys. €, więc agent: (a) przy zapasie ponad bufor i czerwcowy spadek proponuje lokatę/fundusz rynku pieniężnego na kwotę, która nie przebije bufora w czerwcu (soczewka Investment, APPROVAL); (b) w scenariuszu „co jeśli” od CEO (np. „kupuję piec za 25 tys. € w marcu”) prognoza przebija bufor w czerwcu → wniosek o linię kredytową (APPROVAL). Stub API (−20 tys. €) zostanie zastąpiony prawdziwą prognozą w T019.
+- **Dlaczego:** T015 pokazał, że z danych od końca listopada saldo nie schodzi pod zero; zmyślanie minusa byłoby nieuczciwe wobec jury, a oba warianty pokazują liquidity + investment z wyjaśnieniem.
+- **Kto:** coordinator (do potwierdzenia przez zespół demo)
+- **Data:** 2026-11-20 17:30
+
+## D-014 T008 wmergowany ręcznie (obejście bramki)
+- **Decyzja:** T008 wrócił przez revert rewertu na branchu od main; `house merge` dwa razy wywrócił się na swoim rebase'ie „gałęzi już raz cofniętej” (Could not apply e4dcedc). Zrobiłem bramkę ręcznie: `house check T008 --worktree` GREEN → `git merge --no-ff` → `house check --all` GREEN dla wszystkich zadań.
+- **Dlaczego:** pierwotny revert był najpewniej flake'iem wspólnej bazy, a bramka ma błąd przy ponownym mergowaniu cofniętej gałęzi (do zgłoszenia w repo house).
+- **Kto:** coordinator
+- **Data:** 2026-11-20 18:00

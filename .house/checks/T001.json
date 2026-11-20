@@ -1,0 +1,59 @@
+{
+  "task": "T001",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_contract.py",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-2",
+        "kind": "run",
+        "run": "test -f .env.example && grep -q \"^LLM_MODEL=\" .env.example && grep -q \"^LLM_BASE_URL=\" .env.example",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      },
+      {
+        "id": "AC-3",
+        "kind": "run",
+        "run": "uv run --project backend python -m cfo.db.migrate --check",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T13:52:22+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "..............                                                           [100%]\n14 passed in 0.04s",
+      "ran_at": "2026-11-20T14:57:41+01:00",
+      "commit": "d23a088720c2d22d792034044d181b83f645137d"
+    },
+    "AC-2": {
+      "id": "AC-2",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "",
+      "ran_at": "2026-11-20T14:57:41+01:00",
+      "commit": "d23a088720c2d22d792034044d181b83f645137d"
+    },
+    "AC-3": {
+      "id": "AC-3",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "schema OK (dry run)",
+      "ran_at": "2026-11-20T14:57:42+01:00",
+      "commit": "d23a088720c2d22d792034044d181b83f645137d"
+    }
+  }
+}

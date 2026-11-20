@@ -1,12 +1,23 @@
 services:
   db:
     image: postgres:16
-    environment: {POSTGRES_USER: cfo, POSTGRES_PASSWORD: cfo, POSTGRES_DB: cfo}
-    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: cfo
+      POSTGRES_PASSWORD: cfo
+      POSTGRES_DB: cfo
+    ports:
+      - "5433:5432"
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - ./data/pizzeria-amalfi-bank-statement-2025-v6.csv:/tmp/statement.csv:ro
+      - cfo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cfo -d cfo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
   files:
-    build: ./files
+    build: .
     ports: ["8080:8080"]
     volumes: ["./data:/data:ro"]
+
+volumes:
+  cfo-db:

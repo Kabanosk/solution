@@ -1,0 +1,18 @@
+{
+  "task": "T021",
+  "frozen": {
+    "criteria": [
+      {
+        "id": "AC-1",
+        "kind": "run",
+        "run": "docker build -q -f Containerfile -t cfo-backend:test . >/dev/null",
+        "expect": null,
+        "text": null,
+        "timeout": 900
+      }
+    ],
+    "protected": {}
+  },
+  "frozen_at": "2026-11-20T14:24:50+01:00",
+  "results": {}
+}

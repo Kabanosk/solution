@@ -1,0 +1,10 @@
+# MLflow state: SQLite backend store (/mlflow/mlflow.db) and proxied artifacts (/mlflow/artifacts).
+# ReadWriteOnce is fine: a single replica with strategy Recreate.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-data
+  labels: {app: mlflow}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 2Gi}}

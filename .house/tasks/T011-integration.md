@@ -1,9 +1,9 @@
 ---
 id: T011
 title: Wire everything: golden path end-to-end
-status: todo
-owner: null
-branch: null
+status: doing
+owner: coder
+branch: task/T011-integration
 depends_on: ["T005", "T007", "T008", "T010", "T016", "T019", "T020"]
 capabilities: []
 acceptance:

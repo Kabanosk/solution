@@ -20,8 +20,8 @@
       "passes": true,
       "exit": 0,
       "output_tail": "",
-      "ran_at": "2026-11-20T15:20:45+01:00",
-      "commit": "cb60ccbcb26ab1a1538f6ac06f10f97ea2a217cf"
+      "ran_at": "2026-11-20T15:25:43+01:00",
+      "commit": "8b8a8dd509c23b8fb6fac157fa468df669c11d0c"
     }
   }
 }

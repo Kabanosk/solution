@@ -1,0 +1,10 @@
+# Generated company data (workstation files etc.). Written by the seed Job (T022), read by
+# mcp-workstations at /app/data. ReadWriteOnce is fine: one node, and both pods land on it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cfo-data
+  labels: {app: cfo-data}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}

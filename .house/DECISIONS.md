@@ -159,3 +159,10 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** sztywny `t011_test` wywołał fałszywy revert T048 (D-024), gdy pełny zestaw testów leciał równolegle z bramką.
 - **Kto:** coordinator
 - **Data:** 2026-11-20 18:00
+
+## D-026 — scalenie origin/main (PR #6, #7, #8) do lokalnego main (2026-11-20)
+- PR #6/#8 (Grzesiu) zawierały starszą, przeformatowaną kopię naszego backendu: każdy z 59 zmienionych plików .py
+  ma AST identyczne z którąś wcześniejszą wersją z naszych gałęzi. Token API jest już w main z T046.
+- Rozstrzygnięcie: backend/, deploy/, docs/ = nasz main; `kustomization.yaml` bez `includeTemplates` (kubectl 1.24);
+  dashboard z PR #7 bez zmian (tsc OK, testy 8/8 na Node 22).
+- Na przyszłość: po pushu main zespół robi PR-y od aktualnego origin/main, bez kopiowania plików między gałęziami.

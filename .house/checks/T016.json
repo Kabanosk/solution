@@ -19,9 +19,9 @@
       "id": "AC-1",
       "passes": true,
       "exit": 0,
-      "output_tail": "Building cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T016-liquidity-gaps/backend\n      Built cfo @ file:///home/wojciech.fiolka/house/contests/collabothon-2026/.worktrees/T016-liquidity-gaps/backend\nUninstalled 1 package in 1ms\nInstalled 3 packages in 16ms\n......................                                                   [100%]\n22 passed in 4.47s",
-      "ran_at": "2026-11-20T14:59:25+01:00",
-      "commit": "49368d4bfc4d2238d6544fc67f07b79a611b5d2a"
+      "output_tail": "......................                                                   [100%]\n22 passed in 8.10s",
+      "ran_at": "2026-11-20T15:09:45+01:00",
+      "commit": "19fc0a8ea98f893b07ebe17f692fd5d2f3568084"
     }
   }
 }

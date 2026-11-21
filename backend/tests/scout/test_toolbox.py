@@ -153,7 +153,7 @@ def test_send_invoices_attaches_the_pdfs(conn_factory, tmp_path):
     assert [s.detail["name"] for s in sent] == ["Invoice_CLD-2026-11.pdf", "Invoice_AS-77012.pdf"]
     assert sent[0].detail["mime"] == "application/pdf" and base64.b64decode(sent[0].detail["data_b64"])[:5] == b"%PDF-"
     assert b.call("send_invoices", {"number": "AS-77012"})["invoices"] == 1
-    assert box(ctx, "vanessa").call("send_invoices", {})["error"] == "access_denied"
+    assert "error" not in box(ctx, "vanessa").call("send_invoices", {})  # invoices are open to every member
 
 
 def test_send_dm_messages_a_colleague_on_slack_with_attribution(conn_factory, tmp_path):

@@ -1,4 +1,5 @@
-import { apiFetch, checkWriteRequest, noStore } from "@/lib/scout-api";
+import { runStrategy } from "@/lib/strategy-store";
+import { checkWriteRequest, noStore } from "@/lib/scout-api";
 import { currentSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +9,9 @@ export async function POST(request: Request) {
   const session = await currentSession();
   if (session?.role !== "owner") return Response.json({ error: "Only a workspace owner can run the strategy review." }, { status: 403, headers: noStore });
   try {
-    const response = await apiFetch("/v1/strategy/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    const body = await response.json();
-    return Response.json(response.ok ? body : { error: "Could not queue the strategy review." }, { status: response.status, headers: noStore });
-  } catch { return Response.json({ error: "Strategy review is temporarily unavailable." }, { status: 503, headers: noStore }); }
+    return Response.json(await runStrategy(session.organizationId, true), { headers: noStore });
+  } catch (error) {
+    const setupError = error instanceof Error && ["Register a strategy provider first.", "Save company context before running research."].includes(error.message);
+    return Response.json({ error: setupError ? error.message : "Strategy review is temporarily unavailable." }, { status: setupError ? 400 : 503, headers: noStore });
+  }
 }

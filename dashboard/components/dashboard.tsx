@@ -187,7 +187,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
   // Tasks visible in the current view; poll while any of them is still moving.
   const filter: TaskFilter = route.filter ?? {};
   const visibleTasks = route.taskId ? [] : page === "tasks" ? scout.tasks.filter(item => !filter.loop || item.loop === filter.loop) : page === "overview" ? openTasks : [];
-  const live = visibleTasks.some(LIVE);
+  const live = visibleTasks.some(LIVE) || (page === "tasks" && filter.loop === "strategy");
   useEffect(() => {
     if (!live) return;
     const timer = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 5000);

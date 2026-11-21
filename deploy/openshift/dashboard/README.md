@@ -49,3 +49,5 @@ A model outage produces unavailable forecasts/chat errors without substituting s
 ## Rollback
 
 Read the auth guide's data-preserving rollback section first. Application-image rollback must not re-expose the previous unauthenticated API. Preserve all tenant schemas together with auth metadata; never reset or seed a live database as rollback. Secret rotation is an operator action and normally requires an explicit pod restart to pick up changed environment variables; this change does not trigger one automatically.
+
+Strategy news runs inside the dashboard pod every 24 hours after owner enablement. Apply the auth migration before deploying, and ensure `gpt-key` contains `API_KEY`. OpenAI is configured automatically for workspace owners. See [Strategy setup](../../../../docs/strategy-loop.md) for scheduling, encryption and model settings.

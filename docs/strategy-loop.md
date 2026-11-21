@@ -1,37 +1,28 @@
-# Daily CEO strategy review
+# Daily strategy news review
 
-Scout queues `strategy_review` daily at 07:00 Europe/Berlin (including weekends). The worker saves one `strategy` task per local calendar day. Open **Loops → Strategy** to read its outcome and source links, or choose **Run today's review** to enqueue it immediately. Repeated requests use the same daily job/task key. No Slack messages, purchases, hiring or financial commitments are made by this loop.
+Open **Loops → Strategy → Daily news settings**. GPT is configured automatically when the dashboard has `API_KEY`; OpenShift reads it from the existing `gpt-key` Secret's `API_KEY` field. The key stays on the server. The provider is also offered automatically in Scout chat's model selector to workspace owners. Granite remains the initial chat model.
+
+Owners can replace this default by registering OpenAI or Mistral in Strategy, or selecting **Save provider for the daily Strategy loop** in Scout chat's provider dialog. The saved workspace provider takes precedence. Chat-only credentials retain their existing tab-memory lifecycle. Removing a chat provider does not delete the saved Strategy provider; replace it in Strategy settings or pause the loop.
+
+Add company context (industry, location, markets and interests), customize the system prompt, enable automatic research and save. Only the supplied context, organization name and prompt go to the provider; private records are never loaded. Native web search scans news from the last 24 hours and requires public citations. Models/account access must support web search. Groq is not supported for news. Model defaults to `gpt-4.1-mini`; override with `SCOUT_GPT_MODEL` if needed.
+
+Each invocation creates a Strategy task with start/completion/error activity. Successful tasks include a report and source evidence; failures are escalated with a safe error. **Run review now** runs using the last saved settings, even while the automatic loop is paused. Refreshing the dashboard shows scheduled results through the existing task list.
+
+## Dashboard pod scheduling
+
+`instrumentation.ts` starts a cron-style scheduler inside the long-running dashboard Node process when `SCOUT_STRATEGY_SCHEDULER=1`. It checks persisted due times on startup and every minute; it does not require a browser, a separate Kubernetes CronJob pod or the backend worker. First enablement is due immediately; each attempt advances the due time by 24 hours, including failures. Manual reviews also reset that clock. Pausing retains settings and keys. Downtime produces one catch-up review on restart, rather than replaying every missed day.
+
+Postgres advisory locks serialize manual/scheduled runs and replicas per organization. Task creation and advancing the schedule are atomic. After a crash, an unfinished task is marked interrupted when the next review starts. A crash after calling the provider can incur usage without a completed result; external calls are not exactly-once. Runs have a two-minute provider timeout. The former worker's fixed-feed strategy schedule is disabled to prevent duplicate daily briefings; its legacy handler/API remain available for older integrations.
 
 ## Deployment
 
-Apply the normal operator migration with the backend environment configured, before starting updated workers:
+1. Apply the normal migration with the backend environment configured: `python -m cfo.db.migrate --migrate`. This adds `scout_auth.strategy_settings` and retains tenant-local task storage.
+2. Deploy the updated dashboard and backend worker. The dashboard manifest sets `API_KEY` from `gpt-key/API_KEY` and enables the scheduler.
+3. Optionally create `scout-strategy` with an `encryption-key` field containing a stable random secret of at least 32 characters. This sets `SCOUT_STRATEGY_SECRET` for AES-256-GCM encryption of user-supplied provider keys, bound to organization ID. Otherwise `API_KEY` supplies the encryption secret. Keep the encryption secret stable: rotating it without re-encrypting saved credentials requires registering those providers again.
+4. In Strategy, save company context and enable the loop. Provider setup requires no user key entry when `gpt-key` is available.
 
-```sh
-python -m cfo.db.migrate --migrate
-python -m scout.worker
-```
+Settings and manual runs require an authenticated workspace owner and same-origin writes. No credentials are returned by settings/chat metadata APIs. Research failure never exposes raw provider errors. Provider charges apply.
 
-The migration upgrades the task loop constraint for registered existing tenant schemas and provisioning for new organizations. Deployment and production migration are not performed by the implementation task. The API, dashboard and worker all need the updated code.
+## Verification
 
-Manual API: authenticated organization owner `POST /v1/strategy/review`. The dashboard proxies this through `POST /api/strategy/review`, with same-origin and session checks. Strategy notes and evidence are restricted to owners in dashboard reads and executives in backend reads.
-
-## Evidence and limitations
-
-Public sources: [ECB RSS](https://www.ecb.europa.eu/home/html/rss.en.html) and [Eurostat news RSS/Atom](https://ec.europa.eu/eurostat/web/rss). No API keys or company data are sent to these feeds. The reader bounds response size/time, rejects unsafe XML, ignores missing/future/older-than-14-day dates, deduplicates URLs and matches topics against ledger expense/revenue categories. Matching indicates potential relevance, not a verified company impact. Feed failure is reported separately from zero matches. These two macroeconomic feeds do not provide comprehensive local regulations, competitor intelligence or grants coverage.
-
-Growth uses bank-collected revenue as a sales proxy, in one currency. It excludes the current month and first observed month, requires three consecutive completed positive-sales months ending last month, and computes median monthly growth over at most six months. The base scenario caps extrapolated monthly growth at ±20%; downside/upside use observed variability with a 2–10 percentage-point spread. Three monthly projections are scenarios, not a trained or backtested forecast. Missing history, stale bookings, seasonality and capacity constraints are disclosed. Other currencies are excluded rather than converted without an FX source. Existing liquidity forecasting is unchanged.
-
-The mixed scorecard covers sales, operating cash surplus, owner income and expansion readiness. Sales can be assessed against an optional target. The other dimensions explicitly report missing reconciled operating flows, owner drawings, expansion costs, capacity assumptions and minimum reserves. Operating cash surplus is not accounting profit. The recommended next step for a proposed hire/location is the existing liquidity what-if.
-
-Optional environment values for the legacy organization:
-
-- `STRATEGY_CURRENCY` (default `EUR`)
-- `STRATEGY_MONTHLY_REVENUE_TARGET`
-- `STRATEGY_OPERATING_SURPLUS_TARGET`
-- `STRATEGY_OWNER_INCOME_TARGET`
-
-No target values are supplied by default. Nonlegacy organizations do not inherit these company-specific targets; tenant-editable goal storage remains future work. Operating-surplus and owner-income targets are recorded but cannot be assessed until their inputs are classified. The persisted `strategy_briefing` evidence contains the scorecard, monthly history, scenario assumptions, source availability and recommendations.
-
-## Checks
-
-Backend tests cover growth exclusions, sparse/stale data, RSS/Atom parsing, freshness, unavailable sources, daily scheduling, retry deduplication and tenant target isolation. Dashboard typecheck and unit tests cover the updated navigation. Light/dark desktop/mobile task rendering was checked with a temporary local fixture, removed afterward.
+Dashboard typecheck, unit tests and production build cover the implementation. Strategy tests cover encrypted credential isolation/tampering, the API_KEY default, bounded settings, native web-search prompts and citations. Existing market-research tests cover OpenAI/Mistral transport failures and citation validation. Light/dark browser checks at 375px and 1280px cover settings, provider registration and manual runs with mocked APIs. The standalone backend Strategy tests pass; database integration checks could not run because local PostgreSQL on port 5434 was unavailable. Live provider calls were not exercised.

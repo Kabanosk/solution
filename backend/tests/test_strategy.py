@@ -73,7 +73,7 @@ def test_unavailable_is_different_from_no_matching_news():
         assert result['status'] == 'ok' and result['items'] == []
 
 
-def test_scheduler_day_dedupe_and_berlin_timezone():
+def test_worker_scheduler_keeps_cost_dedupe_and_leaves_strategy_to_dashboard():
     from scout.watchers import Scheduler
     class Queue:
         def __init__(self): self.keys = set()
@@ -84,9 +84,9 @@ def test_scheduler_day_dedupe_and_berlin_timezone():
     queue = Queue()
     scheduler = Scheduler(queue)
     assert scheduler.tick(datetime(2026, 11, 21, 5, 59, tzinfo=timezone.utc)) == []
-    assert 'strategy_review' in scheduler.tick(datetime(2026, 11, 21, 6, 0, tzinfo=timezone.utc))
+    assert scheduler.tick(datetime(2026, 11, 21, 6, 0, tzinfo=timezone.utc)) == ['cost_check']
     assert scheduler.tick(datetime(2026, 11, 21, 7, 0, tzinfo=timezone.utc)) == []
-    assert 'strategy:2026-11-21' in queue.keys
+    assert 'strategy:2026-11-21' not in queue.keys
 
 
 def test_daily_note_retry_is_idempotent_and_does_not_send(monkeypatch):

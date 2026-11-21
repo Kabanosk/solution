@@ -43,6 +43,13 @@ export function LlmChat({ active }: { active: boolean }) {
     if (input.current) { input.current.style.height = "auto"; input.current.style.height = `${Math.min(input.current.scrollHeight, 160)}px`; }
   }, [draft]);
   useEffect(() => () => { request.current?.abort(); }, []);
+  useEffect(() => {
+    let active = true;
+    tenantFetch("/api/chat").then(response => response.ok ? response.json() : null).then(value => {
+      if (active && value?.external) setExternal(previous => previous ?? value.external);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   // A what-if or approval Scout started reports back as `followup` steps on the chat's task: watch it while one is due.
   const watchedTask = messages.some(turn => turn.awaiting) ? [...messages].reverse().find(turn => turn.taskId)?.taskId : undefined;
   useEffect(() => {
@@ -170,7 +177,7 @@ export function LlmChat({ active }: { active: boolean }) {
   const modelName = model === "external" && external ? `${EXTERNAL_PROVIDERS.find(item => item.id === external.provider)?.name} · ${external.model}` : CHAT_MODELS.find(item => item.id === model)?.name ?? model;
 
   return <section id="scout-llm-chat" aria-label="Scout chat" className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-    {providerDialog && <ExternalProviderDialog config={external} onClose={() => setProviderDialog(false)} onSave={value => {
+    {providerDialog && <ExternalProviderDialog config={external?.apiKey === "__scout_server_provider__" ? null : external} onClose={() => setProviderDialog(false)} onSave={value => {
       newChat(); setExternal(value); setModel("external"); setProviderDialog(false); setNotice("Provider configured for this tab. A new chat has started.");
     }} onRemove={() => { newChat(); setExternal(null); setModel(CHAT_MODELS[0].id); setProviderDialog(false); setNotice("External provider removed."); }} />}
     {messages.length > 0 && <h1 id="scout-chat-title" className="sr-only">Scout chat</h1>}

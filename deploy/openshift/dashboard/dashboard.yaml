@@ -33,6 +33,11 @@ spec:
             - name: PGDATABASE
               valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
             - {name: CFO_API_URL, value: "http://api:8000"}
+            - {name: SCOUT_STRATEGY_SCHEDULER, value: "1"}
+            - name: SCOUT_STRATEGY_SECRET
+              valueFrom: {secretKeyRef: {name: scout-strategy, key: encryption-key, optional: true}}
+            - name: API_KEY
+              valueFrom: {secretKeyRef: {name: gpt-key, key: API_KEY}}
             # Shared across replicas/restarts; values stay in the cluster Secret.
             - name: SCOUT_CHAT_CONTEXT_SECRET
               valueFrom: {secretKeyRef: {name: scout-chat-context, key: signing-key, optional: true}}

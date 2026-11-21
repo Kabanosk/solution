@@ -313,6 +313,34 @@ def _ask(ctx: JobContext, task: Task, number: str | None, reference: str, holder
     _schedule_reminder(ctx, task.id)
 
 
+def hand_over(ctx: JobContext, task_id: str, to: str, by: str, chat_task: str | None = None) -> Task:
+    """A waiting invoice question goes to someone else: they get the question in a DM (and answer in its thread),
+    the old question says so. Only the person it waits on or the owner (CEO) may do it."""
+    task = ctx.recorder.get(task_id)
+    if task.status not in ("waiting", "escalated"):
+        raise ValueError(f"{task.id} is {task.status}")
+    if by not in (task.owner_id, ctx.settings.ceo_id):
+        ctx.audit.record("agent", "hand_over", f"task:{task.id}", f"to {to}", "DENY", task_id=task.id, requester=by,
+                         policy="tasks: the person it waits on or the owner")
+        raise PermissionError(f"{by} may not hand over {task.id}")
+    with ctx.conn_factory() as conn:
+        txn = conn.execute("SELECT reference, booking_date FROM transactions WHERE id = %s",
+                           (task.transaction_id,)).fetchone() or {}
+    reference = txn.get("reference") or task.title
+    day = txn.get("booking_date") or ctx.now().date()
+    who, new = ctx.hr.name(by), ctx.hr.name(to)
+    question = _question(ctx, task, to, invoice_number_in(reference), reference, None, day)
+    ref = ctx.notifier.dm(to, f"{who} asked you to take this over. {question}", "NOTIFY", task_id=task.id)
+    if task.slack_ref:
+        ctx.notifier.update(task.slack_ref, f"↪ {task.title}: handed to {new} by {who} ({task.id})", "NOTIFY")
+    ctx.recorder.step(task.id, "handed_over", f"{who} handed this to {new}", source="slack:dm",
+                      detail={"to": to, **({"chat_task": chat_task} if chat_task else {})})
+    ctx.recorder.update(task.id, status="waiting", owner_id=to, slack_ref=ref)
+    ctx.audit.record(by, "hand_over", f"task:{task.id}", f"to {to}", task_id=task.id, requester=by)
+    _schedule_reminder(ctx, task.id)
+    return ctx.recorder.get(task.id)
+
+
 def _schedule_reminder(ctx: JobContext, task_id: str) -> None:
     n = sum(1 for s in ctx.recorder.steps(task_id) if s.kind in ("asked_person", "reminder", "escalated"))
     ctx.jobs.enqueue("reminder", {"task_id": task_id}, f"reminder:{task_id}:{n}",

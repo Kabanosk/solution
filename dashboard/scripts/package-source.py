@@ -15,6 +15,7 @@ allowed = [
     "tsconfig.json",
     "postcss.config.mjs",
     "proxy.ts",
+    "instrumentation.ts",
     "app",
     "components",
     "lib",

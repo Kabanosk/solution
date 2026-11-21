@@ -18,7 +18,7 @@ data:
   MCP_COMPANY_DB_URL: "http://mcp-company-db:8001/mcp"
   MCP_WORKSTATIONS_URL: "http://mcp-workstations:8002/mcp"
   MCP_HR_URL: "http://mcp-hr:8003/mcp"
-  # Scout: the mock bank the worker polls (and the API posts demo payments to), and the job-queue threads.
+  # Demo API destination only. Workers select the saved tenant bank; SCOUT_DEMO=0 never polls this mock.
   BANK_API_URL: "http://bank-mock:8010"
   SCOUT_WORKERS: "4"
   # Explicit legacy worker binding; startup still refuses until an operator enrolls the intended owner.

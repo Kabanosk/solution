@@ -382,3 +382,20 @@ def test_runbook_plants_with_the_job_not_with_exec_into_the_read_only_worker():
     doc = RUNBOOK.read_text(encoding="utf-8")
     assert "demo-plant-job.yaml" in doc and "oc delete job/scout-demo-plant" in doc
     assert "deploy/scout-worker -- python -m scout.demo plant" not in doc
+
+
+def test_a_block_by_a_wider_or_different_set_of_rails_is_a_mismatch_exact_not_overlap():
+    p = demo_guard.scenario("B").probes[0]
+    for rails in (("regex check input", "self check input"), ("self check input",)):
+        guard = TableGuard({(p.config, p.sent_text()): Verdict("blocked", rails)})
+        (bad,) = [r for r in demo_guard.preflight(guard) if not r.ok]
+        assert bad.probe is p and "exactly" in bad.why
+
+
+def test_runbook_tells_the_presenter_about_the_audit_filter_the_recorded_alert_and_the_llm_dependent_scenarios():
+    doc = RUNBOOK.read_text(encoding="utf-8")
+    assert "back to **all**" in doc and "ALLOW" in doc  # A: the escalation row is hidden by the BLOCK filter
+    assert "filter on **all**" in doc  # D and G
+    assert "only recorded, nothing is sent" in doc and "worker log" not in doc
+    assert "only works if the model actually puts the" in doc and "spare prompt" in doc  # F
+    assert "synthetic" in doc and "no supplier IBANs" in doc  # G

@@ -194,6 +194,7 @@ class SlackSupervisor:
         self._start = start or self._start_worker
         self._lock = threading.RLock()
         self._active: list[ActiveInstallation] = []
+        self._members: dict[tuple[str, str], tuple[bool, float]] = {}  # (tenant, channel) -> (is member, checked)
         self._running: dict[
             str, tuple[ActiveInstallation, Any, Callable[[], None]]
         ] = {}
@@ -261,6 +262,27 @@ class SlackSupervisor:
             else None
         )
 
+    def _channel_allowed(self, install: ActiveInstallation, channel: str | None) -> bool:
+        """A channel chosen at install, or one someone added Scout to later (checked live with Slack, cached)."""
+        import time
+
+        if not channel:
+            return False
+        if channel in (install.config.get("channels") or []):
+            return True
+        key = (install.tenant.id, channel)
+        hit = self._members.get(key)
+        if hit and time.monotonic() - hit[1] < (300 if hit[0] else 30):
+            return hit[0]
+        try:
+            info = WebClient(token=install.token, timeout=10).conversations_info(channel=channel)
+            member = bool((info.get("channel") or {}).get("is_member"))
+        except Exception:
+            log.warning("could not check Scout's membership of a Slack channel", exc_info=True)
+            member = False
+        self._members[key] = (member, time.monotonic())
+        return member
+
     def route(
         self,
         team_id: str | None,
@@ -271,15 +293,10 @@ class SlackSupervisor:
         install = self.current(team_id)
         if not install:
             return False
-        if (
-            kind in ("mention", "message")
-            and event.get("channel_type") in ("channel", "group")
-            and event.get("channel") not in (install.config.get("channels") or [])
-        ):
-            return False
-        if kind == "mention" and event.get("channel") not in (
-            install.config.get("channels") or []
-        ):
+        in_channel = kind == "mention" or (
+            kind == "message" and event.get("channel_type") in ("channel", "group")
+        )
+        if in_channel and not self._channel_allowed(install, event.get("channel")):
             return False
         with self._lock:
             entry = self._running.get(install.tenant.id)

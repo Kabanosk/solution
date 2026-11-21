@@ -67,6 +67,7 @@ jobs:
         with:
           openshift_server_url: ${{ secrets.OPENSHIFT_SERVER }}
           openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
+          certificate_authority_data: ${{ secrets.OPENSHIFT_CA }}
           namespace: ${{ env.NAMESPACE }}
 
       - run: oc apply -k deploy/openshift/app
@@ -87,6 +88,7 @@ jobs:
           openshift_server_url: ${{ secrets.OPENSHIFT_SERVER }}
           openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
           namespace: ${{ env.NAMESPACE }}
+          certificate_authority_data: ${{ secrets.OPENSHIFT_CA }}
 
       # Image triggers roll out api, scout-worker, bank-mock, mcp-* and usage-sampler.
       - run: oc start-build cfo-backend --commit=${{ github.sha }} --follow --wait
@@ -110,6 +112,8 @@ jobs:
           openshift_server_url: ${{ secrets.OPENSHIFT_SERVER }}
           openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
           namespace: ${{ env.NAMESPACE }}
+          certificate_authority_data: ${{ secrets.OPENSHIFT_CA }}
+
       - run: python3 dashboard/scripts/package-source.py "$RUNNER_TEMP/dashboard.tar.gz"
       - run: oc start-build cfo-dashboard --from-archive="$RUNNER_TEMP/dashboard.tar.gz" --follow --wait
       # The Deployment is pinned by digest (no image trigger), so point it at the new image.

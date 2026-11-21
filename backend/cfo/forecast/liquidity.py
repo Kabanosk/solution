@@ -68,6 +68,11 @@ FEATURE_PHRASES = {
     "tax_due": "tax payments being due",
     "social_security_due": "social security being due",
     "utilities_due": "utilities being due",
+    "recent_level_baseline": "the recent revenue level",  # T061 level features
+    "recent_revenue_28d": "the revenue of the last four weeks",
+    "recent_revenue_90d": "the revenue of the last three months",
+    "recent_variable_cost_28d": "the food and drink costs of the last four weeks",
+    "recent_variable_cost_90d": "the food and drink costs of the last three months",
 }
 
 
@@ -494,7 +499,7 @@ def review_liquidity(
     """Forecast (with optional what-if outflows), detect gaps, and propose: a credit line when there are gaps,
     otherwise an investment when there is surplus ahead of a weak month, otherwise nothing."""
     tx = transactions if transactions is not None else feat.fetch_transactions(conn)
-    model = model or fm.get_model(tx)
+    model = (model or fm.get_model(tx)).with_levels_from(tx)  # explain / weak month use the current level too
     outflows = _normalize_outflows(extra_outflows)
     fc = forecast_with(outflows, days=days, start_balance=start_balance, model=model, transactions=tx,
                        buffer=buffer)

@@ -5,11 +5,15 @@
   behaviour. Learned from one year of history the model would project them into 2026 and hide the cash that is
   freed after December. They are added on top as known `scheduled_payments` (`partner_tranche_schedule` derives
   the remaining ones from the bookings). Pass your own series to plan other fixed payments.
-* The yearly summer shutdown is learned through `shutdown_flag` / `month` / `day_of_year`; the model then
-  reproduces the June dip in 2026.
-* `liquidity_forecast(days, start_balance=None)` walks the predicted daily net flow (plus scheduled payments)
-  forward from the last known balance. The balance is the running sum of all bookings (the statement has no
-  opening balance, the organizer's liquidity chart also starts at 0).
+* The yearly summer shutdown is learned through `shutdown_flag` (and `month` / `day_of_year` in the `calendar`
+  set); the model then reproduces the June dip in 2026.
+* Feature sets (`train(feature_set=...)`, `features.FEATURE_SETS`, scored by `python -m cfo.forecast.compare`):
+  `calendar` is the calendar columns only (it replays the last year, a revenue step is lost); `level` drops the
+  year-memorising columns and gives the booster the recent revenue / variable cost per open day
+  (`features.recent_levels`) as inputs; `level_baseline` (the default) drops them too but learns the deviation from
+  the recent level: target = net flow minus `features.level_baseline`, added back when predicting. The level
+  values at the end of the history are stored in the model (`level_values`, saved through `meta()`) and held
+  constant for future dates; for level sets `shutdown_flag` also marks a closed stretch at the end of the history.
 * The model is saved to `models/liquidity_xgb.json` (booster) + `.meta.json` (calendar inference, metrics);
   `models/` is git-ignored. Params, metrics and the booster go to MLflow only when `MLFLOW_TRACKING_URI` is set
   and `mlflow` is installed (optional extra `mlflow`). With `register=True` the run's model becomes a new version
@@ -17,11 +21,15 @@
   `ForecastModel.load_from_mlflow("models:/liquidity-forecast@champion")` rebuilds the full model from MLflow
   (booster + the sidecar logged as a run artifact). Auth, workspace and TLS come from MLflow's own environment
   variables (`MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, ...); nothing is set here.
+* The 80 % band of the balance is measured at training time on the rolling-origin folds (`band.py`, `train(band=True)`),
+  stored under the metadata key `band` and read through `ForecastModel.band(days_ahead)`; a model without it
+  falls back to the old `1.2816 * sigma * sqrt(n)` (T063).
 * `feature_importances()` and `explain()` give T016 the numbers it hands to the LLM to explain a forecast.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import json
 import logging
@@ -40,6 +48,7 @@ import psycopg
 from xgboost import XGBRegressor
 
 from cfo.config import REPO_ROOT
+from cfo.forecast import band as fband
 from cfo.forecast import features as feat
 
 log = logging.getLogger(__name__)
@@ -47,7 +56,10 @@ log = logging.getLogger(__name__)
 PARTNER_CATEGORY = "partner_investment"
 PARTNER_TRANCHES_TOTAL = 12
 EXCLUDED_CATEGORIES = (PARTNER_CATEGORY,)
-FEATURE_COLUMNS = list(feat.CALENDAR_COLUMNS)
+FEATURE_COLUMNS = list(feat.CALENDAR_COLUMNS)  # the `calendar` feature set (kept for old callers)
+# The feature set `train` uses unless told otherwise: the best of `python -m cfo.forecast.compare` (T061).
+DEFAULT_FEATURE_SET = "level_baseline"
+MIN_LEVEL_TRAIN_DAYS = 28  # open training days a level set needs (fewer: the default falls back to `calendar`)
 MODEL_FILENAME = "liquidity_xgb.json"
 MLFLOW_EXPERIMENT = "liquidity-forecast"  # `MLFLOW_EXPERIMENT_NAME` overrides
 REGISTERED_MODEL_NAME = "liquidity-forecast"
@@ -61,6 +73,14 @@ _REGISTRY_VERSION_URI = re.compile(r"^models:/(?P<name>[^/@]+)/(?P<version>\d+)$
 DEFAULT_PARAMS: dict[str, Any] = {
     "n_estimators": 200, "max_depth": 3, "learning_rate": 0.05, "min_child_weight": 3,
     "subsample": 1.0, "reg_lambda": 1.0, "random_state": 0, "n_jobs": 1, "tree_method": "hist",
+}
+# Per feature set on top of DEFAULT_PARAMS (`calendar` keeps DEFAULT_PARAMS exactly). The level sets learn a
+# smaller, noisier deviation target and under-fit with 200 slow trees (December daily MAE 282 -> 234 EUR with these);
+# not a tuned optimum. `python -m cfo.forecast.tune` (T062) found better balance errors, but not in a form that keeps
+# the statement tests (see .house/reports/T062.md), so these stay the defaults for now.
+FEATURE_SET_PARAMS: dict[str, dict[str, Any]] = {
+    "level": {"n_estimators": 400, "learning_rate": 0.1},
+    "level_baseline": {"n_estimators": 400, "learning_rate": 0.1},
 }
 
 
@@ -90,19 +110,56 @@ class ForecastModel:
     metrics: dict[str, float] = field(default_factory=dict)
     excluded_categories: tuple[str, ...] = EXCLUDED_CATEGORIES
     feature_columns: list[str] = field(default_factory=lambda: list(FEATURE_COLUMNS))
+    feature_set: str = "calendar"  # name in `features.FEATURE_SETS`; old models have no name and are `calendar`
+    level_values: dict[str, float] = field(default_factory=dict)  # `features.LEVEL_COLUMNS` at `trained_until`
+    baseline_mean: float = 0.0  # mean open-day baseline of the training days (reference for `contributions`)
+    band_spec: dict[str, Any] | None = None  # measured 80 % band (`band.fit_band`); None = old sqrt formula (T063)
     # Where the model lives in MLflow (set by `log_to_mlflow_if_configured` / `load_from_mlflow`; not saved).
     mlflow_run_id: str | None = None
     model_version: str | None = None  # registered model version, None when not from the registry
     trained_at: datetime | None = None  # start of the MLflow run
 
+    def _frame(self, dates: Iterable[Any]) -> pd.DataFrame:
+        """Calendar columns plus (for level sets) the level columns of the origin, held constant for every date."""
+        x = feat.calendar_features(dates, shutdown_days=self.shutdown_days, due_days=self.due_days)
+        for column, value in self.level_values.items():
+            x[column] = value
+        return x
+
+    def with_levels_from(self, transactions: pd.DataFrame) -> ForecastModel:
+        """A shallow copy that forecasts from the level of `transactions` instead of the stored one.
+
+        The recent level is frozen when a model is trained, but a saved model is reused while bookings keep
+        arriving. This recomputes the level values at the forecast origin (the day after the last booking) from
+        the current bookings; the booster is shared and `self` is not changed. A calendar model, or bookings
+        without enough open days for a level, give back `self`."""
+        if not self.level_values or transactions.empty:
+            return self
+        origin = transactions["booking_date"].max().normalize() + pd.Timedelta(days=1)
+        fresh = feat.recent_levels(transactions, [origin]).iloc[0]
+        if fresh.isna().any():
+            return self
+        return dataclasses.replace(self, level_values={k: float(v) for k, v in fresh.items()})
+
     def features_for(self, dates: Iterable[Any]) -> pd.DataFrame:
-        return feat.calendar_features(dates, shutdown_days=self.shutdown_days, due_days=self.due_days)[
-            self.feature_columns]
+        return self._frame(dates)[self.feature_columns]
 
     def predict(self, dates: Iterable[Any]) -> pd.Series:
         """Predicted daily net cash flow (EUR, without scheduled payments), indexed by date."""
-        x = self.features_for(dates)
-        return pd.Series(self.regressor.predict(x), index=x.index, name="predicted_net")
+        x = self._frame(dates)
+        raw = self.regressor.predict(x[self.feature_columns])
+        if self.feature_set in feat.OFFSET_SETS:  # the booster learned the deviation from the recent level
+            raw = raw + feat.applied_baseline(x).to_numpy()
+        return pd.Series(raw, index=x.index, name="predicted_net")
+
+    def band(self, days_ahead: int) -> tuple[float, float]:
+        """`(lower_offset, upper_offset)` of the 80 % interval of the balance `days_ahead` days after the last
+        booking, to be added to the forecast balance. From the cumulative errors of the rolling-origin folds
+        (`band_spec`, T063); a model without them (older file) uses `1.2816 * sigma * sqrt(n)`."""
+        if self.band_spec:
+            return fband.offsets(self.band_spec, days_ahead)
+        sigma = float(self.metrics.get("holdout_rmse") or (self.metrics.get("train_mae", 0.0) * 1.25))
+        return fband.legacy_offsets(sigma, days_ahead)
 
     def feature_importances(self) -> pd.Series:
         """Share of total gain per feature (sums to 1), largest first; features never used are 0."""
@@ -115,9 +172,19 @@ class ForecastModel:
         """Per-day SHAP contributions in EUR per feature plus a `bias` column; rows sum to `predict`."""
         import xgboost as xgb
 
-        x = self.features_for(dates)
+        frame = self._frame(dates)
+        x = frame[self.feature_columns]
         raw = self.regressor.get_booster().predict(xgb.DMatrix(x), pred_contribs=True)
-        return pd.DataFrame(raw, index=x.index, columns=[*self.feature_columns, "bias"])
+        out = pd.DataFrame(raw, index=x.index, columns=[*self.feature_columns, "bias"])
+        if self.feature_set in feat.OFFSET_SETS:
+            # The forecast is booster + applied baseline. Split the baseline into: its training average (to
+            # `bias`), how far the current level is from that average (`recent_level_baseline`) and the baseline
+            # that a shutdown day does not earn (to `shutdown_flag`); rows still sum to `predict`.
+            level = feat.level_baseline(frame)
+            out["bias"] += self.baseline_mean
+            out["shutdown_flag"] -= level * frame["shutdown_flag"]
+            out.insert(len(self.feature_columns), feat.BASELINE_COLUMN, level - self.baseline_mean)
+        return out
 
     def explain(self, start: Any, end: Any, *, top: int = 5) -> dict[str, Any]:
         """Why the model predicts what it predicts for a period (the input of T016's explanation).
@@ -154,6 +221,9 @@ class ForecastModel:
             "params": self.params, "metrics": self.metrics,
             "excluded_categories": list(self.excluded_categories),
             "feature_columns": self.feature_columns,
+            "feature_set": self.feature_set, "level_values": dict(self.level_values),
+            "baseline_mean": self.baseline_mean,
+            "band": self.band_spec,
         }
 
     @classmethod
@@ -166,6 +236,10 @@ class ForecastModel:
             params=dict(meta["params"]), metrics=dict(meta["metrics"]),
             excluded_categories=tuple(meta["excluded_categories"]),
             feature_columns=list(meta["feature_columns"]),
+            feature_set=str(meta.get("feature_set") or "calendar"),
+            level_values={k: float(v) for k, v in (meta.get("level_values") or {}).items()},
+            baseline_mean=float(meta.get("baseline_mean") or 0.0),
+            band_spec=dict(meta["band"]) if meta.get("band") else None,
             **extra,
         )
 
@@ -207,40 +281,65 @@ class ForecastModel:
 
 
 # -- training ---------------------------------------------------------------------------------------------
-def _training_table(transactions: pd.DataFrame, excluded: Iterable[str]) -> pd.DataFrame:
-    table = feat.daily_features(transactions, exclude_categories=tuple(excluded))
-    return table.dropna(subset=["net_cash_flow"])
+def _training_table(transactions: pd.DataFrame, excluded: Iterable[str],
+                    feature_set: str = "calendar") -> pd.DataFrame:
+    """History days with the target and the calendar columns, plus the level columns for a level feature set
+    (lagged: a row only sees bookings before it; rows without a week of open days behind them are dropped). For a
+    level set `shutdown_flag` also marks a closed run at the end of the history (`features.closed_days`)."""
+    table = feat.daily_features(transactions, exclude_categories=tuple(excluded)).dropna(subset=["net_cash_flow"])
+    if feat.needs_levels(feature_set):
+        table = table.join(feat.recent_levels(transactions, table.index)).dropna(subset=feat.LEVEL_COLUMNS)
+        # a closed stretch that reaches the end of the history is still closed days for the training rows
+        table["shutdown_flag"] = np.maximum(table["shutdown_flag"], feat.closed_days(transactions).reindex(
+            table.index, fill_value=0))
+    return table
 
 
 def backtest_split(transactions: pd.DataFrame, holdout_days: int,
-                   exclude_categories: Iterable[str] = EXCLUDED_CATEGORIES) -> tuple[pd.DataFrame, pd.DataFrame]:
+                   exclude_categories: Iterable[str] = EXCLUDED_CATEGORIES,
+                   feature_set: str = "calendar") -> tuple[pd.DataFrame, pd.DataFrame]:
     """(train, test) feature tables of a time holdout: the last `holdout_days` calendar days are the test set.
 
     Shutdown windows and due days are inferred from the bookings **before** the first test day only, and that
     inference builds the features of both parts: what the holdout bookings look like cannot reach the training
     features (T045; the old split inferred from the full history and scored optimistically). The targets are the
-    real daily cash flows of each part. Columns: `net_cash_flow` + `FEATURE_COLUMNS`, indexed by `date`.
+    real daily cash flows of each part. Columns: `net_cash_flow` + the columns of `feature_set`, indexed by `date`.
+    Level features come from the same bookings: lagged for training days, held at the last training day's value
+    over the holdout (exactly what a forecast made at that origin would use).
     """
-    table = _training_table(transactions, exclude_categories)
+    columns = feat.feature_set_columns(feature_set)
+    table = _training_table(transactions, exclude_categories, feature_set)
     first_test = table.index[-holdout_days]
     seen = transactions[transactions["booking_date"] < first_test]
     shutdown = feat.infer_shutdown_days(seen)
     due = feat.infer_due_days(seen)
-    features = feat.calendar_features(table.index, shutdown_days=shutdown, due_days=due)[FEATURE_COLUMNS]
-    split = features.join(table["net_cash_flow"])[["net_cash_flow", *FEATURE_COLUMNS]]
+    features = feat.calendar_features(table.index, shutdown_days=shutdown, due_days=due)
+    if feat.needs_levels(feature_set):
+        features = features.join(feat.recent_levels(seen, table.index))
+        features["shutdown_flag"] = np.maximum(features["shutdown_flag"], feat.closed_days(seen).reindex(
+            features.index, fill_value=0))
+    # the level columns a set only uses as its baseline travel along, so `_backtest` can add the baseline back
+    kept = [*columns, *(c for c in feat.LEVEL_COLUMNS if c not in columns and feat.needs_levels(feature_set))]
+    split = features[kept].join(table["net_cash_flow"])[["net_cash_flow", *kept]]
     return split.iloc[:-holdout_days], split.iloc[-holdout_days:]
 
 
+def _offset(frame: pd.DataFrame, feature_set: str) -> pd.Series | float:
+    """The baseline a feature set subtracts from the target (0 unless it is an offset set)."""
+    return feat.applied_baseline(frame) if feature_set in feat.OFFSET_SETS else 0.0
+
+
 def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str, Any], holdout_days: int,
-              exclude_categories: Iterable[str]) -> dict[str, float]:
+              exclude_categories: Iterable[str], feature_set: str = "calendar") -> dict[str, float]:
     """Fit on all but the last `holdout_days`, score on them (see `backtest_split` for what the model may see).
     One year of history cannot be cross-validated by year (the shutdown occurs once), so the check is a time
     holdout of ordinary days, against a naive mean."""
     if holdout_days <= 0 or len(table) < 2 * holdout_days:
         return {}
-    train, test = backtest_split(transactions, holdout_days, exclude_categories)
-    regressor = XGBRegressor(**params).fit(train[FEATURE_COLUMNS], train["net_cash_flow"])
-    pred = regressor.predict(test[FEATURE_COLUMNS])
+    columns = feat.feature_set_columns(feature_set)
+    train, test = backtest_split(transactions, holdout_days, exclude_categories, feature_set)
+    regressor = XGBRegressor(**params).fit(train[columns], train["net_cash_flow"] - _offset(train, feature_set))
+    pred = regressor.predict(test[columns]) + np.asarray(_offset(test, feature_set))
     err = pred - test["net_cash_flow"].to_numpy()
     naive = test["net_cash_flow"].to_numpy() - train["net_cash_flow"].mean()
     return {
@@ -252,6 +351,29 @@ def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str,
     }
 
 
+def _usable_table(transactions: pd.DataFrame, excluded: tuple[str, ...],
+                  requested: str | None) -> tuple[str, pd.DataFrame]:
+    """(feature set, training table); the default set falls back to `calendar` when its levels cannot be built."""
+    name = requested or DEFAULT_FEATURE_SET
+    table = _training_table(transactions, excluded, name)
+    if not feat.needs_levels(name):
+        if table.empty:
+            raise ValueError("no usable training days")
+        return name, table
+    open_days = int((table["shutdown_flag"] == 0).sum())
+    if open_days >= MIN_LEVEL_TRAIN_DAYS:
+        return name, table
+    reason = (f"feature set {name!r} needs at least {MIN_LEVEL_TRAIN_DAYS} open training days with a recent level "
+              f"(a level needs {feat.LEVEL_MIN_OPEN_DAYS} open days before it); this history has {open_days}")
+    if requested is not None:
+        raise ValueError(f"no usable training days: {reason}")
+    log.warning("%s; training the calendar feature set instead", reason)
+    table = _training_table(transactions, excluded, "calendar")
+    if table.empty:
+        raise ValueError("no usable training days")
+    return "calendar", table
+
+
 def train(
     transactions: pd.DataFrame,
     *,
@@ -260,32 +382,72 @@ def train(
     exclude_categories: Iterable[str] = EXCLUDED_CATEGORIES,
     log_to_mlflow: bool = True,
     register: bool = False,
+    feature_set: str | None = None,
+    band: bool = True,
 ) -> ForecastModel:
     """Fit on the daily net cash flow of `transactions` (columns of `features.fetch_transactions`).
 
+    `feature_set` names the columns the model learns from (`features.FEATURE_SETS`); it is stored in the model and
+    its metadata. Left out it is `DEFAULT_FEATURE_SET`, and when that set cannot be built from this history (too
+    few open days for the recent level, or every usable day is a shutdown) the model is trained as `calendar`
+    with a warning instead of failing. An explicitly requested level set raises a `ValueError` in that case.
+
     With `MLFLOW_TRACKING_URI` set the run is logged to MLflow (`log_to_mlflow`), and with `register=True` also
     registered as the new `champion` of `liquidity-forecast` (see `log_to_mlflow_if_configured`).
+
+    With `band=True` the 80 % band is measured on the rolling-origin folds (about 6 extra fits, `_measure_band`)
+    and stored in the model; `False` skips it (the folds themselves train with `band=False`).
     """
     if transactions.empty:
         raise ValueError("no transactions to train on")
     excluded = tuple(exclude_categories)
-    merged = {**DEFAULT_PARAMS, **(params or {})}
-    table = _training_table(transactions, excluded)
-    metrics = _backtest(transactions, table, merged, holdout_days, excluded)
-    regressor = XGBRegressor(**merged).fit(table[FEATURE_COLUMNS], table["net_cash_flow"])
-    fitted = regressor.predict(table[FEATURE_COLUMNS])
+    feature_set, table = _usable_table(transactions, excluded, feature_set)
+    merged = {**DEFAULT_PARAMS, **FEATURE_SET_PARAMS.get(feature_set, {}), **(params or {})}
+    columns = feat.feature_set_columns(feature_set)
+    metrics = _backtest(transactions, table, merged, holdout_days, excluded, feature_set)
+    regressor = XGBRegressor(**merged).fit(table[columns], table["net_cash_flow"] - _offset(table, feature_set))
+    fitted = regressor.predict(table[columns]) + np.asarray(_offset(table, feature_set))
     metrics["train_mae"] = float(np.abs(fitted - table["net_cash_flow"].to_numpy()).mean())
     metrics["train_days"] = float(len(table))
+    level_values: dict[str, float] = {}
+    if feat.needs_levels(feature_set):  # the value of the first day after the history: held constant for the forecast
+        after = table.index.max() + pd.Timedelta(days=1)
+        level_values = {k: float(v) for k, v in feat.recent_levels(transactions, [after]).iloc[0].items()}
+    baseline_mean = 0.0
+    if feature_set in feat.OFFSET_SETS:
+        baseline_mean = float(feat.level_baseline(table[table["shutdown_flag"] == 0]).mean())
     model = ForecastModel(
         regressor=regressor,
         shutdown_days=feat.infer_shutdown_days(transactions),
         due_days=feat.infer_due_days(transactions),
         trained_until=table.index.max(),
         params=merged, metrics=metrics, excluded_categories=excluded,
+        feature_columns=columns, feature_set=feature_set, level_values=level_values,
+        baseline_mean=baseline_mean,
     )
+    if band:
+        model.band_spec = _measure_band(transactions, merged, excluded, feature_set)
     if log_to_mlflow:
         log_to_mlflow_if_configured(model, register=register)
     return model
+
+
+def _measure_band(transactions: pd.DataFrame, params: dict[str, Any], excluded: tuple[str, ...],
+                  feature_set: str) -> dict[str, Any] | None:
+    """The band spec of a model trained like this one, from `evaluate.rolling_origin` (T063); None when the history
+    is too short for two origins (the model then serves the old formula)."""
+    from cfo.forecast import evaluate  # evaluate imports this module
+
+    def fold_trainer(history: pd.DataFrame) -> ForecastModel:
+        return train(history, params=params, holdout_days=0, exclude_categories=excluded, log_to_mlflow=False,
+                     feature_set=feature_set, band=False)
+
+    try:
+        # the folds' target drops the same categories the model does (else the difference would show up as bias)
+        return fband.fit_band(evaluate.rolling_origin(transactions, fold_trainer, exclude_categories=excluded))
+    except ValueError as exc:  # no usable origin, or a fold too short for this feature set
+        log.info("no measured forecast band (%s); the old sqrt formula applies", exc)
+        return None
 
 
 def train_from_db(conn: psycopg.Connection | None = None, **kwargs: Any) -> ForecastModel:
@@ -362,6 +524,7 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
             run_id = run.info.run_id
             mlflow.log_params({k: str(v) for k, v in model.params.items()})
             mlflow.log_param("excluded_categories", ",".join(model.excluded_categories))
+            mlflow.log_param("feature_set", model.feature_set)
             mlflow.log_metrics(model.metrics)
             # Pinned requirement: skips MLflow's slow import-based inference and is all the booster needs.
             info = mlflow_xgboost.log_model(model.regressor.get_booster(), name=MLFLOW_MODEL_ARTIFACT,
@@ -448,7 +611,7 @@ def liquidity_forecast(
     tx = transactions if transactions is not None else feat.fetch_transactions(conn)
     if tx.empty:
         raise ValueError("no transactions: nothing to forecast from")
-    model = model or get_model(tx)
+    model = (model or get_model(tx)).with_levels_from(tx)  # the level of the current bookings, model unchanged
     last_day, known = last_known_balance(tx)
     start = known if start_balance is None else float(start_balance)
     dates = pd.date_range(last_day + pd.Timedelta(days=1), periods=days, freq="D", name="date")

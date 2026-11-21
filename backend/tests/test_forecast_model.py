@@ -18,8 +18,9 @@ from cfo.forecast import model as m
 
 HISTORY_END = "2025-11-30"
 # What the data supports (measured on the seeded statement, with margin):
-#  * June 2026 predicted net flow is about -14k to -15k (June 2025 without the tranche: -17.7k), every other month
-#    Dec 2025 - Jul 2026 is positive (+3k ... +17k): the dip is unmistakable.
+#  * June 2026 predicted net flow is about -17k (June 2025 without the tranche: -17.7k), every other month
+#    Dec 2025 - Jul 2026 is positive (+10k ... +17k with the default `level_baseline` set, T061; the old `calendar`
+#    set replayed +3k ... +17k): the dip is unmistakable.
 #  * The balance does NOT go below zero from the end-of-November balance (23.5k): partner tranche 12/12 is the last
 #    one, so 2026 keeps 4.2k a month more than 2025, the balance is about 60k on 31 May and troughs near 45k.
 #    The dip is therefore asserted as a drop (>= 10k within June, the deepest drawdown of the horizon), not as < 0.
@@ -127,7 +128,7 @@ def test_default_model_path_is_under_git_ignored_models(monkeypatch):
 
 def test_feature_importances_and_explanation(trained):
     imp = trained.feature_importances()
-    assert set(imp.index) == set(m.FEATURE_COLUMNS) and imp.sum() == pytest.approx(1.0)
+    assert set(imp.index) == set(trained.feature_columns) and imp.sum() == pytest.approx(1.0)
     assert imp.is_monotonic_decreasing and imp.iloc[0] > 0
     assert {"shutdown_flag", "month", "day_of_year", "is_weekend", "weekday"} & set(imp.index[:4])
     contrib = trained.contributions(pd.date_range("2026-06-01", "2026-06-05"))
@@ -243,9 +244,10 @@ def test_june_2026_dip_is_clearly_visible(statement, statement_model):
 
 
 def test_stress_balance_goes_negative_in_june(statement, statement_model):
-    """Stress, not the base case: a thin buffer (balance 30k lower than the real one) goes negative in June
+    """Stress, not the base case: a thin buffer (T061: balance 93k lower than the real one; the model now follows the
+    current revenue level, so it takes more than the old 55k to get there) goes negative in June
     2026 and ends the month at its lowest point since March; June is where a credit line is needed."""
-    fc = m.liquidity_forecast(240, start_balance=23_552.09 - 55_000.0, model=statement_model, transactions=statement)
+    fc = m.liquidity_forecast(240, start_balance=23_552.09 - 93_000.0, model=statement_model, transactions=statement)
     june = fc.loc["2026-06-01":"2026-06-30", "balance"]
     assert fc.loc["2026-05-31", "balance"] > 0 > june.min() and june.idxmin() >= pd.Timestamp("2026-06-20")
     assert fc.loc["2026-05-31", "balance"] - june.min() > MIN_JUNE_DROP

@@ -173,3 +173,17 @@ def test_linked_slack_people_are_written_to_hr(conn_factory, db):
     rows = {r["id"]: r for r in db.execute("SELECT id, slack_user_id, slack_name FROM employees").fetchall()}
     assert rows["vincenzo"]["slack_user_id"] == "U_VIN" and rows["vincenzo"]["slack_name"] == "Wojciech Fiołka"
     assert rows["rosa"]["slack_name"] is None
+
+
+def test_channel_mention_is_answered_in_a_thread(conn_factory, db, fake_slack):
+    s, _, _ = ui(conn_factory, fake_slack)
+    s.on_mention({"type": "app_mention", "channel": "C9", "user": "U_GRA", "ts": "7.1",
+                  "text": "<@U_BOT> which payments miss invoices?"})
+    post = fake_slack.named("chat_postMessage")[0]
+    assert post["channel"] == "C9" and post["thread_ts"] == "7.1"
+    [j] = jobs(db)
+    p = j["payload"]
+    assert j["kind"] == "dm" and p["text"] == "which payments miss invoices?" and p["thread"] == "C9:7.1"
+    assert p["mention"] is True and p["from_id"] == "grazyna"
+    s.on_mention({"type": "app_mention", "channel": "C9", "user": "U_STRANGER", "ts": "7.2", "text": "<@U_BOT> hi"})
+    assert len(jobs(db)) == 1  # unknown people are ignored

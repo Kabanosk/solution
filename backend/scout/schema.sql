@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action     TEXT NOT NULL,
     target     TEXT NOT NULL,
     resource   TEXT NOT NULL,
-    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY')),
+    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY', 'MASK')),
     policy     TEXT,
     reason     TEXT
 );
@@ -164,3 +164,6 @@ CREATE TABLE IF NOT EXISTS guardrail_alerts (
     rails        TEXT NOT NULL DEFAULT '',
     notified_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- MASK = salary rows folded into one payroll total for the office manager (T050); older databases allowed only ALLOW/DENY.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_decision_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_decision_check CHECK (decision IN ('ALLOW', 'DENY', 'MASK'));

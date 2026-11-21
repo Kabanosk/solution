@@ -19,10 +19,13 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+from psycopg import IsolationLevel
+
 from cfo.data.invoices import invoice_pdf
 from cfo.domain import Invoice, InvoiceLine
 from cfo.llm import ToolSpec
 from scout import guardrails
+from scout.audit import EXEC_ROLES, can_see_task, salary_sql
 from scout.audit import check as access_check
 from scout.documents import document_text
 from scout.loops.context import JobContext, eur, invoice_number_in
@@ -156,6 +159,15 @@ class Toolbox:
         with self.ctx.conn_factory() as conn:
             return conn.execute(sql, args).fetchall()
 
+    def _is_exec(self) -> bool:
+        return (self.role or "").casefold() in EXEC_ROLES
+
+    def _salary_view(self, rows: list[dict[str, Any]], *, fold: bool = True):  # noqa: ANN202
+        """Hide or fold the salary rows the asker may not see (audited); see `scout.audit.filter_salary_rows`."""
+        return self.ctx.audit.salary_filter(rows, self.requester, self.role, self.ctx.hr.all(), task_id=self.task.id,
+                                            fold=fold)
+
+
     # -- dispatch ------------------------------------------------------------------------------------------
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         if name not in NAMES:
@@ -169,37 +181,74 @@ class Toolbox:
     # -- tools ---------------------------------------------------------------------------------------------
     def t_search_payments(self, counterparty: str = "", amount_eur: Any = None, days: int = 90,
                           undocumented_only: bool = False, **_: Any) -> dict[str, Any]:
-        ok, policy = self._allowed("bank", "transactions")
-        if not ok:
-            return {"error": "access_denied", "policy": policy}
-        sql = ("SELECT booking_date, counterparty, reference, amount, documented FROM transactions "
-               "WHERE booking_date >= %s")
-        a: list[Any] = [self.ctx.now().date() - timedelta(days=min(int(days or 90), 400))]
-        if counterparty:
-            sql += " AND (counterparty ILIKE %s OR reference ILIKE %s)"
-            a += [f"%{counterparty}%"] * 2
-        if (amt := _num(amount_eur)) is not None:
-            sql += " AND abs(amount) = %s"
-            a.append(amt)
-        if undocumented_only:
-            sql += " AND amount < 0 AND NOT documented"
-        rows = self._q(sql + " ORDER BY booking_date DESC LIMIT 11", a)
-        return {"rows": _rows(rows), "more": len(rows) > MAX_ROWS}
+        """Other rows and salary rows are fetched apart, so salary rows can neither crowd out the list nor be pried
+        out by a narrow search: the salary part is limited by period only (whole months, see `_salary_rows`) and then
+        filtered by who may see what; the search words apply to the rows that remain visible.
+        Without bank access the asker still gets their own (and their reports') salary rows, nothing else."""
+        full = access_check(self.requester, self.role, "bank", "transactions")[0]
+        if full:
+            self._allowed("bank", "transactions")
+        since = self.ctx.now().date() - timedelta(days=min(int(days or 90), 400))
+        amt = _num(amount_eur)
+
+        def wanted(r: dict[str, Any]) -> bool:
+            return (r["booking_date"] >= since
+                    and (not counterparty or counterparty.casefold() in f"{r['counterparty']} {r['reference']}".casefold())
+                    and (amt is None or abs(r["amount"]) == amt)
+                    and (not undocumented_only or (r["amount"] < 0 and not r["documented"])))
+
+        other: list[dict[str, Any]] = []
+        if full:
+            sql = ("SELECT id, booking_date, counterparty, reference, amount, documented, type, category FROM "
+                   f"transactions WHERE booking_date >= %s AND NOT {salary_sql()}")
+            a: list[Any] = [since]
+            if counterparty:
+                sql += " AND (counterparty ILIKE %s OR reference ILIKE %s)"
+                a += [f"%{counterparty}%"] * 2
+            if amt is not None:
+                sql += " AND abs(amount) = %s"
+                a.append(amt)
+            if undocumented_only:
+                sql += " AND amount < 0 AND NOT documented"
+            other = self._q(sql + " ORDER BY booking_date DESC LIMIT 11", a)
+        view = self._salary_view(self._salary_rows(since))
+        rows = [r for r in view.visible if wanted(r)] + other
+        rows.sort(key=lambda r: r["booking_date"], reverse=True)
+        if not full and not rows:  # nothing of theirs matched: the same answer as before this exception existed
+            return {"error": "access_denied", "policy": self._allowed("bank", "transactions")[1]}
+        out: dict[str, Any] = {"rows": _rows([{k: v for k, v in r.items() if k not in ("id", "type", "category", "team_id")}
+                                               for r in rows]), "more": len(rows) > MAX_ROWS}
+        if view.summaries:
+            out["payroll_summary"] = view.summaries
+        if not full:
+            out["note"] = "No general bank access: only your own and your team's salary payments are shown."
+        return out
+
+    def _salary_rows(self, since: Any) -> list[dict[str, Any]]:
+        """Every salary row from the first day of `since`'s month: the totals the asker may get are whole calendar
+        months, so the cutoff day of a query can never split one. No row cap (the period is at most 400 days)."""
+        return self._q("SELECT id, booking_date, counterparty, reference, amount, documented, type, category, team_id "
+                       f"FROM transactions WHERE booking_date >= %s AND {salary_sql()} ORDER BY booking_date DESC",
+                       [since.replace(day=1)])
 
     def t_missing_invoices(self, days: int = 60, **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("bank", "transactions")
         if not ok:
             return {"error": "access_denied", "policy": policy}
         rows = self._q(
-            "SELECT x.booking_date, x.counterparty, x.amount, x.reference, t.id AS scout_task, t.status AS task_status, "
-            "t.owner_id AS asked FROM transactions x LEFT JOIN agent_tasks t ON t.transaction_id = x.id "
+            "SELECT x.id, x.type, x.category, x.booking_date, x.counterparty, x.amount, x.reference, "
+            "t.id AS scout_task, t.status AS task_status, t.owner_id AS asked FROM transactions x LEFT JOIN agent_tasks t ON t.transaction_id = x.id "
             "WHERE x.amount < 0 AND NOT x.documented AND x.invoice_number IS NOT NULL AND x.booking_date >= %s "
             "ORDER BY x.booking_date DESC LIMIT 11",
             [self.ctx.now().date() - timedelta(days=min(int(days or 60), 400))])
+        view = self._salary_view(rows, fold=False)  # a salary row never belongs in this list, but never trust the data
+        rows = view.visible
         for r in rows:
             r["amount"] = eur(r["amount"])
             r["asked"] = self.ctx.hr.name(r["asked"]) if r["asked"] else None
             r["scout_task"] = r["scout_task"] or "none yet"
+            for k in ("id", "type", "category"):
+                r.pop(k)
         return {"payments_without_invoice": _rows(rows), "more": len(rows) > MAX_ROWS}
 
     def t_search_invoices(self, number: str = "", supplier: str = "", **_: Any) -> dict[str, Any]:
@@ -227,6 +276,15 @@ class Toolbox:
         row = self._q("SELECT coalesce(sum(amount),0) AS balance, coalesce(sum(amount) FILTER (WHERE booking_date >= %s "
                       "AND amount > 0),0) AS in_30d, coalesce(sum(amount) FILTER (WHERE booking_date >= %s AND "
                       "amount < 0),0) AS out_30d FROM transactions", [since, since])[0]
+        if not self._is_exec():  # one audit row per salary outflow of the 30-day window, one for the all-time balance
+            def mask(resource: str, policy: str) -> None:
+                self.ctx.audit.record("agent", "salary_filter", "bank", resource, "MASK", task_id=self.task.id,
+                                      requester=self.requester, role=self.role, policy=policy)
+
+            for r in self._q("SELECT id FROM transactions WHERE booking_date >= %s AND amount < 0 AND "
+                             f"{salary_sql()} ORDER BY booking_date", [since]):
+                mask(f"transaction {r['id']}", "cash-position: payroll included in totals")
+            mask("balance (all-time)", "cash-position: balance includes payroll")
         expected = self._q("SELECT on_date, amount, label FROM expected_cash_events WHERE status = 'expected' "
                            "ORDER BY on_date LIMIT 10", [])
         return {"balance": eur(row["balance"]) if row["balance"] >= 0 else "-" + eur(row["balance"]),
@@ -246,11 +304,26 @@ class Toolbox:
         return {"series": out}
 
     def t_team_budgets(self, **_: Any) -> dict[str, Any]:
+        """Spend per team without salary rows, then plus the salary rows the asker may see (so a one-person team's
+        total never gives away that person's pay)."""
         start = self.ctx.now().date().replace(day=1)
         rows = self._q("SELECT t.id AS team, t.monthly_budget AS budget, coalesce(-sum(x.amount) FILTER (WHERE "
-                       "x.amount < 0 AND x.booking_date >= %s), 0) AS spent_this_month FROM teams t LEFT JOIN "
-                       "transactions x ON x.team_id = t.id GROUP BY t.id, t.monthly_budget ORDER BY t.id", [start])
-        return {"rows": _rows(rows)}
+                       f"x.amount < 0 AND x.booking_date >= %s AND NOT {salary_sql('x')}), 0) AS spent_this_month "
+                       "FROM teams t LEFT JOIN transactions x ON x.team_id = t.id GROUP BY t.id, t.monthly_budget "
+                       "ORDER BY t.id", [start])
+        pay = self._q("SELECT id, team_id, booking_date, counterparty, reference, amount, type, category FROM transactions WHERE "
+                      f"booking_date >= %s AND {salary_sql()}", [start])  # debits and credits, as in search_payments
+        view = self._salary_view(pay)
+        by_team = {r["team"]: r for r in rows}
+        for p in view.visible:
+            if p["team_id"] in by_team:
+                by_team[p["team_id"]]["spent_this_month"] -= p["amount"]
+        out: dict[str, Any] = {"rows": _rows(rows)}
+        if view.summaries:
+            out["payroll_summary"] = view.summaries
+        if view.hidden:
+            out["note"] = "Other people's pay is not included in the team totals."
+        return out
 
     def t_scout_tasks(self, text: str = "", status: str = "", **_: Any) -> dict[str, Any]:
         sql, a = "SELECT id, title, status, outcome, owner_id, updated_at FROM agent_tasks WHERE loop <> 'chat'", []
@@ -262,15 +335,36 @@ class Toolbox:
         if status:
             sql += " AND status = %s"
             a.append(status.lower())
+        if not self._is_exec():  # everyone else: only tasks they asked for or were asked to handle
+            hidden = self._q("SELECT count(*) AS n FROM (" + sql + " AND coalesce(owner_id, '') <> %s AND "
+                             "requested_by <> %s) h", [*a, self.requester, self.requester])[0]["n"]
+            if hidden:
+                self.ctx.audit.record("agent", "access_check", "tasks", f"{hidden} task(s) of other people left out",
+                                      "DENY", task_id=self.task.id, requester=self.requester, role=self.role,
+                                      policy="tasks: requester-or-exec-only")
+            sql += " AND (owner_id = %s OR requested_by = %s)"
+            a += [self.requester, self.requester]
         return {"rows": _rows(self._q(sql + " ORDER BY updated_at DESC LIMIT 10", a))}
 
     def t_task_log(self, task_id: str, **_: Any) -> dict[str, Any]:
-        t = self._q("SELECT id, title, status, outcome, owner_id FROM agent_tasks WHERE upper(id) = upper(%s)",
-                    [task_id.strip()])
-        if not t:
-            return {"error": "not_found"}
-        steps = self._q("SELECT ts, text FROM agent_task_steps WHERE task_id = %s ORDER BY id", [t[0]["id"]])
-        return {"task": _rows(t)[0], "steps": [f"{s['ts']:%b %d %H:%M} {s['text']}" for s in steps][-20:]}
+        """The task row and its steps are read in one REPEATABLE READ snapshot and the permission is judged on that
+        row, so a task that changes hands (even away and back) while we read cannot let other steps in."""
+        cols = "id, title, status, outcome, owner_id, requested_by"
+        with self.ctx.conn_factory() as conn:
+            conn.isolation_level = IsolationLevel.REPEATABLE_READ
+            task = conn.execute(f"SELECT {cols} FROM agent_tasks WHERE upper(id) = upper(%s)",
+                                [task_id.strip()]).fetchone()
+            if not task:
+                return {"error": "not_found"}
+            steps: list[dict[str, Any]] = []
+            if can_see_task(self.requester, self.role, task["requested_by"], task["owner_id"])[0]:
+                steps = conn.execute("SELECT ts, text FROM agent_task_steps WHERE task_id = %s ORDER BY id",
+                                     [task["id"]]).fetchall()
+        if not self.ctx.audit.check_task(self.requester, self.role, task["id"], task["requested_by"], task["owner_id"],
+                                         current_task=self.task.id):
+            return {"error": "access_denied", "policy": "tasks: requester-or-exec-only"}
+        shown = {k: task[k] for k in ("id", "title", "status", "outcome", "owner_id")}
+        return {"task": _rows([shown])[0], "steps": [f"{s['ts']:%b %d %H:%M} {s['text']}" for s in steps][-20:]}
 
     def t_search_files(self, person: str = "", words: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

@@ -42,7 +42,7 @@ export type Approval = { id: string; approverId: string; question: string; statu
 
 export type AuditRow = {
   id: number; ts: string; taskId: string | null; actor: string; requester: string | null; role: string | null;
-  action: string; target: string; resource: string; decision: "ALLOW" | "DENY"; policy: string | null; reason: string | null;
+  action: string; target: string; resource: string; decision: "ALLOW" | "DENY" | "MASK"; policy: string | null; reason: string | null;
 };
 
 export type Connection = {

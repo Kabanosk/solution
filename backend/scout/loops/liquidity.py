@@ -112,6 +112,46 @@ def _get_approval(ctx: JobContext, approval_id: str) -> Approval | None:
     return Approval(**row) if row else None
 
 
+def _send_card(ctx: JobContext, task_id: str, apr_id: str, approver: str, question: str) -> str | None:
+    """The approval card (Approve / Reject buttons) in the approver's DM; its ref is stored on the approval."""
+    ref = ctx.notifier.dm(approver, question, "APPROVAL", task_id=task_id,
+                          buttons=[Button("scout_approve", "Approve", apr_id), Button("scout_reject", "Reject", apr_id)])
+    with ctx.conn_factory() as conn:
+        conn.execute("UPDATE approvals SET slack_ref = %s WHERE id = %s", (ref, apr_id))
+        conn.commit()
+    return ref
+
+
+def reassign(ctx: JobContext, approval_id: str, to: str, by: str) -> Task:
+    """Hand a pending approval to someone else: they get the card, the old card says so, the chat hears it.
+    Only the current approver or the owner (CEO) may do it; anyone else raises PermissionError (audited)."""
+    apr = _get_approval(ctx, approval_id)
+    if apr is None:
+        raise KeyError(approval_id)
+    if apr.status != "pending":
+        raise ValueError(f"{approval_id} is already {apr.status}")
+    if by not in (apr.approver_id, ctx.settings.ceo_id):
+        ctx.audit.record("agent", "reassign_approval", f"approval:{approval_id}", f"to {to}", "DENY",
+                         task_id=apr.task_id, requester=by, policy="approvals: approver or owner")
+        raise PermissionError(f"{by} may not hand over {approval_id}")
+    old_ref = apr.slack_ref
+    with ctx.conn_factory() as conn:
+        conn.execute("UPDATE approvals SET approver_id = %s WHERE id = %s", (to, approval_id))
+        conn.commit()
+    who, new = ctx.hr.name(by), ctx.hr.name(to)
+    ref = _send_card(ctx, apr.task_id, approval_id, to, f"{who} asked you to decide this instead.\n\n{apr.question}")
+    if old_ref:
+        ctx.notifier.update(old_ref, f"{apr.question}\n\n↪ Handed to {new} by {who}", "APPROVAL")
+    ctx.recorder.step(apr.task_id, "reassigned", f"{who} asked {new} to approve instead", source="approval",
+                      detail={"approval_id": approval_id, "to": to})
+    ctx.recorder.update(apr.task_id, owner_id=to, slack_ref=ref)
+    ctx.audit.record(by, "reassign_approval", f"approval:{approval_id}", f"to {to}", task_id=apr.task_id,
+                     requester=by)
+    _chat_followup(ctx, apr.task_id, f"Update on {apr.task_id}: {new} now decides the approval (asked by {who}); "
+                                     "I sent them the Approve / Reject card.")
+    return ctx.recorder.get(apr.task_id)
+
+
 def _ask_approval(ctx: JobContext, task: Task, question: str) -> Approval:
     approver = ctx.settings.ceo_id
     apr_id = "apr_" + secrets.token_hex(5)
@@ -119,11 +159,7 @@ def _ask_approval(ctx: JobContext, task: Task, question: str) -> Approval:
         conn.execute("INSERT INTO approvals (id, task_id, approver_id, question) VALUES (%s, %s, %s, %s)",
                      (apr_id, task.id, approver, question))
         conn.commit()
-    ref = ctx.notifier.dm(approver, question, "APPROVAL", task_id=task.id,
-                          buttons=[Button("scout_approve", "Approve", apr_id), Button("scout_reject", "Reject", apr_id)])
-    with ctx.conn_factory() as conn:
-        conn.execute("UPDATE approvals SET slack_ref = %s WHERE id = %s", (ref, apr_id))
-        conn.commit()
+    ref = _send_card(ctx, task.id, apr_id, approver, question)
     ctx.recorder.step(task.id, "asked_approval", f"Asked {ctx.hr.name(approver)} to approve", source="slack:dm",
                       detail={"approval_id": apr_id})
     ctx.recorder.update(task.id, status="waiting", owner_id=approver, approval_id=apr_id, level="APPROVAL",

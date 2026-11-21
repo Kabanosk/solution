@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { tenantFetch } from "@/lib/tenant-browser";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export function DemoView() {
   const [refreshing, startTransition] = useTransition();
   async function play(scenario: string, label: string) {
     setBusy(scenario); setMessage(null);
-    const response = await fetch("/api/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenario }) }).catch(() => null);
+    const response = await tenantFetch("/api/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenario }) }).catch(() => null);
     setBusy(null);
     setMessage(response?.ok ? { ok: true, text: `Played “${label}”. Scout picks it up within seconds.` } : { ok: false, text: "The demo scenario could not be started." });
     startTransition(() => router.refresh());
@@ -45,7 +46,7 @@ export function DemoView() {
     </ul>
     <p id="scout-demo-status" role="status" className={message?.ok === false ? "min-h-5 text-sm text-danger" : "min-h-5 text-sm text-muted-foreground"}>
       {message?.text}{refreshing && message ? " Refreshing…" : ""}
-      {message?.ok && <> <Link href="/#tasks" className="text-foreground underline underline-offset-2">Watch it in Tasks</Link></>}
+      {message?.ok && <> <Link href="#tasks" className="text-foreground underline underline-offset-2">Watch it in Tasks</Link></>}
     </p>
   </section>;
 }

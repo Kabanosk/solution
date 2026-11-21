@@ -31,7 +31,7 @@ export type OpenTask = (task: AgentTask) => void;
 
 export function TaskRow({ task, ownerName, unseen = false, onOpen }: { task: AgentTask; ownerName: string | null; unseen?: boolean; onOpen?: OpenTask }) {
   return <li>
-    <Link href={`/#task/${encodeURIComponent(task.id)}`} data-task-id={task.id}
+    <Link href={`#task/${encodeURIComponent(task.id)}`} data-task-id={task.id}
       onClick={event => { if (!onOpen || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return; event.preventDefault(); onOpen(task); }}
       className="flex h-10 items-center gap-3 border-b px-4 text-[13px] hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none">
       <PriorityBars value={priority(task)} />
@@ -121,7 +121,7 @@ export function AttentionList({ tasks, names, onOpen, onShowAll, limit = 8 }: { 
       <h2 id="scout-attention-title" className="text-[13px] font-medium">Open tasks <span className="ml-1 font-normal text-muted-foreground">{tasks.length}</span></h2>
       <Button id="scout-attention-all" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={onShowAll}>All tasks<ChevronRight className="size-3.5" aria-hidden="true" /></Button>
     </header>
-    {tasks.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">Nothing open. Scout settled everything on its own.</p>
+    {tasks.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">No open tasks.</p>
       : <ul>{tasks.slice(0, limit).map(task => <TaskRow key={task.id} task={task} ownerName={task.ownerId ? names[task.ownerId] ?? task.ownerId : null} onOpen={onOpen} />)}</ul>}
   </section>;
 }

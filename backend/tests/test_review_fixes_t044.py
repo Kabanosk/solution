@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
 
 from cfo.analysis.cost_metrics import PAIRS, detect_anomalies, monthly_series
@@ -105,7 +106,7 @@ def test_nul_denial_reaches_the_real_access_log(ws):
         with psycopg.connect(isolated) as c:
             c.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
         tools, _, _ = ws
-        db_log = DbAccessLog(lambda: Repository.connect(isolated))
+        db_log = DbAccessLog(lambda: operator_repository(isolated))
         tools.access_log = db_log
         assert tools.read_file("ann", "Documents/x\x00")["error"] == "access_denied"
         tools.list_workstations()

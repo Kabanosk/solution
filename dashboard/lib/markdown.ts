@@ -31,7 +31,7 @@ export function parseInline(source: string): Inline[] {
       if (rest[0] === "*" || !before || !/[A-Za-z0-9]/.test(before)) { flush(); out.push({ type: "em", children: parseInline(match[1]) }); i += match[0].length; continue; }
     }
     if ((match = /^\[([^\]\n]+)\]\(([^)\s]+)\)/.exec(rest)) && SAFE_HREF.test(match[2])) {
-      flush(); out.push({ type: "link", href: match[2], children: parseInline(match[1]) }); i += match[0].length; continue;
+      flush(); out.push({ type: "link", href: match[2].startsWith("/#") ? match[2].slice(1) : match[2], children: parseInline(match[1]) }); i += match[0].length; continue;
     }
     text += source[i];
     i += 1;

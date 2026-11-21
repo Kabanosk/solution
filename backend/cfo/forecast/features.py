@@ -49,7 +49,8 @@ CALENDAR_COLUMNS = [
 # -- reading from the database ---------------------------------------------------------------------------
 def _query(conn: psycopg.Connection | None, sql: str) -> list[dict[str, Any]]:
     owns = conn is None
-    conn = conn or psycopg.connect(get_settings().database_url)
+    from cfo.tenancy import connect
+    conn = conn or connect(get_settings().database_url)
     try:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(sql)

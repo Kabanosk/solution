@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tenantFetch, scopeKey } from "@/lib/tenant-browser";
 import { useEffect, useState } from "react";
 import { FileText, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -14,15 +15,15 @@ import { evidenceView, money, type AgentTask, type TransactionRow } from "@/lib/
 // Invoices do not change once filed: keep the ones opened in this tab.
 const invoices = new Map<string, Promise<TransactionInvoice>>();
 function loadInvoice(id: string): Promise<TransactionInvoice> {
-  let pending = invoices.get(id);
+  let pending = invoices.get(scopeKey(id));
   if (!pending) {
-    pending = fetch(`/api/invoices/${encodeURIComponent(id)}`, { cache: "no-store" }).then(async response => {
+    pending = tenantFetch(`/api/invoices/${encodeURIComponent(id)}`, { cache: "no-store" }).then(async response => {
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "The invoice could not be loaded.");
       return body as TransactionInvoice;
     });
-    pending.catch(() => invoices.delete(id));
-    invoices.set(id, pending);
+    pending.catch(() => invoices.delete(scopeKey(id)));
+    invoices.set(scopeKey(id), pending);
   }
   return pending;
 }
@@ -59,7 +60,7 @@ export function Transactions({ rows, tasks }: { rows: TransactionRow[]; tasks: A
               className="inline-flex items-center gap-1 rounded-md border border-success-border px-2 py-0.5 text-xs text-success transition-colors hover:bg-success-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
               <FileText className="size-3" aria-hidden="true" />{row.invoiceNumber} · documented</button>
           : <Badge variant="outline" className="border-warning-border font-normal text-warning">{row.invoiceNumber} · missing</Badge> : "—"}</TableCell>
-        <TableCell>{taskFor.has(row.id) ? <Link href={`/#task/${encodeURIComponent(taskFor.get(row.id)!)}`} className="font-mono text-xs underline-offset-2 hover:underline">{taskFor.get(row.id)}</Link> : "—"}</TableCell>
+        <TableCell>{taskFor.has(row.id) ? <Link href={`#task/${encodeURIComponent(taskFor.get(row.id)!)}`} className="font-mono text-xs underline-offset-2 hover:underline">{taskFor.get(row.id)}</Link> : "—"}</TableCell>
         <TableCell className={`text-right font-mono ${row.amount > 0 ? "text-success" : ""}`}>{money(row.amount)}</TableCell>
       </TableRow>)}</TableBody>
     </Table>
@@ -110,10 +111,10 @@ function InvoicePanel({ row }: { row: TransactionRow }) {
         <section aria-labelledby="scout-invoice-document-title" className="space-y-2">
           <h3 id="scout-invoice-document-title" className="text-[13px] font-medium">Document Scout read</h3>
           {data.document ? <>
-            <p className="text-xs text-muted-foreground">{evidence ? <>{evidence.label}{evidence.detail ? ` · ${evidence.detail}` : ""} · </> : null}filed by <Link href={`/#task/${encodeURIComponent(data.document.taskId)}`} className="font-mono underline-offset-2 hover:underline">{data.document.taskId}</Link></p>
+            <p className="text-xs text-muted-foreground">{evidence ? <>{evidence.label}{evidence.detail ? ` · ${evidence.detail}` : ""} · </> : null}filed by <Link href={`#task/${encodeURIComponent(data.document.taskId)}`} className="font-mono underline-offset-2 hover:underline">{data.document.taskId}</Link></p>
             {data.document.textExcerpt ? <pre className="max-h-80 overflow-auto rounded-lg border bg-muted/40 p-3 font-mono text-[11px] leading-5 whitespace-pre-wrap">{data.document.textExcerpt}</pre>
               : <p className="text-sm text-muted-foreground">No text was extracted from this document.</p>}
-          </> : <p className="text-sm text-muted-foreground">Matched in the invoicing system; no separate document was read.{data.taskId && <> Task <Link href={`/#task/${encodeURIComponent(data.taskId)}`} className="font-mono underline-offset-2 hover:underline">{data.taskId}</Link>.</>}</p>}
+          </> : <p className="text-sm text-muted-foreground">Matched in the invoicing system; no separate document was read.{data.taskId && <> Task <Link href={`#task/${encodeURIComponent(data.taskId)}`} className="font-mono underline-offset-2 hover:underline">{data.taskId}</Link>.</>}</p>}
         </section>
       </>}
     </div>

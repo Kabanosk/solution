@@ -17,7 +17,7 @@ test("bold, italic, code and safe links", () => {
 
 test("dashboard help links are local navigation, not open redirects or scripts", () => {
   assert.deepEqual(parseInline("[Connections](/#connections)"), [
-    { type: "link", href: "/#connections", children: [{ type: "text", text: "Connections" }] },
+    { type: "link", href: "#connections", children: [{ type: "text", text: "Connections" }] },
   ]);
   assert.equal(parseInline("[Needs me](/#tasks?scope=inbox)")[0].type, "link");
   for (const href of ["//evil.example", "/\\\\evil.example", "javascript:alert", "data:text/html,hi"]) {

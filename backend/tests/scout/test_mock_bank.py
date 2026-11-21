@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.domain import Transaction
 from scout.mock_bank.app import create_app

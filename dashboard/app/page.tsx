@@ -1,13 +1,8 @@
-import { Dashboard } from "@/components/dashboard";
-import { getDashboardData } from "@/lib/finance";
-import { isDevelopmentPreview } from "@/lib/development-preview";
-
+import { OrganizationAuth } from "@/components/organization-auth";
+import { legalLinks } from "@/lib/auth";
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-export default async function Home() {
-  return <>
-    {isDevelopmentPreview() && <p id="scout-preview-notice" role="status" className="fixed right-3 bottom-3 z-40 rounded-md border border-warning-border bg-warning-muted px-3 py-1.5 text-xs text-warning md:bottom-3">Development preview · Sample company data · Live Scout chat</p>}
-    <Dashboard data={await getDashboardData()} />
-  </>;
+export default async function Home({ searchParams }: { searchParams: Promise<{ create?: string | string[]; auth?: string | string[] }> }) {
+  const query = await searchParams;
+  const signupFailed = query.auth === "signup-failed";
+  return <OrganizationAuth legal={legalLinks()} googleAvailable={Boolean(process.env.SCOUT_GOOGLE_CLIENT_ID && process.env.SCOUT_GOOGLE_CLIENT_SECRET)} initialCreating={query.create === "1" || signupFailed} initialError={signupFailed ? "Google sign-up could not be completed. If you have an existing account, sign in and link Google first, or choose another organization URL." : undefined} />;
 }

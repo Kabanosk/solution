@@ -1,31 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authorized } from "./lib/auth";
+import { appOrigin, authStore, SESSION_COOKIE } from "./lib/auth";
+import { sameOrigin, validSlug } from "./lib/auth-crypto";
 
-const PUBLIC_PATHS = new Set(["/healthz", "/scout-icon.svg", "/scout-icon.png"]);
-
-export function proxy(request: NextRequest) {
-  // Health checks and the Slack avatar are public; everything else needs the dashboard login.
-  if (PUBLIC_PATHS.has(request.nextUrl.pathname)) return NextResponse.next();
-  const configured = process.env.DASHBOARD_USERNAME && process.env.DASHBOARD_PASSWORD;
-  const allowed = authorized(request.headers.get("authorization"));
-  // Tasks open in place on the dashboard; answer old /tasks/<id> links with a plain redirect instead of streaming a page.
-  const task = /^\/tasks\/([^/]+)$/.exec(request.nextUrl.pathname);
-  const response = allowed && task
-    ? NextResponse.redirect(new URL(`/#task/${task[1]}`, request.url), 307)
-    : allowed
-    ? NextResponse.next()
-    : new NextResponse(configured ? "Authentication required" : "Dashboard access is not configured", {
-        status: configured ? 401 : 503,
-        headers: configured ? { "WWW-Authenticate": 'Basic realm="Scout", charset="UTF-8"' } : {},
-      });
+const PUBLIC = new Set(["/", "/healthz", "/scout-icon.svg", "/scout-icon.png", "/google-g.png", "/icon.svg", "/favicon.ico"]);
+export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const requestHeaders = new Headers(request.headers);
+  // A client may request a tenant, but only the session/membership query can authorize it.
+  requestHeaders.delete("x-scout-organization");
+  requestHeaders.delete("x-scout-schema");
+  let response: NextResponse;
+  if (path.startsWith("/api/auth/") || PUBLIC.has(path)) {
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+  } else if (path.startsWith("/api/")) {
+    const slug = request.headers.get("x-scout-organization") ?? "";
+    try {
+      if (!validSlug(slug) || !await authStore().session(request.cookies.get(SESSION_COOKIE)?.value, slug)) response = NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      else if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && !sameOrigin(request.headers.get("origin"), appOrigin())) response = NextResponse.json({ error: "Cross-site request refused" }, { status: 403 });
+      else { requestHeaders.set("x-scout-organization", slug); response = NextResponse.next({ request: { headers: requestHeaders } }); }
+    } catch { response = NextResponse.json({ error: "Authentication temporarily unavailable" }, { status: 503 }); }
+  } else {
+    const slug = path.slice(1);
+    if (!validSlug(slug)) response = NextResponse.redirect(new URL("/", request.url), 303);
+    else { requestHeaders.set("x-scout-organization", slug); response = NextResponse.next({ request: { headers: requestHeaders } }); }
+  }
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  response.headers.set("Referrer-Policy", "same-origin");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
   return response;
 }
-
-// Hashed build assets (/_next/static) hold no company data and never change for a given URL: serve them without the
-// login check and with Next's immutable cache headers. Before this, every page load re-downloaded ~200 KB of
-// JavaScript because they were marked no-store.
-export const config = {
-  matcher: ["/((?!_next/static/).*)"],
-};
+export const config = { matcher: ["/((?!_next/static/|_next/image).*)"] };

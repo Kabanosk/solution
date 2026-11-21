@@ -1,4 +1,4 @@
-import { authorized } from "@/lib/auth";
+import { currentSession } from "@/lib/auth";
 import { parseTransactionInvoice } from "@/lib/invoice-model";
 import { apiFetch } from "@/lib/scout-api";
 
@@ -8,7 +8,7 @@ const privateHeaders = { "Cache-Control": "private, no-store" };
 
 /** The invoice filed for a bank booking (Scout API GET /v1/transactions/{id}/invoice), read server-side. */
 export async function GET(request: Request, { params }: { params: Promise<{ transactionId: string }> }) {
-  if (!authorized(request.headers.get("authorization"))) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+  if (!await currentSession()) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
   const { transactionId } = await params;
   const id = decodeURIComponent(transactionId);
   if (!/^[\w.:-]{1,128}$/.test(id)) return Response.json({ error: "Invalid transaction" }, { status: 400, headers: privateHeaders });

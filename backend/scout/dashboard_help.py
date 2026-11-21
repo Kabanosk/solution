@@ -48,9 +48,9 @@ _GUIDES: dict[str, dict[str, Any]] = {
     "connections": {
         "page": "Connections", "href": "/#connections",
         "steps": [
-            "Each integration row shows its connection status and last sync. Open its chevron for permissions, setup instructions or sync results.",
-            "Connect Google starts authorization for the scoped mailbox. Google Workspace administrators can expand the admin setup instructions.",
-            "Connect KSeF or Sync again starts a test-environment invoice sync. Its details show progress, errors and matched invoices. Slack details list granted and missing permissions.",
+            "Each integration row shows its authorized connection status and last sync. Open its chevron for permissions, setup information or historical sync results.",
+            "Google mailbox authorization, connecting integrations, enable/disable changes and KSeF sync actions are unavailable in this organization-bound release. Setup information is not a working authorization flow.",
+            "Existing KSeF details can show recorded progress, errors and matched invoices. Slack details list recorded granted and missing permissions; these read-only details do not grant new access.",
         ],
     },
     "audit": {

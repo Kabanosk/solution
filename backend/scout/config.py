@@ -50,6 +50,20 @@ class ScoutSettings(BaseSettings):
         return v
 
 
+def tenant_settings(settings: ScoutSettings) -> ScoutSettings:
+    """Never hand global integration credentials or seeded identities to a new organization."""
+    from cfo.tenancy import current_tenant, legacy_connectors_enabled
+    tenant = current_tenant()
+    if legacy_connectors_enabled(tenant):
+        return settings
+    return settings.model_copy(update={
+        "slack_bot_token": "", "slack_app_token": "", "slack_user_map": "", "chat_channels": [],
+        "google_client_id": "", "google_client_secret": "", "connections_key": "", "oauth_state_secret": "",
+        "bank_api_url": "", "workstations_root": "", "data_dir": "", "scout_demo": False,
+        "ceo_id": tenant.employee_id or "", "document_owner_id": tenant.employee_id or "",
+    })
+
+
 @lru_cache
 def get_scout_settings() -> ScoutSettings:
     return ScoutSettings()

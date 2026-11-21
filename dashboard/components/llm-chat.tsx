@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tenantFetch } from "@/lib/tenant-browser";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
@@ -41,7 +42,7 @@ export function LlmChat({ active }: { active: boolean }) {
     const poll = async () => {
       if (document.hidden) return;
       try {
-        const response = await fetch(`/api/tasks/${encodeURIComponent(watchedTask)}`, { cache: "no-store" });
+        const response = await tenantFetch(`/api/tasks/${encodeURIComponent(watchedTask)}`, { cache: "no-store" });
         if (!response.ok || stopped) return;
         const detail = await response.json() as { steps?: { id: number; kind: string; text: string }[] };
         if (!stopped && Array.isArray(detail.steps)) setMessages(current => mergeFollowups(current, detail.steps!));
@@ -61,7 +62,7 @@ export function LlmChat({ active }: { active: boolean }) {
       if (document.hidden) return;
       for (const { taskId, stepIds } of unacknowledgedFollowups(messages, acknowledged.current)) {
         stepIds.forEach(id => acknowledged.current.add(id));
-        fetch("/api/chat/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId, stepIds }), signal: AbortSignal.timeout(10_000) })
+        tenantFetch("/api/chat/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId, stepIds }), signal: AbortSignal.timeout(10_000) })
           .then(response => { if (!response.ok) stepIds.forEach(id => acknowledged.current.delete(id)); })
           .catch(() => stepIds.forEach(id => acknowledged.current.delete(id)));
       }
@@ -88,7 +89,7 @@ export function LlmChat({ active }: { active: boolean }) {
     let failure = "Could not reach Scout. Try again.";
     const request_ = requestFor(history);
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, messages: request_.messages, conversationId: conversation.current }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -206,7 +207,7 @@ export function LlmChat({ active }: { active: boolean }) {
                 {turn.awaiting && turn.id === [...messages].reverse().find(item => item.awaiting)?.id && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Scout posts updates here as they happen</p>}
                 {(turn.taskId || (turn.content && turn.status !== "pending")) && <div className="flex items-center gap-1">
                   {turn.content && turn.status !== "pending" && <Button variant="ghost" size="sm" aria-label="Copy response" className="h-7 px-2 text-muted-foreground" onClick={() => void copy(turn)}>{copied === turn.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}</Button>}
-                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`/#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
+                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
                 </div>}
               </div>
             </li>)}

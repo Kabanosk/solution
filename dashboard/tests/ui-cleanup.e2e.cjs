@@ -1,19 +1,23 @@
-// Run against a local DASHBOARD_PREVIEW=1 server after `npx playwright install chromium`.
+// Run against a local authenticated organization server after `npx playwright install chromium`.
 // BASE_URL=http://127.0.0.1:3000 npm run test:e2e
 // CHROMIUM_PATH and PLAYWRIGHT_MODULE optionally use preinstalled browser tooling.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright-core');
+const { authenticatedFixture } = require("./authenticated-browser.cjs");
+let fixture;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const base = process.env.BASE_URL || 'http://127.0.0.1:3000';
+let base = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const output = process.env.SCREENSHOT_DIR || path.resolve(__dirname, '../../artifacts/ui-cleanup');
 
 (async () => {
   fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
+    fixture = await authenticatedFixture(browser);
+    base = fixture.base;
     for (const theme of ['light', 'dark']) {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+      const page = await fixture.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       page.on('console', message => { if (message.type() === 'error' && /hydrat/i.test(message.text())) errors.push(message.text()); });
@@ -81,6 +85,8 @@ const output = process.env.SCREENSHOT_DIR || path.resolve(__dirname, '../../arti
 
       for (const viewport of [{ width: 375, height: 812 }, { width: 812, height: 375 }]) {
         await page.setViewportSize(viewport);
+        // Recharts resizes through ResizeObserver; assert the settled layout, not its previous frame.
+        await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, undefined, { timeout: 5000 });
         await page.screenshot({ path: path.join(output, `usage-${theme}-${viewport.width}.png`), fullPage: true });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'No usage horizontal overflow');
         await page.evaluate(() => { location.hash = '#chat'; });

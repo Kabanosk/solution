@@ -12,8 +12,9 @@ from decimal import Decimal
 from pathlib import Path
 
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api import services
 from cfo.api.app import create_app
@@ -48,7 +49,7 @@ def _seeded_schema(name: str):
     from cfo.db.migrate import SCHEMA_PATH
     from cfo.db.repo import Repository
 
-    repo = Repository.connect(url)
+    repo = operator_repository(url)
     repo.conn.execute(f"DROP SCHEMA IF EXISTS {name} CASCADE")
     repo.conn.execute(f"CREATE SCHEMA {name}")
     repo.conn.execute(f"SET search_path TO {name}")
@@ -151,7 +152,7 @@ def test_kpis_without_data_is_a_clean_error():
     from cfo.db.migrate import SCHEMA_PATH
     from cfo.db.repo import Repository
 
-    repo = Repository.connect(url)
+    repo = operator_repository(url)
     try:
         repo.conn.execute(f"DROP SCHEMA IF EXISTS {EMPTY} CASCADE")
         repo.conn.execute(f"CREATE SCHEMA {EMPTY}")
@@ -178,7 +179,7 @@ def test_kpis_count_scout_approvals_and_open_tasks():
     from cfo.db.repo import Repository
     from scout.db import SCOUT_SCHEMA
 
-    repo = Repository.connect(url)
+    repo = operator_repository(url)
     try:
         repo.conn.execute(f"DROP SCHEMA IF EXISTS {SCOUT} CASCADE")
         repo.conn.execute(f"CREATE SCHEMA {SCOUT}")

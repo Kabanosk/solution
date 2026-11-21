@@ -128,6 +128,10 @@ def _mlflow_model() -> fmodel.ForecastModel | None:
     A failure is remembered for the same interval, so a dead MLflow costs one timeout a minute, not one per request.
     Call with `_model_lock` held.
     """
+    from cfo.tenancy import current_tenant
+    if current_tenant(required=False) is not None:
+        # Shared registry aliases are not tenant scoped. Never load another company's model.
+        return None
     uri, tracking = get_settings().forecast_model_uri, os.environ.get("MLFLOW_TRACKING_URI")
     if not (uri and tracking):
         _mlflow_cache.clear()

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Scout · Your finance agent",
-  description: "Scout, your finance agent: agent tasks with their evidence, bank analytics and cash forecast for Pizzeria Amalfi.",
+  description: "Scout, your organization’s private finance agent.",
 };
 export const viewport: Viewport = { themeColor: "#f7f7f7" };
 

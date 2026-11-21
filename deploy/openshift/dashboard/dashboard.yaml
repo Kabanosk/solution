@@ -40,8 +40,8 @@ spec:
             - name: SCOUT_GOOGLE_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: scout-login, key: client-secret, optional: true}}
           resources:
-            requests: {cpu: 100m, memory: 256Mi}
-            limits: {cpu: "1", memory: 1Gi}
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -48,5 +48,5 @@ spec:
             # The liquidity model is trained on the first forecast review when the file is missing.
             - {name: FORECAST_MODEL_PATH, value: /tmp/liquidity_xgb.json}
           resources:
-            requests: {cpu: 100m, memory: 256Mi}
+            requests: {cpu: 200m, memory: 384Mi}
             limits: {cpu: "1", memory: 1Gi}

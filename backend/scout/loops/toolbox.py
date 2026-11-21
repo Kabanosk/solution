@@ -70,6 +70,8 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="send_invoices", description="Send the asker the invoice PDFs in Slack (and here), newest first, "
              "max 10. Optional: number, supplier, days back (default 90), unpaid_only.",
              parameters=_p(number=S, supplier=S, days=I, unpaid_only=B)),
+    ToolSpec(name="send_dm", description="Send a colleague a short work message on Slack for the asker (signed "
+             "with the asker's name). Work messages only.", parameters=_p(person=S, text=S)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -129,9 +131,16 @@ class Toolbox:
         n = (name or "").strip().casefold()
         if not n or n in ("me", "my", "i"):
             return self.requester
-        for e in self.ctx.hr.all():
-            if n == e["id"] or n in e["name"].casefold() or e["name"].casefold().split()[0] in n:
+        people = self.ctx.hr.all()
+        for e in people:
+            names = [x.casefold() for x in (e["name"], e.get("slack_name")) if x]
+            if n == e["id"] or any(n in x or x.split()[0] in n for x in names):
                 return e["id"]
+        if len(n) >= 4:  # nicknames: "Wojtek" for Wojciech, "Grażynka" for Grażyna
+            hits = {e["id"] for e in people for x in (e["name"], e.get("slack_name")) if x
+                    and x.casefold().split()[0][:3] == n[:3]}
+            if len(hits) == 1:
+                return hits.pop()
         return None
 
     def _allowed(self, target: str, resource: str) -> tuple[bool, str]:
@@ -401,6 +410,21 @@ class Toolbox:
                       lines=[InvoiceLine(**ln) for ln in lines], transaction_id=r["transaction_id"],
                       category=r["category"])
         return invoice_pdf(inv, title_prefix="INVOICE (copy)")
+
+    def t_send_dm(self, person: str = "", text: str = "", **_: Any) -> dict[str, Any]:
+        text = (text or "").strip()
+        if not person or not text:
+            return {"error": "missing_arguments", "hint": "Call again with person and text."}
+        who = self._person(person)
+        if who is None:
+            return {"error": "unknown_person", "person": person}
+        if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+            return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
+        body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
+        self.ctx.notifier.dm(who, body, "NOTIFY", task_id=self.task.id)
+        self.ctx.audit.record("agent", "send_dm", f"slack:{who}", text[:200], task_id=self.task.id,
+                              requester=self.requester, role=self.role)
+        return {"sent": True, "to": self.ctx.hr.full_name(who)}
 
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

@@ -325,6 +325,15 @@ class SlackSupervisor:
                 lambda ui, data: ui.on_mention(data),
             )
 
+        @app.event("team_join")
+        def team_join(event: dict[str, Any], context: Any) -> None:
+            self.route(
+                context.get("team_id"),
+                "team_join",
+                event,
+                lambda ui, data: ui.on_team_join(data),
+            )
+
         @app.action("scout_approve")
         @app.action("scout_reject")
         def action(ack: Callable[[], None], body: dict[str, Any], context: Any) -> None:

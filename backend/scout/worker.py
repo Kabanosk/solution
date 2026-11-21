@@ -101,6 +101,22 @@ def tenant_user_map(cf: Any, installation: Any) -> dict[str, str]:
     return {employee_id: uid for employee_id, uid in links.items() if counts[uid] == 1}
 
 
+def organization_of(database_url: str) -> tuple[str, str] | None:
+    """(slug, name) of the bound organization, for the "Join <name> workspace" links Scout sends on Slack."""
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    if tenant is None or not tenant.slug:
+        return None
+    try:
+        import psycopg
+        with psycopg.connect(database_url, connect_timeout=5) as conn:
+            row = conn.execute("SELECT name FROM scout_auth.organizations WHERE id = %s", (tenant.id,)).fetchone()
+        return (tenant.slug, row[0] if row else tenant.slug)
+    except Exception:
+        log.warning("could not read the organization name", exc_info=True)
+        return (tenant.slug, tenant.slug)
+
+
 def _task_of(ctx: JobContext, job: Job) -> str | None:
     if job.task_id:
         return job.task_id
@@ -276,7 +292,8 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
         notifier = SlackUI(slack_client, user_map, jobs, recorder, conn_factory=cf, audit=audit,
                            bot_token=installation.token, dashboard_url=s.dashboard_url, icon_url=icon, names=names,
                            generation=installation.generation,
-                           installation_valid=lambda: installation_current(installation, s))
+                           installation_valid=lambda: installation_current(installation, s),
+                           workspace=organization_of(s.database_url))
     elif s.slack_bot_token:
         from slack_bolt import App
         from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -289,7 +306,8 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
         icon = s.scout_icon_url or (f"{s.dashboard_url.rstrip('/')}/scout-icon.png"
                                     if s.dashboard_url.startswith("https://") else None)
         notifier = SlackUI(slack_client, user_map, jobs, recorder, conn_factory=cf, audit=audit,
-                           bot_token=s.slack_bot_token, dashboard_url=s.dashboard_url, icon_url=icon, names=names)
+                           bot_token=s.slack_bot_token, dashboard_url=s.dashboard_url, icon_url=icon, names=names,
+                           workspace=organization_of(s.database_url))
         notifier.register(app)
         if s.slack_app_token and socket_enabled:
             socket_handler = SocketModeHandler(app, s.slack_app_token)
@@ -317,6 +335,8 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
         (30.0, Scheduler(jobs).tick), (60.0, refresh_connectors)]
     if hasattr(notifier, "flush"):
         watchers.append((0.5, notifier.flush))
+    if hasattr(notifier, "sweep"):  # Slack is the source of truth: ask every member without an account (once)
+        watchers.append((float(s.slack_sweep_seconds), notifier.sweep))
     worker = Worker(ctx, s.scout_workers, watchers=watchers)
     worker.installation = installation
     return worker, socket_handler

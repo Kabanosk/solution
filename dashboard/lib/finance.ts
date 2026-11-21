@@ -1,6 +1,6 @@
 import "server-only";
 import { Pool, type PoolClient } from "pg";
-import { requireSession } from "./auth";
+import { authStore, requireSession } from "./auth";
 import { apiFetch } from "./scout-api";
 import { decimalCents, displayCents, financePeriod, quarterSpend, type DashboardData, type Forecast } from "./finance-model";
 import { loadRecords, loadScout, loadTaskDetail } from "./scout";
@@ -138,7 +138,8 @@ export async function getDashboardData(slug?: string): Promise<DashboardData> {
     client.release();
   }
   const [quarterForecast, yearForecast] = await Promise.all(forecastPromises);
-  return { ...result, workspace: { slug: session.slug, name: session.organizationName, userId: session.userId, userName: session.name, role: session.role, googleAvailable: Boolean(process.env.SCOUT_GOOGLE_CLIENT_ID && process.env.SCOUT_GOOGLE_CLIENT_SECRET) }, forecast: quarterForecast, forecastYear: yearForecast };
+  const organizations = await authStore().organizations(session.userId).catch(() => [{ slug: session.slug, name: session.organizationName }]);
+  return { ...result, workspace: { organizations, slug: session.slug, name: session.organizationName, userId: session.userId, userName: session.name, role: session.role, googleAvailable: Boolean(process.env.SCOUT_GOOGLE_CLIENT_ID && process.env.SCOUT_GOOGLE_CLIENT_SECRET) }, forecast: quarterForecast, forecastYear: yearForecast };
 }
 
 /** Runs read-only queries in one REPEATABLE READ transaction; errors never expose SQL or connection details. */

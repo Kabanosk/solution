@@ -107,3 +107,15 @@ registered people), and their button clicks are ignored.
   is running; clicks are delivered over the socket only while it is connected.
 - DMs do not arrive for one person: their Slack user id is missing from `SLACK_USER_MAP` (and `Employee.slack_user_id`)
   (`send_dm` raises `ValueError`).
+
+## People: Slack is the source of truth
+
+Everyone in the installed workspace can use Scout, registered or not:
+
+- Right after the install (and every `SLACK_SWEEP_SECONDS`, default 600), Scout DMs each human member who has no
+  Scout account and asks for their first and last name. Each person is asked once (`slack_members`).
+- A new member who joins the workspace gets the same DM at once (`team_join` event; the sweep catches them otherwise).
+- Replying with a name (for example `Anna Kowalska`) creates their account: an `employees` row (role `Staff`) linked
+  to their Slack user id. Any other DM from someone without an account gets the question again.
+- Asking Scout to message someone (`send_dm`, handing over a task) works for any workspace member: if they never
+  registered, their account is created from their Slack profile name first.

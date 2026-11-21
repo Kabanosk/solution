@@ -31,6 +31,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
       const found = await store.findOrganization(field("organization"));
       return found ? json(found) : json({ error: "Organization not found. Ask your team for its Scout URL." }, 404);
     }
+    if (action === "switch") {
+      const result = await store.switchOrganization((await cookies()).get(SESSION_COOKIE)?.value, field("slug"));
+      if (!result) return json({ error: "You are not a member of that organization." }, 403);
+      (await cookies()).set(SESSION_COOKIE, result.token, cookieOptions());
+      return json({ redirect: `/${result.session.slug}` });
+    }
+    if (action === "join") {
+      if (!(await store.rateLimit(`join:address:${clientAddress(request.headers)}`, 30))) return json({ error: "Too many attempts. Try again in 15 minutes." }, 429);
+      const result = await store.join({ slug: field("slug"), token: field("token"), firstName: field("firstName"), lastName: field("lastName"), email: field("email"), password: field("password") });
+      const previous = (await cookies()).get(SESSION_COOKIE)?.value;
+      if (previous) await store.logout(previous);
+      (await cookies()).set(SESSION_COOKIE, result.token, cookieOptions());
+      return json({ redirect: `/${result.session.slug}` });
+    }
     if (action !== "register" && action !== "login") return json({ error: "Not found." }, 404);
     const email = field("email").trim().toLowerCase(), slug = field("slug");
     if (!validSlug(slug)) return json({ error: "Invalid organization URL." }, 400);
@@ -45,7 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
     return json({ redirect: action === "register" ? registrationRedirect(result.session.slug) : `/${result.session.slug}` });
   } catch (error) {
     // Only validation messages cross the boundary, never SQL or connection diagnostics.
-    const message = error instanceof Error && ["More than one organization uses this name. Enter the organization URL.", "Each account can own up to three organizations.", "Check your organization name, URL, name and email.", "Use your existing account password or a different email.", "That organization URL or account is already registered.", "Use a password with 12–1024 characters."].includes(error.message) ? error.message : "Authentication is temporarily unavailable.";
+    const message = error instanceof Error && ["More than one organization uses this name. Enter the organization URL.", "Each account can own up to three organizations.", "Check your organization name, URL, name and email.", "Use your existing account password or a different email.", "That organization URL or account is already registered.", "Use a password with 12–1024 characters.", "Enter your first name, last name and a valid email.", "This invite link is invalid or was already used. Message Scout on Slack for a new one."].includes(error.message) ? error.message : "Authentication is temporarily unavailable.";
     return json({ error: message }, message === "Authentication is temporarily unavailable." ? 503 : 400);
   }
 }

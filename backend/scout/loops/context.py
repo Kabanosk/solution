@@ -104,7 +104,12 @@ class HR:
     def link_slack(self, user_map: dict[str, str], names: dict[str, str]) -> None:
         """Write who plays which role on Slack into the HR table, so the dashboard shows the same people."""
         with self._cf() as conn:
-            conn.execute("UPDATE employees SET slack_user_id = NULL, slack_name = NULL")
+            from scout.slack_directory import _ensure
+            _ensure(conn)
+            # People who registered themselves on Slack keep their link; only the configured role map is reset.
+            conn.execute("UPDATE employees SET slack_user_id = NULL, slack_name = NULL WHERE NOT EXISTS "
+                         "(SELECT 1 FROM slack_members m WHERE m.employee_id = employees.id "
+                         "AND m.status = 'registered')")
             for emp, uid in user_map.items():
                 conn.execute("UPDATE employees SET slack_user_id = %s, slack_name = %s WHERE id = %s",
                              (uid or None, names.get(emp), emp))

@@ -148,6 +148,18 @@ CREATE INDEX IF NOT EXISTS bank_mock_transactions_booked_idx ON bank_mock_transa
 -- The real Slack person who plays an HR role (written by the worker from SLACK_USER_MAP; the dashboard shows it).
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS slack_name TEXT;
 
+CREATE TABLE IF NOT EXISTS slack_members (
+    slack_user_id  TEXT PRIMARY KEY,
+    status         TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'registered')),
+    employee_id    TEXT REFERENCES employees(id) ON DELETE SET NULL,
+    invited_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    registered_at  TIMESTAMPTZ
+);
+ALTER TABLE slack_members ADD COLUMN IF NOT EXISTS invite_token_hash TEXT;
+ALTER TABLE slack_members ADD COLUMN IF NOT EXISTS slack_name TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS slack_members_invite_idx ON slack_members (invite_token_hash);
+
+
 -- Guardrails (T052). The prompts of blocked human messages, in full, for the compliance report. Never exposed by
 -- an API and never copied to audit_log. `reported_at` is set when the strikes went into a compliance alert.
 CREATE TABLE IF NOT EXISTS guardrail_strikes (

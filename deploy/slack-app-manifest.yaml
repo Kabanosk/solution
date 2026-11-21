@@ -41,6 +41,7 @@ settings:
       - app_mention
       - message.channels  # continue only threads where Scout was explicitly mentioned
       - message.groups  # same for private channels Scout belongs to
+      - team_join  # a new workspace member is asked for their name and gets a Scout account
   interactivity:
     is_enabled: true  # Approve / Reject buttons; delivered over the socket, no request URL
   org_deploy_enabled: false

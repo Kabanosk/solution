@@ -187,3 +187,17 @@ def test_close_tasks_by_their_owner_with_a_reason(conn_factory, tmp_path):
     assert any(u["ref"] == done.slack_ref and "Closed" in u["text"] for u in ctx.notifier.updates)
     again = box(ctx, "grazyna").call("close_tasks", {"task_ids": t.id.lower(), "reason": "x refund"})
     assert again["closed"] == [] and again["skipped"][0]["why"] == "already done"
+
+
+def test_tool_amounts_read_european_formats(conn_factory, tmp_path):
+    from decimal import Decimal
+
+    from scout.loops.toolbox import _num
+
+    assert _num("642,80") == Decimal("642.80") and _num("€30.000") == Decimal("30000")
+    assert _num("-1.250,50") == Decimal("1250.50") and _num("30,000") == Decimal("30000") and _num("1,5k") == 1500
+    assert _num("100 to 200") is None
+    ctx = make_world(conn_factory, tmp_path)
+    pay(ctx, "nowhere")  # Fattoria La Vino GmbH, €869.62 out
+    rows = box(ctx, "vincenzo").call("search_payments", {"amount_eur": "869,62"})["rows"]
+    assert [r["counterparty"] for r in rows] == ["Fattoria La Vino GmbH"]

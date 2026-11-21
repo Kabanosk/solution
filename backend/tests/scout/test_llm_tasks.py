@@ -39,3 +39,23 @@ def test_route_dm_what_if():
 
 def test_route_dm_fallback_smalltalk():
     assert route_dm(FakeLLM(["hello"]), "hi")["intent"] == "smalltalk"
+
+
+import pytest  # noqa: E402
+
+from scout.llm_tasks import parse_money  # noqa: E402
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("30000", "30000"), ("30.000", "30000"), ("€30.000", "30000"), ("30,000", "30000"), ("$500,000", "500000"),
+    ("1.250.000", "1250000"), ("1,250,000", "1250000"), ("642,80", "642.80"), ("642.80", "642.80"),
+    ("1.234,50", "1234.50"), ("1,234.50", "1234.50"), ("30k", "30000"), ("1,5k", "1500"), ("$2m", "2000000"),
+    ("500 000 EUR", "500000"), ("-500", "-500"), ("12.5", "12.5"), (30000, "30000"), (642.8, "642.8"),
+])
+def test_parse_money_reads_european_and_us_formats(text, expected):
+    assert parse_money(text) == Decimal(expected)
+
+
+@pytest.mark.parametrize("text", [None, "", "abc", "nan", "inf", "100 to 200", "100to200", "1e999", "about thirty"])
+def test_parse_money_refuses_what_is_not_one_amount(text):
+    assert parse_money(text) is None

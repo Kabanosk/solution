@@ -119,6 +119,21 @@ def test_what_if_balances_keep_their_sign_and_explain_the_gap(conn_factory, tmp_
     assert "the purchase causes the gap" in steps["note"]
 
 
+@pytest.mark.parametrize("typed,expected", [("30.000", "30000"), ("€30.000", "30000"), ("642,80", "642.80"),
+                                             ("1.250.000", "1250000"), ("30,000", "30000"), ("30k", "30000")])
+def test_what_if_reads_a_typed_european_amount(conn_factory, tmp_path, typed, expected):
+    seen = []
+
+    def forecaster(ctx, outflows):  # noqa: ANN001
+        seen.append(outflows)
+        return fake_review(gap=False)(ctx, outflows)
+
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = forecaster
+    liquidity.run(ctx, job("what_if", {"amount": typed, "month": "March", "what": "an oven", "from_id": "vincenzo"}))
+    assert seen[0][0]["amount"] == Decimal(expected)
+
+
 def test_direction_of():
     assert liquidity.direction_of("", "new client payment") == "in"
     assert liquidity.direction_of(None, "Acme pays us") == "in"

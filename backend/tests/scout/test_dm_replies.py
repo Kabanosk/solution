@@ -374,7 +374,7 @@ def test_a_notify_job_left_running_by_a_dead_worker_is_retried_but_bounded(conn_
     again = ctx.jobs.claim("w2")  # worker w1 restarted without finishing
     assert again and again.id == first.id and again.attempts == 2
     age(600, attempts=3)
-    assert Worker(ctx, 1).run_one("w3")  # reclaim only to record terminal failure; do not send a fourth time
+    assert Worker(ctx, 1).run_one("w3") is False  # reaped only to record terminal failure; never sent a fourth time
     assert rows(ctx, "SELECT status FROM agent_jobs WHERE kind = 'dm_reply_notify'")[0]["status"] == "failed"
     assert ctx.recorder.get(box.task.id).status == "escalated"
     assert [m["to"] for m in ctx.notifier.sent].count("vincenzo") == 0

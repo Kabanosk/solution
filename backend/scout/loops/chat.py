@@ -288,15 +288,33 @@ def _request_files(ctx: JobContext, task: Task, p: dict[str, Any], route: dict[s
     return _finish(ctx, task, p, f"Found in {ctx.hr.name(target)}'s company folders:\n{listing}")
 
 
-YES = re.compile(r"\b(i approve|approved?|yes|ok(ay)?|go ahead|accept(ed)?|agreed?|zgoda|tak|akceptuj[eę])\b", re.I)
-NO = re.compile(r"\b(reject(ed)?|no|decline[d]?|deny|denied|don'?t|nie|odrzuc\w*)\b", re.I)
+# A typed answer decides only when the whole reply is one of these (case, spacing and punctuation aside); anything
+# else ("I do not approve", "not sure yet", "approve?") is asked again, never guessed.
+APPROVE_REPLIES = frozenset({
+    "approve", "approved", "i approve", "approve it", "approve this", "yes", "yes approve", "yes approved",
+    "yes please", "ok", "okay", "ok approved", "ok go ahead", "go ahead", "yes go ahead", "accept", "accepted",
+    "i accept", "agree", "agreed", "i agree", "lgtm", "zgoda", "tak", "tak zgoda", "akceptuje", "akceptuję",
+    "zatwierdzam"})
+REJECT_REPLIES = frozenset({
+    "reject", "rejected", "i reject", "reject it", "reject this", "no", "nope", "no reject", "decline", "declined",
+    "i decline", "deny", "denied", "nie", "odrzuc", "odrzuć", "odrzucam", "odrzucone", "nie zgadzam się",
+    "nie zgadzam sie", "nie akceptuję", "nie akceptuje", "nie zatwierdzam"})
+
+
+def typed_answer(text: str) -> bool | None:
+    """True / False for a complete approve / reject reply, None for anything else (a question included)."""
+    if "?" in text:
+        return None
+    words = re.sub(r"[^\w']+", " ", text.casefold().replace("\u2019", "'").replace("\u2018", "'")).split()
+    reply = " ".join(words)
+    return True if reply in APPROVE_REPLIES else False if reply in REJECT_REPLIES else None
 
 
 def _typed_approval(ctx: JobContext, task: Task, p: dict[str, Any], text: str, sender: str | None) -> Task:
     """A reply in the thread of an approval card: "I approve" / "reject" count like the buttons."""
     from scout.loops import liquidity
 
-    yes, no = bool(YES.search(text)), bool(NO.search(text))
+    answer = typed_answer(text)
 
     def say(msg: str, level: str = "AUTO") -> None:
         if p.get("status_ref"):
@@ -304,15 +322,15 @@ def _typed_approval(ctx: JobContext, task: Task, p: dict[str, Any], text: str, s
         else:
             ctx.notifier.dm(sender or "", msg, level, task_id=task.id, thread=p.get("thread"))
 
-    if yes == no:
+    if answer is None:
         say("Reply “approve” or “reject” here, or use the Approve / Reject buttons on the card above.", "NOTIFY")
         return task
     try:
-        out = liquidity.resume(ctx, task.approval_id, yes, sender or "")
+        out = liquidity.resume(ctx, task.approval_id, answer, sender or "")
     except PermissionError:
         say(f"Only {ctx.hr.name(task.owner_id)} can answer this approval. I've logged the attempt.", "NOTIFY")
         return task
-    say(f"{'Approved' if yes else 'Rejected'} · {out.outcome} ({out.id})")
+    say(f"{'Approved' if answer else 'Rejected'} · {out.outcome} ({out.id})")
     return out
 
 
@@ -375,6 +393,12 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                       source="slack:dm", detail={"q": text[:MSG_CHARS]})
 
     if intent == "what_if":
+        if role != "ceo":  # as the start_what_if tool: the forecast shows the company's balance and buffer
+            ctx.audit.record("agent", "what_if", "forecast", text[:200], "DENY", task_id=task.id, requester=sender,
+                             role=role, policy="what-if: owner-only")
+            ctx.recorder.step(task.id, "denied", "Only the owner can run a what-if", source="iam")
+            return _finish(ctx, task, p, f"Only {ctx.hr.name(ctx.settings.ceo_id)} (the owner) can run a what-if on "
+                                         "the company's cash. I've logged the request.", level="NOTIFY")
         ctx.jobs.enqueue("what_if", {**{k: route.get(k) for k in ("amount_eur", "month", "what", "direction")},
                                      "amount": route.get("amount_eur"), "from_id": sender,
                                      "status_ref": p.get("status_ref")}, f"what_if:{job.dedupe_key}")

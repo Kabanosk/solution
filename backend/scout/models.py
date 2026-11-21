@@ -135,6 +135,7 @@ class InvoiceDoc(BaseModel):
     supplier: str
     issue_date: date
     total: Decimal
+    currency: str | None = None  # ISO code of `total`; None = the source did not say (read from text): the payment's
     lines: list[dict[str, Any]] = Field(default_factory=list)
     source: str = "db"  # where it was found: db | files:<path> | email:<id> | slack:<file>
     evidence: dict[str, Any] | None = None

@@ -1230,6 +1230,28 @@ def test_ksef_sync_after_approval_does_not_touch_the_filed_invoice(ksef_company)
     assert res["on_file"] >= 1 and res["imported"] >= 0
 
 
+def test_approving_a_flagged_pln_ksef_invoice_never_files_it_for_an_eur_payment(ksef_company):
+    """The held card keeps the KSeF document's currency: approving it cannot link PLN 623.48 to an EUR 623.48 debit."""
+    from test_ksef import FakeKsef
+
+    class PlnPoisoned(_poisoned_ksef(10)):
+        def download(self, token, ksef_number):  # noqa: ANN001, ANN202
+            xml = super().download(token, ksef_number)
+            return xml.replace(b"<KodWaluty>EUR</KodWaluty>", b"<KodWaluty>PLN</KodWaluty>") \
+                if b"AS-12345" in xml else xml
+
+    ctx = ksef_company
+    assert _sync(ctx, PlnPoisoned)["flagged"] == 1
+    with ctx.conn_factory() as conn:
+        apr = conn.execute("SELECT id, task_id FROM approvals").fetchone()
+    liquidity.resume(ctx, apr["id"], True, "vincenzo")
+    assert _invoice_row(ctx) is None
+    with ctx.conn_factory() as conn:
+        assert not conn.execute("SELECT documented FROM transactions WHERE id = 't_open'").fetchone()["documented"]
+    assert ctx.recorder.get(apr["task_id"]).status == "escalated"
+    assert FakeKsef  # (fixture import)
+
+
 def test_ksef_sync_without_guardrails_context_is_unchanged(ksef_company):
     from scout import ksef_sync
     from test_ksef import FakeKsef

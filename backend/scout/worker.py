@@ -23,7 +23,7 @@ from scout import dm_replies, guardrails
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
-from scout.jobs import MAX_ATTEMPTS, JobQueue
+from scout.jobs import MAX_ATTEMPTS, JobQueue, lease_seconds
 from scout.loops import chat, cost_control, invoicing, liquidity
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
@@ -32,6 +32,7 @@ from scout.watchers import BankWatcher, MailWatcher, Scheduler
 
 log = logging.getLogger("scout.worker")
 IDLE_SLEEP = 0.5
+HEARTBEAT_SECONDS: float | None = None  # a running job renews its lease this often (default: a fifth of the lease)
 
 
 def _approval(ctx: JobContext, job: Job) -> Any:
@@ -48,6 +49,15 @@ def _ksef_connect(ctx: JobContext, job: Job) -> Any:
 
     return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url, ctx=ctx)
 
+
+def _ksef_abandon(ctx: JobContext, job: Job) -> None:
+    from scout import ksef_sync
+
+    ksef_sync.abandon(ctx.conn_factory, "the worker stopped in the middle of the sync", job.payload.get("run_id"))
+
+
+# What else a finally failed job leaves behind, besides its task (`Worker._give_up`).
+ON_GIVE_UP: dict[str, Callable[[JobContext, Job], Any]] = {"ksef_connect": _ksef_abandon}
 
 HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "ksef_connect": _ksef_connect,
@@ -129,6 +139,12 @@ class Worker:
         return self._run_one(worker_id)
 
     def _run_one(self, worker_id: str) -> bool:
+        """Jobs whose worker died on their last attempt are recorded as failed first."""
+        for dead in self.ctx.jobs.reap_expired():
+            log.error("job %s (%s): its worker stopped on the last attempt", dead.id, dead.kind)
+            if self._give_up(dead, TimeoutError("the worker stopped in the middle of the job")):
+                self.ctx.jobs.fail(dead.id, "lease expired on the last attempt: the worker stopped mid-job",
+                                   attempt=dead.attempts)
         job = self.ctx.jobs.claim(f"{self._id}:{worker_id}")
         if job is None:
             return False
@@ -137,25 +153,42 @@ class Worker:
             from scout.slack_runtime import installation_current
             generation = job.payload.get("_slack_generation")
             if (generation and generation != installation.generation) or not installation_current(installation, self.ctx.settings):
-                self.ctx.jobs.done(job.id)
+                self.ctx.jobs.done(job.id, attempt=job.attempts)
                 return True  # revoked/replaced installation: never execute an old Slack job
+        beat = threading.Event()
+        threading.Thread(target=self._heartbeat, args=(job, beat), name=f"scout-lease-{job.id}", daemon=True).start()
         try:
-            if job.attempts > MAX_ATTEMPTS:
-                raise RuntimeError("Retry limit reached after an interrupted worker")
             with span(f"scout.{job.kind}", inputs={"job": job.id, "kind": job.kind}):  # one trace per job
                 result = HANDLERS[job.kind](self.ctx, job)
         except Exception as e:
+            beat.set()
             log.exception("job %s (%s) failed", job.id, job.kind)
-            final = self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}")
-            if final:
-                self._give_up(job, e)
+            if job.attempts >= MAX_ATTEMPTS and not self._give_up(job, e):
+                return True  # not recorded: left `running`, the reaper records it when the lease ends
+            self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}", attempt=job.attempts)  # after the cleanup
             return True
+        beat.set()
         task_id = getattr(result, "id", None) if not isinstance(result, list) else None
-        self.ctx.jobs.done(job.id, task_id)
+        if not self.ctx.jobs.done(job.id, task_id, attempt=job.attempts):
+            log.warning("job %s (%s) finished after another worker took it over", job.id, job.kind)
         return True
 
-    def _give_up(self, job: Job, e: Exception) -> None:
+    def _heartbeat(self, job: Job, stop: threading.Event) -> None:
+        """Renew the claim's lease until the handler returns, or another worker took the job over."""
+        every = HEARTBEAT_SECONDS or lease_seconds(job.kind) / 5
+        while not stop.wait(every):
+            try:
+                if not self.ctx.jobs.renew(job.id, job.attempts):
+                    log.warning("job %s (%s): lease lost to another worker", job.id, job.kind)
+                    return
+            except Exception:
+                log.exception("could not renew the lease of job %s", job.id)
+
+    def _give_up(self, job: Job, e: Exception) -> bool:
+        """Record a finally failed job: end what it started, escalate its task. False when that did not work."""
         try:
+            if job.kind in ON_GIVE_UP:
+                ON_GIVE_UP[job.kind](self.ctx, job)
             task_id = _task_of(self.ctx, job)
             if task_id:
                 self.ctx.recorder.step(task_id, "error", f"Something went wrong: {type(e).__name__}. A person needs to "
@@ -164,8 +197,10 @@ class Worker:
             if job.payload.get("status_ref"):
                 self.ctx.notifier.update(job.payload["status_ref"], "Sorry, something went wrong on my side. "
                                                                     "I've flagged it for a person.", "NOTIFY")
+            return True
         except Exception:
             log.exception("could not record the failure of job %s", job.id)
+            return False
 
     def _loop(self, i: int, stop: threading.Event) -> None:
         while not stop.is_set():

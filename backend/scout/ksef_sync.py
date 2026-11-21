@@ -125,14 +125,31 @@ class Progress:
         self.save(**config)
 
 
-def start(conn: Any) -> bool:
-    """Mark a run as started; False when one is already running (the API answers 409)."""
+def start(conn: Any, *, commit: bool = True, run_id: str | None = None) -> bool:
+    """Mark a run as started; False when one is already running (the API answers 409). With `commit=False` the caller
+    commits the mark together with the job that runs it, so a crash in between strands no `running` mark.
+    `run_id` names the run (also in its job's payload): only a cleanup of that run may end it (`abandon`)."""
     ensure_row(conn)
     row = conn.execute(
         "UPDATE connections SET config = config || %s WHERE id = %s AND coalesce(config->>'phase', 'idle') <> 'running' "
-        "RETURNING id", (Jsonb({"phase": "running", "steps": []}), CONNECTION_ID)).fetchone()
-    conn.commit()
+        "RETURNING id", (Jsonb({"phase": "running", "steps": [], "run_id": run_id}), CONNECTION_ID)).fetchone()
+    if commit:
+        conn.commit()
     return row is not None
+
+
+def abandon(conn_factory: ConnFactory, reason: str, run_id: str | None = None) -> None:
+    """The worker running the sync stopped for good (it died on the last attempt): end THAT run in `error`, so the
+    dashboard shows why and the next click can start a new one. A run is identified by `run_id` (None: a run started
+    without one); a newer run, or one that already ended, is left alone."""
+    step = {"at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "text": f"Failed: {reason}", "ok": False}
+    with conn_factory() as conn:
+        conn.execute(
+            "UPDATE connections SET config = jsonb_set(config || '{\"phase\": \"error\"}', '{steps}', "
+            "coalesce(config->'steps', '[]'::jsonb) || %s), status = 'error', last_error = %s "
+            "WHERE id = %s AND config->>'phase' = 'running' AND config->>'run_id' IS NOT DISTINCT FROM %s",
+            (Jsonb([step]), reason[:500], CONNECTION_ID, run_id))
+        conn.commit()
 
 
 def _candidates(repo: Repository, already: set[str]) -> tuple[list[Any], list[Invoice]]:
@@ -193,12 +210,18 @@ def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip:
         repo.lock_invoice_number(number)
         existing = repo.get_invoice_by_number(number)
         txn = next((t for t in repo.list_transactions(undocumented_only=True) if t.invoice_number == number), None)
+        if txn is not None:  # lock the payment and read it again: a worker may have just filed another invoice for it
+            txn = repo.lock_transaction(txn.id)
+            if txn is not None and (txn.documented or txn.invoice_id):
+                txn = None
+        same_currency = txn is not None and doc["currency"].upper() == (txn.currency or "EUR").upper()
         if existing:
-            if existing.total != total or existing.supplier != (doc["supplier"] or existing.supplier):
+            if (existing.total != total or existing.currency.upper() != doc["currency"].upper()
+                    or existing.supplier != (doc["supplier"] or existing.supplier)):
                 return "review", Decimal(0)  # same number, different document: a person decides
             if existing.transaction_id:
                 return "on_file", Decimal(0)
-            if txn is not None and -txn.amount == total and trusted_seller(doc, txn.counterparty, sellers):
+            if same_currency and -txn.amount == total and trusted_seller(doc, txn.counterparty, sellers):
                 repo.conn.execute("UPDATE invoices SET transaction_id = %s WHERE id = %s", (txn.id, existing.id))
                 repo.conn.execute("UPDATE transactions SET documented = TRUE, invoice_id = %s WHERE id = %s",
                                   (existing.id, txn.id))
@@ -208,7 +231,7 @@ def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip:
         if repo.conn.execute("SELECT 1 FROM invoices WHERE id = %s", (row_id,)).fetchone():
             return "review", Decimal(0)
         trusted = txn is not None and trusted_seller(doc, txn.counterparty, sellers)
-        link = txn.id if trusted and -txn.amount == total else None
+        link = txn.id if trusted and same_currency and -txn.amount == total else None
         inv = Invoice(id=row_id, number=number, supplier=(doc["supplier"] or "?")[:200], issue_date=doc["issue_date"],
                       total=total, due_date=doc.get("due_date"), currency=doc["currency"][:3], transaction_id=link,
                       source="ksef", category=txn.category if link else None, team_id=txn.team_id if link else None,
@@ -246,7 +269,7 @@ def _screen(ctx: Any, doc: dict[str, Any], ksef_number: str) -> str:
     task = ctx.recorder.open(f"txn:{txn.id}", "invoicing", f"Invoice {doc['number']} for {txn.counterparty}",
                              amount=txn.amount, counterparty=txn.counterparty, transaction_id=txn.id)
     inv = InvoiceDoc(number=doc["number"], supplier=(doc["supplier"] or txn.counterparty or "?")[:200],
-                     issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
+                     issue_date=doc["issue_date"], total=doc["total"], currency=doc["currency"][:3], source=f"ksef:{ksef_number}",
                      lines=[{"description": (ln["description"] or "-")[:300], "quantity": ln["quantity"],
                              "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"][:200]])
     flagged = {"name": f"KSeF {ksef_number}", "rails": v.rails, "from": inv.supplier,

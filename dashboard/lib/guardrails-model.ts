@@ -21,3 +21,22 @@ export function guardrailsAudit(enabled: boolean, who: string) {
 export function guardrailsBanner(role: string | undefined, settings: GuardrailsSettings | null): boolean {
   return role === "owner" && settings?.enabled === false;
 }
+
+/** How often a visible page re-reads the switch, so an OFF set elsewhere (another owner, `guard-reset`) shows up. */
+export const GUARDRAILS_POLL_MS = 15000;
+type Events = { addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void };
+export type WatchEnv = { doc: Events & { visibilityState: string }; win: Events; setInterval(fn: () => void, ms: number): unknown; clearInterval(id: unknown): void };
+
+/** Calls `refresh` every GUARDRAILS_POLL_MS while the page is visible, on window focus and when the tab becomes visible
+ * again. Returns the function that stops it. */
+export function watchGuardrails(refresh: () => void, env: WatchEnv): () => void {
+  const tick = () => { if (env.doc.visibilityState === "visible") refresh(); };
+  const timer = env.setInterval(tick, GUARDRAILS_POLL_MS);
+  env.doc.addEventListener("visibilitychange", tick);
+  env.win.addEventListener("focus", tick);
+  return () => {
+    env.clearInterval(timer);
+    env.doc.removeEventListener("visibilitychange", tick);
+    env.win.removeEventListener("focus", tick);
+  };
+}

@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { guardrailsBanner, type GuardrailsSettings } from "@/lib/guardrails-model";
+import { guardrailsBanner, watchGuardrails, type GuardrailsSettings } from "@/lib/guardrails-model";
 import { fullTimestamp } from "@/lib/scout-model";
 import { tenantFetch } from "@/lib/tenant-browser";
 import { cn } from "@/lib/utils";
@@ -18,16 +18,24 @@ const listeners = new Set<() => void>();
 const update = (patch: Partial<State>) => { state = { ...state, ...patch }; listeners.forEach(listener => listener()); };
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 
+let loading = false;
+let writes = 0; // a read that started before a toggle must not overwrite the toggle's answer
 async function load() {
+  if (loading) return;
+  loading = true;
+  const seen = writes;
   try {
     const response = await tenantFetch("/api/guardrails");
     if (!response.ok) throw new Error();
-    update({ settings: await response.json() as GuardrailsSettings, error: "" });
+    const settings = await response.json() as GuardrailsSettings;
+    if (seen === writes) update({ settings, error: "" });
   } catch { update({ error: "The guardrails switch could not be loaded." }); }
+  finally { loading = false; }
 }
 
 /** True when the change was saved. */
 export async function setGuardrails(enabled: boolean): Promise<boolean> {
+  writes++;
   update({ busy: true, error: "" });
   try {
     const response = await tenantFetch("/api/guardrails", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
@@ -41,15 +49,15 @@ export async function setGuardrails(enabled: boolean): Promise<boolean> {
   } finally { update({ busy: false }); }
 }
 
-/** Owners only: loads once per page and again whenever the tab becomes visible (another owner may have toggled). */
+/** Owners only: loads once, then re-reads every 15 s while visible, on focus and when the tab comes back, so an OFF
+ * set in another session or a `guard-reset` shows up without a reload. One watcher per page. */
 function useGuardrails(owner: boolean): State {
   const snapshot = useSyncExternalStore(subscribe, () => state, () => INITIAL);
   useEffect(() => {
     if (!owner || started) return;
     started = true;
     void load();
-    const refresh = () => { if (document.visibilityState === "visible" && !state.busy) void load(); };
-    document.addEventListener("visibilitychange", refresh);
+    watchGuardrails(() => { if (!state.busy) void load(); }, { doc: document, win: window, setInterval: (fn, ms) => window.setInterval(fn, ms), clearInterval: id => window.clearInterval(id as number) });
   }, [owner]);
   return owner ? snapshot : INITIAL;
 }

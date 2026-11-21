@@ -24,10 +24,11 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 DEFAULT_ROLE = "Staff"
+JOIN_ACTION = "scout_join"
 INVITE = ("*Join {workspace} workspace on Scout*\n"
           "Hi! I'm Scout, the finance assistant for {workspace}. You don't have an account yet. "
-          "Set it up here (takes a minute): <{link}|Join {workspace} workspace>\n"
-          "Or just reply with your *first and last name* and I'll create it for you.")
+          "Click the button below to set it up (takes a minute), "
+          "or just reply with your *first and last name* and I'll create it for you.")
 ASK = ("Hi! I'm Scout, the finance assistant for your team. You don't have a Scout account yet. "
        "Reply with your *first and last name* (for example: Anna Kowalska) and I'll set it up for you.")
 ASK_AGAIN = ("I still need your *first and last name* to set up your Scout account. "
@@ -210,6 +211,17 @@ def new_invite_token(cf: Any, slack_id: str, slack_name: str | None = None) -> s
                      (slack_id, hashlib.sha256(token.encode()).hexdigest(), slack_name))
         conn.commit()
     return token
+
+
+def claim_connected(cf: Any, slack_id: str, employee_id: str) -> bool:
+    """Mark an already linked member (the installer) registered, so they are never invited."""
+    with cf() as conn:
+        _ensure(conn)
+        row = conn.execute("INSERT INTO slack_members (slack_user_id, status, employee_id, registered_at) "
+                           "VALUES (%s, 'registered', %s, now()) ON CONFLICT DO NOTHING RETURNING slack_user_id",
+                           (slack_id, employee_id)).fetchone()
+        conn.commit()
+    return row is not None
 
 
 def registered_ids(cf: Any) -> set[str]:

@@ -1,0 +1,24 @@
+# Config `bot-output`: the reply Scout is about to send. No LLM. Presidio finds contact data and card/IBAN numbers
+# (PERSON is deliberately not listed: Scout names colleagues and suppliers all the time), regex adds raw IBANs,
+# card numbers and links to hosts that are not on the allow-list.
+rails:
+  config:
+    sensitive_data_detection:
+      output:
+        score_threshold: 0.4
+        entities:
+          - IBAN_CODE
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+          - CREDIT_CARD
+    regex_detection:
+      output:
+        case_insensitive: true
+        patterns:
+          - "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]{4}){3,7}(?:\\s?[A-Z0-9]{1,4})?\\b"
+          - "\\b(?:\\d[ -]?){13,19}\\b"
+          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|example\\.com|localhost)\\b)[^\\s)]+"
+  output:
+    flows:
+      - detect sensitive data on output
+      - regex check output

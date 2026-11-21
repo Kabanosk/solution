@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -42,6 +43,7 @@ MAX_STRIKES = 3
 WINDOW_DAYS = 7
 TIMEOUT_S = 5.0
 WARMUP_TIMEOUT_S = 30.0
+WARMUP_MIN_INTERVAL_S = 60.0  # a check that fails open on a timeout starts a background warm-up, at most this often
 PROMPT_CHARS = 700  # per prompt, only when the full prompts could not be uploaded as a file to the compliance DM
 CHECK_CHARS = 8000  # one message to the service; longer texts are cut into overlapping chunks, all of them checked
 CHUNK_OVERLAP = 300  # so an instruction cut at a chunk boundary is still whole in one of them
@@ -100,6 +102,12 @@ def _rail_names(body: dict[str, Any]) -> tuple[str, ...]:
     return tuple(names)
 
 
+# Warm-up state per service URL, shared by every client in the process: the dashboard chat builds a client for each
+# request, so a per-client limit would let each timed-out request start its own warm-up against the same NeMo.
+_WARM_LOCK = threading.Lock()
+_WARM: dict[str, dict[str, Any]] = {}  # url -> {"warming": bool, "started": monotonic time of the last start}
+
+
 class HttpGuardrails:
     """The check service over HTTP. `url` empty = disabled."""
 
@@ -129,6 +137,8 @@ class HttpGuardrails:
             r.raise_for_status()
             data = r.json()
         except Exception as e:  # noqa: BLE001 - timeout, refused, 4xx/5xx, not JSON: all fail-open
+            if isinstance(e, httpx.TimeoutException):
+                self._warm_up_in_background()  # a NeMo restart the worker did not see: the configs load again
             return Verdict("unavailable", latency=time.monotonic() - started, detail=f"{type(e).__name__}: {e}"[:200])
         latency = time.monotonic() - started
         status = str(data.get("status") or "error")
@@ -138,11 +148,46 @@ class HttpGuardrails:
             return Verdict("success", (), latency)
         return Verdict("error", (), latency, detail=str(data.get("error") or data.get("detail") or status)[:200])
 
-
     def warm_up(self, timeout: float = WARMUP_TIMEOUT_S) -> Verdict:
-        """The first call after a NeMo restart takes 10-25 s (models load): the worker fires this once at start so
-        the first real message does not hit the short per-check timeout."""
-        return self.check(USER_INPUT, [{"role": "user", "content": "hello"}], timeout=timeout)
+        """The first call after a NeMo restart takes ~9 s server-side (Presidio imports torch, transformers and
+        spaCy for every config) plus route convergence, and each config builds its own rails on first use
+        (bot-output also loads spaCy, ~2 s). Warm all four with this client's model name (the server caches rails
+        per config_id + model) so no real check hits the short per-check timeout. Returns the verdict of the first."""
+        with _WARM_LOCK:
+            _WARM[self.url] = {"warming": True, "started": time.monotonic()}
+        return self._warm_all(timeout)
+
+    def _warm_all(self, timeout: float) -> Verdict:
+        try:
+            first = self.check(USER_INPUT, _messages(USER_INPUT, ["hello"]), timeout=timeout)
+            for config_id in (TOOL_RESULT, BOT_OUTPUT, BOT_OUTPUT_FINANCE):
+                self.check(config_id, _messages(config_id, ["hello"]), timeout=timeout)
+            return first
+        finally:
+            self._warm_done()
+
+    def _warm_done(self) -> None:
+        with _WARM_LOCK:
+            _WARM.setdefault(self.url, {"started": None})["warming"] = False
+
+    def _warm_up_in_background(self) -> bool:
+        """Rate-limited per service URL for the whole process: none while one runs, at most one per
+        WARMUP_MIN_INTERVAL_S. True when one was started. Never raises (the caller is a fail-open path)."""
+        with _WARM_LOCK:
+            now = time.monotonic()
+            state = _WARM.get(self.url)
+            if state and (state["warming"] or (state["started"] is not None
+                                               and now - state["started"] < WARMUP_MIN_INTERVAL_S)):
+                return False
+            _WARM[self.url] = {"warming": True, "started": now}
+        try:
+            threading.Thread(target=self._warm_all, args=(WARMUP_TIMEOUT_S,), name="guardrails-rewarm",
+                             daemon=True).start()
+        except Exception:  # noqa: BLE001 - e.g. no threads left: the check still fails open
+            log.exception("could not start the guardrails warm-up thread")
+            self._warm_done()
+            return False
+        return True
 
 
 def from_settings(settings: Any) -> HttpGuardrails:

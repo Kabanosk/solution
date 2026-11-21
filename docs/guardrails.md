@@ -181,8 +181,22 @@ strikes reported (`guardrail_escalation`). If the DM was not delivered (no Slack
 `guardrail_escalation_failed` is audited; the next block reports again.
 
 **Fail-open.** `GUARDRAILS_URL` unset: disabled, no calls. Service down, slow (5 s per check), HTTP error or `status: error`:
-the text passes, a warning is logged and an audit row `guardrail_unavailable` is written. The worker fires one warm-up call
-(30 s timeout) at start, because the first call after a NeMo restart takes 10-25 s.
+the text passes, a warning is logged and an audit row `guardrail_unavailable` is written.
+
+**Warm-up.** The first check after a NeMo restart takes 10-25 s, which is longer than the 5 s check timeout. Measured
+cause: about 9 s of Python imports on the first config load (Presidio pulls in torch, transformers and spaCy for every
+config, even `user-input`, and the load blocks the server's event loop), plus up to 10 s until the route sends traffic
+to the new pod. The Presidio/spaCy model load of `bot-output` is only ~2 s of it. Every config also builds its own
+rails on first use, and the server caches them per `config_id` + request `model`. So `HttpGuardrails.warm_up()` sends
+one check to each of the four configs with the app's model name (`scout`, 30 s timeout), once when the worker starts.
+A check that fails open on a **timeout** also starts a background warm-up (at most one per 60 s, none while one runs),
+so a NeMo restart the worker did not see is re-warmed; connection errors and HTTP errors do not trigger it. Use the same
+model name in manual checks (`check_prompts.py` does): a second name costs another ~630 MiB of bot-output rails.
+
+**Resources.** The NemoGuardrails CR has no resources field, so `limitrange.yaml` gives the namespace's containers that
+set none (the NeMo container, its CA init container, debug pods) a request of 100m / 1280Mi and a limit of 2 CPU / 2560Mi,
+and `nemoguardrails.yaml` caps the BLAS/OpenMP threads at 2 to match. Keep both or neither: the cap without a CPU limit
+made bot-output ~20 ms slower at 4 concurrent checks. The memory limit allows three model names before an OOMKill.
 
 **Audit.** Every blocking verdict (`guardrail_check`, decision `BLOCK`, policy = config id, reason = rails), every
 fail-open and every escalation shows up on the dashboard Audit page ("DENY / BLOCK only" filters them; BLOCK is a red badge). The checked content is
@@ -217,6 +231,7 @@ oc apply -k deploy/ && oc rollout restart deploy/api deploy/scout-worker
 ```
 
 After a code change rebuild the image (`oc start-build cfo-backend`), then restart both deployments. The schema
-(`guardrail_strikes`, `guardrail_alerts`) is applied by the worker at start. The poisoned invoice demo needs its mail planted:
+(`guardrail_strikes`, `guardrail_alerts`, `flagged_documents`, the BLOCK decision) is no longer applied at worker start: run
+`python -m cfo.db.migrate --migrate` (see `docs/scout-auth.md`) once per release. The poisoned invoice demo needs its mail planted:
 re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666.eml`) and play it with
 `python -m scout.demo play poisoned` or the dashboard demo panel ("Poisoned invoice").

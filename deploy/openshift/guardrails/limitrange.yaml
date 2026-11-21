@@ -1,0 +1,17 @@
+# The TrustyAI operator (RHOAI 3.5.3) sets no resources on the nemo-guardrails container and the NemoGuardrails CR
+# has no field for them. These defaults apply to every container in the project that sets none of its own
+# (today: nemo-guardrails, its ca-bundle-initializer, ad-hoc debug pods). Measured: 1.1 GiB with one request
+# "model" name, +~630 MiB per extra name (bot-output loads its own spaCy copy), <0.3 core at 4 concurrent checks.
+# It takes effect at the next guardrails pod creation.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-defaults
+  labels:
+    app.kubernetes.io/part-of: cfo
+    app.kubernetes.io/component: guardrails
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 1280Mi}
+      default: {cpu: "2", memory: 2560Mi}

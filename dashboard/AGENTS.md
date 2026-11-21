@@ -2,9 +2,12 @@
 
 ## Styling conventions
 
-- Use icons and bright colors sparingly.
+- Use icons sparingly.
 - Build the website in React and Next.js using existing `shadcn/ui` components from https://ui.shadcn.com/. Compose the interface from these components and their theme tokens; avoid ad-hoc component styling.
-- Restrict the color palette to dark tones, green, red, and orange.
+- Colours come only from the tokens in `app/globals.css`, never raw hex or Tailwind colour classes (`emerald-500`,
+  `amber-600`, …) in components. The look is calm and Linear-like: neutral surfaces and numbers, one teal accent
+  (`--primary`, `--chart-balance`), data in the teal ramp and greys (`--chart-2`…`--chart-5`), amber
+  (`--warning`, `--warning-mark`) and red (`--danger`) only for status.
 - Use unique HTML id tag for each element on the site.
 
 <!-- BEGIN:nextjs-agent-rules -->

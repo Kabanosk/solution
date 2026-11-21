@@ -20,9 +20,9 @@ export type LoopStatus = { signal: LoopSignal; attention: number; results: numbe
 export type NavCounts = { inbox: number; openTasks: number; loops: Record<string, number>; signals: Record<string, LoopStatus> };
 
 const DOT: Record<Exclude<LoopSignal, null>, string> = {
-  attention: "bg-amber-500",
-  result: "bg-emerald-500",
-  running: "bg-sky-500 motion-safe:animate-pulse",
+  attention: "bg-warning-mark",
+  result: "bg-primary",
+  running: "bg-muted-foreground motion-safe:animate-pulse",
 };
 
 function LoopDot({ status }: { status?: LoopStatus }) {

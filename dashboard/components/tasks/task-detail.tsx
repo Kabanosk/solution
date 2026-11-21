@@ -80,7 +80,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
                   {index < steps.length - 1 && <span aria-hidden="true" className="absolute top-7 bottom-[-6px] left-[11px] w-px bg-border" />}
                   <span className={cn("relative flex size-6 shrink-0 items-center justify-center rounded-full border bg-background",
                     step.kind === "resolved" && "border-success-border text-success", step.kind === "escalated" && "border-danger-border text-danger")}>
-                    {latest && running ? <Loader2 className="size-3.5 animate-spin text-amber-600" aria-label="Running" /> : <Icon className="size-3.5" aria-hidden="true" />}
+                    {latest && running ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Running" /> : <Icon className="size-3.5" aria-hidden="true" />}
                   </span>
                   <span className="min-w-0 flex-1 pt-0.5">{step.text}
                     {step.resultCount !== null && <Badge variant="secondary" className="ml-2 h-5 px-1.5 align-middle font-mono text-[10px] font-normal">{step.resultCount} {step.resultCount === 1 ? "result" : "results"}</Badge>}

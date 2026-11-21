@@ -22,7 +22,7 @@ const statusOf = (connection: Connection | undefined) => !connection ? "not conf
 
 function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={status === "connected" ? "border-success-border font-normal text-success" : status === "error" ? "border-danger-border font-normal text-danger" : "font-normal text-muted-foreground"}>
-    <span className={`mr-1 inline-block size-1.5 rounded-full ${status === "connected" ? "bg-emerald-500" : status === "error" ? "bg-red-500" : "bg-muted-foreground/50"}`} aria-hidden="true" />{status}</Badge>;
+    <span className={`mr-1 inline-block size-1.5 rounded-full ${status === "connected" ? "bg-primary" : status === "error" ? "bg-danger" : "bg-muted-foreground/50"}`} aria-hidden="true" />{status}</Badge>;
 }
 
 const POLL_MS = 1500;

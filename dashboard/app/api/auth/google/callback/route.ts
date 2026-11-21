@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { appOrigin, authStore, cookieOptions, currentSession, OAUTH_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import { validateIdentity } from "@/lib/auth-crypto";
+import { googleSignInRedirect } from "@/lib/onboarding-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     if (old) await authStore().logout(old);
     jar.set(SESSION_COOKIE, result.token, cookieOptions());
     // Access/refresh tokens are deliberately not saved: sign-in is not a Gmail connection.
-    return new Response(null, { status: 303, headers: { Location: `${origin}/${slug}${flow.linkUserId ? "?auth=linked" : ""}`, "Cache-Control": "private, no-store" } });
+    return new Response(null, { status: 303, headers: { Location: googleSignInRedirect(origin, slug, { registered: Boolean(flow.registration), linked: Boolean(flow.linkUserId) }), "Cache-Control": "private, no-store" } });
   } catch {
     return new Response(null, { status: 303, headers: { Location: registering ? `${origin}/?create=1&auth=signup-failed` : `${origin}/${slug ? `${slug}?` : "?"}auth=failed`, "Cache-Control": "private, no-store" } });
   }

@@ -53,6 +53,33 @@ CREATE TABLE IF NOT EXISTS scout_auth.rate_limits (
     attempts integer NOT NULL,
     reset_at timestamptz NOT NULL
 );
+-- Workspace setup (onboarding). One optional row per organization: decisions and last results only. Actual connector
+-- status is always derived from the tenant-local `connections` rows. Signup inserts just (organization_id); existing
+-- organizations get no row and are never silently marked pending.
+CREATE TABLE IF NOT EXISTS scout_auth.workspace_setup (
+    organization_id uuid PRIMARY KEY REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
+    revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'dismissed', 'completed')),
+    steps jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(steps) = 'object'),
+    network jsonb CHECK (network IS NULL OR jsonb_typeof(network) = 'object'),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Provider OAuth (mailbox, Slack) in flight. Only hashes are stored; a row is single-use and short-lived and is bound
+-- to the initiating organization, owner session, browser proof, provider and exact redirect.
+CREATE TABLE IF NOT EXISTS scout_auth.setup_oauth_states (
+    state_hash text PRIMARY KEY,
+    organization_id uuid NOT NULL REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
+    session_hash text NOT NULL,
+    browser_hash text NOT NULL,
+    provider text NOT NULL CHECK (provider IN ('google', 'slack')),
+    redirect_uri text NOT NULL,
+    label text,
+    verifier_ciphertext bytea,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS setup_oauth_states_org_idx ON scout_auth.setup_oauth_states(organization_id, provider);
 -- Register unmodified existing data, but deliberately enroll nobody. Operator enrollment is required.
 INSERT INTO scout_auth.organizations(id,slug,name,schema_name,legacy)
 VALUES ('00000000-0000-4000-8000-000000000001','pizzeria-amalfi','Pizzeria Amalfi','public',true)

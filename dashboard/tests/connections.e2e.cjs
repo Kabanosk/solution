@@ -25,7 +25,12 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       assert.equal(await page.locator('[data-connection-row]').count(), 6, 'Integrations form a consistent six-row list');
       assert.equal(await page.locator('#scout-connections [data-slot="card"]').count(), 0, 'Connections are not a mismatched card grid');
       await page.getByText('5 of 6 connected', { exact: true }).waitFor();
-      assert.equal(await page.locator('#scout-connect-google').isDisabled(), true);
+      assert.equal(await page.locator('#scout-connect-google').isEnabled(), true, 'Owners can connect a missing mailbox from Connections');
+      await page.locator('#scout-connect-google').click();
+      await page.locator('#scout-onboarding').waitFor();
+      await page.getByRole('button', { name: 'Continue with Google', exact: true }).waitFor();
+      await page.goto(base + '/#connections');
+      await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor();
       assert.equal(await page.locator('#ksef-invoices').count(), 0, 'Detailed sync output is hidden until requested');
       for (const row of await page.locator('[data-connection-row]').all()) {
         assert.equal(await row.locator('[data-connection-icon] svg').evaluate(e => getComputedStyle(e).width), '16px');
@@ -46,7 +51,7 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       await page.getByRole('button', { name: 'Hide Email details', exact: true }).click();
       await page.mouse.move(0, 0);
       await page.screenshot({ path: path.join(output, `connections-${theme}.png`), fullPage: true });
-      assert.equal(await page.locator('#ksef-connect').isDisabled(), true, 'Closed connection mutations are not offered as working actions');
+      assert.equal(await page.locator('#ksef-connect').isEnabled(), true, 'Owners can revisit KSeF setup without reopening old global mutations');
       for (const viewport of [{ width: 320, height: 640 }, { width: 375, height: 812 }, { width: 812, height: 375 }]) {
         await page.setViewportSize(viewport);
         await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, undefined, { timeout: 5000 });
@@ -85,5 +90,25 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       console.log(`PASS ${theme}: integration list, keyboard details, scopes, Google setup/callback, disabled connection mutations, responsive layouts, default chat and explicit Overview`);
       await page.close();
     }
+    // Existing workspaces with no setup record and no integration rows must still be able to connect later.
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.SCOUT_AUTH_TEST_DATABASE_URL });
+    try {
+      const org = (await pool.query('SELECT id, schema_name FROM scout_auth.organizations WHERE slug=$1', [fixture.slug])).rows[0];
+      assert.match(org.schema_name, /^tenant_[a-f0-9]{32}$/);
+      await pool.query(`DELETE FROM "${org.schema_name}".connections`);
+      await pool.query('DELETE FROM scout_auth.workspace_setup WHERE organization_id=$1', [org.id]);
+    } finally { await pool.end(); }
+    const emptyPage = await fixture.newPage({ viewport: { width: 375, height: 812 } });
+    for (const id of ['scout-connect-bank', 'scout-connect-invoicing', 'ksef-connect', 'scout-connect-google', 'scout-connect-slack', 'scout-connect-laptops']) {
+      await emptyPage.goto(base + '/#connections');
+      await emptyPage.getByRole('heading', { name: 'Connections', exact: true }).waitFor();
+      assert.equal(await emptyPage.locator(`#${id}`).isEnabled(), true, `${id}: missing integrations can be added`);
+      await emptyPage.locator(`#${id}`).click();
+      await emptyPage.locator('#scout-onboarding').waitFor();
+      assert.match(emptyPage.url(), /#setup$/);
+    }
+    await emptyPage.close();
+    console.log('PASS existing empty workspace: all Connections setup actions work without a prior onboarding record');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

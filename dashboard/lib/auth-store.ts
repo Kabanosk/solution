@@ -60,6 +60,8 @@ export class AuthStore {
       if (!existing) await client.query("INSERT INTO scout_auth.users(id,email,name,password_hash,google_subject) VALUES($1,$2,$3,$4,$5)", [userId, email, owner, hash, proof.kind === "google" ? proof.subject : null]);
       await client.query("INSERT INTO scout_auth.organizations(id,slug,name,schema_name,legacy) VALUES($1,$2,$3,$4,false)", [orgId, input.slug, name, schema]);
       await client.query("SELECT scout_auth.provision_organization($1::uuid)", [orgId]);
+      // Only new workspaces start onboarding; column defaults (pending, revision 0) come from the schema.
+      await client.query("INSERT INTO scout_auth.workspace_setup(organization_id) VALUES($1)", [orgId]);
       // schema is derived only from a server-generated UUID, never from a requested slug.
       await client.query(`INSERT INTO "${schema}".employees(id,name,role) VALUES($1,$2,'CEO')`, [userId, owner]);
       await client.query("INSERT INTO scout_auth.memberships(organization_id,user_id,role,employee_id) VALUES($1,$2,'owner',$3)", [orgId, userId, userId]);

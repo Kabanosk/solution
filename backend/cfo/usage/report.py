@@ -290,7 +290,7 @@ def build_live(conn: Any, now: datetime, settings: UsageSettings) -> dict[str, A
     return {
         "stub": False,
         "model": cur["model"],
-        "sampled_at": cur["ts"],
+        "sampled_at": cur["ts"].astimezone(timezone.utc),
         "age_seconds": round(age, 1),
         "stale": age > settings.vllm_metrics_stale_seconds,
         "requests_running": None if cur["requests_running"] is None else int(cur["requests_running"]),

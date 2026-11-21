@@ -14,6 +14,7 @@ import base64
 import csv
 import io
 import json
+import logging
 import re
 from datetime import timedelta
 from decimal import Decimal
@@ -22,10 +23,14 @@ from typing import Any
 from cfo.data.invoices import invoice_pdf
 from cfo.domain import Invoice, InvoiceLine
 from cfo.llm import ToolSpec
+from scout import dm_replies
 from scout.audit import check as access_check
 from scout.documents import document_text
+from scout.dashboard_help import TOPICS, dashboard_help
 from scout.loops.context import JobContext, eur, invoice_number_in
 from scout.models import Task
+
+log = logging.getLogger(__name__)
 
 MAX_ROWS = 10
 MAX_PDFS = 10  # files per Slack message
@@ -40,6 +45,8 @@ I = {"type": "integer"}
 B = {"type": "boolean"}
 
 SPECS: list[ToolSpec] = [
+    ToolSpec(name="dashboard_help", description="How to use the Scout dashboard, its pages, navigation and controls. Fetch one topic when the user asks for UI help; default: getting_started.",
+             parameters=_p(topic={"type": "string", "enum": list(TOPICS)})),
     ToolSpec(name="missing_invoices", description="Outgoing payments that still have no invoice, and what Scout is "
              "doing about each (task, status, who was asked). Use this for any question about missing invoices.",
              parameters=_p(days=I)),
@@ -174,6 +181,9 @@ class Toolbox:
             return {"error": "bad_arguments", "detail": str(e)[:200]}
 
     # -- tools ---------------------------------------------------------------------------------------------
+    def t_dashboard_help(self, topic: str = "getting_started", **_: Any) -> dict[str, Any]:
+        return dashboard_help(topic)
+
     def t_search_payments(self, counterparty: str = "", amount_eur: Any = None, days: int = 90,
                           undocumented_only: bool = False, **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("bank", "transactions")
@@ -433,10 +443,19 @@ class Toolbox:
         if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
             return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
         body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
-        self.ctx.notifier.dm(who, body, "NOTIFY", task_id=self.task.id)
+        try:
+            ref = self.ctx.notifier.dm(who, body, dm_replies.LEVEL, task_id=self.task.id)
+        except Exception:  # noqa: BLE001 - Slack said no: nothing was sent, so say so
+            log.exception("send_dm failed")
+            ref = None
+        if not ref:
+            return {"error": "not_sent", "person": self.ctx.hr.full_name(who),
+                    "hint": "Slack did not deliver it. Tell the user nothing was sent."}
+        dm_replies.register(self.ctx, self.task, self.requester, who, ref, text)
         self.ctx.audit.record("agent", "send_dm", f"slack:{who}", text[:200], task_id=self.task.id,
                               requester=self.requester, role=self.role)
-        return {"sent": True, "to": self.ctx.hr.full_name(who)}
+        return {"sent": True, "to": self.ctx.hr.full_name(who), "awaiting_reply": True,
+                "note": "Their reply in that Slack thread will be passed on to the asker automatically."}
 
     def t_close_tasks(self, task_ids: str = "", reason: str = "", **_: Any) -> dict[str, Any]:
         reason = (reason or "").strip()

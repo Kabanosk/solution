@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 18
+    assert len(SPECS) == 19
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -161,7 +161,7 @@ def test_send_dm_messages_a_colleague_on_slack_with_attribution(conn_factory, tm
     ctx.hr.link_slack({"vincenzo": "U_VIN"}, {"vincenzo": "Wojciech Fiołka"})
     b = box(ctx, "grazyna")
     out = b.call("send_dm", {"person": "Wojtek", "text": "The Asimex invoice is filed."})
-    assert out == {"sent": True, "to": "Wojciech Fiołka"}
+    assert out["sent"] is True and out["to"] == "Wojciech Fiołka" and out["awaiting_reply"] is True
     msg = ctx.notifier.sent[-1]
     assert msg["to"] == "vincenzo" and msg["text"] == "Message from Grazyna via Scout: The Asimex invoice is filed."
     with conn_factory() as conn:

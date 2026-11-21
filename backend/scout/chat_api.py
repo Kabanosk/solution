@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 from cfo.api.auth import require_write_token
 from cfo.api.errors import ApiError
 from scout import db as scout_db
-from scout import dm_replies
+from scout import dm_replies, guardrails
 from scout.api import Conn, WriteAuth
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
@@ -61,6 +61,7 @@ class ChatRequest(BaseModel):
 
 def build_context(settings: ScoutSettings) -> JobContext:
     from cfo.llm import get_llm
+    from cfo.observability import traced_llm
 
     from scout.config import tenant_settings
     settings = tenant_settings(settings)
@@ -86,8 +87,9 @@ def build_context(settings: ScoutSettings) -> JobContext:
                            bot_token=settings.slack_bot_token, dashboard_url=settings.dashboard_url, icon_url=icon,
                            names=names)
     return JobContext(conn_factory=cf, recorder=recorder, audit=audit,
-                      connectors=registry.build(cf, settings, slack, audit), llm=get_llm(), notifier=notifier,
-                      jobs=jobs, settings=settings, hr=HR(cf, user_map, names))
+                      connectors=registry.build(cf, settings, slack, audit), llm=traced_llm(get_llm()), notifier=notifier,
+                      jobs=jobs, settings=settings, hr=HR(cf, user_map, names),
+                      guard=guardrails.from_settings(settings))
 
 
 _NAMES: dict[str, dict[str, str]] = {}
@@ -128,12 +130,18 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
         raise ApiError(503, "scout_unavailable", f"Scout could not start: {type(e).__name__}") from None
     asker = by or settings.ceo_id
     question = turns[-1]["content"]
+    role = ctx.hr.role(asker)
+    # the current turn is screened first and alone (the strike is decided on it), before anything is stored: the task
+    # API is readable by anyone, so a blocked prompt gets a neutral title and no preview
+    blocked = guardrails.screen_human(ctx, asker, question, role=role)
     preview = question if len(question) <= 60 else question[:57] + "…"
     key = f"web:{body.conversation_id}" if body.conversation_id else f"web:{secrets.token_hex(8)}"
-    task = ctx.recorder.open(key, "chat", f"Dashboard chat: “{preview}”", requested_by=asker, owner_id=asker)
+    task = ctx.recorder.open(key, "chat", "Dashboard chat: blocked message" if blocked else f"Dashboard chat: “{preview}”",
+                             requested_by=asker, owner_id=asker)
     if task.status != "in_progress":
         ctx.recorder.set_status(task.id, "in_progress")
-    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
+    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} sent a message that the safety policy blocked"
+                      if blocked else f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     files: list[dict[str, Any]] = []
@@ -159,16 +167,25 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                                   source="scout")
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
-            reply = chat.answer(ctx, task, question, asker, ctx.hr.role(asker), history=turns[:-1],
-                                on_compact=compacted)
-            ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
-            waiting_on = dm_replies.pending_count(ctx.conn_factory, task.id)
-            if waiting_on:  # a colleague still owes an answer to a message sent for this chat
-                ctx.recorder.set_status(task.id, "waiting", outcome=reply.split("\n")[0][:300])
-                awaiting.append(True)
+            reply = blocked
+            if reply is None:  # the current turn passed; the history the client resent is screened next
+                history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
+            if reply is not None:  # blocked by the safety policy: no model call at all
+                ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
+                                  source="guardrails")
+                ctx.recorder.set_status(task.id, "cancelled", outcome=reply[:300], resolved_via="auto",
+                                        level="NOTIFY")
             else:
-                ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
-                                        level="AUTO")
+                reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted)
+                reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
+                ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
+                waiting_on = dm_replies.pending_count(ctx.conn_factory, task.id)
+                if waiting_on:  # a colleague still owes an answer to a message sent for this chat
+                    ctx.recorder.set_status(task.id, "waiting", outcome=reply.split("\n")[0][:300])
+                    awaiting.append(True)
+                else:
+                    ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
+                                            level="AUTO")
             for f in files:  # sent before the answer that mentions them
                 events.put(f)
             events.put({"type": "delta", "text": reply})

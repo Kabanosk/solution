@@ -4,23 +4,32 @@
     "criteria": [
       {
         "id": "AC-1",
-        "kind": "manual",
-        "run": null,
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/test_deploy_manifests.py backend/tests/test_guardrails_config.py",
         "expect": null,
-        "text": "Guardrails configuration and deployment files are in the repo; applying them on the cluster gives a running guardrails service",
-        "timeout": 600
+        "text": null,
+        "timeout": 900
       },
       {
         "id": "AC-2",
         "kind": "manual",
         "run": null,
         "expect": null,
-        "text": "On the cluster: an unsafe request is blocked and a normal finance question passes (commands + output in reports/T051.md)",
+        "text": "On the cluster: `oc apply -k deploy/openshift/guardrails` gives NemoGuardrails PHASE Ready; the 20-prompt check script (output in reports/T051.md) shows: injection/jailbreak and 'salary of <named colleague>' prompts blocked by config `user-input` while normal finance questions pass; poisoned invoice text blocked by `tool-result`; IBAN/e-mail in a bot reply blocked by `bot-output`; activated_rails present in every response",
         "timeout": 600
       }
     ],
     "protected": {}
   },
-  "frozen_at": "2026-11-20T16:59:31+01:00",
-  "results": {}
+  "frozen_at": "2026-11-21T01:09:06+01:00",
+  "results": {
+    "AC-1": {
+      "id": "AC-1",
+      "passes": true,
+      "exit": 0,
+      "output_tail": "......................................................ssss.............. [ 77%]\n.....................                                                    [100%]\n89 passed, 4 skipped in 1.81s",
+      "ran_at": "2026-11-21T02:46:34+01:00",
+      "commit": "a226ac1798da7a31e662e14479ab5ab952e357e8"
+    }
+  }
 }

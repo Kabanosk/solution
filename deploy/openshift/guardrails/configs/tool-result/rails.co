@@ -1,0 +1,12 @@
+# Why a custom flow: the library flow `regex check input` reads $user_message, which is empty for `tool` role
+# messages (the /v1/guardrail/checks endpoint puts them into $tool_message and runs `rails.tool_input`).
+# This flow runs the same regex action over $tool_message with the patterns from `regex_detection.input`.
+define bot refuse tool result
+  "The tool result was blocked by the guardrails."
+
+define subflow check tool result
+  $result = execute detect_regex_pattern(source="input", text=$tool_message)
+
+  if $result["is_match"]
+    bot refuse tool result
+    stop

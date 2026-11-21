@@ -38,6 +38,9 @@ spec:
             - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
             - name: DATABASE_URL
               value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+            # Bearer token of the NeMo check service (Secret scout-guardrails-client, key token, made by T051); optional:
+            # without it Scout calls the service unauthenticated and, if that fails, fails open (D-029).
+            - {name: GUARDRAILS_TOKEN, valueFrom: {secretKeyRef: {name: scout-guardrails-client, key: token, optional: true}}}
             # The liquidity model is trained on the first request when the file is missing; /tmp is writable under any UID.
             - {name: FORECAST_MODEL_PATH, value: /tmp/liquidity_xgb.json}
           resources:

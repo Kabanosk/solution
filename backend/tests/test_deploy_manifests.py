@@ -162,3 +162,17 @@ def test_seed_job_deadline_covers_image_build(docs):
     # The Job starts together with the first image build (ImagePullBackOff until the ImageStream tag exists).
     job = _by_kind(docs, "Job")["cfo-seed"]
     assert job["spec"]["activeDeadlineSeconds"] >= 3600
+
+
+def test_scout_reaches_the_guardrails_service(docs):
+    """T052: GUARDRAILS_URL in the shared ConfigMap, the token from Secret scout-guardrails-client (key token), for
+    api (dashboard chat) and worker; the Secret is optional."""
+    config = _by_kind(docs, "ConfigMap")["cfo-config"]["data"]
+    assert config["GUARDRAILS_URL"] == "https://scout-guardrails.cfo-agent-uwur.svc.cluster.local"
+    deployments = _by_kind(docs, "Deployment")
+    for name, container in (("api", "api"), ("scout-worker", "worker")):
+        env = {e["name"]: e for e in _container(deployments[name], container)["env"]}
+        ref = env["GUARDRAILS_TOKEN"]["valueFrom"]["secretKeyRef"]
+        assert (ref["name"], ref["key"], ref.get("optional")) == ("scout-guardrails-client", "token", True)
+        assert {"name": "cfo-config"} == next(e["configMapRef"] for e in _container(deployments[name], container)["envFrom"]
+                                              if "configMapRef" in e)

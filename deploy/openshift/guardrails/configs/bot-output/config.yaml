@@ -1,0 +1,29 @@
+# Config `bot-output`: the reply Scout is about to send to someone WITHOUT finance access (everyone but the owner and
+# the office manager; the others use `bot-output-finance`). Scout masks IBAN, card, e-mail and phone in Python first. No LLM. Presidio finds contact data and card/IBAN numbers
+# (PERSON is deliberately not listed: Scout names colleagues and suppliers all the time), regex adds raw IBANs,
+# card numbers and links to hosts that are not on the allow-list.
+rails:
+  config:
+    sensitive_data_detection:
+      output:
+        score_threshold: 0.4
+        entities:
+          - IBAN_CODE
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+          - CREDIT_CARD
+    regex_detection:
+      output:
+        case_insensitive: true
+        patterns:
+          - "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]{4}){3,7}(?:\\s?[A-Z0-9]{1,4})?\\b"
+          - "\\b(?:\\d[ -]?){13,19}\\b"
+          # A URL is fine only if its host is an allowed domain or a subdomain of one, and the host ends right there
+          # (only an optional :port, then / ? # whitespace ) or end of text; any @ in the authority is blocked). "slack.com.evil.net" and "slack.com@evil.net" are blocked.
+          # Allowed: what Scout links to (Slack, KSeF incl. api-test and ksef-test, in-cluster services, localhost).
+          # The dashboard's own links are swapped for an in-cluster placeholder by Scout before the check.
+          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|localhost|127\\.0\\.0\\.1|slack\\.com|ksef\\.mf\\.gov\\.pl|ksef-test\\.mf\\.gov\\.pl)(?::\\d+)?(?:[/?#\\s)]|$))[^\\s)]+"
+  output:
+    flows:
+      - detect sensitive data on output
+      - regex check output

@@ -16,7 +16,7 @@ from typing import Any
 from cfo.db.repo import Repository
 from cfo.llm import Message
 from cfo.usage.recorder import usage_context
-from scout import dm_replies
+from scout import dm_replies, guardrails
 from scout.audit import check as access_check
 from scout.llm_tasks import route_dm
 from scout.loops import invoicing
@@ -227,7 +227,10 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
                 seen[key] = "1"
                 ctx.recorder.step(task.id, "looked_up", summarize(call.name, args, result),
                                   source="scout", detail={"tool": call.name, "args": args})
-            messages.append(Message(role="tool", tool_call_id=call.id, content=dumps(result)))
+            content = guardrails.screen_tool(ctx, task.id, call.name, dumps(result), requester=sender, result=result)
+            messages.append(Message(role="tool", tool_call_id=call.id, content=content))
+        if box.blocked_reply:  # a message Scout was about to send for the user was blocked: say so, nothing else
+            return box.blocked_reply
     messages.append(Message(role="user", content="Answer now in two to four sentences from the results above."))
     try:
         with usage_context(purpose="answer_question"):
@@ -245,7 +248,11 @@ def slack_markdown(text: str) -> str:
 
 
 def _finish(ctx: JobContext, task: Task, p: dict[str, Any], text: str, *, level: str = "AUTO",
-            status: str = "done") -> Task:
+            status: str = "done", screen: bool = True) -> Task:
+    if screen:  # bot-output rails; the fixed "blocked" replies are not screened again
+        who = p.get("from_id")
+        text = guardrails.screen_output(ctx, task.id, text, requester=who, source="DM reply",
+                                        role=ctx.hr.role(who) if who else None)
     text = slack_markdown(text)
     if p.get("status_ref"):
         ctx.notifier.update(p["status_ref"], text, level)
@@ -313,6 +320,17 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     sender = p.get("from_id")
     text = (p.get("text") or "").strip()
+    if text:  # safety check of what the person wrote, before routing and before any LLM call
+        role = ctx.hr.role(sender) if sender else "staff"
+        blocked = guardrails.screen_human(ctx, sender, text, role=role)
+        if blocked:
+            # the task API is readable by anyone: a blocked prompt gets a neutral title and no preview
+            task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: blocked message",
+                                     requested_by=sender or "unknown", owner_id=sender)
+            if p.get("status_ref"):
+                ctx.notifier.track(task.id, p["status_ref"])
+            ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it", source="guardrails")
+            return _finish(ctx, task, p, blocked, level="NOTIFY", status="cancelled", screen=False)
     answered = dm_replies.intercept(ctx, job)  # the recipient's reply to a message Scout sent: not a new question
     if answered is not None:
         return answered
@@ -387,9 +405,11 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
         return _request_files(ctx, task, p, route, role)
     if intent == "question":
         reply = answer(ctx, task, text, sender, role, history=history)
+        # bot-output rails first: what is stored in the step (and fed back as history later) is what was sent
+        reply = guardrails.screen_output(ctx, task.id, reply, requester=sender, source="DM reply", role=role)
         ctx.recorder.step(task.id, "answered", "Answered the question", source="scout",
                           detail={"reply": reply[:MSG_CHARS]})
-        return _finish(ctx, task, p, reply)
+        return _finish(ctx, task, p, reply, screen=False)
     ctx.recorder.step(task.id, "answered", "Sent the help text", source="scout")
     from cfo.tenancy import current_tenant
     tenant = current_tenant(required=False)

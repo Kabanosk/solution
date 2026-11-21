@@ -1,0 +1,24 @@
+# Identity the Scout pods use to call NeMo Guardrails. Its token goes into Secret scout-guardrails-client
+# (created by hand, never in git): see docs/guardrails.md.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scout-guardrails-client
+  labels:
+    app.kubernetes.io/part-of: cfo
+    app.kubernetes.io/component: guardrails
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scout-guardrails-client-view
+  labels:
+    app.kubernetes.io/part-of: cfo
+    app.kubernetes.io/component: guardrails
+subjects:
+  - kind: ServiceAccount
+    name: scout-guardrails-client
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view

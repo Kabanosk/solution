@@ -14,6 +14,7 @@ const SCENARIOS: [string, string, string][] = [
   ["nowhere", "Nowhere → ask on Slack", "No document anywhere: Scout asks the person who paid."],
   ["overspend_chat", "Overspend approved in chat", "A team goes over budget; the approval is in chat."],
   ["ksef", "Invoice only in KSeF", "The invoice exists only in the Polish e-invoicing system."],
+  ["poisoned", "Poisoned invoice (guardrails)", "A supplier PDF carries an instruction for the AI: it goes to the owner's approval card."],
 ];
 
 /** Dev-only view (SCOUT_DEMO=1): posts scenario payments to the bank mock through the API. */

@@ -1,0 +1,28 @@
+# One service, four configs. The request field "guardrails": {"config_id": "<name>"} selects the config;
+# without it the entry with `default: true` runs. Configs are mounted at /app/config/<name>.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: scout-guardrails
+  labels:
+    app.kubernetes.io/part-of: cfo
+    app.kubernetes.io/component: guardrails
+  annotations:
+    # kube-rbac-proxy on the route: callers need "Authorization: Bearer <token>" of an identity with `view`
+    # in this project (ServiceAccount scout-guardrails-client, see rbac.yaml and docs/guardrails.md).
+    security.opendatahub.io/enable-auth: 'true'
+spec:
+  nemoConfigs:
+    - name: user-input
+      default: true
+      configMaps: [guard-user-input]
+    - name: tool-result
+      configMaps: [guard-tool-result]
+    - name: bot-output
+      configMaps: [guard-bot-output]
+    - name: bot-output-finance
+      configMaps: [guard-bot-output-finance]
+  env:
+    # The openai engine insists on this variable; vLLM behind it ignores the value. Not a secret.
+    - name: OPENAI_API_KEY
+      value: not-needed

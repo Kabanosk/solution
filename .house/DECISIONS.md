@@ -195,3 +195,43 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** bezpośrednie polecenie użytkownika i podany działający endpoint modelu; połączenie i kontekst zweryfikowano na rzeczywistym Granite.
 - **Kto:** człowiek (zakres i styl), codex (realizacja)
 - **Data:** 2026-11-20
+## D-028 — integracja z KSeF (środowisko testowe), jednym kliknięciem (2026-11-21)
+- Wojtek: „jesteśmy w Polsce”, więc e-faktury idą przez KSeF, nie przez niemiecki XRechnung/ZUGFeRD. Używamy prawdziwego
+  API KSeF 2.0 TE (`api-test.ksef.mf.gov.pl`). TE przyjmuje samopodpisane pieczęcie (XAdES), więc nie potrzeba
+  certyfikatów ani tokenów.
+- „Connect KSeF” na stronie Connections: losowy testowy NIP, logowanie XAdES, symulowani dostawcy wystawiają w TE faktury FA(3),
+  Scout pobiera faktury, gdzie jest nabywcą, paruje płatności i zapisuje nowe zobowiązania. W drabinie Scouta KSeF
+  stoi zaraz po systemie fakturowym. Scenariusz demo `ksef` (HMZ-20417). Kwoty w EUR, VAT w PLN po kursie 4,25.
+- PR #21 (`feat/ksef-integration`), opis: `docs/ksef.md`.
+
+## D-029 Guardrails: plan z grillowania z Wojtkiem, robią agenci (zastępuje D-021)
+- **Decyzja:** Wojtek oddał T050–T052 agentom (on robi review jednego dużego PR-a i merge). Cel: agent naprawdę bezpieczniejszy, nacisk na PII. Demo: zatruta faktura i pytanie o cudzą pensję.
+- **Architektura:** twarde kontrole w kodzie + NeMo Guardrails (CR TrustyAI, RHOAI 3.5) jako sidecar przez `/v1/guardrail/checks` (zalecenie Red Hat dla tool callingu). Trzy configi: `user-input` (self check na Granite + regex), `tool-result` (regex na wstrzyknięte polecenia), `bot-output` (Presidio IBAN/e-mail/telefon/karta + regex, bez PERSON). Self-check tylko na wiadomościach ludzi.
+- **Zachowanie:** blokada wiadomości człowieka → ostrzeżenie „attempt n of 3”; 3 blokady w 7 dni → DM do compliance (`COMPLIANCE_CONTACT` w Secret `slack`, Slack ID Piotrka; pusty → CEO) z trzema promptami, licznik od zera. Zablokowany wynik narzędzia → `[content withheld: flagged by guardrail]`, bez strike'a, audyt, DM do CEO przy źródle zewnętrznym. Oflagowana faktura → karta akceptacji CEO z plakietką „Suspicious content”. Zablokowana odpowiedź bota → prośba o przeformułowanie, bez strike'a. NeMo nie działa → przepuszczamy i logujemy (fail-open).
+- **Dostęp:** pensje widzi CEO (wszystkie), menedżer (podwładni wg `manager_id` w HR), każdy swoją; office manager cudze pensje tylko jako jedna suma „Payroll (N employees)”; reszta nic. `task_log`/`scout_tasks`: każdy swoje, CEO wszystkie.
+- **Widoczność:** logi, MLflow (podpiąć tracing w Scoucie), audyt w dashboardzie. Wszystko po angielsku.
+- **Poza zakresem:** Prometheus, OpenShell, GuardrailsOrchestrator, integracja z MCP gateway (tylko wzmianka w pitchu), modele-strażnicy na GPU, akceptacja dla `send_invoices`.
+- **Dlaczego:** grillowanie 2026-11-21, research `.house/reports/research-guardrails.md` (§8: dokumentacja Red Hat).
+- **Kto:** człowiek (decyzje), coordinator (zapis)
+- **Data:** 2026-11-21
+
+## D-030 Zmiana kryteriów T050
+
+- **Decyzja:** nowe kryteria akceptacji T050: AC-1 (run), AC-2 (run)
+- **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
+- **Kto:** coordinator
+- **Data:** 2026-11-21 01:09
+
+## D-031 Zmiana kryteriów T051
+
+- **Decyzja:** nowe kryteria akceptacji T051: AC-1 (run), AC-2 (manual)
+- **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
+- **Kto:** coordinator
+- **Data:** 2026-11-21 01:09
+
+## D-032 Zmiana kryteriów T052
+
+- **Decyzja:** nowe kryteria akceptacji T052: AC-1 (run), AC-2 (run), AC-3 (manual)
+- **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
+- **Kto:** coordinator
+- **Data:** 2026-11-21 01:09

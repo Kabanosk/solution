@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action     TEXT NOT NULL,
     target     TEXT NOT NULL,
     resource   TEXT NOT NULL,
-    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY')),
+    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY', 'MASK', 'BLOCK')),
     policy     TEXT,
     reason     TEXT
 );
@@ -148,6 +148,38 @@ CREATE INDEX IF NOT EXISTS bank_mock_transactions_booked_idx ON bank_mock_transa
 -- The real Slack person who plays an HR role (written by the worker from SLACK_USER_MAP; the dashboard shows it).
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS slack_name TEXT;
 
+-- Guardrails (T052). The prompts of blocked human messages, in full, for the compliance report. Never exposed by
+-- an API and never copied to audit_log. `reported_at` is set when the strikes went into a compliance alert.
+CREATE TABLE IF NOT EXISTS guardrail_strikes (
+    id           BIGSERIAL PRIMARY KEY,
+    person       TEXT NOT NULL,
+    ts           TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    prompt       TEXT NOT NULL,
+    rails        TEXT NOT NULL DEFAULT '',
+    reported_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS guardrail_strikes_person_idx ON guardrail_strikes (person, ts DESC);
+
+-- The original of a flagged document (T052), kept so an approved invoice has a retrievable attachment. Served only
+-- with the write token (`GET /v1/documents/{id}`).
+CREATE TABLE IF NOT EXISTS flagged_documents (
+    id          BIGSERIAL PRIMARY KEY,
+    task_id     TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    sha256      TEXT NOT NULL,
+    content     BYTEA NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Outside items (mail, file, chat message, KSeF number) the owner was already told about.
+CREATE TABLE IF NOT EXISTS guardrail_alerts (
+    item_key     TEXT PRIMARY KEY,
+    rails        TEXT NOT NULL DEFAULT '',
+    notified_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- BLOCK = a guardrail verdict (T052). MASK = salary rows folded into one payroll total for the office manager (T050); older databases allowed only ALLOW/DENY.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_decision_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_decision_check CHECK (decision IN ('ALLOW', 'DENY', 'MASK', 'BLOCK'));
 -- A work message Scout sent for someone (a dashboard chat or a Slack DM) and is waiting on. The Slack thread of the
 -- sent message is the key: a reply there from the recipient is the answer to it, never a new question for Scout.
 CREATE TABLE IF NOT EXISTS dm_requests (

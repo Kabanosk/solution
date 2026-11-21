@@ -457,6 +457,12 @@ def _sha(*parts: Any) -> str:
     return hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()[:16]
 
 
+def chat_item_key(channel: Any, sender: Any, text: str) -> str:
+    """The key of one Slack message in the form the `search_chat` tool shows it (`#channel`, sender name or id, text
+    cut at 300), so a message found by the tool and by the invoicing loop's chat-history rung alerts the owner once."""
+    return f"chat:{_sha(channel, sender, text[:300])}"
+
+
 def _outside_items(tool: str, result: dict[str, Any] | None) -> list[tuple[str, str, str]]:
     """(item key, what to call it, text to check) for each outside item of a tool result: a mail, a file, a chat
     message. The key names the item itself (not the answer it came in), so it is the same on every search."""
@@ -470,7 +476,7 @@ def _outside_items(tool: str, result: dict[str, Any] | None) -> list[tuple[str, 
                  f"mail “{str(m.get('subject'))[:80]}” from {m.get('from')}", json.dumps(m, default=str))
                 for m in r.get("mails") or []]
     if tool == "search_chat":
-        return [(f"chat:{_sha(m.get('channel'), m.get('from'), m.get('text'))}",
+        return [(chat_item_key(m.get("channel"), m.get("from"), str(m.get("text"))),
                  f"Slack message in {m.get('channel')} from {m.get('from')}", str(m.get("text") or ""))
                 for m in r.get("messages") or []]
     return []

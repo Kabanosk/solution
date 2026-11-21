@@ -349,6 +349,14 @@ def _rung_chat(ctx: JobContext, task: Task, number: str | None) -> bool:
         since=since, invoice_number=number, supplier=task.counterparty, amount=task.amount, task_id=task.id), [])
     facts = {"supplier": task.counterparty, "amount_eur": str(abs(task.amount)), "invoice": number}
     for h in hits:
+        # A channel message can be written by anyone (a Slack Connect guest too): screen it before the model reads it.
+        v = guardrails.screen_document(ctx, task.id, h.text, f"Slack message in #{h.channel}")
+        if v.blocked:
+            ctx.recorder.step(task.id, "note", f"A Slack message in #{h.channel} was withheld by the guardrails and "
+                                               "not read", source="guardrails")
+            guardrails.alert_outside(ctx, guardrails.chat_item_key(f"#{h.channel}", h.user_name or h.user, h.text),
+                                     f"Slack message in #{h.channel} from {h.user_name or h.user}", v.rails, task.id)
+            continue
         verdict = classify_chat(ctx.llm, h.text, facts)
         if verdict.label == "unrelated":
             continue

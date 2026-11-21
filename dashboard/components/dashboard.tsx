@@ -294,7 +294,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
   return (
     <>
       <a id="scout-skip-link" href="#main-content" onClick={event=>{event.preventDefault();mainRef.current?.focus();}} className="fixed top-3 left-3 z-50 -translate-y-24 rounded-md bg-primary px-4 py-3 text-sm text-primary-foreground focus:translate-y-0">Skip to content</a>
-      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} googleAvailable={data.workspace?.googleAvailable ?? false} organizationSlug={data.workspace?.slug ?? ""} organizationName={data.workspace?.name ?? "Organization"} user={{ name: data.workspace?.userName ?? ceoName, role: data.workspace?.role ?? "Member" }} demo={scout.demo} onNavigate={route => navigate(route)} onSearch={openSearch}
+      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} googleAvailable={data.workspace?.googleAvailable ?? false} organizationSlug={data.workspace?.slug ?? ""} organizations={data.workspace?.organizations ?? []} organizationName={data.workspace?.name ?? "Organization"} user={{ name: data.workspace?.userName ?? ceoName, role: data.workspace?.role ?? "Member" }} demo={scout.demo} onNavigate={route => navigate(route)} onSearch={openSearch}
         onNewTask={() => setNotice({ title: "New task", description: "Scout opens tasks from its loops. To ask for something new, DM Scout in Slack, e.g. “what if I buy an oven for 30k in March?” — it appears here under Tasks." })} />
 
       <SidebarInset id="scout-workspace" className="min-w-0 bg-background">

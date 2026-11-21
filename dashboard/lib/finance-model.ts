@@ -13,7 +13,7 @@ export type Forecast = {
 export type TeamSpend = { id: string | null; name: string; spent: number; budget: number | null };
 export type QuarterSpend = { label: string; start: string; through: string; teams: TeamSpend[] };
 export type DashboardData = {
-  workspace?: { slug: string; name: string; userId: string; userName: string; role: string; googleAvailable: boolean; authNotice?: string };
+  workspace?: { slug: string; name: string; userId: string; userName: string; role: string; googleAvailable: boolean; authNotice?: string; organizations?: { slug: string; name: string }[] };
   asOf: string;
   yearLabel: string;
   year: FinancePeriod;

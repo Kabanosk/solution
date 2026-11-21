@@ -32,8 +32,15 @@ function LoopDot({ status }: { status?: LoopStatus }) {
   return <span className={cn("size-1.5 shrink-0 rounded-full", DOT[status.signal])} role="img" data-loop-signal={status.signal} title={parts} aria-label={LOOP_SIGNAL_LABEL[status.signal]} />;
 }
 
-export function AppSidebar({ active, counts, user, organizationName, organizationSlug, googleAvailable, demo, onNavigate, onSearch, onNewTask }: {
-  active: string | null; counts: NavCounts; user: { name: string; role: string }; organizationName: string; organizationSlug: string; googleAvailable: boolean; demo: boolean;
+async function switchOrganization(slug: string) {
+  const result = await fetch("/api/auth/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) });
+  const body = await result.json().catch(() => ({}));
+  // Full navigation: no company data from the previous organization stays in memory.
+  window.location.assign(result.ok && body.redirect ? body.redirect : `/${slug}`);
+}
+
+export function AppSidebar({ active, counts, user, organizationName, organizationSlug, organizations = [], googleAvailable, demo, onNavigate, onSearch, onNewTask }: {
+  active: string | null; counts: NavCounts; user: { name: string; role: string }; organizationName: string; organizationSlug: string; organizations?: { slug: string; name: string }[]; googleAvailable: boolean; demo: boolean;
   onNavigate: (route: Route) => void; onSearch: () => void; onNewTask: () => void;
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -59,7 +66,10 @@ export function AppSidebar({ active, counts, user, organizationName, organizatio
           </DropdownMenuTrigger>
           <DropdownMenuContent id="scout-company-list" align="start" className="min-w-56">
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your finance agent</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value="current"><DropdownMenuRadioItem value="current" className="min-h-11 font-medium">{organizationName}</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+            <DropdownMenuRadioGroup value={organizationSlug} onValueChange={slug => { if (slug !== organizationSlug) void switchOrganization(slug); }}>
+              {(organizations.some(org => org.slug === organizationSlug) ? organizations : [{ slug: organizationSlug, name: organizationName }, ...organizations]).map(org =>
+                <DropdownMenuRadioItem key={org.slug} id={`scout-org-${org.slug}`} value={org.slug} className="min-h-11 font-medium">{org.name}</DropdownMenuRadioItem>)}
+            </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild className="min-h-11"><a id="scout-switch-org" href="/"><Building2 className="size-4" strokeWidth={1.5} aria-hidden="true" />Find another organization</a></DropdownMenuItem>
             <form id="scout-link-google-form" action={`/api/auth/google/start?organization=${encodeURIComponent(organizationSlug)}`} method="post"><DropdownMenuItem asChild disabled={!googleAvailable} onSelect={event => event.preventDefault()}><button id="scout-link-google" type="submit" disabled={!googleAvailable} className="min-h-11 w-full text-left"><KeyRound className="size-4" strokeWidth={1.5} aria-hidden="true" />{googleAvailable ? "Link Google sign-in" : "Google sign-in not configured"}</button></DropdownMenuItem></form>

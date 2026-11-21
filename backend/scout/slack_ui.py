@@ -1,6 +1,9 @@
 """Scout in Slack: DMs as "Scout" (own name and icon), a live "Working on it…" status, files and approval buttons.
 
 Inbound (Socket Mode, slack_bolt):
+* Slack is the source of truth for people (`scout.slack_directory`): a DM from a workspace member without an
+  account gets "what's your first and last name?", and the answer creates the account; `sweep` and `team_join` ask
+  everyone who has none; `slack_person` finds (and if needed registers) any member Scout is asked to message;
 * a DM from a known employee gets 👀, a threaded "[WORKING] Working on it…" reply, and becomes a `dm` job (files are
   downloaded with the bot token first); bots, edits, channels and strangers are ignored;
 * Approve / Reject clicks: only the approver may click (anyone else gets an ephemeral note and an audit DENY); the
@@ -22,6 +25,7 @@ from typing import Any
 
 import httpx
 
+from scout import slack_directory as directory
 from scout.audit import Audit
 from scout.jobs import JobQueue
 from scout.loops.context import Button
@@ -70,7 +74,8 @@ class SlackUI:
                  conn_factory: Any = None, audit: Audit | None = None, bot_token: str = "", dashboard_url: str = "",
                  icon_url: str | None = None, username: str = "Scout", download: Callable[[str], bytes] | None = None,
                  clock: Callable[[], float] = time.monotonic, names: Mapping[str, str] | None = None,
-                 generation: str | None = None, installation_valid: Callable[[], bool] | None = None):
+                 generation: str | None = None, installation_valid: Callable[[], bool] | None = None,
+                 workspace: tuple[str, str] | None = None):
         self.client = client
         self._slack = dict(user_map)  # employee id -> Slack user id
         self._emp = {v: k for k, v in self._slack.items()}
@@ -80,6 +85,7 @@ class SlackUI:
         self._jobs, self._recorder, self._cf, self._audit = jobs, recorder, conn_factory, audit
         self._token, self._dash = bot_token, dashboard_url.rstrip("/")
         self._generation = generation
+        self._workspace = workspace  # (organization slug, organization name): join links in invites
         self._installation_valid = installation_valid
         self._identity = {"username": username, **({"icon_url": icon_url} if icon_url else {})}
         self._download = download or self._http_download
@@ -91,6 +97,7 @@ class SlackUI:
         self._dm_channels: dict[str, str] = {}
         self._origin: dict[str, tuple[str, str]] = {}  # status ref -> the DM it answers (channel, ts)
         self._handling_mentions: set[str] = set()  # message + app_mention can deliver the same event concurrently
+        self._members: tuple[float, list[dict[str, Any]]] = (-1e9, [])  # (fetched at, workspace members)
         recorder.add_listener(self.on_step)
 
     # -- outbound -------------------------------------------------------------------------------------------
@@ -109,8 +116,135 @@ class SlackUI:
             blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": link}]})
         return blocks
 
+    # -- people (Slack is the source of truth) --------------------------------------------------------------
+    def _remember(self, employee_id: str, slack_id: str) -> None:
+        with self._lock:
+            self._slack[employee_id] = slack_id
+            self._emp[slack_id] = employee_id
+
+    def _employee(self, slack_id: str) -> str | None:
+        """The employee of a Slack user: the startup map, else an account created since (by any process)."""
+        if not slack_id:
+            return None
+        if slack_id in self._emp:
+            return self._emp[slack_id]
+        if self._cf is None:
+            return None
+        emp = directory.employee_of(self._cf, slack_id)
+        if emp:
+            self._remember(emp, slack_id)
+        return emp
+
+    def _slack_id(self, employee_id: str) -> str | None:
+        if employee_id in self._slack:
+            return self._slack[employee_id] or None
+        if SLACK_ID.match(employee_id):
+            return employee_id
+        if self._cf is None:
+            return None
+        with self._cf() as conn:
+            row = conn.execute("SELECT slack_user_id FROM employees WHERE id = %s", (employee_id,)).fetchone()
+        if row and row["slack_user_id"]:
+            self._remember(employee_id, row["slack_user_id"])
+            return row["slack_user_id"]
+        return None
+
+    def members(self, max_age: float = 60.0) -> list[dict[str, Any]]:
+        """The workspace's human members (cached for a minute)."""
+        at, cached = self._members
+        if self._clock() - at < max_age:
+            return cached
+        fresh = directory.members(self.client)
+        self._members = (self._clock(), fresh)
+        return fresh
+
+    def _ask_name(self, slack_id: str, *, again: bool = False) -> None:
+        channel = self.client.conversations_open(users=slack_id)["channel"]["id"]
+        text = directory.ASK_AGAIN if again else directory.ASK
+        if self._workspace and self._dash and self._cf is not None:  # a link to the join form
+            slug, name = self._workspace
+            member = next((m for m in self._members[1] if m.get("id") == slack_id), None)
+            token = directory.new_invite_token(self._cf, slack_id, directory.profile_name(member) if member else None)
+            text = directory.INVITE.format(workspace=name, link=f"{self._dash}/join/{slug}/{token}")
+        self.client.chat_postMessage(channel=channel, text=f"[NOTIFY] {text}",
+                                     blocks=self._blocks(text, "NOTIFY", None, ()), **self._identity)
+
+    def invite(self, slack_id: str) -> bool:
+        """Ask a member without an account for their name, once. True when the question was sent now."""
+        if self._cf is None or self._employee(slack_id) or not directory.claim_invite(self._cf, slack_id):
+            return False
+        try:
+            self._ask_name(slack_id)
+        except Exception:
+            log.warning("could not DM Slack member %s", slack_id, exc_info=True)
+            return False
+        return True
+
+    def sweep(self) -> int:
+        """Ask every workspace member without an account for their name (each only once). Returns how many."""
+        if self._cf is None:
+            return 0
+        known = directory.registered_ids(self._cf) | set(self._emp)
+        asked = 0
+        for m in self.members(max_age=0):
+            if m["id"] not in known and self.invite(m["id"]):
+                asked += 1
+        if asked:
+            log.info("asked %d Slack member(s) to set up their Scout account", asked)
+        return asked
+
+    def on_team_join(self, event: dict[str, Any]) -> None:
+        user = event.get("user") or {}
+        if isinstance(user, dict) and directory.is_human(user):
+            self._members = (-1e9, [])
+            self.invite(user["id"])
+
+    def slack_person(self, name: str, employee_id: str | None = None) -> str | None:
+        """The employee to message for `name`: the Slack member it names, registered on the spot if need be.
+        With `employee_id` (an HR record without a Slack id) the member found is linked to that record."""
+        if self._cf is None:
+            return None
+        try:
+            member = directory.match(self.members(), name)
+        except Exception:
+            log.warning("could not list Slack members", exc_info=True)
+            return None
+        if member is None:
+            return None
+        sid, real = member["id"], directory.profile_name(member)
+        existing = self._employee(sid)
+        if existing:
+            return existing
+        if employee_id and directory.link(self._cf, employee_id, sid, real):
+            emp = employee_id
+        else:
+            emp = directory.provision(self._cf, sid, real)
+        self._remember(emp, sid)
+        return emp
+
+    def _onboard(self, event: dict[str, Any]) -> None:
+        """A DM from a workspace member without an account: their name creates it, anything else asks for it."""
+        sid, channel = event.get("user", ""), event["channel"]
+        if self._cf is None or not sid:
+            log.info("ignoring a DM from an unknown Slack user")
+            return
+        state = directory.status(self._cf, sid)
+        name = directory.parse_name(event.get("text") or "") if state == "invited" else None
+        if name is None:
+            if state is None:
+                directory.claim_invite(self._cf, sid)
+            self._ask_name(sid, again=state == "invited")
+            return
+        emp = directory.provision(self._cf, sid, name)
+        self._remember(emp, sid)
+        text = directory.WELCOME.format(name=name.split()[0])
+        self.client.chat_postMessage(channel=channel, text=f"[NOTIFY] {text}",
+                                     blocks=self._blocks(text, "NOTIFY", None, ()), **self._identity)
+        if self._audit:
+            self._audit.record("agent", "register", f"slack:{sid}", f"account {emp} for {name}", requester=emp)
+
     def _channel_for(self, employee_id: str) -> str | None:
-        slack_id = self._slack.get(employee_id) or (employee_id if SLACK_ID.match(employee_id) else None)
+        slack_id = self._slack_id(employee_id)
         if not slack_id:
             return None
         if slack_id not in self._dm_channels:
@@ -213,13 +347,13 @@ class SlackUI:
         if event.get("channel_type") != "im":
             root = event.get("thread_ts")
             if (event.get("channel_type") in ("channel", "group") and root
-                    and event.get("user") in self._emp
+                    and self._employee(event.get("user", ""))
                     and self._is_scout_thread(f"{event['channel']}:{root}")):
                 self.on_mention(event)
             return
-        employee = self._emp.get(event.get("user", ""))
+        employee = self._employee(event.get("user", ""))
         if not employee:
-            log.info("ignoring a DM from an unknown Slack user")
+            self._onboard(event)
             return
         channel, ts = event["channel"], event["ts"]
         try:
@@ -262,9 +396,12 @@ class SlackUI:
 
     def on_mention(self, event: dict[str, Any]) -> None:
         """An explicit mention, or a continuation in a known Scout thread; always reply in that thread."""
-        employee = self._emp.get(event.get("user", ""))
-        if not employee or event.get("bot_id"):
-            log.info("ignoring a mention from an unknown Slack user")
+        if event.get("bot_id"):
+            return
+        employee = self._employee(event.get("user", ""))
+        if not employee:
+            log.info("a mention from a Slack user without an account: asking them to register in a DM")
+            self.invite(event.get("user", ""))
             return
         channel, ts = event["channel"], event["ts"]
         key = f"dm:{channel}:{ts}"
@@ -302,7 +439,7 @@ class SlackUI:
         action = (body.get("actions") or [{}])[0]
         apr_id, approved = action.get("value"), action.get("action_id") == APPROVE
         slack_user = (body.get("user") or {}).get("id", "")
-        by = self._emp.get(slack_user)
+        by = self._employee(slack_user)
         channel = (body.get("channel") or body.get("container") or {}).get("id") or \
             (body.get("container") or {}).get("channel_id")
         approver = None
@@ -334,5 +471,6 @@ class SlackUI:
     def register(self, app: Any) -> None:
         app.event("message")(self.on_message)
         app.event("app_mention")(self.on_mention)
+        app.event("team_join")(self.on_team_join)
         app.action(APPROVE)(self.on_action)
         app.action(REJECT)(self.on_action)

@@ -6,6 +6,7 @@ import { continuePublicConversation, type PublicConversation } from "./external-
 
 export type ForecastIntent = { horizon_days: number; amount_eur?: string; month?: string; direction: "in" | "out" };
 const MONTH = /^(?:20\d{2}-(?:0[1-9]|1[0-2])|January|February|March|April|May|June|July|August|September|October|November|December)$/;
+const HIRING_REQUEST = /hir(?:e|ing)|salary|salaries|payroll|recruit|job market|labou?r market|zatrudni|wynagrodz|pensj|ryne[kc] pracy|rynku pracy/i;
 
 /** This schema is the entire external capability surface; no arbitrary text crosses into Granite. */
 export function parseForecastIntent(value: unknown): ForecastIntent {
@@ -33,7 +34,7 @@ export function parseForecastIntent(value: unknown): ForecastIntent {
 
 const FORECAST_TOOL = { type: "function", function: {
   name: "request_forecast",
-  description: "Ask on-premise Granite to run a read-only cash forecast. Results are shown privately to the user and are never returned to you. No data access or changes. Omit amount and month for a baseline forecast.",
+  description: "Ask on-premise Granite to queue a read-only forecast job in Loops → Liquidity. The worker saves results in that task; results are never returned to you. Use only for a baseline or a single payment, never hiring, salaries or recurring payroll. Hiring requires search_job_market then request_hiring_scenario. Omit amount and month for a baseline forecast.",
   parameters: { type: "object", additionalProperties: false, properties: {
     horizon_days: { type: "integer", minimum: 1, maximum: 365, description: "Days to forecast, default 90." },
     amount_eur: { type: "string", description: "Optional positive scenario amount in EUR, decimal digits with at most two decimal places." },
@@ -108,6 +109,7 @@ export async function* externalChat(config: ExternalConfig, messages: ChatMessag
       research && query ? { query, result: research } : undefined)) };
   };
   let researchCalls = 0;
+  let correctedHiringForecast = false;
   for (let round = 0; round < 5; round++) {
     if (signal.aborted) return;
     let response: Response;
@@ -161,6 +163,21 @@ export async function* externalChat(config: ExternalConfig, messages: ChatMessag
         if (retained) yield retained;
         continue;
       }
+      // A model may choose the generic forecast tool after salary research (or
+      // after a short follow-up to it). Do not silently run a baseline or turn
+      // recurring payroll into one payment. Give it one chance to use the bound
+      // hiring handoff or ask for the missing assumptions instead.
+      const explicitSeparateForecast = /\b(?:baseline|purchase|buy|incoming payment|forecast(?: for)? \d+ days)\b/i.test(current.content)
+        && !HIRING_REQUEST.test(current.content);
+      if (call.function.name === "request_forecast" && (researchCalls > 0 || (query && !explicitSeparateForecast)
+          || HIRING_REQUEST.test(current.content))) {
+        if (correctedHiringForecast) throw new ExternalChatError("Hiring costs need a researched recurring-payroll scenario. Specify the headcount, monthly gross salary, start month and duration.");
+        if (typeof call.id !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(call.id)) throw new ExternalChatError("The provider returned an invalid forecast call.");
+        correctedHiringForecast = true;
+        publicMessages.push({ role: "assistant", content: null, tool_calls: [call] },
+          { role: "tool", tool_call_id: call.id, content: "No local action was performed. request_forecast cannot model hiring or recurring payroll. Use search_job_market if research is missing, then request_hiring_scenario to hand the analysis and recurring costs to Granite for a Liquidity job. If headcount, monthly gross EUR salary, start month or duration is missing, ask only for those assumptions. Do not substitute a baseline forecast." });
+        continue;
+      }
       let local: Response;
       if (call.function.name === "request_hiring_scenario") {
         let intent: HiringIntent;
@@ -176,7 +193,7 @@ export async function* externalChat(config: ExternalConfig, messages: ChatMessag
         catch { throw new ExternalChatError("The model returned invalid forecast parameters. Specify the horizon and, for a scenario, an amount and month."); }
         const retained = retainedContext(`Requested a private Granite forecast with these user-specified parameters: ${JSON.stringify(intent)}. Its financial results are private and unavailable to the external model.`);
         if (retained) yield retained;
-        yield { type: "step", text: "Handing the forecast request to on-premise Granite. Results stay private." };
+        yield { type: "step", text: "Handing the forecast request to on-premise Granite for a Liquidity job. Results stay private." };
         local = await dependencies.forecast(intent);
       }
       if (!local.ok || !local.body) { await local.body?.cancel(); throw new ExternalChatError("Granite could not start the forecast. Try again."); }

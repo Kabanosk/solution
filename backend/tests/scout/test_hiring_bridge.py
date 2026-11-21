@@ -76,7 +76,7 @@ def context():
     return SimpleNamespace(
         llm=FakeLLM(["I reviewed the public role, salary estimate, sources and recurring payroll assumptions.",
                      FakeLLM.tool_call("spawn_hiring_scenario", _raw='"{}"')]),
-        recorder=Recorder(), audit=MagicMock(), conn_factory=MagicMock(),
+        recorder=Recorder(), audit=MagicMock(), conn_factory=MagicMock(), jobs=MagicMock(),
         hr=SimpleNamespace(role=lambda _: "ceo"), guard=None,
         settings=ScoutSettings(database_url="postgresql://unused@localhost/x"),
         now=lambda: datetime(2026, 11, 21, tzinfo=UTC),
@@ -93,6 +93,19 @@ def review(monkeypatch):
     run = MagicMock(return_value=(base, scenario))
     monkeypatch.setattr(hiring_bridge, "_review", run)
     return run
+
+
+def run_queued(context):
+    from scout.worker import Worker
+
+    kind, payload, _ = context.jobs.enqueue.call_args.args
+    assert kind == "hiring_scenario"
+    context.jobs.claim.return_value = SimpleNamespace(id=1, kind=kind, payload=payload, task_id=None, attempts=1)
+    assert Worker(context, 1).run_one()
+    task = context.recorder.get(payload["task_id"])
+    context.jobs.done.assert_called_with(1, task.id)
+    report = next(step.detail["reply"] for step in context.recorder.steps(task.id) if step.kind == "hiring_result")
+    return task, report
 
 
 def test_typed_contract_rejects_unknown_fields_invalid_ranges_and_unbounded_payroll():
@@ -148,7 +161,14 @@ def test_granite_receives_public_evidence_then_spawns_bound_liquidity_task(conte
     intent = HiringIntent(**proposal())
     steps = []
     task, reply = hiring_bridge.run(context, intent, "vincenzo", "conv_123456", steps.append)
-    assert task.loop == "liquidity" and task.simulated and task.status == "done"
+    assert task.loop == "liquidity" and task.simulated and task.status == "todo"
+    assert "Queued hiring simulation" in reply and "Liquidity worker" in reply
+    assert "Predicted" not in reply
+    review.assert_not_called()
+    context.jobs.enqueue.assert_called_once_with("hiring_scenario", {
+        "task_id": task.id, "intent": intent.model_dump(mode="json")}, task.dedupe_key)
+    task, reply = run_queued(context)
+    assert task.status == "done"
     assert task.title == "What if we hired 3 people and paid them €4,000.00 each per month?"
     assert task.amount == Decimal("-14400.00") and task.requested_by == "vincenzo"
     assert "€43,200.00" in reply and "€-43,200.00" in reply
@@ -177,21 +197,28 @@ def test_report_escapes_untrusted_source_markdown(context, review):
     data = proposal()
     data["research"]["sources"] = [{"title": "Salary [report](https://other.example)",
                                      "url": "https://example.com/report_(2026)?q=a(b)"}]
-    _, reply = hiring_bridge.run(context, HiringIntent(**data), "vincenzo", "conv_123456", lambda _: None)
+    hiring_bridge.run(context, HiringIntent(**data), "vincenzo", "conv_123456", lambda _: None)
+    _, reply = run_queued(context)
     assert r"Salary \[report\]\(https://other\.example\)" in reply
     assert "https://example.com/report_%282026%29?q=a%28b%29" in reply
 
 
-def test_retry_returns_persisted_result_without_duplicate_action_or_model_call(context, review):
-    first_task, first_reply = hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
+@pytest.mark.parametrize("completed", [False, True])
+def test_retry_reopens_task_without_duplicate_action_or_model_call(context, review, completed):
+    first_task, _ = hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
+    if completed:
+        run_queued(context)
     repeated = proposal()
     repeated["research"]["researched_at"] = "2026-11-21T11:00:00Z"
     repeated.update(monthly_salary_eur="4000.00", employer_cost_percent="20.00",
                     salary_range_min_eur="3000", salary_range_max_eur="5500")
     task, reply = hiring_bridge.run(context, HiringIntent(**repeated), "vincenzo", "conv_123456", lambda _: None)
-    assert task.id == first_task.id and reply == first_reply
+    assert task.id == first_task.id and task.id in reply
     assert len(context.recorder.open_calls) == 1 and len(context.llm.calls) == 2
-    assert review.call_count == 1
+    assert review.call_count == int(completed)
+    if completed:
+        run_queued(context)
+        review.assert_called_once()
 
 
 @pytest.mark.parametrize("response", [FakeLLM.tool_call("read_file", path="invoices"),
@@ -221,6 +248,8 @@ def test_review_is_not_an_action_and_is_not_fed_to_dispatcher(context, review):
     hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
     dispatch = context.llm.calls[1]
     assert not any("invoices" in (message.content or "") for message in dispatch["messages"])
+    review.assert_not_called()
+    run_queued(context)
     review.assert_called_once()
 
 
@@ -232,14 +261,24 @@ def test_first_review_cannot_execute_actions_even_if_model_tries(context, review
     review.assert_not_called()
 
 
-def test_forecast_failure_keeps_visible_escalated_scenario_without_fabricated_result(context, review):
+def test_forecast_failure_is_retried_by_worker_then_escalated(context, review):
+    from scout.worker import Worker
+
     review.side_effect = RuntimeError("private db diagnostics")
-    with pytest.raises(HiringBridgeError) as error:
-        hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
-    assert "private" not in str(error.value)
+    hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
+    kind, payload, key = context.jobs.enqueue.call_args.args
+    context.jobs.fail.side_effect = [False, False, True]
+    context.recorder.update = context.recorder.set_status
+    worker = Worker(context, 1)
+    for attempt in range(1, 4):
+        context.jobs.claim.return_value = SimpleNamespace(id=1, kind=kind, payload=payload, dedupe_key=key,
+                                                        task_id=None, attempts=attempt)
+        assert worker.run_one()
     task = context.recorder.get("SC-123")
     assert task.status == "escalated" and task.loop == "liquidity"
     assert not any(step.kind == "hiring_result" for step in context.recorder.log)
+    assert review.call_count == 3
+    context.jobs.done.assert_not_called()
 
 
 def test_real_payroll_forecast_uses_one_tenant_model_no_files_no_mlflow(context, monkeypatch):
@@ -305,14 +344,24 @@ def test_real_postgres_persists_liquidity_task_and_blocks_forecast_writes(contex
     monkeypatch.setattr(liquidity, "review_liquidity", lambda *args, **kwargs: review)
     context.conn_factory = conn_factory
     context.recorder = TaskRecorder(conn_factory)
+    from scout.jobs import JobQueue
+    from scout.worker import Worker
+    context.jobs = JobQueue(conn_factory)
     task, answer = hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
+    assert task.status == "todo" and seen == []
+    worker = Worker(context, 1)
+    assert worker.run_one() and not worker.run_one()
+    task = context.recorder.get(task.id)
     assert task.loop == "liquidity" and task.status == "done" and task.simulated
     assert seen == ["on"] and "Loops → Liquidity" in answer
     with conn_factory() as conn:
         assert conn.execute("SELECT amount FROM transactions WHERE id='hiring-test'").fetchone()["amount"] == 100000
         assert conn.execute("SELECT count(*) AS n FROM approvals").fetchone()["n"] == 0
+        job = conn.execute("SELECT kind, status, task_id FROM agent_jobs").fetchone()
+        assert job == {"kind": "hiring_scenario", "status": "done", "task_id": task.id}
     cached, replay = hiring_bridge.run(context, HiringIntent(**proposal()), "vincenzo", "conv_123456", lambda _: None)
-    assert cached.id == task.id and replay == answer and len(context.llm.calls) == 2
+    assert cached.id == task.id and task.id in replay and len(context.llm.calls) == 2
+    assert not worker.run_one()
 
 
 @pytest.mark.skipif(not os.environ.get("SCOUT_TEST_DATABASE_URL"), reason="An isolated local PostgreSQL is required")
@@ -321,6 +370,8 @@ def test_concurrent_retries_create_one_liquidity_action(context, conn_factory, r
 
     context.conn_factory = conn_factory
     context.recorder = TaskRecorder(conn_factory)
+    from scout.jobs import JobQueue
+    context.jobs = JobQueue(conn_factory)
     barrier = Barrier(2)
 
     def start():
@@ -330,10 +381,11 @@ def test_concurrent_retries_create_one_liquidity_action(context, conn_factory, r
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(start) for _ in range(2)]
         first, second = [future.result(timeout=10) for future in futures]
-    assert first[0].id == second[0].id and first[1] == second[1]
-    assert len(context.llm.calls) == 2 and review.call_count == 1
+    assert first[0].id == second[0].id
+    assert len(context.llm.calls) == 2 and review.call_count == 0
     with conn_factory() as conn:
         assert conn.execute("SELECT count(*) AS n FROM agent_tasks").fetchone()["n"] == 1
+        assert conn.execute("SELECT count(*) AS n FROM agent_jobs").fetchone()["n"] == 1
 
 
 def _client(context):
@@ -349,8 +401,7 @@ def test_endpoint_auth_validation_and_streamed_liquidity_task(context, review):
     from cfo.tenancy import current_tenant
 
     tenants = []
-    result = review.return_value
-    review.side_effect = lambda *_: (tenants.append(current_tenant().slug) or result)
+    context.jobs.enqueue.side_effect = lambda *_: tenants.append(current_tenant().slug)
     client = _client(context)
     assert client.post("/v1/chat/hiring", json=proposal(), headers={"Authorization": ""}).status_code == 401
     assert client.post("/v1/chat/hiring", json=proposal(api_key="secret")).status_code == 422
@@ -361,6 +412,8 @@ def test_endpoint_auth_validation_and_streamed_liquidity_task(context, review):
         "type": "done", "truncated": False, "task_id": "SC-123"}
     assert tenants == ["pizzeria-amalfi"]
     assert context.recorder.get("SC-123").loop == "liquidity"
+    assert context.recorder.get("SC-123").status == "todo"
+    review.assert_not_called()
 
 
 def test_endpoint_denies_non_owner_before_research_or_company_read(context, review):
@@ -373,8 +426,9 @@ def test_endpoint_denies_non_owner_before_research_or_company_read(context, revi
 
 
 def test_endpoint_reports_failure_without_leaking_details(context, review):
-    review.side_effect = RuntimeError("private diagnostic with a credential")
+    context.jobs.enqueue.side_effect = RuntimeError("private diagnostic with a credential")
     response = _client(context).post("/v1/chat/hiring", json=proposal())
     events = [json.loads(line) for line in response.text.splitlines()]
     assert events[-1]["type"] == "error" and "private diagnostic" not in events[-1]["message"]
     assert not any(event["type"] == "done" for event in events)
+    review.assert_not_called()

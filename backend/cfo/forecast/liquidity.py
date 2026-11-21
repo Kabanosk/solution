@@ -73,6 +73,12 @@ FEATURE_PHRASES = {
     "recent_revenue_90d": "the revenue of the last three months",
     "recent_variable_cost_28d": "the food and drink costs of the last four weeks",
     "recent_variable_cost_90d": "the food and drink costs of the last three months",
+    # fixed costs of the `components` model are a schedule (T068): one named part per category
+    "scheduled_payroll": "payroll",
+    "scheduled_rent": "rent",
+    "scheduled_tax": "tax payments",
+    "scheduled_social_security": "social security",
+    "scheduled_utilities": "utilities",
 }
 
 

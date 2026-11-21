@@ -14,6 +14,12 @@
   the recent level: target = net flow minus `features.level_baseline`, added back when predicting. The level
   values at the end of the history are stored in the model (`level_values`, saved through `meta()`) and held
   constant for future dates; for level sets `shutdown_flag` also marks a closed stretch at the end of the history.
+  `components` (T068) splits the forecast in two: the fixed costs (payroll, rent, social security, utilities, tax) are
+  a schedule read off the bookings up to the origin (`schedule.infer`, stored in the model, refreshed by
+  `with_levels_from`) and the booster, which learns the deviation from the recent level like `level_baseline`, only sees
+  the variable flows (revenue, food, drinks) of open days. Prediction = schedule + variable part, zero variable part
+  on shutdown days; `explain` names the schedule parts (`scheduled_payroll`, ...). Partner tranches stay a separate
+  scheduled payment (`partner_tranche_schedule`).
 * The model is saved to `models/liquidity_xgb.json` (booster) + `.meta.json` (calendar inference, metrics);
   `models/` is git-ignored. Params, metrics and the booster go to MLflow only when `MLFLOW_TRACKING_URI` is set
   and `mlflow` is installed (optional extra `mlflow`). With `register=True` the run's model becomes a new version
@@ -50,6 +56,7 @@ from xgboost import XGBRegressor
 from cfo.config import REPO_ROOT
 from cfo.forecast import band as fband
 from cfo.forecast import features as feat
+from cfo.forecast import schedule as fsched
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +88,14 @@ DEFAULT_PARAMS: dict[str, Any] = {
 FEATURE_SET_PARAMS: dict[str, dict[str, Any]] = {
     "level": {"n_estimators": 400, "learning_rate": 0.1},
     "level_baseline": {"n_estimators": 400, "learning_rate": 0.1},
+    # T068: median-of-3-seeds configuration of `python -m cfo.forecast.tune --constrained --weekly --origin-every 2
+    # --seed {0,1,2} --feature-sets components --reference-set level_baseline --trials 100`: minimise balance_error_90d on
+    # 91 origins (every second day from 2 Jun to 1 Dec 2025, i.e. every weekday) subject to daily MAE <= level_baseline's.
+    # See .house/reports/T068.md: tuned on the 27 Monday folds alone the same search overfits the weekday (T068 report).
+    "components": {
+        "n_estimators": 326, "max_depth": 2, "learning_rate": 0.2768, "min_child_weight": 20, "subsample": 0.9904,
+        "colsample_bytree": 0.7761, "reg_lambda": 3.2495, "reg_alpha": 0.02, "gamma": 0.1091, "objective": "reg:squarederror",
+    },
 }
 
 
@@ -114,6 +129,8 @@ class ForecastModel:
     level_values: dict[str, float] = field(default_factory=dict)  # `features.LEVEL_COLUMNS` at `trained_until`
     baseline_mean: float = 0.0  # mean open-day baseline of the training days (reference for `contributions`)
     band_spec: dict[str, Any] | None = None  # measured 80 % band (`band.fit_band`); None = old sqrt formula (T063)
+    # Fixed costs as a schedule (`schedule.infer`, T068); only a `components` model has one, every other set ignores it.
+    schedule: dict[str, Any] | None = None
     # Where the model lives in MLflow (set by `log_to_mlflow_if_configured` / `load_from_mlflow`; not saved).
     mlflow_run_id: str | None = None
     model_version: str | None = None  # registered model version, None when not from the registry
@@ -139,7 +156,12 @@ class ForecastModel:
         fresh = feat.recent_levels(transactions, [origin]).iloc[0]
         if fresh.isna().any():
             return self
-        return dataclasses.replace(self, level_values={k: float(v) for k, v in fresh.items()})
+        changes: dict[str, Any] = {"level_values": {k: float(v) for k, v in fresh.items()}}
+        if self.schedule is not None:  # the fixed costs as the current bookings show them (a new rent, a new quarter)
+            spec = fsched.infer(transactions, categories=_schedule_categories(self.excluded_categories))
+            if spec["categories"]:
+                changes["schedule"] = spec
+        return dataclasses.replace(self, **changes)
 
     def features_for(self, dates: Iterable[Any]) -> pd.DataFrame:
         return self._frame(dates)[self.feature_columns]
@@ -148,8 +170,12 @@ class ForecastModel:
         """Predicted daily net cash flow (EUR, without scheduled payments), indexed by date."""
         x = self._frame(dates)
         raw = self.regressor.predict(x[self.feature_columns])
+        if feat.has_schedule(self.feature_set):  # trained on open days only: the variable part is zero on closed days
+            raw = raw * (1 - x["shutdown_flag"].to_numpy())
         if self.feature_set in feat.OFFSET_SETS:  # the booster learned the deviation from the recent level
             raw = raw + feat.applied_baseline(x).to_numpy()
+        if self.schedule is not None and feat.has_schedule(self.feature_set):  # + the fixed costs, exactly
+            raw = raw + fsched.total(self.schedule, x.index).to_numpy()
         return pd.Series(raw, index=x.index, name="predicted_net")
 
     def band(self, days_ahead: int) -> tuple[float, float]:
@@ -176,6 +202,8 @@ class ForecastModel:
         x = frame[self.feature_columns]
         raw = self.regressor.get_booster().predict(xgb.DMatrix(x), pred_contribs=True)
         out = pd.DataFrame(raw, index=x.index, columns=[*self.feature_columns, "bias"])
+        if feat.has_schedule(self.feature_set):  # the booster's output is switched off on closed days (see `predict`)
+            out["shutdown_flag"] -= out.sum(axis=1) * frame["shutdown_flag"]
         if self.feature_set in feat.OFFSET_SETS:
             # The forecast is booster + applied baseline. Split the baseline into: its training average (to
             # `bias`), how far the current level is from that average (`recent_level_baseline`) and the baseline
@@ -184,6 +212,10 @@ class ForecastModel:
             out["bias"] += self.baseline_mean
             out["shutdown_flag"] -= level * frame["shutdown_flag"]
             out.insert(len(self.feature_columns), feat.BASELINE_COLUMN, level - self.baseline_mean)
+        if self.schedule is not None and feat.has_schedule(self.feature_set):
+            # the fixed-cost schedule, one named part per category (`scheduled_payroll`, ...): rows still sum to `predict`
+            for category, values in fsched.amounts(self.schedule, x.index).items():
+                out[feat.SCHEDULE_PREFIX + str(category)] = values.to_numpy()
         return out
 
     def explain(self, start: Any, end: Any, *, top: int = 5) -> dict[str, Any]:
@@ -224,6 +256,7 @@ class ForecastModel:
             "feature_set": self.feature_set, "level_values": dict(self.level_values),
             "baseline_mean": self.baseline_mean,
             "band": self.band_spec,
+            "schedule": self.schedule,
         }
 
     @classmethod
@@ -240,6 +273,7 @@ class ForecastModel:
             level_values={k: float(v) for k, v in (meta.get("level_values") or {}).items()},
             baseline_mean=float(meta.get("baseline_mean") or 0.0),
             band_spec=dict(meta["band"]) if meta.get("band") else None,
+            schedule=json.loads(json.dumps(meta["schedule"])) if meta.get("schedule") else None,
             **extra,
         )
 
@@ -285,13 +319,20 @@ def _training_table(transactions: pd.DataFrame, excluded: Iterable[str],
                     feature_set: str = "calendar") -> pd.DataFrame:
     """History days with the target and the calendar columns, plus the level columns for a level feature set
     (lagged: a row only sees bookings before it; rows without a week of open days behind them are dropped). For a
-    level set `shutdown_flag` also marks a closed run at the end of the history (`features.closed_days`)."""
-    table = feat.daily_features(transactions, exclude_categories=tuple(excluded)).dropna(subset=["net_cash_flow"])
+    level set `shutdown_flag` also marks a closed run at the end of the history (`features.closed_days`). For a
+    `components` set the target is the *variable* net flow (the fixed-cost categories are left out of it) and closed
+    days are not training rows (the forecast switches the variable part off there)."""
+    target_excluded = tuple(excluded)
+    if feat.has_schedule(feature_set):  # the fixed costs are the schedule's job: the booster learns the variable flows
+        target_excluded = (*target_excluded, *fsched.CATEGORIES)
+    table = feat.daily_features(transactions, exclude_categories=target_excluded).dropna(subset=["net_cash_flow"])
     if feat.needs_levels(feature_set):
         table = table.join(feat.recent_levels(transactions, table.index)).dropna(subset=feat.LEVEL_COLUMNS)
         # a closed stretch that reaches the end of the history is still closed days for the training rows
         table["shutdown_flag"] = np.maximum(table["shutdown_flag"], feat.closed_days(transactions).reindex(
             table.index, fill_value=0))
+    if feat.has_schedule(feature_set):  # closed days carry no variable flow by definition: nothing to learn there
+        table = table[table["shutdown_flag"] == 0]
     return table
 
 
@@ -324,6 +365,12 @@ def backtest_split(transactions: pd.DataFrame, holdout_days: int,
     return split.iloc[:-holdout_days], split.iloc[-holdout_days:]
 
 
+def _schedule_categories(excluded: Iterable[str]) -> tuple[str, ...]:
+    """The fixed-cost categories of the schedule: all of `schedule.CATEGORIES` the model does not exclude."""
+    skip = set(excluded)
+    return tuple(c for c in fsched.CATEGORIES if c not in skip)
+
+
 def _offset(frame: pd.DataFrame, feature_set: str) -> pd.Series | float:
     """The baseline a feature set subtracts from the target (0 unless it is an offset set)."""
     return feat.applied_baseline(frame) if feature_set in feat.OFFSET_SETS else 0.0
@@ -340,8 +387,17 @@ def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str,
     train, test = backtest_split(transactions, holdout_days, exclude_categories, feature_set)
     regressor = XGBRegressor(**params).fit(train[columns], train["net_cash_flow"] - _offset(train, feature_set))
     pred = regressor.predict(test[columns]) + np.asarray(_offset(test, feature_set))
-    err = pred - test["net_cash_flow"].to_numpy()
-    naive = test["net_cash_flow"].to_numpy() - train["net_cash_flow"].mean()
+    truth, history = test["net_cash_flow"], train["net_cash_flow"]
+    if feat.has_schedule(feature_set):
+        # the booster covers the variable flows only: add the schedule inferred before the first test day and score
+        # the whole net flow (the fixed costs included), which is what the forecast is
+        excluded = tuple(exclude_categories)
+        seen = transactions[transactions["booking_date"] < test.index[0]]
+        pred = pred + fsched.total(fsched.infer(seen, categories=_schedule_categories(excluded)), test.index).to_numpy()
+        full = feat.daily_cash_flow(transactions, exclude_categories=excluded)["net_cash_flow"]
+        truth, history = full.reindex(test.index, fill_value=0.0), full.reindex(train.index, fill_value=0.0)
+    err = pred - truth.to_numpy()
+    naive = truth.to_numpy() - history.mean()
     return {
         "holdout_days": float(holdout_days),
         "holdout_mae": float(np.abs(err).mean()),
@@ -387,6 +443,10 @@ def train(
 ) -> ForecastModel:
     """Fit on the daily net cash flow of `transactions` (columns of `features.fetch_transactions`).
 
+    `components` (T068) splits the forecast: the fixed costs are a schedule read off the bookings (`schedule.infer`, stored
+    in the model) and the booster learns only the variable flows; `train_mae` / `holdout_*` are then scored on the
+    variable part / the whole net flow respectively (the holdout adds the schedule inferred before it).
+
     `feature_set` names the columns the model learns from (`features.FEATURE_SETS`); it is stored in the model and
     its metadata. Left out it is `DEFAULT_FEATURE_SET`, and when that set cannot be built from this history (too
     few open days for the recent level, or every usable day is a shutdown) the model is trained as `calendar`
@@ -410,20 +470,24 @@ def train(
     metrics["train_mae"] = float(np.abs(fitted - table["net_cash_flow"].to_numpy()).mean())
     metrics["train_days"] = float(len(table))
     level_values: dict[str, float] = {}
+    last_day = table.index.max()
+    if feat.has_schedule(feature_set):  # closed days are not rows: the history still ends at the last booking
+        last_day = max(last_day, transactions["booking_date"].max().normalize())
     if feat.needs_levels(feature_set):  # the value of the first day after the history: held constant for the forecast
-        after = table.index.max() + pd.Timedelta(days=1)
+        after = last_day + pd.Timedelta(days=1)
         level_values = {k: float(v) for k, v in feat.recent_levels(transactions, [after]).iloc[0].items()}
     baseline_mean = 0.0
     if feature_set in feat.OFFSET_SETS:
         baseline_mean = float(feat.level_baseline(table[table["shutdown_flag"] == 0]).mean())
+    spec = fsched.infer(transactions, categories=_schedule_categories(excluded)) if feat.has_schedule(feature_set) else None
     model = ForecastModel(
         regressor=regressor,
         shutdown_days=feat.infer_shutdown_days(transactions),
         due_days=feat.infer_due_days(transactions),
-        trained_until=table.index.max(),
+        trained_until=last_day,
         params=merged, metrics=metrics, excluded_categories=excluded,
         feature_columns=columns, feature_set=feature_set, level_values=level_values,
-        baseline_mean=baseline_mean,
+        baseline_mean=baseline_mean, schedule=spec,
     )
     if band:
         model.band_spec = _measure_band(transactions, merged, excluded, feature_set)

@@ -418,3 +418,87 @@ def test_without_a_champion_the_candidate_still_needs_a_90_day_error(history, tr
     result.best_scores = {**result.best_scores, "balance_error_90d": math.nan}
     promo = tune.promote(result, if_better=True)
     assert not promo.moved_champion and "90" in promo.reason and promo.version == "1"
+
+
+# -- T068: constrained objective, weekly folds, robustness over seeds -------------------------------------------
+@pytest.fixture(scope="module")
+def weekly(history) -> list:
+    from cfo.forecast import folds
+
+    origins = folds.weekly_origins(history)
+    assert len(origins) >= 20
+    return origins
+
+
+def test_default_mode_is_unchanged_and_the_constrained_mode_is_new(history, no_tracking):
+    default = tune.search(history, n_trials=2, seed=0)
+    assert default.mode == tune.MODE_BALANCE and default.daily_mae_cap is None and default.feasible is None
+    assert "daily_mae_cap" in default.to_dict() and default.to_dict()["mode"] == "balance"
+    assert tune.MODE_CONSTRAINED != tune.MODE_BALANCE
+
+
+def test_a_constrained_objective_penalises_a_violator_more_than_it_gains():
+    cap = 300.0
+    feasible = {"daily_mae": 290.0, "balance_error_90d": 6000.0}
+    violator = {"daily_mae": 560.0, "balance_error_90d": 3000.0}  # half the balance error, almost twice the daily error
+    assert tune.constrained_value(feasible, cap)[0] < tune.constrained_value(violator, cap)[0]
+    assert tune.constrained_value(feasible, cap) == (pytest.approx(6000.0), True)  # a feasible trial: the plain objective
+    value, ok = tune.constrained_value({"daily_mae": 301.0, "balance_error_90d": 6000.0}, cap)
+    assert not ok and value > 6000.0 + tune.CONSTRAINT_WEIGHT * 0.9
+    # the same fall-back to the longest horizon as the plain objective
+    assert tune.constrained_value({"daily_mae": 100.0, "balance_error_90d": math.nan, "balance_error_60d": 5.0},
+                                  cap)[0] == pytest.approx(5.0)
+
+
+def test_the_constrained_search_never_returns_a_worse_daily_error_than_the_reference(history, weekly, no_tracking):
+    result = tune.search(history, n_trials=6, seed=0, mode=tune.MODE_CONSTRAINED, origins=weekly)
+    assert result.mode == tune.MODE_CONSTRAINED
+    assert result.daily_mae_cap == pytest.approx(result.baseline_scores["daily_mae"])
+    assert result.feasible is True
+    assert result.best_scores["daily_mae"] <= result.daily_mae_cap * (1 + 1e-9)
+    assert result.best_scores["balance_error_90d"] <= result.baseline_scores["balance_error_90d"] + 1e-9
+    assert result.baseline_scores["n_origins"] == float(len(weekly))  # the weekly folds reached every scoring call
+    assert len(result.per_origin) == len(weekly)
+    for trial in result.trials:
+        assert trial["feasible"] == (trial["scores"]["daily_mae"] <= result.daily_mae_cap * (1 + 1e-9))
+    data = result.to_dict()
+    assert data["mode"] == "constrained" and data["feasible"] is True and data["daily_mae_cap"] is not None
+
+
+def test_the_reference_of_the_constraint_can_be_another_feature_set(history, weekly, no_tracking):
+    result = tune.search(history, n_trials=2, seed=0, mode=tune.MODE_CONSTRAINED, origins=weekly,
+                         reference_set="calendar")
+    assert result.baseline_feature_set == "calendar"
+    assert result.trials[0]["feature_set"] == "calendar"
+    assert result.daily_mae_cap == pytest.approx(result.baseline_scores["daily_mae"])
+
+
+def test_robust_search_picks_the_median_seed_and_reports_the_spread(history, weekly, no_tracking):
+    robust = tune.robust_search(history, n_trials=3, seeds=(0, 1, 2), origins=weekly)
+    scores = [r.best_scores["balance_error_90d"] for r in robust.runs]
+    assert [r.seed for r in robust.runs] == [0, 1, 2]
+    chosen = robust.chosen.best_scores["balance_error_90d"]
+    assert chosen == sorted(scores)[1]  # the median of three
+    spread = max(abs(s - chosen) / chosen for s in scores)
+    assert robust.spread == pytest.approx(spread)
+    assert robust.stable == (spread <= tune.STABILITY_TOLERANCE)
+    assert robust.tolerance == tune.STABILITY_TOLERANCE == 0.05
+    data = robust.to_dict()
+    assert data["seeds"] == [0, 1, 2] and len(data["seed_scores"]) == 3 and data["chosen_seed"] == robust.chosen.seed
+    json.dumps(data, allow_nan=False)
+
+
+def test_robust_search_demands_at_least_two_seeds(history, no_tracking):
+    with pytest.raises(ValueError, match="seed"):
+        tune.robust_search(history, n_trials=2, seeds=(0,))
+
+
+def test_cli_constrained_weekly_with_three_seeds(history, no_tracking, monkeypatch, capsys):
+    monkeypatch.setattr(ev, "load_statement", lambda: history)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://nobody@127.0.0.1:9/none")
+    code = tune.main(["--trials", "2", "--source", "csv", "--constrained", "--weekly", "--seeds", "0,1,2", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["mode"] == "constrained" and data["robust"]["seeds"] == [0, 1, 2]
+    assert data["robust"]["stable"] in (True, False) and data["best_balance_error_90d"] is not None
+    assert data["best_scores"]["n_origins"] >= 20

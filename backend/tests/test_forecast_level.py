@@ -234,8 +234,11 @@ def test_compare_scores_every_feature_set_and_names_the_best(statement):
     assert set(result["scores"]) == set(f.FEATURE_SETS)
     best = min(result["scores"], key=lambda k: result["scores"][k]["balance_error_90d"])
     assert result["best_feature_set"] == best
-    assert result["best_feature_set"] == m.DEFAULT_FEATURE_SET, "the default of train() must be the best set"
     assert result["best_feature_set"] != "calendar"
+    # T068: the default of train() follows the verdict of `compare --weekly` (a new set must clear the whole bar on
+    # the weekly folds to replace the reference); the lowest month-end error alone no longer decides, because the
+    # six month-end folds (four reach 90 days, one is the unknowable 30 Jun origin) are too few to carry a default
+    assert cmp.assess(statement)["best_feature_set"] == m.DEFAULT_FEATURE_SET, "the default must be the verdict's winner"
 
 
 # -- review round 1 ----------------------------------------------------------------------------------------

@@ -7,6 +7,13 @@ headless (cluster Job, T064).
 * Objective: `balance_error_90d` of the rolling-origin harness (`evaluate.py`), because the product shows balances.
   Ranking is lexicographic (`rank_key`): `daily_mae` only decides exact ties. When no fold reaches day 90 the
   objective falls back to the longest horizon that exists (`objective_value`).
+* Constrained mode (T068, `mode="constrained"`, `--constrained`): minimises `balance_error_90d` **subject to**
+  `daily_mae <= the reference's daily_mae` (the current default scored on the same folds). A violator is penalised by
+  `CONSTRAINT_WEIGHT` per EUR of excess (only in this mode, and only above the cap), so it cannot win while a feasible
+  trial exists; the result is the best feasible trial, ranked as always by `rank_key`. Folds can be passed as `origins=`
+  (`folds.weekly_origins`: 27 Monday origins, or a denser grid with `every_days`). `robust_search` repeats the search with
+  several seeds and picks the median-of-seeds configuration; it reports whether the seeds' best scores stay within
+  `STABILITY_TOLERANCE` (5 %) of the chosen one. The default mode is the T062 behaviour, unchanged.
 * Search space (`space`, drawn by `suggest`): feature set, `n_estimators`, `max_depth`, `learning_rate`, `min_child_weight`,
   `subsample`, `colsample_bytree`, `reg_lambda`, `reg_alpha`, `gamma`, loss (`space`). Ranges are small-model sized
   (about 330 training days, 4-6 folds). The current default configuration is enqueued as trial 0, so the search can never
@@ -59,6 +66,11 @@ DEFAULT_FEATURE_SETS: tuple[str, ...] = tuple(feat.FEATURE_SETS)
 DEFAULT_MIN_GAIN = 0.02  # a candidate is better only by 2 % of the reference's balance error
 OBJECTIVE_METRICS = ("balance_error_90d", "balance_error_60d", "balance_error_30d")  # longest horizon first
 LOSSES = ("reg:squarederror", "reg:absoluteerror")
+MODE_BALANCE = "balance"  # the T062 objective: balance_error_90d only (the default)
+MODE_CONSTRAINED = "constrained"  # T068: balance_error_90d subject to daily_mae <= the reference's
+CONSTRAINT_WEIGHT = 100.0  # EUR of objective per EUR of daily MAE above the cap (constrained mode only)
+STABILITY_TOLERANCE = 0.05  # the seeds' best scores must stay within this share of the chosen configuration's
+_CAP_SLACK = 1e-9  # float noise around "exactly the reference's daily MAE"
 # The tunable parameters with the value XGBoost uses when `model.py` does not set them.
 _XGB_DEFAULTS: dict[str, Any] = {
     "n_estimators": 100, "max_depth": 6, "learning_rate": 0.3, "min_child_weight": 1, "subsample": 1.0,
@@ -101,6 +113,15 @@ def objective_value(scores: Mapping[str, float]) -> tuple[float, str]:
 def rank_key(scores: Mapping[str, float]) -> tuple[float, float]:
     """Lexicographic ranking of a trial: the objective first, the daily MAE only decides exact ties."""
     return objective_value(scores)[0], float(scores["daily_mae"])
+
+
+def constrained_value(scores: Mapping[str, float], cap: float) -> tuple[float, bool]:
+    """(value to minimise, feasible) of the constrained objective: `objective_value` (the balance error alone) plus
+    `CONSTRAINT_WEIGHT` EUR for every EUR the daily MAE is above `cap`. Feasible = not above the cap; a feasible trial's
+    value is its plain objective, so inside the feasible set the ranking is the default lexicographic one."""
+    value, _ = objective_value(scores)
+    over = max(0.0, float(scores["daily_mae"]) - cap * (1.0 + _CAP_SLACK))
+    return value + CONSTRAINT_WEIGHT * over, over == 0.0
 
 
 _SECRET_QUERY = re.compile(r"=[^&#]*")
@@ -165,9 +186,11 @@ def baseline_params(feature_set: str = m.DEFAULT_FEATURE_SET) -> dict[str, Any]:
 
 
 def config_trainer(feature_set: str, params: Mapping[str, Any]) -> ev.Trainer:
-    """The harness trainer of one configuration (`m.train` per fold, no MLflow, no internal holdout)."""
+    """The harness trainer of one configuration (`m.train` per fold, no MLflow, no internal holdout, no band: the
+    band does not change a prediction and costs several fits per fold)."""
     def trainer(tx: pd.DataFrame) -> m.ForecastModel:
-        return m.train(tx, feature_set=feature_set, params=dict(params), log_to_mlflow=False, holdout_days=0)
+        return m.train(tx, feature_set=feature_set, params=dict(params), log_to_mlflow=False, holdout_days=0,
+                       band=False)
 
     return trainer
 
@@ -258,6 +281,10 @@ class TuningResult:
     experiment: str | None = None
     parent_run_id: str | None = None
     data_source: str | None = None
+    mode: str = MODE_BALANCE
+    daily_mae_cap: float | None = None  # constrained mode: the reference's daily MAE the best trial may not exceed
+    feasible: bool | None = None  # constrained mode: whether the best trial respects the cap
+    origins: list[Any] | None = field(default=None, repr=False)  # the folds the scores come from (None = month ends)
     transactions: pd.DataFrame | None = field(default=None, repr=False)
 
     def train_kwargs(self) -> dict[str, Any]:
@@ -323,6 +350,7 @@ class TuningResult:
             "seed": self.seed,
             "seconds_per_trial": self.seconds_per_trial,
             "data_source": self.data_source,
+            "mode": self.mode, "daily_mae_cap": self.daily_mae_cap, "feasible": self.feasible,
             "mlflow": {"tracking_uri": redact_uri(self.tracking_uri), "experiment": self.experiment,
                        "parent_run_id": self.parent_run_id},
         })
@@ -405,6 +433,8 @@ class _Tracker:
                 else:
                     metrics |= {k: float(v) for k, v in trial["scores"].items() if _is_finite(v)}
                     metrics["objective_value"] = float(trial["objective"])
+                    if trial.get("feasible") is not None:
+                        metrics["feasible"] = float(bool(trial["feasible"]))
                     for origin, errors in trial["per_origin"].items():
                         metrics[f"cum_error_{origin.replace('-', '_')}"] = float(errors["cum_error_end"])
                 self.mlflow.log_metrics(metrics)
@@ -491,26 +521,37 @@ def _log_history_plot(mlflow: Any, result: TuningResult) -> None:
 # -- the search --------------------------------------------------------------------------------------------
 def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
            feature_sets: Iterable[str] | None = None, tracking_uri: str | None = None,
-           min_gain: float = DEFAULT_MIN_GAIN, data_source: str | None = None) -> TuningResult:
+           min_gain: float = DEFAULT_MIN_GAIN, data_source: str | None = None, mode: str = MODE_BALANCE,
+           origins: Iterable[Any] | None = None, reference_set: str | None = None) -> TuningResult:
     """Run `n_trials` Optuna trials (TPE, seeded) scored by the rolling-origin balance error.
 
     Every trial is a child run of the parent run `tuning-<date>` in experiment `liquidity-forecast-tuning` when MLflow
     is configured (`tracking_uri` or `MLFLOW_TRACKING_URI`). The current default configuration is scored first
     (the reference, `result.baseline_scores`) and is trial 0 when its feature set is searched. A trial that raises is
     recorded with its error and skipped.
+
+    `mode` is `MODE_BALANCE` (the default, T062) or `MODE_CONSTRAINED` (see the module docstring); `origins` replaces the
+    default month-end folds of every scoring call (`folds.weekly_origins`); `reference_set` is the feature set the
+    search is measured against (default `model.DEFAULT_FEATURE_SET`), its default parameters being trial 0.
     """
     import optuna
 
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
+    if mode not in (MODE_BALANCE, MODE_CONSTRAINED):
+        raise ValueError(f"mode must be {MODE_BALANCE!r} or {MODE_CONSTRAINED!r}")
+    rolling_kw: dict[str, Any] = {} if origins is None else {"origins": list(origins)}
     _check_min_gain(min_gain)
     sets = tuple(feature_sets) if feature_sets is not None else DEFAULT_FEATURE_SETS
     for name in sets:
         feat.feature_set_columns(name)  # raises for an unknown set
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    ref_set, ref_params = m.DEFAULT_FEATURE_SET, baseline_params()
-    base_scores, base_origin = score_config(transactions, ref_set, ref_params)
+    ref_set = reference_set or m.DEFAULT_FEATURE_SET
+    feat.feature_set_columns(ref_set)
+    ref_params = baseline_params(ref_set)
+    base_scores, base_origin = score_config(transactions, ref_set, ref_params, **rolling_kw)
+    cap = float(base_scores["daily_mae"]) if mode == MODE_CONSTRAINED else None
     cache = {(ref_set, json.dumps(ref_params, sort_keys=True)): (base_scores, base_origin)}
 
     trials: list[dict[str, Any]] = []
@@ -522,13 +563,17 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
         try:
             key = (feature_set, json.dumps(params, sort_keys=True))
             if key not in cache:
-                cache[key] = score_config(transactions, feature_set, params)
+                cache[key] = score_config(transactions, feature_set, params, **rolling_kw)
             scores, per_origin = cache[key]
-            value, _ = objective_value(scores)
-            record |= {"scores": scores, "per_origin": per_origin, "objective": value}
+            if cap is None:
+                value, feasible = objective_value(scores)[0], None
+            else:
+                value, feasible = constrained_value(scores, cap)
+            record |= {"scores": scores, "per_origin": per_origin, "objective": value, "feasible": feasible}
         except Exception as exc:  # noqa: BLE001 - one bad configuration must not stop the search
             log.warning("trial %d failed: %s", trial.number, exc)
-            record |= {"error": f"{type(exc).__name__}: {exc}", "scores": None, "per_origin": {}, "objective": None}
+            record |= {"error": f"{type(exc).__name__}: {exc}", "scores": None, "per_origin": {}, "objective": None,
+                       "feasible": None}
         record["seconds"] = time.perf_counter() - started
         trials.append(record)
         tracker.log_trial(record)
@@ -540,7 +585,8 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
         tracker = _Tracker(handle, TUNING_EXPERIMENT)
         tracker.start_parent({"n_trials": n_trials, "seed": seed, "feature_sets": ",".join(sets),
                               "min_gain": min_gain, "rows": len(transactions), "data_source": data_source or "",
-                              "baseline_feature_set": ref_set})
+                              "baseline_feature_set": ref_set, "mode": mode,
+                              "folds": "custom origins" if origins is not None else "month ends"})
         started = time.perf_counter()
         try:
             study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=seed))
@@ -551,7 +597,10 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
             ok = [t for t in trials if not t.get("error")]
             if not ok:
                 raise RuntimeError("every trial failed: " + (trials[0]["error"] if trials else "no trials ran"))
-            best = min(ok, key=lambda t: (*rank_key(t["scores"]), t["number"]))
+            pool = [t for t in ok if t["feasible"]] if cap is not None and any(t["feasible"] for t in ok) else ok
+            # lexicographic: the objective (the balance error alone; penalised above the cap in constrained mode), then
+            # the daily MAE; for a feasible or default-mode trial this is exactly `rank_key`
+            best = min(pool, key=lambda t: (t["objective"], float(t["scores"]["daily_mae"]), t["number"]))
             result = TuningResult(
                 best_feature_set=best["feature_set"], best_params=best["params"], best_scores=best["scores"],
                 baseline_scores=base_scores, baseline_feature_set=ref_set, baseline_params=ref_params,
@@ -560,11 +609,61 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
                 best_trial_number=best["number"], n_trials=len(trials), seed=seed,
                 seconds_per_trial=elapsed / max(len(trials), 1), objective_metric=objective_value(base_scores)[1],
                 min_gain=min_gain, tracking_uri=tracker.uri, experiment=TUNING_EXPERIMENT,
-                parent_run_id=tracker.parent_run_id, data_source=data_source, transactions=transactions)
+                parent_run_id=tracker.parent_run_id, data_source=data_source, mode=mode, daily_mae_cap=cap,
+                feasible=best["feasible"] if cap is not None else None, origins=rolling_kw.get("origins"),
+                transactions=transactions)
             tracker.finish_parent(result)
         finally:
             tracker.end()
     return result
+
+
+# -- robustness over seeds -----------------------------------------------------------------------------
+@dataclass
+class RobustResult:
+    """`robust_search`: one search per seed and the configuration of the median seed."""
+
+    runs: list[TuningResult]
+    chosen: TuningResult
+    spread: float  # largest |seed score - chosen score| / chosen score
+    stable: bool  # spread <= tolerance
+    tolerance: float = STABILITY_TOLERANCE
+
+    def to_dict(self) -> dict[str, Any]:
+        key = self.chosen.objective_metric
+        return finite({
+            "seeds": [r.seed for r in self.runs],
+            "objective_metric": key,
+            "seed_scores": [r.best_scores.get(key) for r in self.runs],
+            "seed_daily_mae": [r.best_scores.get("daily_mae") for r in self.runs],
+            "seed_feasible": [r.feasible for r in self.runs],
+            "seed_configs": [{"seed": r.seed, "feature_set": r.best_feature_set, "params": r.best_params}
+                             for r in self.runs],
+            "chosen_seed": self.chosen.seed,
+            "spread": self.spread, "tolerance": self.tolerance, "stable": self.stable,
+        })
+
+
+def robust_search(transactions: pd.DataFrame, *, n_trials: int, seeds: Sequence[int] = (0, 1, 2),
+                  mode: str = MODE_CONSTRAINED, **kw: Any) -> RobustResult:
+    """Repeat `search` with each seed (`kw` goes to it) and choose the **median-of-seeds** configuration: the best trial
+    of the seed whose best score is the middle one (the lower middle for an even number of seeds). A single seed's optimum
+    is partly luck (T062: two seeds landed 25 % apart), the median seed is not the luckiest. Feasible runs only, when
+    the mode has a constraint and at least one run is feasible. `spread` is how far the seeds' scores are from the chosen
+    one, `stable` whether that is within `STABILITY_TOLERANCE` (5 %)."""
+    seeds = list(dict.fromkeys(seeds))
+    if len(seeds) < 2:
+        raise ValueError("robust_search needs at least two seeds to say anything about stability")
+    runs = [search(transactions, n_trials=n_trials, seed=seed, mode=mode, **kw) for seed in seeds]
+    key = runs[0].objective_metric
+    pool = [r for r in runs if r.feasible] if any(r.feasible for r in runs) else runs
+    ranked = sorted(pool, key=lambda r: (float(r.best_scores.get(key, math.inf)), r.seed))
+    chosen = ranked[(len(ranked) - 1) // 2]
+    centre = float(chosen.best_scores.get(key, math.nan))
+    scores = [float(r.best_scores.get(key, math.nan)) for r in runs]
+    spread = max(abs(s - centre) for s in scores) / abs(centre) if _is_finite(centre) and centre else math.nan
+    return RobustResult(runs=runs, chosen=chosen, spread=spread,
+                        stable=_is_finite(spread) and spread <= STABILITY_TOLERANCE)
 
 
 # -- promote -----------------------------------------------------------------------------------------------
@@ -664,7 +763,8 @@ def _decide_champion(client: Any, mlflow: Any, result: TuningResult, margin: flo
         return True, None, "no champion yet: the new version takes the alias"
     try:
         champion = m.ForecastModel.load_from_mlflow(f"models:/{model_name}@{m.CHAMPION_ALIAS}")
-        scores, _ = score_config(result.transactions, champion.feature_set, champion.params)
+        scores, _ = score_config(result.transactions, champion.feature_set, champion.params,
+                                 **({} if result.origins is None else {"origins": result.origins}))
     except Exception as exc:  # noqa: BLE001 - when in doubt keep the champion
         log.exception("could not score the current champion")
         return False, None, f"the champion could not be scored ({type(exc).__name__}: {exc}); it stays"
@@ -733,6 +833,13 @@ def _table(data: Mapping[str, Any]) -> str:
         p = data["promotion"]
         lines.append(f"promotion: version {p['version']} as {p['alias']}, champion moved: {p['moved_champion']} "
                      f"({p['reason']})")
+    if data.get("mode") == MODE_CONSTRAINED:
+        lines.append(f"constrained: daily MAE of the best trial {fmt(data['best_scores'].get('daily_mae'))} "
+                     f"(cap {fmt(data.get('daily_mae_cap'))}), feasible: {data.get('feasible')}")
+    if "robust" in data:
+        r = data["robust"]
+        lines.append(f"seeds {r['seeds']}: best scores {[fmt(v) for v in r['seed_scores']]}, chosen seed "
+                     f"{r['chosen_seed']}, spread {r['spread']:.1%} (tolerance {r['tolerance']:.0%}), stable: {r['stable']}")
     ex = data["error_without_first_origin"]
     lines.append(f"mean |error at the end of the fold| without the first origin: baseline {fmt(ex['baseline'])} -> "
                  f"best {fmt(ex['best'])}")
@@ -757,6 +864,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--tracking-uri", help="MLflow tracking URI (default: $MLFLOW_TRACKING_URI; none = no logging)")
     parser.add_argument("--source", choices=("auto", "db", "csv"), default="auto",
                         help="data: Postgres when DATABASE_URL works, else the CSV (auto); or force one")
+    parser.add_argument("--constrained", action="store_true",
+                        help="minimise balance_error_90d subject to daily_mae <= the reference's (T068)")
+    parser.add_argument("--weekly", action="store_true",
+                        help="score on weekly origins (27 Mondays) instead of the 6 month ends")
+    parser.add_argument("--origin-every", type=int, default=7, metavar="DAYS",
+                        help="with --weekly: spacing of the origins in days (7 = every Monday; 2 = a dense grid that "
+                             "visits every weekday, for robustness)")
+    parser.add_argument("--seeds", help="comma separated seeds (at least two): repeat the search and keep the "
+                                        "median-of-seeds configuration; replaces --seed")
+    parser.add_argument("--reference-set", help="feature set the search is measured against (default: the model's)")
     parser.add_argument("--feature-sets", help="comma separated feature sets to search "
                                                f"(default: {','.join(DEFAULT_FEATURE_SETS)})")
     parser.add_argument("--min-gain", type=_min_gain_arg, default=DEFAULT_MIN_GAIN,
@@ -773,9 +890,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     log.info("%d bookings from %s, %s .. %s", len(transactions), source, transactions["booking_date"].min().date(),
              transactions["booking_date"].max().date())
     sets = [s.strip() for s in args.feature_sets.split(",") if s.strip()] if args.feature_sets else None
-    result = search(transactions, n_trials=args.trials, seed=args.seed, feature_sets=sets,
-                    tracking_uri=args.tracking_uri, min_gain=args.min_gain, data_source=source)
+    kw: dict[str, Any] = {"feature_sets": sets, "tracking_uri": args.tracking_uri, "min_gain": args.min_gain,
+                          "data_source": source, "reference_set": args.reference_set,
+                          "mode": MODE_CONSTRAINED if args.constrained else MODE_BALANCE}
+    if args.weekly:
+        from cfo.forecast import folds
+
+        kw["origins"] = folds.weekly_origins(transactions, every_days=args.origin_every)
+    robust = None
+    if args.seeds:
+        robust = robust_search(transactions, n_trials=args.trials,
+                               seeds=[int(x) for x in args.seeds.split(",") if x.strip()], **kw)
+        result = robust.chosen
+    else:
+        result = search(transactions, n_trials=args.trials, seed=args.seed, **kw)
     data = result.to_dict()
+    if robust is not None:
+        data["robust"] = robust.to_dict()
     failed = False
     if args.promote or args.promote_if_better:
         try:

@@ -62,8 +62,15 @@ FEATURE_SETS: dict[str, list[str]] = {
     # the booster sees no level at all: it learns the deviation from the recent level, i.e. the target is the net
     # flow minus `level_baseline`, which is added back when predicting
     "level_baseline": list(_NO_MEMORY),
+    # fixed costs are an inferred schedule (`schedule.py`), so the booster only sees the variable flows (revenue, food,
+    # drinks): no due-day flags, no level inputs; like `level_baseline` it learns the deviation from the recent level
+    "components": [c for c in _NO_MEMORY if c not in DUE_COLUMNS],
 }
-OFFSET_SETS = frozenset({"level_baseline"})
+OFFSET_SETS = frozenset({"level_baseline", "components"})
+# Sets whose forecast is the booster's variable part plus the fixed-cost schedule (`schedule.infer`, T068); their
+# training target leaves the fixed-cost categories out.
+COMPONENT_SETS = frozenset({"components"})
+SCHEDULE_PREFIX = "scheduled_"  # names of the schedule parts in `contributions` / `explain`: `scheduled_payroll`, ...
 BASELINE_COLUMN = "recent_level_baseline"  # the offset as it appears in `contributions` / `explain`
 
 
@@ -79,6 +86,11 @@ def applied_baseline(frame: pd.DataFrame) -> pd.Series:
     """What a `level_baseline` set subtracts from the target and adds back to the prediction: the baseline of an
     open day, 0 on shutdown days (no revenue, only fixed costs, whatever the level)."""
     return (level_baseline(frame) * (1 - frame["shutdown_flag"])).rename(BASELINE_COLUMN)
+
+
+def has_schedule(name: str) -> bool:
+    """Whether the forecast of a feature set is the booster plus the fixed-cost schedule."""
+    return name in COMPONENT_SETS
 
 
 def feature_set_columns(name: str) -> list[str]:

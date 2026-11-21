@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -62,17 +63,32 @@ def is_salary_row(row: Row) -> bool:
     return (row.get("category") or "") == "payroll" or bool(SALARY_RE.search(f"{row.get('type') or ''} {row.get('reference') or ''}"))
 
 
+def _tokens(text: str | None) -> tuple[str, ...]:
+    """Case, spacing and diacritics normalised words of `text`."""
+    plain = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().casefold()
+    return tuple(re.findall(r"[a-z0-9]+", plain))
+
+
+def _names_in(tokens: tuple[str, ...], people: list[Row]) -> set[str]:
+    out = set()
+    for p in people:
+        name = _tokens(p.get("name"))
+        if name and any(tokens[i:i + len(name)] == name for i in range(len(tokens) - len(name) + 1)):
+            out.add(p["id"])
+    return out
+
+
 def payee_of(row: Row, people: Iterable[Row]) -> str | None:
-    """Whose pay is this row? The one employee that the row's `employee_id`, its counterparty and its reference agree
-    on. None when it names nobody known, or more than one person (then it is treated as someone else's pay)."""
+    """Whose pay is this row? The one employee whose full name IS the counterparty (whole name, normalised; never a
+    substring: "Yusuf Akcit Jr." is nobody) or whom `employee_id` names. A reference that names someone else, an
+    unknown name or two employees with that name all give None, which is treated as someone else's pay."""
     people = list(people)
-    named: set[str] = set()
-    if row.get("employee_id"):
-        named.add(str(row["employee_id"]))
-    for text in (row.get("counterparty"), row.get("reference")):
-        text = (text or "").casefold()
-        named |= {p["id"] for p in people if p.get("name") and p["name"].casefold() in text}
-    return next(iter(named)) if len(named) == 1 else None
+    who: set[str] = {str(row["employee_id"])} if row.get("employee_id") else set()
+    cp = _tokens(row.get("counterparty"))
+    who |= {p["id"] for p in people if cp and _tokens(p.get("name")) == cp}
+    if len(who) != 1 or _names_in(_tokens(row.get("reference")), people) - who:
+        return None
+    return next(iter(who))
 
 
 def reports_of(viewer: str, people: Iterable[Row]) -> set[str]:
@@ -120,12 +136,14 @@ def _month(row: Row) -> str:
     return f"{d:%Y-%m}" if hasattr(d, "strftime") else str(d)[:7]
 
 
-def filter_salary_rows(rows: Sequence[Row], viewer: str, role: str, people: Sequence[Row]) -> SalaryView:
+def filter_salary_rows(rows: Sequence[Row], viewer: str, role: str, people: Sequence[Row], *,
+                       fold: bool = True) -> SalaryView:
     """Drop (staff) or fold into `Payroll YYYY-MM (N employees): X EUR` lines (office manager) the salary rows `viewer`
     may not see. Rows that are not salary rows pass through untouched.
 
     The totals are per whole calendar month, so differencing two queries only ever gives a month's total; callers
-    must therefore hand in every salary row of each month they include. A month with fewer than `MIN_AGGREGATE`
+    must therefore hand in every salary row of each month they include. With `fold=False` (a caller that shows no
+    totals) the office manager's hidden rows are plain DENY. A month with fewer than `MIN_AGGREGATE`
     hidden people is dropped (DENY): a total over one person is that person's pay."""
     people = list(people)
     reports = reports_of(viewer, people)
@@ -141,7 +159,7 @@ def filter_salary_rows(rows: Sequence[Row], viewer: str, role: str, people: Sequ
         ok, policy = can_see_salary(viewer, role, payee, reports)
         if ok:
             visible.append(row)
-        elif role in FINANCE_ROLES:
+        elif role in FINANCE_ROLES and fold:
             months.setdefault(_month(row), []).append((row, payee or f"?{row.get('counterparty')}"))
             hidden.append((row, "MASK", policy + "; folded into the monthly payroll total"))
         else:
@@ -191,9 +209,9 @@ class Audit:
         return allowed
 
     def salary_filter(self, rows: Sequence[Row], viewer: str, role: str, people: Sequence[Row], *,
-                      task_id: str | None = None) -> SalaryView:
+                      task_id: str | None = None, fold: bool = True) -> SalaryView:
         """`filter_salary_rows`, writing one `salary_filter` audit row (DENY or MASK) per row that was hidden."""
-        view = filter_salary_rows(rows, viewer, role, people)
+        view = filter_salary_rows(rows, viewer, role, people, fold=fold)
         for row, decision, policy in view.hidden:
             payee = payee_of(row, people) or "unknown payee"
             self.record("agent", "salary_filter", "bank", f"transaction {row.get('id') or '?'} ({payee})", decision,

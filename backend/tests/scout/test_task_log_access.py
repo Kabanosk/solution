@@ -87,23 +87,28 @@ def test_scout_tasks_lists_only_own_unless_ceo(conn_factory, db, tmp_path):
     assert hidden and all(h["requester"] in ("rosa", "yusuf") for h in hidden)
 
 
-def test_reassignment_between_check_and_read_does_not_leak_steps(conn_factory, db, tmp_path, monkeypatch):
+def test_task_log_is_one_consistent_snapshot(conn_factory, db, tmp_path, monkeypatch):
+    """A task that changes hands (even away and back) right after the permission check must not let steps written
+    in between into the answer: permission and steps come from one REPEATABLE READ snapshot."""
     ctx = make_world(conn_factory, tmp_path)
     ids = make_tasks(ctx)
     real = toolbox_module.can_see_task
     calls: list[int] = []
 
-    def reassign_after_first_check(*args, **kw):  # noqa: ANN002, ANN003
+    def churn_after_first_check(*args, **kw):  # noqa: ANN002, ANN003
         result = real(*args, **kw)
-        if not calls:  # the task changes hands right after the permission check
+        if not calls:
             with ctx.conn_factory() as conn:
-                conn.execute("UPDATE agent_tasks SET owner_id = 'yusuf', requested_by = 'yusuf' WHERE id = %s",
-                             (ids["mine"],))
+                conn.execute("UPDATE agent_tasks SET owner_id = 'yusuf', requested_by = 'yusuf' WHERE id = %s", (ids["mine"],))
+                conn.commit()
+            ctx.recorder.step(ids["mine"], "note", "written while Rosa had no access")
+            with ctx.conn_factory() as conn:
+                conn.execute("UPDATE agent_tasks SET owner_id = 'rosa', requested_by = 'rosa' WHERE id = %s", (ids["mine"],))
                 conn.commit()
         calls.append(1)
         return result
 
-    monkeypatch.setattr(toolbox_module, "can_see_task", reassign_after_first_check)
+    monkeypatch.setattr(toolbox_module, "can_see_task", churn_after_first_check)
     out = box(ctx, "rosa").call("task_log", {"task_id": ids["mine"]})
-    assert out["error"] == "access_denied" and "steps" not in out
-    assert denials(db) and denials(db)[-1]["requester"] == "rosa"
+    assert "error" not in out and not any("written while" in s for s in out["steps"])
+    assert any("step of Dinner invoice" in s for s in out["steps"])

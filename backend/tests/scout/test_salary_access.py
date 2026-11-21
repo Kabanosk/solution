@@ -66,7 +66,14 @@ def test_detects_salary_rows_but_not_company_payroll_tax():
 def test_payee_resolution():
     row = {"counterparty": "Rosa Pavese", "reference": "Net Salary Rosa Pavese (Chef)"}
     assert payee_of(row, PEOPLE) == "rosa"
-    assert payee_of({"counterparty": "ACME", "reference": "Net Salary Yusuf Akcit"}, PEOPLE) == "yusuf"
+    # the counterparty is the payee; a reference alone never grants a row
+    assert payee_of({"counterparty": "ACME", "reference": "Net Salary Yusuf Akcit"}, PEOPLE) is None
+    # whole names only: case, spacing and diacritics are normalised, a longer name is a different person
+    assert payee_of({"counterparty": "  YUSUF   akçit ", "reference": "Net Salary"}, PEOPLE) == "yusuf"
+    assert payee_of({"counterparty": "Yusuf Akcit Jr.", "reference": "Net Salary Yusuf Akcit Jr."}, PEOPLE) is None
+    assert payee_of({"counterparty": "Yusuf", "reference": "Net Salary Yusuf Akcit"}, PEOPLE) is None
+    twins = [*PEOPLE, {"id": "yusuf2", "name": "Yusuf Akcit", "manager_id": "rosa"}]
+    assert payee_of({"counterparty": "Yusuf Akcit", "reference": "Net Salary"}, twins) is None
     assert payee_of({"counterparty": "ACME", "reference": "Net Salary", "employee_id": "vanessa"}, PEOPLE) == "vanessa"
     assert payee_of({"counterparty": "Nobody Known", "reference": "Net Salary Nobody Known"}, PEOPLE) is None
     # counterparty and reference disagree (or the reference names someone else): never "own" pay
@@ -75,6 +82,7 @@ def test_payee_resolution():
     assert payee_of({"counterparty": "Rosa Pavese", "reference": "Net Salary Rosa Pavese", "employee_id": "rosa"},
                     PEOPLE) == "rosa"
     assert payee_of({"counterparty": "X", "reference": "Salary Rosa Pavese and Yusuf Akcit"}, PEOPLE) is None
+    assert payee_of({"counterparty": "Rosa Pavese", "reference": "Net Salary Rosa Pavese and Yusuf Akcit"}, PEOPLE) is None
 
 
 def test_reports_follow_the_manager_chain():
@@ -217,7 +225,8 @@ def test_missing_invoices_never_carries_salary_rows(conn_factory, db, tmp_path):
     out = box(ctx, "grazyna").call("missing_invoices", {})
     assert "Yusuf" not in str(out) and "Vincenzo" not in str(out) and "2350" not in str(out)
     assert "payroll_summary" not in out  # no totals from a list that has nothing to do with payroll
-    assert len(audit_rows(db)) == 2
+    log = audit_rows(db)
+    assert len(log) == 2 and {r["decision"] for r in log} == {"DENY"}  # discarded, not folded into a total
     ceo = box(ctx, "vincenzo").call("missing_invoices", {})
     assert {r["counterparty"] for r in ceo["payments_without_invoice"]} >= {"Yusuf Akcit", "Vincenzo Amalfi"}
     assert box(ctx, "yusuf").call("missing_invoices", {})["error"] == "access_denied"
@@ -320,6 +329,18 @@ def test_cash_position_audits_that_payroll_is_in_the_totals(conn_factory, db, tm
     assert audit_rows(db) == []  # the CEO may see everything: nothing to record
     out = box(ctx, "grazyna").call("cash_position", {})
     assert out["balance"] == ceo["balance"] and out["money_out_30d"] == ceo["money_out_30d"]  # real numbers
-    log = audit_rows(db)
-    assert len(log) == 1 and log[0]["decision"] == "MASK" and log[0]["requester"] == "grazyna"
-    assert log[0]["policy"] == "cash-position: payroll included in totals"
+    log = audit_rows(db)  # one row per salary row inside the totals
+    assert len(log) == len(SALARIES) and {r["decision"] for r in log} == {"MASK"}
+    assert {r["requester"] for r in log} == {"grazyna"}
+    assert {r["policy"] for r in log} == {"cash-position: payroll included in totals"}
+    assert {r["resource"] for r in log} == {f"transaction {t[0]}" for t in SALARIES}
+
+
+def test_team_budgets_and_payroll_summary_cover_the_same_rows(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    seed_bank(ctx)
+    add_salary(ctx, "rev", "Yusuf Akcit", TODAY, "+2350")  # a reversal (credit) of Yusuf's salary
+    asked = box(ctx, "grazyna")
+    teams = asked.call("team_budgets", {})["payroll_summary"]
+    payments = asked.call("search_payments", {})["payroll_summary"]
+    assert teams == payments == ["Payroll 2026-11 (3 employees): 10,000.00 EUR"]  # credits count like debits, in both

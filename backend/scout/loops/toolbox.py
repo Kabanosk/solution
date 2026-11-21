@@ -19,6 +19,8 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+from psycopg import IsolationLevel
+
 from cfo.data.invoices import invoice_pdf
 from cfo.domain import Invoice, InvoiceLine
 from cfo.llm import ToolSpec
@@ -155,9 +157,10 @@ class Toolbox:
     def _is_exec(self) -> bool:
         return (self.role or "").casefold() in EXEC_ROLES
 
-    def _salary_view(self, rows: list[dict[str, Any]]):  # noqa: ANN202
+    def _salary_view(self, rows: list[dict[str, Any]], *, fold: bool = True):  # noqa: ANN202
         """Hide or fold the salary rows the asker may not see (audited); see `scout.audit.filter_salary_rows`."""
-        return self.ctx.audit.salary_filter(rows, self.requester, self.role, self.ctx.hr.all(), task_id=self.task.id)
+        return self.ctx.audit.salary_filter(rows, self.requester, self.role, self.ctx.hr.all(), task_id=self.task.id,
+                                            fold=fold)
 
 
     # -- dispatch ------------------------------------------------------------------------------------------
@@ -233,7 +236,7 @@ class Toolbox:
             "WHERE x.amount < 0 AND NOT x.documented AND x.invoice_number IS NOT NULL AND x.booking_date >= %s "
             "ORDER BY x.booking_date DESC LIMIT 11",
             [self.ctx.now().date() - timedelta(days=min(int(days or 60), 400))])
-        view = self._salary_view(rows)  # a salary row never belongs in this list, but never trust the data
+        view = self._salary_view(rows, fold=False)  # a salary row never belongs in this list, but never trust the data
         rows = view.visible
         for r in rows:
             r["amount"] = eur(r["amount"])
@@ -268,11 +271,11 @@ class Toolbox:
         row = self._q("SELECT coalesce(sum(amount),0) AS balance, coalesce(sum(amount) FILTER (WHERE booking_date >= %s "
                       "AND amount > 0),0) AS in_30d, coalesce(sum(amount) FILTER (WHERE booking_date >= %s AND "
                       "amount < 0),0) AS out_30d FROM transactions", [since, since])[0]
-        if not self._is_exec() and self._q(
-                f"SELECT 1 FROM transactions WHERE booking_date >= %s AND amount < 0 AND {salary_sql()} LIMIT 1", [since]):
-            self.ctx.audit.record("agent", "salary_filter", "bank", "cash position totals", "MASK",
-                                  task_id=self.task.id, requester=self.requester, role=self.role,
-                                  policy="cash-position: payroll included in totals")
+        if not self._is_exec():  # the exact totals include every salary row: one audit row each
+            for r in self._q(f"SELECT id FROM transactions WHERE {salary_sql()} ORDER BY booking_date", []):
+                self.ctx.audit.record("agent", "salary_filter", "bank", f"transaction {r['id']}", "MASK",
+                                      task_id=self.task.id, requester=self.requester, role=self.role,
+                                      policy="cash-position: payroll included in totals")
         expected = self._q("SELECT on_date, amount, label FROM expected_cash_events WHERE status = 'expected' "
                            "ORDER BY on_date LIMIT 10", [])
         return {"balance": eur(row["balance"]) if row["balance"] >= 0 else "-" + eur(row["balance"]),
@@ -300,7 +303,7 @@ class Toolbox:
                        "FROM teams t LEFT JOIN transactions x ON x.team_id = t.id GROUP BY t.id, t.monthly_budget "
                        "ORDER BY t.id", [start])
         pay = self._q("SELECT id, team_id, booking_date, counterparty, reference, amount, type, category FROM transactions WHERE "
-                      f"amount < 0 AND booking_date >= %s AND {salary_sql()}", [start])
+                      f"booking_date >= %s AND {salary_sql()}", [start])  # debits and credits, as in search_payments
         view = self._salary_view(pay)
         by_team = {r["team"]: r for r in rows}
         for p in view.visible:
@@ -335,25 +338,24 @@ class Toolbox:
         return {"rows": _rows(self._q(sql + " ORDER BY updated_at DESC LIMIT 10", a))}
 
     def t_task_log(self, task_id: str, **_: Any) -> dict[str, Any]:
-        """Permission and steps come from one connection, and the task's owner is read again after the steps: a task
-        that changed hands in between is denied, so a former assignee never gets steps added after the change."""
+        """The task row and its steps are read in one REPEATABLE READ snapshot and the permission is judged on that
+        row, so a task that changes hands (even away and back) while we read cannot let other steps in."""
         cols = "id, title, status, outcome, owner_id, requested_by"
         with self.ctx.conn_factory() as conn:
-            first = conn.execute(f"SELECT {cols} FROM agent_tasks WHERE upper(id) = upper(%s)",
-                                 [task_id.strip()]).fetchone()
-            if not first:
+            conn.isolation_level = IsolationLevel.REPEATABLE_READ
+            task = conn.execute(f"SELECT {cols} FROM agent_tasks WHERE upper(id) = upper(%s)",
+                                [task_id.strip()]).fetchone()
+            if not task:
                 return {"error": "not_found"}
             steps: list[dict[str, Any]] = []
-            seen = first
-            if can_see_task(self.requester, self.role, first["requested_by"], first["owner_id"])[0]:
+            if can_see_task(self.requester, self.role, task["requested_by"], task["owner_id"])[0]:
                 steps = conn.execute("SELECT ts, text FROM agent_task_steps WHERE task_id = %s ORDER BY id",
-                                     [first["id"]]).fetchall()
-                seen = conn.execute(f"SELECT {cols} FROM agent_tasks WHERE id = %s", [first["id"]]).fetchone() or first
-        if not self.ctx.audit.check_task(self.requester, self.role, seen["id"], seen["requested_by"], seen["owner_id"],
+                                     [task["id"]]).fetchall()
+        if not self.ctx.audit.check_task(self.requester, self.role, task["id"], task["requested_by"], task["owner_id"],
                                          current_task=self.task.id):
             return {"error": "access_denied", "policy": "tasks: requester-or-exec-only"}
-        task = {k: seen[k] for k in ("id", "title", "status", "outcome", "owner_id")}
-        return {"task": _rows([task])[0], "steps": [f"{s['ts']:%b %d %H:%M} {s['text']}" for s in steps][-20:]}
+        shown = {k: task[k] for k in ("id", "title", "status", "outcome", "owner_id")}
+        return {"task": _rows([shown])[0], "steps": [f"{s['ts']:%b %d %H:%M} {s['text']}" for s in steps][-20:]}
 
     def t_search_files(self, person: str = "", words: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

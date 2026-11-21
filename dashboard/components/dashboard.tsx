@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { ForecastSection } from "@/components/overview/forecast-section";
+import { RevenuePlanSection } from "@/components/overview/revenue-plan-section";
 import { ScoutActivityRing, TeamSpendDonut } from "@/components/overview/round-charts";
 import { Staffing } from "@/components/staffing";
 import { DomIds } from "@/components/dom-ids";
@@ -45,7 +46,7 @@ const mobileNavigation: { route: Route; id: string; label: string; icon: LucideI
   { route: { view: "tasks" }, id: "tasks", label: "Tasks", icon: ListTodo },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
-const LOOPS = ["invoicing", "cost_control", "liquidity", "strategy", "chat"];
+const LOOPS = ["invoicing", "cost_control", "liquidity", "strategy", "forecast", "chat"];
 
 // Task details opened in this tab, so going back to a task is instant (refreshed in the background).
 const detailCache = new Map<string, TaskDetail>();
@@ -269,6 +270,8 @@ function DashboardContent({ data }: { data: DashboardData }) {
     </section>
 
     <ForecastSection quarter={data.forecast} year={data.forecastYear} whatIf={whatIf} />
+
+    <RevenuePlanSection plan={data.revenuePlan ?? null} tasks={scout.tasks} names={names} />
 
     <section aria-label="Spend and Scout activity" className="grid gap-4 lg:grid-cols-2">
       <TeamSpendDonut spend={data.quarterSpend} />

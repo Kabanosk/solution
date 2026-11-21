@@ -124,6 +124,10 @@ class Scheduler:
         if local.hour >= self._hour:
             if self._jobs.enqueue("cost_check", {}, f"cost:{local.date()}"):
                 out.append("cost_check")
+            # The forecast review skips itself when the CEO paused the forecast loop.
+            if self._jobs.enqueue("forecast_review", {"day": str(local.date()), "scheduled": True},
+                                  f"forecast:{local.date()}"):
+                out.append("forecast_review")
             # Strategy news is scheduled every 24 hours by the dashboard pod.
             if local.weekday() == 0:
                 year, week, _ = local.isocalendar()

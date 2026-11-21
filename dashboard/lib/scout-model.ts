@@ -86,7 +86,7 @@ export const OPEN_STATUSES: TaskStatus[] = ["todo", "in_progress", "waiting", "e
 export const isOpen = (task: Pick<AgentTask, "status">) => OPEN_STATUSES.includes(task.status);
 
 export const LOOP_LABEL: Record<string, string> = {
-  invoicing: "Invoicing", cost_control: "Cost control", liquidity: "Liquidity", strategy: "Strategy", chat: "Chat", expenses: "Expenses",
+  invoicing: "Invoicing", cost_control: "Cost control", liquidity: "Liquidity", strategy: "Strategy", forecast: "Forecast", chat: "Chat", expenses: "Expenses",
 };
 
 export const RESOLVED_VIA_LABEL: Record<ResolvedVia, string> = {

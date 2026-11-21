@@ -240,6 +240,7 @@ export function getPreviewData(): DashboardData {
     },
     forecast: sampleForecast(90, 1),
     forecastYear: sampleForecast(365, 7),
+    revenuePlan: null,
     generatedAt: `${DAY}T12:00:00Z`,
     quarterSpend: quarterSpend("2026-10-01", DAY, [
       { id: "kitchen", name: "Kitchen / food", budget: "8520000", spent: "5798507" },

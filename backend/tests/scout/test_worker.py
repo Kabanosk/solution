@@ -69,10 +69,10 @@ def test_mail_watcher_reply_for_waiting_task(conn_factory, db, tmp_path):
 def test_scheduler_daily_dedupe(conn_factory, db):
     s = Scheduler(JobQueue(conn_factory))
     monday_8 = datetime(2026, 11, 23, 7, 0, tzinfo=timezone.utc)  # 08:00 in Frankfurt
-    assert s.tick(monday_8) == ["cost_check", "liquidity_review"]
+    assert s.tick(monday_8) == ["cost_check", "forecast_review", "liquidity_review"]
     assert s.tick(monday_8 + timedelta(hours=3)) == []
     assert s.tick(datetime(2026, 11, 24, 4, 0, tzinfo=timezone.utc)) == []  # 05:00 local: too early
-    assert s.tick(datetime(2026, 11, 24, 9, 0, tzinfo=timezone.utc)) == ["cost_check"]
+    assert s.tick(datetime(2026, 11, 24, 9, 0, tzinfo=timezone.utc)) == ["cost_check", "forecast_review"]
 
 
 def test_dispatch_runs_the_loop(conn_factory, db, tmp_path):

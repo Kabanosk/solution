@@ -2,21 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { activeItem, GO_SHORTCUTS, hashFromRoute, NAV, NAV_ITEMS, routeFromHash } from "../lib/nav.ts";
 
-test("sidebar sections, order and hrefs: Overview first, one task list, no separate Forecast", () => {
+test("sidebar sections, order and hrefs: Overview first, one task list, Forecast as a loop", () => {
   assert.deepEqual(NAV.map(section => section.section), ["primary", "Loops", "Workspace"]);
   assert.deepEqual(NAV.map(section => section.items.map(item => item.label)), [
     ["Overview", "Scout chat", "Tasks", "Transactions"],
-    ["Invoicing", "Cost control", "Liquidity", "Strategy", "Chat"],
+    ["Invoicing", "Cost control", "Liquidity", "Strategy", "Forecast", "Chat"],
     ["Connections", "Audit log", "Access policies", "LLM usage"],
   ]);
   assert.deepEqual(NAV_ITEMS.map(item => item.href), [
     "/#overview", "/#chat", "/#tasks", "/#transactions",
-    "/#tasks?loop=invoicing", "/#tasks?loop=cost_control", "/#tasks?loop=liquidity", "/#tasks?loop=strategy", "/#tasks?loop=chat",
+    "/#tasks?loop=invoicing", "/#tasks?loop=cost_control", "/#tasks?loop=liquidity", "/#tasks?loop=strategy", "/#tasks?loop=forecast", "/#tasks?loop=chat",
     "/#connections", "/#audit", "/#policies", "/#llm-usage",
   ]);
   assert.deepEqual(NAV_ITEMS.filter(item => item.demoOnly).map(item => item.id), []);
   assert.deepEqual(routeFromHash("#demo"), { view: "demo" });
-  assert.deepEqual(NAV[1].items.map(item => item.loop), ["invoicing", "cost_control", "liquidity", "strategy", "chat"]);
+  assert.deepEqual(NAV[1].items.map(item => item.loop), ["invoicing", "cost_control", "liquidity", "strategy", "forecast", "chat"]);
   assert.equal(NAV[0].collapsible, false);
   assert.ok(NAV.slice(1).every(section => section.collapsible));
   assert.equal(new Set(NAV_ITEMS.map(item => item.id)).size, NAV_ITEMS.length);
@@ -26,7 +26,9 @@ test("hash routing, legacy hashes and g-shortcuts", () => {
   assert.deepEqual(routeFromHash(""), { view: "chat" });
   assert.deepEqual(routeFromHash("#"), { view: "chat" });
   assert.deepEqual(routeFromHash("#overview"), { view: "overview" });
-  assert.deepEqual(routeFromHash("#forecast"), { view: "overview" });
+  assert.deepEqual(routeFromHash("#forecast"), { view: "overview" }, "legacy #forecast still opens the overview");
+  assert.deepEqual(routeFromHash("#tasks?loop=forecast"), { view: "tasks", filter: { loop: "forecast" } });
+  assert.deepEqual(routeFromHash("#loop-forecast"), { view: "tasks", filter: { loop: "forecast" } });
   assert.deepEqual(routeFromHash("#tasks"), { view: "tasks", filter: {} });
   assert.deepEqual(routeFromHash("#tasks?loop=invoicing&status=done"), { view: "tasks", filter: { loop: "invoicing", status: "done" } });
   assert.deepEqual(routeFromHash("#inbox"), { view: "tasks", filter: { scope: "inbox" } });
@@ -53,6 +55,7 @@ test("the active sidebar item follows the task-list filter", () => {
   assert.equal(activeItem({ view: "overview" })?.id, "overview");
   assert.equal(activeItem({ view: "tasks", filter: {} })?.id, "tasks");
   assert.equal(activeItem({ view: "tasks", filter: { loop: "liquidity", status: "done" } })?.id, "loop-liquidity");
+  assert.equal(activeItem({ view: "tasks", filter: { loop: "forecast" } })?.id, "loop-forecast");
   assert.equal(activeItem({ view: "tasks", filter: { scope: "inbox" } })?.id, "tasks");
   assert.equal(activeItem({ view: "tasks", filter: { scope: "mine" } })?.id, "tasks");
 });

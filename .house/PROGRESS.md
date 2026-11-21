@@ -64,3 +64,5 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-20: Na prośbę użytkownika wdrożono bieżący dashboard na OpenShift w projekcie cfo-agent-uwur (build cfo-dashboard-7); rollout zakończony, HTTPS /healthz zwraca OK, ochrona logowania, uwierzytelniony widok, nowy przycisk czatu i odczyt danych poprawne. Pięć zestawów testów dashboardu przeszło.
 
 - 2026-11-20: T047 gotowe do integracji: dodano stronę LLM z nawigacją, zużyciem i kosztami modelu, snapshotem serwera oraz stanami ładowania/braku/błędu; testy, typecheck i przeglądarka 320–1440 px w obu motywach poprawne. Raport: reports/T047.md.
+- 2026-11-21 00:30 KSeF TE: Connect KSeF (XAdES, FA(3), pobieranie i parowanie płatności, szczebel KSeF w drabinie Scouta, karta w dashboardzie); testy backendu 472 OK, test na żywym TE OK · PR #21
+- 2026-11-21 · coordinator · Guardrails: research (3 tury, 16 agentów + docs Red Hat), grillowanie z Wojtkiem → D-029; T050–T052 przepisane pod agentów (dostęp do pensji/logów, NeMo CR z 3 configami, podpięcie w Scoucie) · reports/research-guardrails.md

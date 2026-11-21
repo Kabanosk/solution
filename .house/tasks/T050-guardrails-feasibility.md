@@ -1,38 +1,53 @@
 ---
 id: T050
-title: "Human (Wojtek): NeMo Guardrails feasibility and model choice"
-status: doing
-owner: Wojtek
-branch: null
+title: Scout access control for salaries and task logs (hard guardrails in code)
+status: todo
+owner: coder
+branch: task/T050-scout-access
 depends_on: []
-capabilities: [human]
+capabilities: []
 acceptance:
   - id: AC-1
-    manual: "reports/T050.md answers every question in the Objective with evidence (commands + output)"
+    run: "uv run --project backend pytest -q backend/tests/scout/test_salary_access.py backend/tests/scout/test_task_log_access.py"
+    timeout: 900
   - id: AC-2
-    manual: "Decision logged by Wojtek as a D-### in DECISIONS.md: go / no-go, deployment path, model(s) per rail"
+    run: "uv run --project backend pytest -q backend/tests/scout"
+    timeout: 1800
 protected: []
 ---
-> **HUMAN TASK — claimed by Wojtek.** Not for AI workers (coder, coder-codex, night runs): do not pick it up,
-> do not implement it, do not propose solutions or hints in briefs, reviews or chats unless Wojtek asks.
-> Status stays `doing` so `house night` never schedules it (night ignores `capabilities: [human]`).
-> Wojtek closes it himself: `house check collabothon-2026 T05x --manual AC-n --evidence <file>`.
-
 ## Objective
-Find out whether NeMo Guardrails can be used in this project on our cluster, and with which model(s).
-Questions to answer:
-1. Can NeMo Guardrails run on our OpenShift AI cluster, and in which form?
-2. Which model(s) should the rails use: the same one the agent uses, or another one, and for which kinds of rails?
-3. What does it cost on our single-node cluster (GPU, CPU, memory, latency per turn), and does it fit next to
-   what already runs there?
-4. Which of our traffic should go through guardrails (agent tool loop, CEO chat, Slack, tool results), and does
-   tool calling still work through it?
-5. Go / no-go for the demo, with the fallback if no-go.
+Scout must never show a person's salary to someone who may not see it, and must not hand anyone else's task log
+to a non-CEO. These are the deterministic controls; the NeMo rails (T051/T052) are only a second layer. Rules
+agreed with Wojtek on 2026-11-21 (D-029):
+
+1. **Salary rows** (bank transactions that pay a salary: payroll category / "SALARY PAYMENT" / "Net Salary <name>"):
+   - CEO/owner: sees every salary row.
+   - Manager: sees salary rows of the people whose HR `manager_id` chain leads to them (direct and indirect
+     reports), plus their own.
+   - Everyone: sees their own salary row(s).
+   - Office manager (finance role, sees the rest of the bank): salary rows of others are replaced by ONE aggregate
+     line per query, e.g. `Payroll (N employees): X EUR`, unless the rules above (own / reports) let them see a row.
+   - Everyone else gets no salary rows of other people and no payroll totals.
+   - Applies to every tool that can return bank rows or bank-derived numbers: at least `search_payments`,
+     `missing_invoices`, `cash_position`, `cost_trends`, `team_budgets` (check each; an aggregate that reveals a
+     single person's pay must not reach staff). Staff keep no general bank access (`audit.check` stays as is);
+     they only gain their own / their reports' salary rows.
+   - Every hidden or aggregated salary row writes one `audit_log` row (action `salary_filter`, decision `DENY` or
+     `MASK`, policy name) so the dashboard Audit page shows it.
+2. **`task_log` / `scout_tasks`:** a non-CEO only sees tasks where they are the requester (or assignee if the
+   task model has one); CEO/owner sees all. Denials are audited like other access checks.
+3. Put the policy in one place (`scout/audit.py` next to `check`, e.g. `can_see_salary(viewer, role, payee)`),
+   with the payee resolved from the transaction (employee id if present, else the name in the description matched
+   against HR). Unknown payee on a salary row ⇒ treat it as someone else's salary.
 
 ## Context
-- Background material written earlier (read it or not, your call): `.house/reports/guardrails-research.md`,
-  `.house/guardrails-tutorial.md`. D-009: guardrails are Wojtek's; the app switches only `LLM_BASE_URL`.
-- Cluster: project `cfo-agent-uwur`, LLM in `my-first-model` (D-017).
+- Access policy today: `backend/scout/audit.py` (`check`, `Audit.check`, `EXEC_ROLES`, `FINANCE_ROLES`).
+- Tools: `backend/scout/loops/toolbox.py` (`search_payments` ~:161, `scout_tasks` ~:241, `task_log` ~:253,
+  `cost_trends`, `team_budgets`); roles and manager chain: `backend/scout/loops/context.py` (`HR.role`,
+  `HR.manager`, `ROLE_CODES`).
+- Salary rows in the data: `backend/cfo/data/source.py` (~:64), generated bank history.
+- Tests: `backend/tests/scout/test_salary_access.py`, `backend/tests/scout/test_task_log_access.py` (fixtures in
+  `backend/tests/scout/conftest.py`). Write them first (TDD).
 
 ## Out of scope
-Writing rails (T051), wiring the app (T052).
+NeMo, prompts, Slack wording, approvals (T051/T052). Do not change the HR or bank seed data.

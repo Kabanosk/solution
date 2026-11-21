@@ -14,7 +14,7 @@ from scout.config import REPO_ROOT
 from scout.demo_data import SCENARIOS
 from scout.guardrails import Verdict
 from scout.loops import chat
-from test_guardrails import FakeGuard, audit_rows, blocked_world, SALARY
+from test_guardrails import ORG, FakeGuard, audit_rows, blocked_world, switch, SALARY  # noqa: F401 - switch: fixture
 from test_other_loops import dm
 
 RUNBOOK = REPO_ROOT / "docs" / "guardrails-demo.md"
@@ -308,10 +308,34 @@ def test_after_reset_the_ceo_alert_for_the_same_item_fires_again(conn_factory, t
 def test_cli_reset_uses_the_bound_database_and_prints_counts(monkeypatch, capsys, conn_factory, db):
     _seed_rows(db)
     monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
+    monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
     assert demo.main(["guard-reset", "--person", "vanessa", "--person", "grazyna"]) == 0
     assert "2 strikes" in capsys.readouterr().out
     with pytest.raises(SystemExit):  # argparse: not a demo persona
         demo.main(["guard-reset", "--person", "stranger"])
+
+
+def test_guard_reset_turns_the_switch_back_on_once(monkeypatch, capsys, conn_factory, switch):
+    monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
+    monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
+    switch(False)
+    assert demo.main(["guard-reset"]) == 0
+    assert "guardrails switch: turned back ON" in capsys.readouterr().out
+    assert [r["reason"] for r in audit_rows(conn_factory, "guardrails_toggled")] == ["OFF", "ON"]
+    assert guardrails.switched_on(type("Ctx", (), {"conn_factory": staticmethod(conn_factory)})()) is True
+    assert demo.main(["guard-reset"]) == 0
+    assert "guardrails switch: already ON" in capsys.readouterr().out
+    assert len(audit_rows(conn_factory, "guardrails_toggled")) == 2  # nothing changed, nothing written
+
+
+def test_guard_reset_still_resets_strikes_when_the_switch_cannot_be_written(monkeypatch, capsys, conn_factory, db):
+    _seed_rows(db)
+    monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
+    monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
+    monkeypatch.setattr(guardrails, "SWITCH_TABLE", "no_such_table")
+    assert demo.main(["guard-reset"]) == 0
+    out = capsys.readouterr().out
+    assert "strikes" in out and "guardrails switch: could not be set" in out
 
 
 # -- plant -------------------------------------------------------------------------------------------------

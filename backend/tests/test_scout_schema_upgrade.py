@@ -205,3 +205,33 @@ def test_upgrade_rejects_forged_schema_registration_and_rolls_back(upgrade_db, m
         monkeypatch.setattr(migrate.psycopg, "connect", same_transaction)
         with pytest.raises(PermissionError, match="Invalid organization schema registration"):
             migrate.migrate_auth(upgrade_db)
+
+
+def test_auth_sql_declares_the_guardrails_switch_additively():
+    text = migrate.AUTH_PATH.read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS scout_auth.guardrails_settings" in text
+    block = text.split("scout_auth.guardrails_settings", 1)[1].split(");", 1)[0]
+    assert "enabled BOOLEAN NOT NULL DEFAULT true" in block and "REFERENCES scout_auth.organizations(id)" in block
+
+
+def test_migrate_adds_the_guardrails_switch_and_keeps_it_on_repeat(upgrade_db):
+    oid = uuid4()
+    try:
+        with psycopg.connect(upgrade_db) as conn:
+            conn.execute("INSERT INTO scout_auth.organizations(id,slug,name,schema_name) VALUES (%s,%s,'Switch test',%s)",
+                         (oid, "switch-" + oid.hex, "tenant_" + oid.hex))
+            conn.execute("INSERT INTO scout_auth.guardrails_settings(organization_id) VALUES (%s)", (oid,))
+            assert conn.execute("SELECT enabled FROM scout_auth.guardrails_settings WHERE organization_id=%s",
+                                (oid,)).fetchone() == (True,)  # default ON
+            conn.execute("UPDATE scout_auth.guardrails_settings SET enabled=false, updated_by='owner' "
+                         "WHERE organization_id=%s", (oid,))
+        migrate.migrate_auth(upgrade_db)  # idempotent: the saved state survives a repeated deployment
+        with psycopg.connect(upgrade_db) as conn:
+            assert conn.execute("SELECT enabled, updated_by FROM scout_auth.guardrails_settings WHERE organization_id=%s",
+                                (oid,)).fetchone() == (False, "owner")
+            conn.execute("DELETE FROM scout_auth.organizations WHERE id=%s", (oid,))
+            assert conn.execute("SELECT count(*) FROM scout_auth.guardrails_settings WHERE organization_id=%s",
+                                (oid,)).fetchone() == (0,)  # removed with its organization
+    finally:
+        with psycopg.connect(upgrade_db) as conn:
+            conn.execute("DELETE FROM scout_auth.organizations WHERE id=%s", (oid,))

@@ -14,9 +14,9 @@ export function StrategySettingsPanel() {
   useEffect(() => {
     let active = true;
     tenantFetch("/api/strategy/settings").then(async response => {
-      if (!response.ok) throw new Error();
+      if (!response.ok) throw new Error(response.status === 403 ? "Only a workspace owner can configure daily research." : "Strategy settings are temporarily unavailable. Reload to retry.");
       const value = await response.json(); if (active) { setSettings(value); setLoaded(true); }
-    }).catch(() => { if (active) setMessage("Settings unavailable. A workspace owner can configure daily research."); });
+    }).catch(error => { if (active) setMessage(error instanceof Error ? error.message : "Strategy settings are temporarily unavailable. Reload to retry."); });
     return () => { active = false; };
   }, []);
   async function save() {
@@ -41,7 +41,7 @@ export function StrategySettingsPanel() {
     {dialog && <ExternalProviderDialog config={null} persistForStrategy onClose={() => setDialog(false)} onRemove={() => {}} onSave={config => {
       setSettings(previous => ({ ...previous, provider: config.provider, model: config.model })); setDialog(false); setMessage("Provider saved for Strategy. Add company context and enable daily research.");
     }} />}
-    <details id="strategy-settings-details" className="rounded-lg border bg-muted/20">
+    <details id="strategy-settings-details" className="rounded-lg border bg-muted/20" open>
       <summary id="strategy-settings-summary" className="cursor-pointer px-3 py-2 text-sm font-medium">Daily news settings{settings.provider ? ` · ${settings.provider} · ${settings.enabled ? "Enabled" : "Paused"}` : " · Set up provider"}</summary>
       <div id="strategy-settings-fields" className="space-y-3 border-t p-3">
         <div id="strategy-provider-row" className="flex flex-wrap items-center justify-between gap-2">

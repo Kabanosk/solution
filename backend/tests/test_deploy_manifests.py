@@ -90,6 +90,11 @@ def test_unscoped_mcp_http_deployments_are_disabled(docs):
         assert deployments[name]["spec"]["replicas"] == 0
 
 
+def test_global_usage_sampler_is_disabled_in_shared_deployment(docs):
+    workload = _by_kind(docs, "Deployment")["usage-sampler"]
+    assert workload["spec"]["replicas"] == 0
+
+
 def test_workstations_mcp_mounts_cfo_data(docs):
     workload = _by_kind(docs, "Deployment")["mcp-workstations"]
     mounts = _mounts_of_pvc(workload, _container(workload, "mcp-workstations"), "cfo-data")

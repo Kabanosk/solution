@@ -31,10 +31,16 @@ CREATE TABLE IF NOT EXISTS guardrail_alerts (
 );
 
 -- BLOCK = a guardrail verdict, MASK = salary rows folded into a payroll total; older databases allowed ALLOW/DENY only.
--- Replaces only the decision check of the registered schema's own audit_log (search_path is bound to it).
+-- Replaces only the decision check of the registered schema's own audit_log (search_path is bound to it), and only
+-- when the current one lacks MASK or BLOCK: DROP/ADD CONSTRAINT takes an exclusive lock and scans the whole table,
+-- which a repeated --check/--migrate must not do.
 DO $guardrails$
 BEGIN
-    IF to_regclass('audit_log') IS NOT NULL THEN
+    IF to_regclass('audit_log') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = to_regclass('audit_log') AND conname = 'audit_log_decision_check' AND contype = 'c'
+          AND pg_get_constraintdef(oid) LIKE '%''MASK''%' AND pg_get_constraintdef(oid) LIKE '%''BLOCK''%'
+    ) THEN
         ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_decision_check;
         ALTER TABLE audit_log ADD CONSTRAINT audit_log_decision_check
             CHECK (decision IN ('ALLOW', 'DENY', 'MASK', 'BLOCK'));

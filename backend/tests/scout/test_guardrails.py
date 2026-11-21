@@ -454,9 +454,20 @@ def _timeout_client() -> tuple[HttpGuardrails, list]:
     return client, calls
 
 
+@pytest.fixture(autouse=True)
+def _fresh_warm_up_state():
+    guardrails._WARM.clear()  # process-wide per URL: no test may inherit another's rate limit
+    yield
+    guardrails._WARM.clear()
+
+
+def _state(client: HttpGuardrails) -> dict:
+    return guardrails._WARM.get(client.url, {"warming": False, "started": None})
+
+
 def _wait_for_warmup(client: HttpGuardrails) -> None:
     for _ in range(200):
-        if not client._warming:
+        if not _state(client)["warming"]:
             return
         time.sleep(0.01)
     raise AssertionError("background warm-up did not finish")
@@ -489,10 +500,41 @@ def test_only_timeouts_trigger_the_background_warm_up_and_the_worker_warm_up_cou
 
     c = _client(refused)
     assert c.check("user-input", [{"role": "user", "content": "x"}]).status == "unavailable"
-    assert c._warm_started is None and not c._warming  # a refused connection is not a restart in progress
+    assert _state(c)["started"] is None and not _state(c)["warming"]  # a refused connection is not a restart in progress
     ok = _client(lambda r: httpx.Response(200, json={"status": "success"}))
     ok.warm_up()
-    assert ok._warm_started is not None and not ok._warm_up_in_background()  # the worker's warm-up counts for the limit
+    assert _state(ok)["started"] is not None and not ok._warm_up_in_background()  # the worker's warm-up counts for the limit
+
+
+def test_warm_up_rate_limit_is_shared_by_every_client_of_the_same_service(monkeypatch):
+    """The dashboard chat builds a client per request: each one timing out must not start its own warm-up."""
+    started: list = []
+
+    class Hold:
+        def __init__(self, target, args, name, daemon):
+            started.append(name)
+
+        def start(self):
+            pass  # the warm-up never finishes: it stays "warming"
+
+    monkeypatch.setattr(guardrails.threading, "Thread", Hold)
+    a, b = _timeout_client()[0], _timeout_client()[0]
+    assert a._warm_up_in_background() is True
+    assert b._warm_up_in_background() is False  # another client, same URL, one is running
+    assert len(started) == 1
+    other = HttpGuardrails("http://other:8000", http=a._http)
+    assert other._warm_up_in_background() is True  # a different service has its own limit
+
+
+def test_a_thread_that_cannot_start_keeps_the_check_fail_open_and_resets_the_flag(monkeypatch):
+    def boom(*a, **kw):
+        raise RuntimeError("can't start new thread")
+
+    client, _ = _timeout_client()
+    monkeypatch.setattr(guardrails.threading, "Thread", boom)
+    v = client.check("user-input", [{"role": "user", "content": "x"}])  # must not raise
+    assert v.status == "unavailable"
+    assert not _state(client)["warming"]  # not stuck: a later warm-up (after the interval) can run
 
 
 def test_a_warm_up_that_times_out_does_not_start_another():
@@ -501,7 +543,7 @@ def test_a_warm_up_that_times_out_does_not_start_another():
 
     c = _client(slow)
     assert c.warm_up().status == "unavailable"
-    assert not c._warming and not c._warm_up_in_background()  # inside the interval, and no recursion
+    assert not _state(c)["warming"] and not c._warm_up_in_background()  # inside the interval, and no recursion
 
 
 def test_default_chat_context_has_guardrails_and_tracing(conn_factory, monkeypatch):

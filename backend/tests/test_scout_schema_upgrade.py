@@ -111,6 +111,18 @@ def test_upgrade_adds_guardrail_storage_and_widens_the_decision_constraint(old_s
         assert conn.execute("SELECT count(*) FROM audit_log WHERE actor='legacy'").fetchone() == (1,)
 
 
+def test_current_decision_constraint_is_left_alone_on_repeat(old_scout):
+    """DROP/ADD CONSTRAINT locks audit_log exclusively and rescans it: the second run must not touch a current one."""
+    url, _, schema, _ = old_scout
+    migrate.migrate_auth(url)
+    query = ("SELECT oid FROM pg_constraint WHERE conrelid=to_regclass(%s) AND conname='audit_log_decision_check'")
+    with psycopg.connect(url) as conn:
+        (first,) = conn.execute(query, (f"{schema}.audit_log",)).fetchone()
+    migrate.migrate_auth(url)
+    with psycopg.connect(url) as conn:
+        assert conn.execute(query, (f"{schema}.audit_log",)).fetchone() == (first,)  # same object: not recreated
+
+
 def test_check_does_not_leave_guardrail_tables_behind(old_scout):
     url, _, schema, _ = old_scout
     migrate.migrate_auth(url, check=True)

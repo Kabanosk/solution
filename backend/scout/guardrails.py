@@ -102,6 +102,12 @@ def _rail_names(body: dict[str, Any]) -> tuple[str, ...]:
     return tuple(names)
 
 
+# Warm-up state per service URL, shared by every client in the process: the dashboard chat builds a client for each
+# request, so a per-client limit would let each timed-out request start its own warm-up against the same NeMo.
+_WARM_LOCK = threading.Lock()
+_WARM: dict[str, dict[str, Any]] = {}  # url -> {"warming": bool, "started": monotonic time of the last start}
+
+
 class HttpGuardrails:
     """The check service over HTTP. `url` empty = disabled."""
 
@@ -109,9 +115,6 @@ class HttpGuardrails:
                  http: httpx.Client | None = None, verify: str | bool = True):
         self.url, self.token, self.timeout, self.model = url.rstrip("/"), token, timeout, model
         self._http, self._verify = http, verify
-        self._warm_lock = threading.Lock()
-        self._warming = False
-        self._warm_started: float | None = None
 
     @property
     def enabled(self) -> bool:
@@ -150,8 +153,8 @@ class HttpGuardrails:
         spaCy for every config) plus route convergence, and each config builds its own rails on first use
         (bot-output also loads spaCy, ~2 s). Warm all four with this client's model name (the server caches rails
         per config_id + model) so no real check hits the short per-check timeout. Returns the verdict of the first."""
-        with self._warm_lock:
-            self._warming, self._warm_started = True, time.monotonic()
+        with _WARM_LOCK:
+            _WARM[self.url] = {"warming": True, "started": time.monotonic()}
         return self._warm_all(timeout)
 
     def _warm_all(self, timeout: float) -> Verdict:
@@ -161,17 +164,29 @@ class HttpGuardrails:
                 self.check(config_id, _messages(config_id, ["hello"]), timeout=timeout)
             return first
         finally:
-            with self._warm_lock:
-                self._warming = False
+            self._warm_done()
+
+    def _warm_done(self) -> None:
+        with _WARM_LOCK:
+            _WARM.setdefault(self.url, {"started": None})["warming"] = False
 
     def _warm_up_in_background(self) -> bool:
-        """Rate-limited: none while one runs, at most one per WARMUP_MIN_INTERVAL_S. True when one was started."""
-        with self._warm_lock:
+        """Rate-limited per service URL for the whole process: none while one runs, at most one per
+        WARMUP_MIN_INTERVAL_S. True when one was started. Never raises (the caller is a fail-open path)."""
+        with _WARM_LOCK:
             now = time.monotonic()
-            if self._warming or (self._warm_started is not None and now - self._warm_started < WARMUP_MIN_INTERVAL_S):
+            state = _WARM.get(self.url)
+            if state and (state["warming"] or (state["started"] is not None
+                                               and now - state["started"] < WARMUP_MIN_INTERVAL_S)):
                 return False
-            self._warming, self._warm_started = True, now
-        threading.Thread(target=self._warm_all, args=(WARMUP_TIMEOUT_S,), name="guardrails-rewarm", daemon=True).start()
+            _WARM[self.url] = {"warming": True, "started": now}
+        try:
+            threading.Thread(target=self._warm_all, args=(WARMUP_TIMEOUT_S,), name="guardrails-rewarm",
+                             daemon=True).start()
+        except Exception:  # noqa: BLE001 - e.g. no threads left: the check still fails open
+            log.exception("could not start the guardrails warm-up thread")
+            self._warm_done()
+            return False
         return True
 
 

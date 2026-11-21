@@ -1,4 +1,5 @@
 import type { ScoutData } from "./scout-model";
+import type { RevenuePlan } from "./revenue-plan-model";
 
 export type ExpenseCategory = { name: string; color: string; amount: number; percentage: number };
 export type FinancePeriod = { transactions: number; totalRevenue: number; totalExpenses: number; expenses: ExpenseCategory[] };
@@ -29,6 +30,8 @@ export type DashboardData = {
   /** 12 months, weekly points. */
   forecastYear: Forecast | null;
   quarterSpend: QuarterSpend;
+  /** Latest Forecast-loop result (CEO revenue target vs Scout's realistic forecast); null before the first review. */
+  revenuePlan: RevenuePlan | null;
   /** Server time of this render (ISO), so "this month" is the same on the server and in the browser. */
   generatedAt: string;
 };

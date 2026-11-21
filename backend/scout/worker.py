@@ -19,12 +19,12 @@ from typing import Any
 from cfo.observability import span
 
 from scout import db as scout_db
-from scout import dm_replies, guardrails
+from scout import dm_replies, guardrails, mailer
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
 from scout.jobs import MAX_ATTEMPTS, JobQueue, lease_seconds
-from scout.loops import chat, cost_control, invoicing, liquidity, strategy
+from scout.loops import chat, cost_control, forecast, invoicing, liquidity, strategy
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
 from scout.tasks import TaskRecorder
@@ -64,6 +64,7 @@ HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "bank_txn": invoicing.run, "reminder": invoicing.run, "reply": invoicing.run,
     "cost_check": cost_control.run,
     "strategy_review": strategy.run,
+    "forecast_review": forecast.review, "forecast_drift": forecast.drift,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,
     "chat_forecast": liquidity.run, "hiring_scenario": liquidity.run,
     "dm": chat.run,
@@ -139,7 +140,7 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
             row = conn.execute("SELECT r.task_id FROM dm_replies p JOIN dm_requests r ON r.id = p.request_id "
                                "WHERE p.id = %s", (p.get("reply_id"),)).fetchone()
         return row["task_id"] if row else None
-    if job.kind == "strategy_review":
+    if job.kind in ("strategy_review", "forecast_review", "forecast_drift"):
         t = ctx.recorder.by_key(job.dedupe_key)
         return t.id if t else None
     if job.kind == "bank_txn":
@@ -329,7 +330,7 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
     connectors = registry.build(cf, s, slack_client, audit)
     ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=traced_llm(get_llm()),
                      notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names), guard=guardrails.from_settings(s),
-                     checkpointer=scout_db.postgres_checkpointer(s.database_url))
+                     checkpointer=scout_db.postgres_checkpointer(s.database_url), mailer=mailer.from_settings(s))
     from cfo.tenancy import legacy_connectors_enabled
     if legacy_connectors_enabled():
         try:
@@ -347,7 +348,7 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
 
     watchers: list[tuple[float, Callable[[], Any]]] = [
         (float(s.bank_poll_seconds), bank.poll), (float(s.mail_poll_seconds), mail.poll),
-        (30.0, Scheduler(jobs).tick), (60.0, refresh_connectors)]
+        (30.0, Scheduler(jobs).tick), (60.0, refresh_connectors), (30.0, forecast.DriftWatcher(cf, jobs).poll)]
     if hasattr(notifier, "flush"):
         watchers.append((0.5, notifier.flush))
     if hasattr(notifier, "sweep"):  # Slack is the source of truth: ask every member without an account (once)

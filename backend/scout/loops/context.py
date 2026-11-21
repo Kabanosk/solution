@@ -15,6 +15,7 @@ from scout.config import ScoutSettings
 from scout.connectors.registry import Connectors
 from scout.db import ConnFactory
 from scout.jobs import JobQueue
+from scout.mailer import LogMailer
 from scout.tasks import TaskRecorder
 
 INVOICE_NUMBER_RE = re.compile(r"\b([A-Z]{2,5}-\d{2,6}(?:-\d{2})?)\b")
@@ -166,6 +167,7 @@ class JobContext:
     checkpointer: Any = None  # LangGraph saver for approvals (Postgres in the worker, in-memory in tests)
     guard: Any = None  # scout.guardrails.HttpGuardrails (or a fake); None or disabled: every check passes
     forecaster: Any = None  # (ctx, outflows) -> LiquidityReview; default: cfo.forecast.liquidity on the company data
+    mailer: Any = field(default_factory=LogMailer)  # urgent email to the CEO; SMTP in the worker when configured
 
     def now(self) -> datetime:
         return self.clock()

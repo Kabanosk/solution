@@ -86,6 +86,65 @@ def strategy_review(conn: Conn, _: WriteAuth) -> dict[str, Any]:
     return {"status": "queued" if row else "already_scheduled", "day": day, "task_id": task["id"] if task else None}
 
 
+# -- forecast plan (the CEO's annual revenue expectation) ---------------------------------------------------
+def _queue_forecast(conn: Any, reason: str) -> tuple[bool, str | None]:
+    from zoneinfo import ZoneInfo
+    day = str(datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin")).date())
+    key = f"forecast:{day}:{reason}:{secrets.token_hex(4)}"  # every manual run is a fresh review
+    row = conn.execute("INSERT INTO agent_jobs(kind,payload,dedupe_key) VALUES ('forecast_review',%s,%s) "
+                       "ON CONFLICT (dedupe_key) DO NOTHING RETURNING id", (Jsonb({"day": day}), key)).fetchone()
+    scout_db.notify(conn, "scout_jobs", "forecast_review")
+    return row is not None, key
+
+
+def _forecast_owner() -> None:
+    if not _strategy_exec():
+        raise ApiError(403, "forbidden", "Only the organization owner can manage the forecast plan.")
+
+
+@router.get("/forecast/plan", tags=["tasks"], summary="The CEO's revenue expectation and its default")
+def get_forecast_plan(conn: Conn) -> dict[str, Any]:
+    from datetime import date as _date
+
+    from scout import forecast_plan as fp
+    _forecast_owner()
+    today = _date.today()
+    rows = conn.execute("SELECT booking_date, amount, category FROM transactions WHERE booking_date >= %s "
+                        "AND currency = 'EUR'", (fp.month_start(today, -12),)).fetchall()
+    trailing = fp.trailing_revenue(rows, today)
+    row = conn.execute("SELECT updated_at FROM forecast_plan WHERE id").fetchone()
+    plan = fp.load(conn)
+    return {"plan": {**plan.as_json(), "updated_at": row["updated_at"].isoformat()} if plan else None,
+            "defaults": {"trailing_revenue": str(trailing), "default_target": str(fp.default_target(trailing)),
+                         "currency": "EUR"}}
+
+
+@router.put("/forecast/plan", tags=["tasks"], summary="Save the CEO's revenue expectation and plan rules")
+def put_forecast_plan(conn: Conn, _: WriteAuth, body: dict[str, Any]) -> dict[str, Any]:
+    from cfo.tenancy import current_tenant
+
+    from scout import forecast_plan as fp
+    _forecast_owner()
+    try:
+        plan = fp.parse(body)
+    except ValueError as exc:
+        raise ApiError(400, "invalid_plan", str(exc)) from None
+    tenant = current_tenant(required=False)
+    fp.save(conn, plan, getattr(tenant, "employee_id", None))
+    queued, _ = _queue_forecast(conn, "saved")
+    conn.commit()
+    row = conn.execute("SELECT updated_at FROM forecast_plan WHERE id").fetchone()
+    return {"plan": {**plan.as_json(), "updated_at": row["updated_at"].isoformat()}, "queued": queued}
+
+
+@router.post("/forecast/review", tags=["tasks"], summary="Run the revenue forecast now")
+def forecast_review(conn: Conn, _: WriteAuth) -> dict[str, Any]:
+    _forecast_owner()
+    queued, key = _queue_forecast(conn, "manual")
+    conn.commit()
+    return {"status": "queued" if queued else "already_scheduled", "task_id": None, "job": key}
+
+
 # -- tasks --------------------------------------------------------------------------------------------------
 @router.get("/tasks", tags=["tasks"], summary="Agent tasks, newest activity first, with counts per status")
 def list_tasks(conn: Conn, status: str | None = None, loop: str | None = None, owner: str | None = None,

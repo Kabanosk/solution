@@ -86,3 +86,5 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-21: Naprawiono dostęp do ustawień Strategy na produkcji: dodano brakującą tabelę, dołączono instrumentation.ts do paczki wdrożeniowej i włączono harmonogram; konto właściciela zapisało prompt i wykonało zadanie SC-316 (done, 4 źródła).
 
 - 2026-11-21: Wyniki pętli Strategy korzystają ze wspólnego renderera Markdown (nagłówki, listy, wyróżnienia i linki), z zachowaniem bezpiecznego renderowania tekstu; typecheck i testy Markdown zaliczone.
+
+- 2026-11-21: Nowa pętla Forecast: CEO ustawia roczny cel przychodu (domyślnie 150% ostatnich 12 miesięcy) i zasady planu; Scout codziennie sprawdza bank, faktury, e-mail i Slack, prognozuje 12 miesięcy, wskazuje słabe punkty i tworzy zadania dla zespołu; działania sprzeczne z planem (np. zatrudnienie) wywołują pilny DM i e-mail do CEO, pytanie „dlaczego” i zadania naprawcze; wykres planu przychodu na Overview; testy backendu i dashboardu zaliczone.

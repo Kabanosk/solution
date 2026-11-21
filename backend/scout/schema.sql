@@ -9,7 +9,7 @@ CREATE SEQUENCE IF NOT EXISTS agent_task_seq START 100;
 CREATE TABLE IF NOT EXISTS agent_tasks (
     id            TEXT PRIMARY KEY DEFAULT ('SC-' || nextval('agent_task_seq')),
     dedupe_key    TEXT NOT NULL UNIQUE,
-    loop          TEXT NOT NULL CHECK (loop IN ('invoicing', 'cost_control', 'liquidity', 'chat', 'expenses', 'strategy')),
+    loop          TEXT NOT NULL CHECK (loop IN ('invoicing', 'cost_control', 'liquidity', 'chat', 'expenses', 'strategy', 'forecast')),
     title         TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'in_progress'
                   CHECK (status IN ('todo', 'in_progress', 'waiting', 'escalated', 'done', 'cancelled')),
@@ -222,3 +222,15 @@ CREATE TABLE IF NOT EXISTS dm_replies (
 );
 CREATE INDEX IF NOT EXISTS dm_replies_step_idx ON dm_replies (step_id);
 ALTER TABLE dm_replies ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;  -- lease of the Slack fallback sender
+
+-- Forecast loop: the CEO's annual revenue expectation and the rules the team must keep (one row per organization).
+CREATE TABLE IF NOT EXISTS forecast_plan (
+    id                   BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+    annual_revenue_target NUMERIC(14,2) NOT NULL CHECK (annual_revenue_target > 0),
+    no_hiring            BOOLEAN NOT NULL DEFAULT FALSE,
+    max_new_monthly_cost NUMERIC(14,2) CHECK (max_new_monthly_cost IS NULL OR max_new_monthly_cost >= 0),
+    guidance             TEXT NOT NULL DEFAULT '',
+    enabled              BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_by           TEXT,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);

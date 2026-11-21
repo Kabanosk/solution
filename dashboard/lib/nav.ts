@@ -58,6 +58,7 @@ export const NAV: NavSection[] = [
     loopItem("cost_control", "Cost control"),
     loopItem("liquidity", "Liquidity"),
     loopItem("strategy", "Strategy"),
+    loopItem("forecast", "Forecast"),
     loopItem("chat", "Chat"),
   ] },
   { section: "Workspace", collapsible: true, items: [

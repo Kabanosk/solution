@@ -84,7 +84,7 @@ def test_worker_scheduler_keeps_cost_dedupe_and_leaves_strategy_to_dashboard():
     queue = Queue()
     scheduler = Scheduler(queue)
     assert scheduler.tick(datetime(2026, 11, 21, 5, 59, tzinfo=timezone.utc)) == []
-    assert scheduler.tick(datetime(2026, 11, 21, 6, 0, tzinfo=timezone.utc)) == ['cost_check']
+    assert scheduler.tick(datetime(2026, 11, 21, 6, 0, tzinfo=timezone.utc)) == ['cost_check', 'forecast_review']
     assert scheduler.tick(datetime(2026, 11, 21, 7, 0, tzinfo=timezone.utc)) == []
     assert 'strategy:2026-11-21' not in queue.keys
 

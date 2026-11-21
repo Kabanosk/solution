@@ -28,6 +28,11 @@ oauth_config:
       - channels:read  # find the authorized channels (#finance)
       - channels:history  # read the authorized channels for payment context
       - groups:history  # same for private channels Scout is invited to
+      - channels:join  # one-click onboarding: the bot joins every public channel itself
+      - groups:read  # list the private channels the bot is in
+    user:
+      - groups:read  # one-click onboarding: list the installer's private channels
+      - groups:write  # invite the bot into them; this user token is revoked right after
 settings:
   event_subscriptions:
     bot_events:

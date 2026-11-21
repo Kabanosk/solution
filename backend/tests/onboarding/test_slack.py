@@ -1,4 +1,5 @@
-"""Cycle 6: tenant-bound Slack installation. Read-only identity verification; never sends a message."""
+"""Cycle 6: tenant-bound Slack installation, one click: identity verification, then the bot joins public channels and
+is invited into the installer's private channels. Never sends a message."""
 from __future__ import annotations
 
 import json
@@ -11,7 +12,9 @@ from onboarding_helpers import APP_ORIGIN, MASTER_KEY, admin, dump, step, tenant
 
 REDIRECT = APP_ORIGIN + "/api/onboarding/callback/slack"
 BOT = "xoxb-secret-bot-token"
-SCOPES = "channels:read,channels:history,groups:read,groups:history,users:read"
+SCOPES = "channels:read,channels:history,channels:join,groups:read,groups:history,users:read,chat:write,im:write,im:read,im:history"
+USER = "xoxp-secret-installer-token"
+USER_SCOPES = "groups:read,groups:write"
 
 
 def start(api, org, redirect=REDIRECT, proof=PROOF):
@@ -25,7 +28,9 @@ def callback(api, org, state, **kw):
     return api.post("/v1/onboarding/callback/slack", headers=org.headers(), json=body)
 
 
-def script_slack(fakes, *, ok=True, scope=SCOPES, team="T1", test_team="T1", token=BOT, revoke_status=200):
+def script_slack(fakes, *, ok=True, scope=SCOPES, team="T1", test_team="T1", token=BOT, revoke_status=200,
+                 user_scope=USER_SCOPES, public=(), bot_private=(), user_private=(), join_errors=(), invite_errors=()):
+    """Default workspace: no channels. `public`: [(id, is_member)]; private lists are channel ids."""
     def access(request):
         form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
         assert form["client_id"] == "slack-client-id" and form["client_secret"] == "slack-client-secret"
@@ -33,7 +38,8 @@ def script_slack(fakes, *, ok=True, scope=SCOPES, team="T1", test_team="T1", tok
         if not ok or form["code"] != "good-code":
             return 200, {"ok": False, "error": "invalid_code"}
         return 200, {"ok": True, "access_token": token, "token_type": "bot", "scope": scope, "bot_user_id": "U1",
-                     "app_id": "A1", "team": {"id": team, "name": "Acme Workspace"}}
+                     "app_id": "A1", "team": {"id": team, "name": "Acme Workspace"},
+                     "authed_user": {"id": "UOWNER", "access_token": USER, "token_type": "user", "scope": user_scope}}
 
     def auth_test(request):
         assert request.headers["authorization"] == f"Bearer {token}"
@@ -44,6 +50,33 @@ def script_slack(fakes, *, ok=True, scope=SCOPES, team="T1", test_team="T1", tok
     fakes.route("POST", "slack.com", "/api/auth.test", auth_test)
     fakes.route("POST", "slack.com", "/api/auth.revoke", (revoke_status, {"ok": True, "revoked": True}))
 
+    def form(request):
+        return {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+
+    def conversations_list(request):
+        assert request.headers["authorization"] == f"Bearer {token}"
+        assert (form(request)["types"], form(request)["exclude_archived"]) == ("public_channel", "true")
+        return 200, {"ok": True, "channels": [{"id": c, "is_member": m} for c, m in public]}
+
+    def users_conversations(request):
+        assert form(request)["types"] == "private_channel"
+        ids = bot_private if request.headers["authorization"] == f"Bearer {token}" else user_private
+        return 200, {"ok": True, "channels": [{"id": c} for c in ids]}
+
+    def join(request):
+        ch = form(request)["channel"]
+        return 200, {"ok": False, "error": "method_not_supported_for_channel_type"} if ch in join_errors else {"ok": True}
+
+    def invite(request):
+        assert request.headers["authorization"] == f"Bearer {USER}" and form(request)["users"] == "U1"
+        ch = form(request)["channel"]
+        return 200, {"ok": False, "error": "restricted_action"} if ch in invite_errors else {"ok": True}
+
+    fakes.route("POST", "slack.com", "/api/conversations.list", conversations_list)
+    fakes.route("POST", "slack.com", "/api/users.conversations", users_conversations)
+    fakes.route("POST", "slack.com", "/api/conversations.join", join)
+    fakes.route("POST", "slack.com", "/api/conversations.invite", invite)
+
 
 def begin(api, org, fakes, **script):
     response = start(api, org)
@@ -52,14 +85,15 @@ def begin(api, org, fakes, **script):
     return parse_qs(urlparse(response.json()["url"]).query)["state"][0], response.json()["url"]
 
 
-def test_start_builds_a_read_only_install_url_bound_to_the_session(api, org, fakes, db_url):
+def test_start_builds_a_channel_and_dm_install_url_bound_to_the_session(api, org, fakes, db_url):
     response = start(api, org)
     url = urlparse(response.json()["url"])
     assert (url.scheme, url.netloc, url.path) == ("https", "slack.com", "/oauth/v2/authorize")
     q = {k: v[0] for k, v in parse_qs(url.query).items()}
     assert q["client_id"] == "slack-client-id" and q["redirect_uri"] == REDIRECT
-    assert set(q["scope"].split(",")) == set(SCOPES.split(",")) and "user_scope" not in q
-    assert not any(s in q["scope"] for s in ("chat:write", "im:write", "files:write"))
+    assert set(q["scope"].split(",")) == set(SCOPES.split(",")) and q["user_scope"] == USER_SCOPES
+    assert {"chat:write", "im:write", "im:read", "im:history"} <= set(q["scope"].split(","))
+    assert "files:write" not in q["scope"].split(",")
     assert fakes.calls == []
     with admin(db_url) as conn:
         [row] = conn.execute("SELECT * FROM scout_auth.setup_oauth_states WHERE organization_id=%s", (org.id,)).fetchall()
@@ -85,12 +119,14 @@ def test_callback_verifies_workspace_identity_and_seals_the_bot_token(api, org, 
     response = callback(api, org, state, code="good-code")
     assert response.status_code == 200, response.text
     slack = step(response.json(), "slack")
-    # authorization alone is not "fully connected": channels must still be chosen
-    assert slack["state"] == "needs_configuration" and "channel" in slack["message"].lower()
+    # an empty workspace: nothing to join, so the owner is told no channel could be joined
+    assert slack["state"] == "needs_configuration" and "could not join any channel" in slack["message"].lower()
     assert slack["display"] == {"authorized": True, "workspace": "Acme Workspace", "team_id": "T1"}
     assert BOT not in response.text and "slack-client-secret" not in response.text
-    assert [(r.method, r.url.path) for r in fakes.calls] == [("POST", "/api/oauth.v2.access"), ("POST", "/api/auth.test")]
-    assert not [r for r in fakes.calls if "chat." in r.url.path or "conversations" in r.url.path]  # no message sent
+    assert [r.url.path for r in fakes.calls] == ["/api/oauth.v2.access", "/api/auth.test", "/api/conversations.list",
+                                                 "/api/users.conversations", "/api/users.conversations", "/api/auth.revoke"]
+    assert fakes.calls[-1].headers["authorization"] == f"Bearer {USER}"  # only the installer token is revoked
+    assert not [r for r in fakes.calls if "chat." in r.url.path]  # no message sent
     from scout.connectors.crypto import derive_key, open_
     [cred] = tenant_rows(db_url, org, "SELECT ciphertext FROM connection_credentials WHERE connection_id='slack'")
     assert open_(cred["ciphertext"], derive_key(MASTER_KEY, org.id, "slack")) == BOT
@@ -240,7 +276,7 @@ def test_a_slack_outage_is_failed_and_changes_nothing(api, org, fakes, db_url):
     assert row["config"]["channels"] == [] and row["status"] == "disconnected"
 
 
-@pytest.mark.parametrize("channels", [["general"], ["c0123456789"], ["D0123456789"], ["C1"], [C1] * 0 + [f"C{i:010d}" for i in range(21)],
+@pytest.mark.parametrize("channels", [["general"], ["c0123456789"], ["D0123456789"], ["C1"], [C1] * 0 + [f"C{i:010d}" for i in range(101)],
                                       "C0123456789", [123]])
 def test_channel_ids_are_validated_and_capped(api, org, fakes, channels):
     authorized(api, org, fakes)
@@ -289,3 +325,59 @@ def test_unauthenticated_and_other_organizations_cannot_use_the_endpoint(api, or
     script_channels(fakes)
     put(api, other_org, [C1])
     assert fakes.calls == []  # other org has no authorized workspace: no token to use, org's token untouched
+
+
+# -- one-click channel access --------------------------------------------------------------------------------------
+G2, C3 = "G0987654321", "C0111111111"
+
+
+def test_one_click_joins_public_channels_and_invites_the_bot_into_private_ones(api, org, fakes, db_url):
+    state, _ = begin(api, org, fakes, public=[(C1, False), (C2, True)], bot_private=[G2], user_private=[G1, G2])
+    response = callback(api, org, state, code="good-code")
+    slack = step(response.json(), "slack")
+    assert slack["state"] == "connected" and slack["display"]["channels"] == "4"
+    paths = [(r.url.path, parse_qs(r.content.decode()).get("channel", [""])[0]) for r in fakes.calls]
+    assert ("/api/conversations.join", C1) in paths and ("/api/conversations.join", C2) not in paths  # already in C2
+    assert ("/api/conversations.invite", G1) in paths and ("/api/conversations.invite", G2) not in paths  # already in G2
+    assert not [r for r in fakes.calls if "chat." in r.url.path]  # joining posts nothing
+    revoke = fakes.calls[-1]
+    assert revoke.url.path == "/api/auth.revoke" and revoke.headers["authorization"] == f"Bearer {USER}"
+    [row] = tenant_rows(db_url, org, "SELECT status, config FROM connections WHERE id='slack'")
+    assert row["status"] == "connected" and row["config"]["channels"] == [C1, C2, G1, G2]
+    assert USER not in dump(row) and USER not in response.text
+    from scout.connectors.crypto import derive_key, open_
+    [cred] = tenant_rows(db_url, org, "SELECT ciphertext FROM connection_credentials WHERE connection_id='slack'")
+    assert open_(cred["ciphertext"], derive_key(MASTER_KEY, org.id, "slack")) == BOT  # the user token is never stored
+
+
+def test_one_refused_channel_does_not_block_the_others(api, org, fakes, db_url):
+    state, _ = begin(api, org, fakes, public=[(C1, False), (C3, False)], user_private=[G1, G2],
+                     join_errors=[C3], invite_errors=[G2])
+    assert step(callback(api, org, state, code="good-code").json(), "slack")["state"] == "connected"
+    [row] = tenant_rows(db_url, org, "SELECT config FROM connections WHERE id='slack'")
+    assert row["config"]["channels"] == [C1, G1]
+
+
+def test_without_installer_scopes_only_public_channels_are_joined(api, org, fakes, db_url):
+    state, _ = begin(api, org, fakes, public=[(C1, False)], user_private=[G1], user_scope="")
+    assert step(callback(api, org, state, code="good-code").json(), "slack")["state"] == "connected"
+    assert not [r for r in fakes.calls if r.url.path == "/api/conversations.invite"]
+    [row] = tenant_rows(db_url, org, "SELECT config FROM connections WHERE id='slack'")
+    assert row["config"]["channels"] == [C1]
+
+
+def test_oauth_url_requests_dm_permissions_without_contacting_slack():
+    from scout.onboarding import slack_oauth
+    query = parse_qs(urlparse(slack_oauth.authorize_url("client", REDIRECT, "state")).query)
+    assert {"chat:write", "im:write", "im:read", "im:history"} <= set(query["scope"][0].split(","))
+    assert set(query["user_scope"][0].split(",")) == set(USER_SCOPES.split(","))
+
+
+@pytest.mark.parametrize("missing", ["chat:write", "im:write", "im:read", "im:history"])
+def test_install_rejects_missing_dm_permission(fakes, missing):
+    from scout.onboarding import slack_oauth
+    script_slack(fakes, scope=",".join(s for s in SCOPES.split(",") if s != missing))
+    with pytest.raises(slack_oauth.SlackAuthError) as caught:
+        slack_oauth.install("slack-client-id", "slack-client-secret", "good-code", REDIRECT)
+    assert caught.value.code == "scope_missing" and caught.value.token == BOT
+    assert [r.url.path for r in fakes.calls] == ["/api/oauth.v2.access"]

@@ -72,7 +72,7 @@ class SlackChat:
                 res = self._client.conversations_list(types="public_channel,private_channel", limit=200,
                                                       exclude_archived=True, cursor=cursor)
                 for c in res.get("channels", []):
-                    if c.get("name") in self._wanted and c.get("is_member"):
+                    if (c.get("id") in self._wanted or c.get("name") in self._wanted) and c.get("is_member"):
                         found[c["name"]] = c["id"]
                 cursor = (res.get("response_metadata") or {}).get("next_cursor")
                 if not cursor:

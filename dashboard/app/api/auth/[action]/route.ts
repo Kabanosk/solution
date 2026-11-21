@@ -3,6 +3,7 @@ import { authStore, appOrigin, cookieOptions, currentSession, SESSION_COOKIE } f
 import { sameOrigin, validSlug } from "@/lib/auth-crypto";
 import { clientAddress } from "@/lib/auth-client-address";
 import { readAuthBody } from "@/lib/auth-request";
+import { registrationRedirect } from "@/lib/onboarding-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,7 +41,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
     const previous = (await cookies()).get(SESSION_COOKIE)?.value;
     if (previous) await store.logout(previous);
     (await cookies()).set(SESSION_COOKIE, result.token, cookieOptions());
-    return json({ redirect: `/${result.session.slug}` });
+    // Only registration opens setup; login keeps the plain workspace URL.
+    return json({ redirect: action === "register" ? registrationRedirect(result.session.slug) : `/${result.session.slug}` });
   } catch (error) {
     // Only validation messages cross the boundary, never SQL or connection diagnostics.
     const message = error instanceof Error && ["More than one organization uses this name. Enter the organization URL.", "Each account can own up to three organizations.", "Check your organization name, URL, name and email.", "Use your existing account password or a different email.", "That organization URL or account is already registered.", "Use a password with 12–1024 characters."].includes(error.message) ? error.message : "Authentication is temporarily unavailable.";

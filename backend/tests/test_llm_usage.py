@@ -651,6 +651,17 @@ class TestApi:
         assert body["model"] == MODEL and body["requests_waiting"] == 1 and body["stale"] is True  # clock is 12 h later
         assert body["sampled_at"] == "2026-11-21T10:00:00Z"
 
+    @pytest.mark.parametrize("database_timezone", ["Europe/Warsaw", "America/New_York"])
+    def test_live_timestamp_is_utc_independent_of_database_timezone(self, client, seeded, database_timezone):
+        original = seeded.conn.execute("SHOW TimeZone").fetchone()["TimeZone"]
+        try:
+            seeded.conn.execute("SELECT set_config('TimeZone', %s, false)", (database_timezone,))
+            response = client.get("/v1/llm/usage/live")
+            assert response.status_code == 200
+            assert response.json()["sampled_at"] == "2026-11-21T10:00:00Z"
+        finally:
+            seeded.conn.execute("SELECT set_config('TimeZone', %s, false)", (original,))
+
     def test_live_is_503_without_samples(self, repo):
         from cfo.db.repo import Repository
 

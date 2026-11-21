@@ -1,4 +1,4 @@
-import { configuredStrategyProvider, SERVER_PROVIDER_KEY } from "@/lib/strategy-store";
+import { configuredChatProvider, SERVER_PROVIDER_KEY } from "@/lib/strategy-store";
 import { currentSession } from "@/lib/auth";
 import { CHAT_MODELS, ChatInputError, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatEvent } from "@/lib/chat-model";
 import { apiFetch, checkWriteRequest } from "@/lib/scout-api";
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (!session) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
   let provider = null;
   if (session.role === "owner") {
-    try { provider = await configuredStrategyProvider(session.organizationId); } catch { /* Chat remains usable if strategy storage is unavailable. */ }
+    try { provider = await configuredChatProvider(session.organizationId); } catch { /* Chat remains usable if strategy storage is unavailable. */ }
   }
   return Response.json({ models: CHAT_MODELS, external: provider ? { provider: provider.provider, model: provider.model, apiKey: SERVER_PROVIDER_KEY } : null }, { headers: privateHeaders });
 }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       if (!session) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
       if (session.role !== "owner") return Response.json({ error: "Workspace owner access required." }, { status: 403, headers: privateHeaders });
       try {
-        const saved = await configuredStrategyProvider(session.organizationId);
+        const saved = await configuredChatProvider(session.organizationId);
         if (!saved) throw new Error();
         config = saved;
       } catch { return Response.json({ error: "The workspace provider is unavailable." }, { status: 503, headers: privateHeaders }); }

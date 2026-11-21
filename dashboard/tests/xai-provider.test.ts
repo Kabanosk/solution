@@ -22,3 +22,19 @@ test("xAI cannot do public web research: a clear error without an outbound reque
   await assert.rejects(researchJobMarket(xai, { role: "Engineer", location: "Warsaw", seniority: "Mid" }, AbortSignal.timeout(5000), noCall), /OpenAI or Mistral/);
   await assert.rejects(researchPublicNews(xai, "prompt", "context", AbortSignal.timeout(5000), noCall), /requires OpenAI or Mistral/);
 });
+
+test("an xAI key in the environment becomes the chat's server-side provider; without it there is none", async () => {
+  const { defaultChatProvider } = await import("../lib/strategy-store.ts");
+  const oldKey = process.env.XAI_API_KEY, oldModel = process.env.SCOUT_XAI_MODEL;
+  try {
+    delete process.env.XAI_API_KEY; delete process.env.SCOUT_XAI_MODEL;
+    assert.equal(defaultChatProvider(), null);
+    process.env.XAI_API_KEY = xai.apiKey;
+    assert.deepEqual(defaultChatProvider(), xai);
+    process.env.SCOUT_XAI_MODEL = "grok-4.3";
+    assert.equal(defaultChatProvider()?.model, "grok-4.3");
+  } finally {
+    if (oldKey === undefined) delete process.env.XAI_API_KEY; else process.env.XAI_API_KEY = oldKey;
+    if (oldModel === undefined) delete process.env.SCOUT_XAI_MODEL; else process.env.SCOUT_XAI_MODEL = oldModel;
+  }
+});

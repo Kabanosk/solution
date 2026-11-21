@@ -4,7 +4,8 @@
 #   Apply:    oc apply -f deploy/openshift/forecast/retrain-cronjob.yaml
 #   Run now:  oc create job forecast-retrain-manual --from=cronjob/forecast-retrain
 #   Pause:    oc patch cronjob forecast-retrain -p '{"spec":{"suspend":true}}'
-# Schedule is UTC (01:30). `--source db` fails loudly; exit code 2 = champion lookup failed, nothing registered.
+# `Forbid` only keeps this CronJob's own Jobs apart; a hand-started forecast-tune can overlap, which `tune.promote` handles by
+# re-reading `champion` before moving it (docs/mlflow.md). Schedule is UTC (01:30). `--source db` fails loudly; exit code 2 = champion lookup failed, nothing registered.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

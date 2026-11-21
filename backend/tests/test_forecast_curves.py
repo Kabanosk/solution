@@ -87,6 +87,17 @@ def test_curves_have_one_point_per_boosting_round(history, no_tracking, feature_
     assert model.training_curves["train_rmse_curve"][-1] < model.training_curves["train_rmse_curve"][0]
 
 
+@pytest.mark.parametrize("eval_metric", ["mae", ["rmse"], ["mae", "rmse"]])
+def test_a_caller_eval_metric_is_honoured_and_the_curves_stay(history, no_tracking, eval_metric):
+    model = m.train(history, params={**SMALL, "eval_metric": eval_metric}, band=False)  # used to raise TypeError
+    assert set(model.training_curves) == set(CURVES)
+    assert model.params["eval_metric"] == eval_metric  # recorded as the caller passed it
+    _, table = m._usable_table(history, m.EXCLUDED_CATEGORIES, m.DEFAULT_FEATURE_SET)
+    columns = feat.feature_set_columns(m.DEFAULT_FEATURE_SET)
+    plain = XGBRegressor(**model.params).fit(table[columns], table["net_cash_flow"] - m._offset(table, m.DEFAULT_FEATURE_SET))
+    assert model.regressor.get_booster().save_raw("json") == plain.get_booster().save_raw("json")
+
+
 def test_without_a_holdout_there_are_only_training_curves(history, no_tracking):
     model = m.train(history, params=SMALL, holdout_days=0, band=False)
     assert set(model.training_curves) == {"train_rmse_curve", "train_mae_curve"}

@@ -50,6 +50,8 @@ def _message(promotion: tune.Promotion, tracking_uri: str | None, if_better: boo
         return f"champion moved to {version}: {promotion.reason}"
     if not if_better:
         return f"registered {version} as {promotion.alias}; champion untouched"
+    if promotion.reason.startswith(tune.CHAMPION_CHANGED):  # another job moved it first: say that, not "margin"
+        return f"champion kept, registered {version} as {promotion.alias}: {promotion.reason}"
     champion = _champion_version(tracking_uri)
     kept = f"champion v{champion} kept" if champion else "champion kept"
     if promotion.champion_error is not None and promotion.candidate_error is not None:
@@ -91,6 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     transactions, source = tune.load_transactions(args.source)
+    if register and tune.refuses_csv_promotion(args.source, source):
+        return 2
     log.info("%d bookings from %s, %s .. %s", len(transactions), source, transactions["booking_date"].min().date(),
              transactions["booking_date"].max().date())
     model = m.train(transactions, log_to_mlflow=False)

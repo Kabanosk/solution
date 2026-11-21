@@ -398,7 +398,11 @@ def _fit_with_curves(params: Mapping[str, Any], x: pd.DataFrame, y: pd.Series,
                      watch: Mapping[str, tuple[pd.DataFrame, pd.Series]]) -> tuple[XGBRegressor, dict[str, list[float]]]:
     """Fit exactly like `XGBRegressor(**params).fit(x, y)` and also return the per-round errors on each `watch`
     entry (name -> (x, y)) as `{<name>_<metric>_curve: [...]}`. No early stopping: the fit is unchanged."""
-    regressor = XGBRegressor(**params, eval_metric=EVAL_METRICS)
+    caller = params.get("eval_metric")  # honoured as before (it only names what XGBoost reports); ours are added to it
+    if callable(caller):  # a custom metric function cannot be combined with ours: plain fit, no curves
+        return XGBRegressor(**params).fit(x, y), {}
+    asked = [caller] if isinstance(caller, str) else list(caller or [])
+    regressor = XGBRegressor(**{**params, "eval_metric": [*asked, *(k for k in EVAL_METRICS if k not in asked)]})
     regressor.fit(x, y, eval_set=[watch[name] for name in watch], verbose=False)
     recorded = regressor.evals_result()
     curves = {f"{name}_{metric}_curve": [float(v) for v in recorded[f"validation_{i}"][metric]]

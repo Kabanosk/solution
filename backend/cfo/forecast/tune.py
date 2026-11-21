@@ -731,6 +731,7 @@ class PromotionError(RuntimeError):
     """The promotion was aborted before anything was registered or moved (e.g. the champion cannot be looked up)."""
 
 
+CHAMPION_CHANGED = "champion changed during promotion"  # start of `Promotion.reason` when another job won the race
 PROMOTION_METRIC = "balance_error_90d"  # promotion compares real 90-day balance errors only, never a fallback horizon
 
 
@@ -762,8 +763,9 @@ def promote(result: TuningResult, *, alias: str = CHALLENGER_ALIAS, if_better: b
         client = mlflow.MlflowClient()
         candidate = result.best_scores.get(PROMOTION_METRIC)
         moved, champion_error, reason = False, None, f"registered as {alias}; the champion alias was not touched"
+        seen: str | None = None  # the champion version the decision was made against
         if if_better:  # decided before anything is registered: a failing lookup aborts cleanly
-            moved, champion_error, reason = _decide_champion(client, mlflow, result, margin, model_name)
+            moved, champion_error, reason, seen = _decide_champion(client, mlflow, result, margin, model_name)
         model = m.train(result.transactions, log_to_mlflow=False, **result.train_kwargs())
         run_id = m.log_to_mlflow_if_configured(model, register=True, model_name=model_name, alias=alias)
         if not run_id or model.model_version is None:
@@ -774,22 +776,39 @@ def promote(result: TuningResult, *, alias: str = CHALLENGER_ALIAS, if_better: b
             client.set_tag(run_id, "tuning_run_id", result.parent_run_id)
         version = model.model_version
         if moved:
-            client.set_registered_model_alias(model_name, m.CHAMPION_ALIAS, version)
+            # Another job (forecast-tune and forecast-retrain can overlap) may have moved the alias since the decision;
+            # then its model was judged against the same champion and must not be overwritten by a last writer. MLflow
+            # has no compare-and-set: a write landing between this read and the next line still wins (docs/mlflow.md).
+            try:
+                now = _champion_version(client, mlflow, model_name)
+            except PromotionError as exc:
+                moved, reason = False, f"{CHAMPION_CHANGED}? the alias could not be re-read ({exc}); it stays"
+            else:
+                if now != seen:
+                    moved = False
+                    reason = (f"{CHAMPION_CHANGED}: it was {_vname(seen)} at the comparison and is {_vname(now)} now; "
+                              f"the new version stays {alias}")
+            if moved:
+                client.set_registered_model_alias(model_name, m.CHAMPION_ALIAS, version)
         log.info("promote: version %s alias %s, champion moved: %s (%s)", version, alias, moved, reason)
         return Promotion(model_name=model_name, version=version, run_id=run_id, alias=alias, moved_champion=moved,
                          reason=reason, candidate_error=float(candidate) if _is_finite(candidate) else None,
                          champion_error=champion_error)
 
 
-def _champion_exists(client: Any, mlflow: Any, model_name: str) -> bool:
-    """Whether `model_name@champion` exists. Only "model / alias not found" means no; any other failure aborts."""
+def _vname(version: str | None) -> str:
+    return f"v{version}" if version else "absent"
+
+
+def _champion_version(client: Any, mlflow: Any, model_name: str) -> str | None:
+    """Version `model_name@champion` points to, None when there is none. Only "model / alias not found" means none;
+    any other failure aborts (`PromotionError`)."""
     try:
-        client.get_model_version_by_alias(model_name, m.CHAMPION_ALIAS)
-        return True
+        return str(client.get_model_version_by_alias(model_name, m.CHAMPION_ALIAS).version)
     except mlflow.exceptions.MlflowException as exc:
         code, text = getattr(exc, "error_code", ""), str(exc).lower()
         if code == "RESOURCE_DOES_NOT_EXIST" or ("alias" in text and "not found" in text):
-            return False
+            return None
         raise PromotionError(f"could not look up the current champion of {model_name}: {exc}; nothing was "
                              "registered, the champion is untouched") from exc
     except Exception as exc:  # noqa: BLE001 - network and the like: not "no champion"
@@ -798,31 +817,32 @@ def _champion_exists(client: Any, mlflow: Any, model_name: str) -> bool:
 
 
 def _decide_champion(client: Any, mlflow: Any, result: TuningResult, margin: float,
-                     model_name: str) -> tuple[bool, float | None, str]:
-    """(move the champion alias?, champion's 90-day error, reason). Compares `balance_error_90d` only."""
+                     model_name: str) -> tuple[bool, float | None, str, str | None]:
+    """(move the champion alias?, champion's 90-day error, reason, champion version seen). Compares `balance_error_90d` only."""
     key = PROMOTION_METRIC
     candidate = result.best_scores.get(key)
     if not _is_finite(candidate):
         return False, None, (f"the candidate has no real 90-day balance error (history too short for 90-day folds): "
-                             f"no champion move on a shorter horizon; it stays challenger")
-    if not _champion_exists(client, mlflow, model_name):
-        return True, None, "no champion yet: the new version takes the alias"
+                             f"no champion move on a shorter horizon; it stays challenger"), None
+    seen = _champion_version(client, mlflow, model_name)
+    if seen is None:
+        return True, None, "no champion yet: the new version takes the alias", None
     try:
-        champion = m.ForecastModel.load_from_mlflow(f"models:/{model_name}@{m.CHAMPION_ALIAS}")
+        champion = m.ForecastModel.load_from_mlflow(f"models:/{model_name}/{seen}")
         scores, _ = score_config(result.transactions, champion.feature_set, champion.params,
                                  **({} if result.origins is None else {"origins": result.origins}))
     except Exception as exc:  # noqa: BLE001 - when in doubt keep the champion
         log.exception("could not score the current champion")
-        return False, None, f"the champion could not be scored ({type(exc).__name__}: {exc}); it stays"
+        return False, None, f"the champion could not be scored ({type(exc).__name__}: {exc}); it stays", seen
     champion_error = scores.get(key)
     if not _is_finite(champion_error):
-        return False, None, "the champion has no real 90-day balance error on this data; it stays, candidate is challenger"
+        return False, None, "the champion has no real 90-day balance error on this data; it stays, candidate is challenger", seen
     shown = float(champion_error)
     if is_better(candidate, shown, margin):
         return True, shown, (f"{key} {float(candidate):.0f} beats the champion's {shown:.0f} by "
-                             f"more than {margin:.0%}")
+                             f"more than {margin:.0%}"), seen
     return False, shown, (f"not better than the champion by {margin:.0%}: {key} candidate {float(candidate):.0f} vs "
-                          f"champion {shown:.0f}; it stays challenger")
+                          f"champion {shown:.0f}; it stays challenger"), seen
 
 
 # -- data and CLI ------------------------------------------------------------------------------------------
@@ -847,6 +867,17 @@ def load_transactions(source: str = "auto") -> tuple[pd.DataFrame, str]:
                 raise
             log.info("Postgres not available (%s): using the CSV", type(exc).__name__)
     return ev.load_statement(), "csv"
+
+
+def refuses_csv_promotion(requested: str, resolved: str) -> bool:
+    """A promotion must not silently rest on the organizer's CSV: `--source auto` that fell back to it is refused (logs
+    why). `--source csv` is the explicit way to promote from the CSV; plain searches and trainings keep the fallback."""
+    if requested == "auto" and resolved == "csv":
+        log.error("refusing to promote: --source auto fell back to the organizer's CSV (the database was not available "
+                  "or empty). Use --source db to promote from the database, or --source csv to promote from the CSV "
+                  "on purpose.")
+        return True
+    return False
 
 
 def _table(data: Mapping[str, Any]) -> str:
@@ -938,6 +969,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(levelname)s %(name)s: %(message)s")
 
     transactions, source = load_transactions(args.source)
+    if (args.promote or args.promote_if_better) and refuses_csv_promotion(args.source, source):
+        return 2
     log.info("%d bookings from %s, %s .. %s", len(transactions), source, transactions["booking_date"].min().date(),
              transactions["booking_date"].max().date())
     sets = [s.strip() for s in args.feature_sets.split(",") if s.strip()] if args.feature_sets else None

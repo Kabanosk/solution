@@ -237,3 +237,89 @@ def test_a_custom_experiment_name_is_honoured(history, agent_experiment, monkeyp
     m.train(history, band=False)
     assert len(mlflow.search_runs(experiment_names=["forecast-sandbox"])) == 1
     assert _active_experiment_id() == agent_experiment
+
+
+# -- review round 1: a promotion must not run on the CSV fallback ------------------------------------------------
+@pytest.fixture
+def no_database(monkeypatch):
+    """`--source auto` cannot reach Postgres and so falls back to the organizer's CSV (the history stub)."""
+    import psycopg
+
+    def refuse(*a, **k):
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr(psycopg, "connect", refuse)
+
+
+@pytest.mark.parametrize("flags", [["--register"], ["--promote-if-better"], ["--register", "--promote-if-better"]])
+def test_train_refuses_to_promote_from_the_csv_fallback(tracking, no_database, capsys, caplog, flags):
+    code = train_cli.main(["--source", "auto", *flags])
+    assert code == 2
+    assert "--source db" in caplog.text and "--source csv" in caplog.text
+    assert _versions(mlflow.MlflowClient()) == []
+
+
+@pytest.mark.parametrize("flags", [["--promote"], ["--promote-if-better"]])
+def test_tune_refuses_to_promote_from_the_csv_fallback(tracking, no_database, capsys, caplog, flags):
+    code = tune.main(["--source", "auto", "--trials", "1", "--feature-sets", "calendar", *flags])
+    assert code == 2
+    assert "--source db" in caplog.text and "--source csv" in caplog.text
+    client = mlflow.MlflowClient()
+    assert _versions(client) == []
+    assert client.get_experiment_by_name(tune.TUNING_EXPERIMENT) is None  # refused before the search started
+
+
+def test_plain_runs_keep_the_csv_fallback(tracking, no_database, capsys):
+    assert train_cli.main(["--source", "auto"]) == 0
+    assert tune.main(["--source", "auto", "--trials", "1", "--feature-sets", "calendar"]) == 0
+
+
+def test_the_csv_can_be_promoted_on_purpose(tracking, no_database, capsys):
+    assert train_cli.main(["--source", "csv", "--register"]) == 0
+    assert tune.main(["--source", "csv", "--trials", "1", "--feature-sets", "calendar", "--promote"]) == 0
+    assert _versions(mlflow.MlflowClient()) == ["1", "2"]
+
+
+# -- review round 1: the champion moved between the comparison and the write ----------------------------------------
+@pytest.fixture
+def rival(monkeypatch):
+    """Another job moves `champion` to version 1 right after our candidate was registered (once `armed`)."""
+    real = m.log_to_mlflow_if_configured
+    armed = {"on": False}
+
+    def log_then_rival(model, **kwargs):
+        run_id = real(model, **kwargs)
+        if armed["on"]:
+            mlflow.MlflowClient().set_registered_model_alias(m.REGISTERED_MODEL_NAME, m.CHAMPION_ALIAS, "1")
+        return run_id
+
+    monkeypatch.setattr(m, "log_to_mlflow_if_configured", log_then_rival)
+    return armed
+
+
+def test_promote_does_not_overwrite_a_champion_that_changed_meanwhile(tracking, rival):
+    m.train(_history(), **BAD_TRAIN, register=True, holdout_days=0)  # v1
+    m.train(_history(), **BAD_TRAIN, register=True, holdout_days=0)  # v2 is the champion when the decision is made
+    rival["on"] = True
+    result = tune.TuningResult(best_feature_set="level_baseline", best_params={}, transactions=_history(),
+                               best_scores=tune.score_config(_history(), "level_baseline", {})[0])
+    promo = tune.promote(result, if_better=True)
+    assert promo.version == "3" and not promo.moved_champion and promo.reason.startswith(tune.CHAMPION_CHANGED)
+    client = mlflow.MlflowClient()
+    assert _alias_version(client, m.CHAMPION_ALIAS) == "1"  # the rival's write stands
+    assert _alias_version(client, "challenger") == "3"
+
+
+def test_the_train_cli_reports_a_lost_race_and_exits_0(tracking, rival, capsys):
+    m.train(_history(), **BAD_TRAIN, register=True, holdout_days=0)
+    m.train(_history(), **BAD_TRAIN, register=True, holdout_days=0)
+    rival["on"] = True
+    code, out = _run(["--register", "--promote-if-better"], capsys)
+    assert code == 0 and "changed during promotion" in out and "margin not reached" not in out
+    assert _alias_version(mlflow.MlflowClient(), m.CHAMPION_ALIAS) == "1"
+
+
+def test_an_unchanged_champion_is_still_replaced(tracking, capsys):
+    m.train(_history(), **BAD_TRAIN, register=True, holdout_days=0)
+    code, out = _run(["--register", "--promote-if-better"], capsys)
+    assert code == 0 and _alias_version(mlflow.MlflowClient(), m.CHAMPION_ALIAS) == "2"

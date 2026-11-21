@@ -63,7 +63,16 @@ One rule, `cfo.forecast.tune.promote`, used by both Jobs:
    the champion's by at least `--min-gain` (default 2 %). The champion is scored now, on the same data and folds (its
    feature set and parameters are retrained per fold), so an old champion is not flattered by older data. No champion
    yet: the candidate takes the alias. No real 90-day error on either side (history too short): `champion` stays.
-3. When the registry cannot be asked (any error but "model / alias not found") nothing is registered, `champion` stays and
+3. Two Jobs can overlap (`forecast-tune` by hand, `forecast-retrain` at night; `concurrencyPolicy: Forbid` only serialises
+   the CronJob's own Jobs). Right before moving `champion` the alias is read again: if it no longer points to the version the
+   comparison was made against, it is **not** moved, the new version stays `challenger` and the line says `champion changed during
+   promotion`. MLflow has no compare-and-set, so a write that lands in the few milliseconds between that re-read and the
+   alias update can still be overwritten by the last writer; avoid starting a search while the retrain is running
+   (`oc get job`).
+4. Promotion never rests on the organizer's CSV by accident: `--promote`, `--promote-if-better` and `--register` with
+   `--source auto` that fell back to the CSV exit with code 2 and say so. Use `--source db` (what both Jobs do), or
+   `--source csv` to promote from the CSV on purpose. Plain searches and trainings keep the fallback.
+5. When the registry cannot be asked (any error but "model / alias not found") nothing is registered, `champion` stays and
    the Job exits with code 2.
 
 The log line says what happened, for example `champion v3 kept: candidate 90-day balance error 7,619 vs champion 7,412 (margin

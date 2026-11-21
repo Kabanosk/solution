@@ -168,7 +168,7 @@ export function LlmUsage({ active }: { active: boolean }) {
             : <p className="px-4 py-6 text-sm text-muted-foreground">No attributed actions in this range.</p>}
         </div>
         <Card className="h-fit gap-3 shadow-none"><CardHeader><CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <span className={cn("size-2 rounded-full", snapshot && !snapshot.stale ? "bg-emerald-500 motion-safe:animate-pulse" : "bg-muted-foreground")} aria-hidden="true" />Live model</CardTitle>
+            <span className={cn("size-2 rounded-full", snapshot && !snapshot.stale ? "bg-primary motion-safe:animate-pulse" : "bg-muted-foreground")} aria-hidden="true" />Live model</CardTitle>
           <CardDescription>{snapshot ? snapshot.model : "Snapshot unavailable"}</CardDescription></CardHeader>
           {snapshot && <CardContent className="space-y-3 text-[13px]">
             {snapshot.stale && <Badge variant="outline" className="border-warning-border font-normal text-warning">stale</Badge>}

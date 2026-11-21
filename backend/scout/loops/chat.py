@@ -367,7 +367,7 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                       source="slack:dm", detail={"q": text[:MSG_CHARS]})
 
     if intent == "what_if":
-        ctx.jobs.enqueue("what_if", {**{k: route.get(k) for k in ("amount_eur", "month", "what")},
+        ctx.jobs.enqueue("what_if", {**{k: route.get(k) for k in ("amount_eur", "month", "what", "direction")},
                                      "amount": route.get("amount_eur"), "from_id": sender,
                                      "status_ref": p.get("status_ref")}, f"what_if:{job.dedupe_key}")
         ctx.recorder.step(task.id, "handed_off", "Started a liquidity what-if")

@@ -84,15 +84,21 @@ SPECS: list[ToolSpec] = [
              parameters=_p(task_id=S, person=S)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
-    ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
-             "The result comes as a separate message.", parameters=_p(amount_eur=S, month=S, what=S)),
+    ToolSpec(name="start_what_if", description="Start a cash forecast for money going out (a purchase) or coming in "
+             "(a client paying us): amount in EUR, month, what, direction 'out' or 'in'. The result comes as a "
+             "separate message.", parameters=_p(amount_eur=S, month=S, what=S, direction=S)),
 ]
 NAMES = {s.name for s in SPECS}
 
 
 def _num(v: Any) -> Decimal | None:
+    """ "€30,000", "$500k", "500 000 EUR", "-500000" -> a positive Decimal (None when there is no number)."""
+    s = str(v if v is not None else "").casefold()
+    for junk in ("€", "$", "eur", "usd", ",", " ", "\u00a0"):
+        s = s.replace(junk, "")
+    mult = Decimal(1000) if s.endswith("k") else Decimal(1_000_000) if s.endswith("m") else Decimal(1)
     try:
-        return abs(Decimal(str(v).replace("€", "").replace(",", "").strip()))
+        return abs(Decimal(s.rstrip("km"))) * mult
     except Exception:  # noqa: BLE001
         return None
 
@@ -644,14 +650,16 @@ class Toolbox:
                         if e.get("manager_id") else None, "on_vacation_today": self.ctx.hr.on_vacation(p, today)})
         return {"people": out}
 
-    def t_start_what_if(self, amount_eur: Any = None, month: str = "", what: str = "", **_: Any) -> dict[str, Any]:
+    def t_start_what_if(self, amount_eur: Any = None, month: str = "", what: str = "", direction: str = "",
+                        **_: Any) -> dict[str, Any]:
         if self.role != "ceo":
             return {"error": "access_denied", "policy": "what-if: owner-only"}
         amt = _num(amount_eur)
         if not amt:
             return {"error": "amount_missing"}
-        self.ctx.jobs.enqueue("what_if", {"amount": str(amt), "month": month, "what": what or "the purchase",
-                                          "from_id": self.requester, "chat_task": self.task.id},
+        self.ctx.jobs.enqueue("what_if", {"amount": str(abs(amt)), "month": month, "what": what,
+                                          "direction": direction, "from_id": self.requester,
+                                          "chat_task": self.task.id},
                               f"what_if:{self.task.id}:{amt}:{month}")
         return {"started": True, "note": "Tell the user the forecast is running; its result, and the approval if one "
                 "is needed, will appear in this chat by itself."}

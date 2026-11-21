@@ -9,6 +9,7 @@ Execution is simulated: Scout never moves money (the outcome says SIMULATED).
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 from calendar import month_name
 from datetime import date
@@ -77,6 +78,34 @@ def parse_eur(value: Any) -> Decimal | None:
     except InvalidOperation:
         return None
     return v if v > 0 else None
+
+
+INFLOW_WORDS = re.compile(r"\b(client|customer|income|revenue|receiv\w*|incoming|inflow|pays? us|paid (to )?us|"
+                          r"refund\w*|deposit|grant|subsidy|earn\w*|sales?|sell\w*|invoice paid|win|won)\b", re.I)
+
+
+def direction_of(direction: Any, what: str | None) -> str:
+    """"in" (money arriving: a client paying) or "out" (a purchase). An explicit "in"/"out" wins; else the words."""
+    d = str(direction or "").strip().casefold()
+    if d in ("in", "inflow", "income", "incoming", "receive", "+"):
+        return "in"
+    if d in ("out", "outflow", "purchase", "expense", "spend", "pay", "-"):
+        return "out"
+    return "in" if INFLOW_WORDS.search(what or "") else "out"
+
+
+def money(v: Any) -> str:
+    """A balance with its sign: "-€475,802.29" (`eur` drops the sign, which is right for amounts, not balances)."""
+    d = Decimal(str(v))
+    return ("-" if d < 0 else "") + eur(d)
+
+
+def _lowest(fc: Any) -> tuple[Decimal, date] | None:
+    if fc is None or "balance" not in fc or not len(fc):
+        return None
+    row = fc.loc[fc["balance"].idxmin()]
+    day = row.name.date() if hasattr(row.name, "date") else row.get("date")
+    return Decimal(str(round(float(row["balance"]), 2))), day
 
 
 # -- the approval graph -----------------------------------------------------------------------------------
@@ -237,18 +266,28 @@ def resume(ctx: JobContext, approval_id: str, approved: bool, by: str) -> Task:
 
 
 # -- jobs -------------------------------------------------------------------------------------------------
-def _review_steps(ctx: JobContext, task: Task, review: Any, what: str | None) -> Any:
-    fc = review.forecast
-    low_row = fc.loc[fc["balance"].idxmin()] if "balance" in fc else None
-    if low_row is not None:
-        low_day = low_row.name.date() if hasattr(low_row.name, "date") else low_row.get("date")
+def _review_steps(ctx: JobContext, task: Task, review: Any, what: str | None, base: Any = None,
+                  inflow: bool = False) -> Any:
+    low = _lowest(review.forecast)
+    if low is not None:
+        without = _lowest(base.forecast) if base is not None else None
+        compare = (f"; without it: {money(without[0])} on {without[1]:%b %d}" if without and what else "")
         ctx.recorder.step(task.id, "forecast",
                           f"Forecast {'with ' + what if what else 'for the next months'}: lowest balance "
-                          f"{eur(Decimal(str(round(float(low_row['balance']), 2))))} on {low_day:%b %d} "
-                          f"(safety buffer {eur(review.buffer)})", source="forecast")
+                          f"{money(low[0])} on {low[1]:%b %d}{compare} (safety buffer {eur(review.buffer)})",
+                          source="forecast")
     for gap in review.gaps[:3]:
         ctx.recorder.step(task.id, "gap", f"Gap of {eur(gap.shortfall)} below the buffer around {gap.lowest_date:%b %d}",
                           source="forecast")
+    if review.gaps and base is not None and what:
+        if base.gaps and inflow:
+            ctx.recorder.step(task.id, "note", "The gap is there even without this money; it doesn't close it.",
+                              source="forecast")
+        elif base.gaps:
+            ctx.recorder.step(task.id, "note", "The gap is there even without this purchase.", source="forecast")
+        else:
+            ctx.recorder.step(task.id, "note", "Without this purchase the balance stays above the buffer: the "
+                              "purchase causes the gap.", source="forecast")
     return review.proposals[0] if review.proposals else None
 
 
@@ -281,7 +320,8 @@ def _status_done(ctx: JobContext, p: dict[str, Any], task_id: str) -> Task:
     if task.status == "waiting":
         proposed = next((s.text for s in reversed(steps) if s.kind == "proposed"), "")
         forecast = next((s.text for s in steps if s.kind == "forecast"), "")
-        _chat_followup(ctx, task_id, f"{task.title} ({task.id}): {forecast}. {proposed}; I asked "
+        note = next((" " + s.text for s in steps if s.kind == "note"), "")
+        _chat_followup(ctx, task_id, f"{task.title} ({task.id}): {forecast}.{note} {proposed}; I asked "
                                      f"{ctx.hr.name(task.owner_id)} for approval and will tell you the answer here.")
     else:
         _chat_followup(ctx, task_id, f"{task.title} ({task.id}): {task.outcome or steps[-1].text}")
@@ -298,33 +338,48 @@ def on_what_if(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     amount = parse_eur(p.get("amount"))
     month = parse_month(p.get("month"), ctx.now().date())
-    what = (p.get("what") or "the purchase").strip()
-    title = f"What if: {what} {eur(amount) if amount else ''} in {month:%B %Y}".replace("  ", " ")
+    what = (p.get("what") or "").strip()
+    inflow = direction_of(p.get("direction"), what) == "in"
+    what = what or ("the payment" if inflow else "the purchase")
+    sign = "+" if inflow else ""
+    title = f"What if: {what} {sign + eur(amount) if amount else ''} in {month:%B %Y}".replace("  ", " ")
     task = ctx.recorder.open(f"whatif:{job.dedupe_key}", LOOP, title, requested_by=p.get("from_id") or "agent",
-                             amount=-amount if amount else None, simulated=True)
+                             amount=(amount if inflow else -amount) if amount else None, simulated=True)
     if ctx.recorder.steps(task.id):
         return task
     if p.get("status_ref"):
         ctx.notifier.track(task.id, p["status_ref"])
-    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(p.get('from_id'))} asked: what if we buy {what} for "
+    verb = "we receive" if inflow else "we buy"
+    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(p.get('from_id'))} asked: what if {verb} {what} for "
                                            f"{eur(amount) if amount else '?'} in {month:%B}", source="slack:dm",
                       detail={k: p[k] for k in ("status_ref", "chat_task") if p.get(k)} or None)
     if amount is None:
-        outcome = "Closed · I need the price to run the forecast"
+        outcome = "Closed · I need the amount to run the forecast"
         ctx.recorder.step(task.id, "resolved", outcome)
         ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via="forecast", level="AUTO")
         return _status_done(ctx, p, task.id)
     forecaster = ctx.forecaster or _default_forecaster
     try:
-        review = forecaster(ctx, [{"on": month, "amount": amount, "label": what}])
+        review = forecaster(ctx, [{"on": month, "amount": amount, "label": what,
+                                   "direction": "in" if inflow else "out"}])
     except Exception as e:  # noqa: BLE001
         log.exception("forecast failed")
         ctx.recorder.step(task.id, "error", f"Couldn't run the forecast: {type(e).__name__}")
         ctx.recorder.set_status(task.id, "escalated", owner_id=ctx.settings.ceo_id)
         return _status_done(ctx, p, task.id)
-    proposal = _review_steps(ctx, task, review, f"{what} ({eur(amount)} in {month:%B})")
+    try:
+        base = forecaster(ctx, [])
+    except Exception:  # noqa: BLE001 — the comparison is a nicety; the scenario stands on its own
+        log.exception("base forecast failed")
+        base = None
+    label = f"{what} ({sign}{eur(amount)} in {month:%B})"
+    proposal = _review_steps(ctx, task, review, label, base, inflow)
     if proposal is None or not review.gaps:
-        outcome = f"Resolved · affordable: the balance stays above the {eur(review.buffer)} buffer"
+        low = _lowest(review.forecast)
+        lowest = f" (lowest {money(low[0])} on {low[1]:%b %d})" if low else ""
+        outcome = (f"Resolved · with this money the balance stays above the {eur(review.buffer)} buffer{lowest}"
+                   if inflow else
+                   f"Resolved · affordable: the balance stays above the {eur(review.buffer)} buffer{lowest}")
         ctx.recorder.step(task.id, "resolved", outcome, source="forecast")
         ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via="forecast", level="AUTO")
         return _status_done(ctx, p, task.id)

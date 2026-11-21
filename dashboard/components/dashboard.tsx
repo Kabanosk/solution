@@ -223,7 +223,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     <section id="scout-financial-summary" aria-label="Key figures" className="grid divide-y overflow-hidden rounded-xl border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
         { label: "Available balance", value: currency(data.closingBalance), note: `Recorded bank bookings · ${shortDate(`${data.asOf}T12:00:00Z`)}`, to: { view: "transactions" } as Route, tone: "" },
-        { label: "Needs attention", value: String(attention), note: `${waiting} waiting · ${escalated} escalated`, to: { view: "tasks", filter: { scope: "inbox" } } as Route, tone: attention > 0 ? "text-warning" : "" },
+        { label: "Needs attention", value: String(attention), note: `${waiting} waiting · ${escalated} escalated`, to: { view: "tasks", filter: { scope: "inbox" } } as Route, tone: "" },
         { label: "Explained by Scout", value: formatShare(scout.explained.documented, scout.explained.total), note: `${scout.explained.documented} of ${scout.explained.total} payments with an invoice reference`, to: { view: "transactions" } as Route, tone: "" },
       ].map(({ label, value, note, to, tone }) => (
         <button key={label} type="button" onClick={() => navigate(to)} className="group px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
@@ -267,7 +267,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
           </Button>
           <Button id="scout-search-compact" variant="ghost" size="icon" className="size-8 shrink-0 lg:hidden" aria-label="Search workspace" onClick={openSearch}><Search className="size-4" aria-hidden="true" /></Button>
           <ThemeToggle className="size-8 border-0 shadow-none" />
-          <Button id="scout-notifications" variant="ghost" size="icon" aria-label={`Inbox, ${inboxTasks.length} waiting`} className="relative size-8 shrink-0" onClick={() => navigate({ view: "tasks", filter: { scope: "inbox" } })}><Bell className="size-4" aria-hidden="true" />{inboxTasks.length > 0 && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-amber-500" aria-hidden="true" />}</Button>
+          <Button id="scout-notifications" variant="ghost" size="icon" aria-label={`Inbox, ${inboxTasks.length} waiting`} className="relative size-8 shrink-0" onClick={() => navigate({ view: "tasks", filter: { scope: "inbox" } })}><Bell className="size-4" aria-hidden="true" />{inboxTasks.length > 0 && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-warning-mark" aria-hidden="true" />}</Button>
         </header>
 
         <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={title}

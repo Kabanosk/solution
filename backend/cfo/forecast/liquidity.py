@@ -23,7 +23,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import psycopg
@@ -73,11 +73,18 @@ FEATURE_PHRASES = {
 
 # -- models ----------------------------------------------------------------------------------------------
 class Outflow(BaseModel):
-    """An extra payment in a what-if scenario. `amount` is a positive EUR figure (money leaving the account)."""
+    """An extra payment in a what-if scenario. `amount` is a positive EUR figure; `direction` says which way it
+    moves: "out" (a purchase, money leaving the account, the default) or "in" (a client paying, money arriving)."""
 
     on: date
     amount: Decimal
     label: str = "extra outflow"
+    direction: Literal["out", "in"] = "out"
+
+    @property
+    def signed(self) -> float:
+        """The effect on the balance: negative for money going out, positive for money coming in."""
+        return float(self.amount) if self.direction == "in" else -float(self.amount)
 
 
 class LiquidityGap(BaseModel):
@@ -201,14 +208,14 @@ def _normalize_outflows(extra: Iterable[Any]) -> list[Outflow]:
             out.append(item)
         elif isinstance(item, Mapping):
             out.append(Outflow(on=item.get("on", item.get("date")), amount=item["amount"],
-                               label=item.get("label", "extra outflow")))
+                               label=item.get("label", "extra outflow"), direction=item.get("direction", "out")))
         else:
             on, amount, *label = item
             out.append(Outflow(on=pd.Timestamp(on).date(), amount=Decimal(str(amount)),
                                label=label[0] if label else "extra outflow"))
     for o in out:
         if o.amount <= 0:
-            raise ValueError("extra outflow amounts are positive EUR (money leaving the account)")
+            raise ValueError("extra outflow amounts are positive EUR (direction says which way)")
     return out
 
 
@@ -226,9 +233,9 @@ def forecast_with(
 ) -> pd.DataFrame:
     """`liquidity_forecast` with extra payments, e.g. `forecast_with([Outflow(on=date(2026, 3, 15), amount=30000,
     label="oven")])`. Also accepts `(date, amount[, label])` tuples and dicts. With no extras it is the base
-    forecast. Extra outflows are positive EUR and must fall inside the horizon.
+    forecast. Amounts are positive EUR (`direction="in"` for money arriving) and must fall inside the horizon.
 
-    Same frame as `liquidity_forecast` plus the column `what_if` (the extra payments, negative); `attrs` adds
+    Same frame as `liquidity_forecast` plus the column `what_if` (the extra payments: negative out, positive in); `attrs` adds
     `default_buffer` (float: `buffer` when given, else one month of fixed costs; absent when there are no
     fixed-cost bookings and no `buffer`) and `outflows`.
     """
@@ -237,7 +244,7 @@ def forecast_with(
     base_schedule = fm.partner_tranche_schedule(tx) if scheduled_payments is None else fm._as_series(scheduled_payments)
     sums: dict[pd.Timestamp, float] = {}
     for o in outflows:  # several outflows on one day add up
-        sums[pd.Timestamp(o.on)] = sums.get(pd.Timestamp(o.on), 0.0) - float(o.amount)
+        sums[pd.Timestamp(o.on)] = sums.get(pd.Timestamp(o.on), 0.0) + o.signed
     extra = fm._as_series(sums or None)
     combined = base_schedule.add(extra, fill_value=0.0)
     fc = fm.liquidity_forecast(days, start_balance, model=model, transactions=tx,
@@ -362,7 +369,7 @@ def _outflow_sentence(outflows: Sequence[Outflow], until: date) -> str | None:
     if not planned:
         return None
     return "Planned in this scenario: " + ", ".join(
-        f"{o.label} {_eur(o.amount)} on {o.on.isoformat()}" for o in planned) + "."
+        f"{o.label} {'+' if o.direction == 'in' else ''}{_eur(o.amount)} on {o.on.isoformat()}" for o in planned) + "."
 
 
 # -- proposals -------------------------------------------------------------------------------------------

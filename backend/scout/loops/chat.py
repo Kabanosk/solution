@@ -181,17 +181,39 @@ CLAIMS: list[tuple[re.Pattern[str], tuple[str, ...]]] = [
     (re.compile(r"\b(attached|as (an )?attachments?|PDFs? (are|is) (here|below|attached))\b", re.I), ("send_invoices",)),
 ]
 
-# "attach them", "send me the invoices as PDF", "wyślij faktury": the user wants the files themselves
-WANTS_FILES = re.compile(r"\b(attach\w*|załącz\w*|zalacz\w*|pdfs?|download\w*|wyślij|wyslij|"
-                         r"send\b.{0,40}\b(invoices?|faktur\w*|them|these|those|files?))", re.I)
+# "attach them", "send me the invoices as PDF", "wyślij faktury": the user wants the files themselves. A request is
+# an invoice request only with a sending verb AND an object: invoices named outright, or files / PDFs / "them" while
+# the conversation is about invoices. "Send the daily briefing to Alice" or a plain DM is never one.
+FILE_VERB = re.compile(r"\b(attach\w*|załącz\w*|zalacz\w*|download\w*|pobierz\w*|send\w*|wyślij|wyslij|wysłać|wyslac|"
+                       r"forward\w*|gimme|give me|share)\b|\bpdfs?\b", re.I)
+INVOICE_NOUN = re.compile(r"\b(invoices?|faktur\w*|rachun\w*)\b", re.I)
+FILE_OBJECT = re.compile(r"\b(pdfs?|files?|attachments?|documents?|them|these|those|it|je|te|ich|pliki?)\b", re.I)
+NOT_INVOICES = re.compile(r"\b(briefing\w*|news review|raport\w*|podsumowani\w*)\b", re.I)
+INVOICE_TOOLS = ("email_invoices", "search_invoices", "send_invoices", "missing_invoices")
 NAMED_TO = re.compile(r"\b(?:to|dm|do)\s+([A-ZĄĆĘŁŃÓŚŹŻ][\w\-]+)")
 
 
+def wants_invoice_files(text: str, calls: list[tuple[str, dict[str, Any], dict[str, Any]]],
+                        history: list[dict[str, str]] | None = None) -> bool:
+    """Did the user ask for the invoice PDFs themselves in this turn? Never after the briefing went out (that was the
+    request), never for a plain DM; "them" / "the PDFs" count only while the talk is about invoices."""
+    if any(n == "send_briefing" for n, _, _ in calls) or not FILE_VERB.search(text):
+        return False
+    if INVOICE_NOUN.search(text):
+        return True  # "send me the invoices", "wyślij faktury", also when the model wrongly used send_dm for it
+    if any(n == "send_dm" for n, _, _ in calls) or NOT_INVOICES.search(text) or not FILE_OBJECT.search(text):
+        return False
+    recent = " ".join(m.get("content") or "" for m in (history or [])[-4:])
+    return any(n in INVOICE_TOOLS for n, _, _ in calls) or bool(INVOICE_NOUN.search(recent))
+
+
 def ensure_files(box: Toolbox, task: Task, ctx: JobContext, text: str, reply: str,
-                 calls: list[tuple[str, dict[str, Any], dict[str, Any]]]) -> str:
+                 calls: list[tuple[str, dict[str, Any], dict[str, Any]]],
+                 history: list[dict[str, str]] | None = None) -> str:
     """The user asked for the invoice files but no PDFs went out this turn: send them now (to the colleague named or
     DM'd, else the asker) and say what really happened, instead of a reply that only lists or promises them."""
-    if not WANTS_FILES.search(text) or any(n == "send_invoices" and r.get("invoices") for n, _, r in calls):
+    if not wants_invoice_files(text, calls, history) or any(n == "send_invoices" and r.get("invoices")
+                                                            for n, _, r in calls):
         return reply
     args: dict[str, Any] = {}
     for name, a, _ in calls:  # what the user was looking at: the last invoice search
@@ -223,7 +245,8 @@ def _succeeded(name: str, result: dict[str, Any]) -> bool:
     if "error" in result:
         return False
     return bool({"hand_over_task": result.get("handed"), "close_tasks": result.get("closed"),
-                 "send_dm": result.get("sent"), "send_briefing": result.get("sent"), "send_invoices": result.get("invoices"),
+                 "send_dm": result.get("sent"), "send_briefing": result.get("sent") is True,
+                 "send_invoices": result.get("invoices"),
                  "start_what_if": result.get("started")}.get(name, True))
 
 
@@ -236,6 +259,10 @@ def check_claims(reply: str, actions: list[tuple[str, dict[str, Any]]]) -> str:
         tried = [(n, r) for n, r in actions if n in tools]
         if any(_succeeded(n, r) for n, r in tried):
             continue
+        partial = next((r for _, r in tried if r.get("sent") == "partial"), None)
+        if partial is not None:  # some of it went out: neither "done" nor "nothing changed" is true
+            return (f"{reply}\n\n_Correction: only part of it was delivered ({partial.get('parts_delivered')} of "
+                    f"{partial.get('parts_total')} messages); Slack refused the rest._")
         if tried:
             why = "; ".join(f"{x.get('task', '?')}: {x.get('why')}" for _, r in tried for x in r.get("skipped", []))
             errs = "; ".join(str(r.get("error")).replace("_", " ") for _, r in tried if r.get("error"))
@@ -269,7 +296,7 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
 
     def done(reply: str) -> str:
         if not external:  # the invoice fallback needs tools an external model never has
-            reply = ensure_files(box, task, ctx, text, reply, calls)
+            reply = ensure_files(box, task, ctx, text, reply, calls, history)
         return check_claims(reply, actions + [(n, r) for n, _, r in calls[len(actions):]])
     for _ in range(MAX_ROUNDS):
         _shrink_tool_results(messages, TOKEN_BUDGET)

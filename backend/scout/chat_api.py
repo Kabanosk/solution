@@ -18,6 +18,7 @@ Each conversation turn is a `chat` task with its step log and audit trail, like 
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import queue
@@ -169,6 +170,40 @@ def _line(event: dict[str, Any]) -> str:
     return json.dumps(event, ensure_ascii=False) + "\n"
 
 
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
+
+
+def _external_history(ctx: JobContext, task: Any, turns: list[dict[str, Any]],
+                      conversation_id: str | None) -> list[dict[str, Any]]:
+    """What an external provider may see of the history the client sent: every user turn, and only the assistant
+    turns (answers, compaction summaries) that this server produced with an external model in this conversation,
+    recognized by the SHA-256 recorded on the chat task's step. Granite answers, "Update: ..." follow-ups and anything
+    a stale or other client resends are dropped silently. No conversation id: no assistant history at all."""
+    known: set[str] = set()
+    if conversation_id:
+        try:
+            for s in ctx.recorder.steps(task.id):
+                d = s.detail or {}
+                if d.get("external") is True and isinstance(d.get("sha256"), str):
+                    known.add(d["sha256"])
+        except Exception:  # noqa: BLE001 - without the record nothing is trusted, the chat still works
+            log.exception("could not read the conversation's external answers")
+    out = []
+    for t in turns:
+        content = t.get("content") or ""
+        if t.get("role") == "user":
+            out.append(t)
+            continue
+        body = content[len(chat.SUMMARY_PREFIX):] if content.startswith(chat.SUMMARY_PREFIX) else content
+        if known and _digest(body) in known:
+            out.append(t)
+    dropped = len(turns) - len(out)
+    if dropped:
+        log.info("external chat: %d assistant turn(s) not produced externally were not forwarded", dropped)
+    return out
+
+
 @router.post("/chat", summary="Ask Scout (as the CEO) with its tools; NDJSON stream of steps and the answer")
 def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_write_token)],
                   settings: Annotated[ScoutSettings, Depends(get_scout_settings)],
@@ -217,16 +252,23 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
 
     ctx.recorder.add_listener(on_step)
 
+    def external_mark(text: str) -> dict[str, Any] | None:
+        """Step detail that lets a later external request in this conversation resend `text` (only a hash is kept)."""
+        return {"external": True, "sha256": _digest(text)} if body.external is not None else None
+
     def run() -> None:
         try:
             def compacted(summary: str, replaced: int) -> None:
                 ctx.recorder.step(task.id, "compacted", f"Summarized the first {replaced} messages to fit the model",
-                                  source="scout")
+                                  source="scout", detail=external_mark(summary))
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
             reply = blocked
             if reply is None:  # the current turn passed; the history the client resent is screened next
-                history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
+                earlier = turns[:-1]
+                if body.external is not None:  # the server, not the client, decides what reaches a third party
+                    earlier = _external_history(ctx, task, earlier, body.conversation_id)
+                history = guardrails.screen_history(ctx, earlier, task_id=task.id, requester=asker)
             if reply is not None:  # blocked by the safety policy: no model call at all
                 ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
                                   source="guardrails")
@@ -236,7 +278,8 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted,
                                     allowed_tools=EXTERNAL_TOOLS if body.external is not None else None)
                 reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
-                ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
+                ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout",
+                                  detail=external_mark(reply))
                 waiting_on = dm_replies.pending_count(ctx.conn_factory, task.id)
                 if waiting_on:  # a colleague still owes an answer to a message sent for this chat
                     ctx.recorder.set_status(task.id, "waiting", outcome=reply.split("\n")[0][:300])

@@ -789,14 +789,25 @@ class Toolbox:
         cut = len(text) > BRIEFING_PART * 4 or len(parts) > BRIEFING_PARTS
         if len(parts) > BRIEFING_PARTS:  # what Slack takes in a few messages; the signature stays on the last one
             parts = [*parts[:BRIEFING_PARTS - 1], f"{parts[BRIEFING_PARTS - 1][:BRIEFING_PART - len(sign) - 1].rstrip()}…{sign}"]
+        delivered = 0
         try:
             for part in parts:
                 if not self.ctx.notifier.dm(who, part, dm_replies.LEVEL, task_id=self.task.id):
                     raise RuntimeError("not delivered")
-        except Exception:  # noqa: BLE001 - Slack said no: say so, whatever already went out
-            log.exception("send_briefing failed")
-            return {"error": "not_sent", "person": self.ctx.hr.full_name(who),
-                    "hint": "Slack did not deliver it. Tell the user it was not sent."}
+                delivered += 1
+        except Exception:  # noqa: BLE001 - Slack said no: say so, and what already went out
+            log.exception("send_briefing failed after %d of %d part(s)", delivered, len(parts))
+            if not delivered:
+                return {"error": "not_sent", "person": self.ctx.hr.full_name(who),
+                        "hint": "Slack did not deliver it. Tell the user it was not sent."}
+            self.ctx.audit.record("agent", "send_briefing", f"slack:{who}", title[:200], task_id=self.task.id,
+                                  requester=self.requester, role=self.role,
+                                  reason=f"partial: {delivered} of {len(parts)} Slack messages delivered")
+            return {"sent": "partial", "to": self.ctx.hr.full_name(who), "title": title, "date": f"{created:%Y-%m-%d}",
+                    "parts_delivered": delivered, "parts_total": len(parts),
+                    "note": f"Only {delivered} of {len(parts)} messages reached them; Slack refused the rest. Tell the "
+                            "user it was delivered only in part, do not say it was sent in full, and do not retry "
+                            "unless the user asks (a retry sends the delivered part again)."}
         self.ctx.audit.record("agent", "send_briefing", f"slack:{who}", title[:200], task_id=self.task.id,
                               requester=self.requester, role=self.role)
         out: dict[str, Any] = {"sent": True, "to": self.ctx.hr.full_name(who), "title": title,
@@ -944,6 +955,9 @@ def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
         return f"Looked at cost trends: {len(result['series'])} cost pairs"
     if result.get("started"):
         return "Started a cash forecast (what-if)"
+    if name == "send_briefing" and result.get("sent") == "partial":
+        return (f"Sent only part of the {result.get('title', 'daily briefing')} to {result.get('to')} "
+                f"({result.get('parts_delivered')} of {result.get('parts_total')} messages)")
     if name == "send_briefing" and result.get("sent"):
         return f"Sent the {result.get('title', 'daily briefing')} to {result.get('to')}"
     n = next((len(v) for v in result.values() if isinstance(v, list)), None)

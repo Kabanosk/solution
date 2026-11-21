@@ -168,6 +168,23 @@ def test_oven_purchase_creates_a_june_gap_and_a_credit_line_proposal(oven_review
     assert proposal.min_balance == gap.lowest_balance and proposal.buffer == SYNTHETIC_FIXED
 
 
+def test_client_payment_raises_the_balance_and_closes_the_gap(model, history, oven_review):
+    """A what-if can bring money in: a client paying 500k must lift the balance, never open a gap."""
+    base = base_forecast(model, history)
+    pay = liq.Outflow(on=date(2026, 3, 15), amount=Decimal("500000"), label="client payment", direction="in")
+    fc = base_forecast(model, history, extra_outflows=[pay])
+    diff = (fc["balance"] - base["balance"]).round(6)
+    assert diff[: "2026-03-14"].eq(0).all() and diff["2026-03-15":].eq(500_000.0).all()
+    same = base_forecast(model, history, extra_outflows=[{"on": date(2026, 3, 15), "amount": "500000",
+                                                          "direction": "in"}])
+    assert same["balance"].tolist() == pytest.approx(fc["balance"].tolist())
+    _, oven = oven_review
+    review = liq.review_liquidity([oven, liq.Outflow(on=date(2026, 4, 1), amount=Decimal("500000"),
+                                                     label="client payment", direction="in")],
+                                  model=model, transactions=history, start_balance=START_BALANCE)
+    assert not review.gaps and all(p.action_type != liq.CREDIT_LINE for p in review.proposals)
+
+
 def test_credit_line_reason_is_plain_language_with_drivers(oven_review):
     review, outflow = oven_review
     (proposal,) = review.proposals

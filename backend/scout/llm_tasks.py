@@ -263,11 +263,13 @@ DM_TOOL = ToolSpec(
             "intent": {"type": "string", "enum": list(DM_INTENTS),
                        "description": "question: about company money/invoices/tasks; rule: a standing rule about "
                                       "what Scout may do alone or must ask; what_if: what happens to cash if the "
-                                      "company buys/pays something; request_files: wants files or documents from "
+                                      "company buys/pays something or a client pays it; request_files: wants files or documents from "
                                       "someone's laptop or mailbox; smalltalk: anything else"},
-            "amount_eur": {"type": "string", "description": "what_if: price in EUR, digits only"},
+            "amount_eur": {"type": "string", "description": "what_if: the amount in EUR, digits only"},
             "month": {"type": "string", "description": "what_if: month of the payment (YYYY-MM or name)"},
-            "what": {"type": "string", "description": "what_if: what is bought"},
+            "what": {"type": "string", "description": "what_if: what is bought, or who pays us"},
+            "direction": {"type": "string", "enum": ["out", "in"],
+                          "description": "what_if: out = we spend (a purchase), in = money comes in (a client pays)"},
             "target_person": {"type": "string", "description": "request_files: whose laptop/mailbox, first name"},
         },
         "required": ["intent"],

@@ -90,6 +90,43 @@ def test_what_if_affordable_is_done(conn_factory, tmp_path):
     assert t.status == "done" and t.outcome.startswith("Resolved · affordable")
 
 
+def test_client_payment_is_money_in_not_a_purchase(conn_factory, tmp_path):
+    seen = []
+
+    def forecaster(ctx, outflows):  # noqa: ANN001
+        seen.append(outflows)
+        return fake_review(gap=False)(ctx, outflows)
+
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = forecaster
+    t = liquidity.run(ctx, job("what_if", {"amount": "$500,000", "month": "December",
+                                           "what": "new client payment", "from_id": "vincenzo"}))
+    assert seen[0][0]["direction"] == "in" and seen[0][0]["amount"] == Decimal("500000")
+    assert seen[1] == []  # the baseline, for "without it"
+    assert t.amount > 0 and "+€500,000.00" in t.title
+    assert t.status == "done" and "with this money the balance stays above" in t.outcome
+    forecast = next(s.text for s in ctx.recorder.steps(t.id) if s.kind == "forecast")
+    assert "without it:" in forecast
+
+
+def test_what_if_balances_keep_their_sign_and_explain_the_gap(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = lambda c, outflows: fake_review(gap=bool(outflows))(c, outflows)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "an oven",
+                                           "direction": "out", "from_id": "vincenzo"}))
+    steps = {s.kind: s.text for s in ctx.recorder.steps(t.id)}
+    assert "lowest balance -€12,000.00" in steps["forecast"] and "without it: €25,000.00" in steps["forecast"]
+    assert "the purchase causes the gap" in steps["note"]
+
+
+def test_direction_of():
+    assert liquidity.direction_of("", "new client payment") == "in"
+    assert liquidity.direction_of(None, "Acme pays us") == "in"
+    assert liquidity.direction_of("", "a new oven") == "out"
+    assert liquidity.direction_of("in", "oven") == "in" and liquidity.direction_of("out", "client") == "out"
+    assert liquidity.money(Decimal("-475802.29")) == "-€475,802.29" and liquidity.money(5) == "€5.00"
+
+
 def test_parse_month():
     assert liquidity.parse_month("March", date(2026, 11, 20)) == date(2027, 3, 1)
     assert liquidity.parse_month("2027-05", date(2026, 11, 20)) == date(2027, 5, 1)

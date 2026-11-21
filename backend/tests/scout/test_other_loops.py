@@ -209,6 +209,18 @@ def test_what_if_dm_enqueues_job(conn_factory, tmp_path):
         j = conn.execute("SELECT * FROM agent_jobs WHERE kind='what_if'").fetchone()
     assert j["payload"]["amount"] == "30000" and j["payload"]["from_id"] == "vincenzo"
 
+@pytest.mark.parametrize("who", ["vanessa", "grazyna", "rosa"])
+def test_what_if_by_dm_is_owner_only(conn_factory, tmp_path, who):
+    """The forecast shows the company's balance and buffer: staff asking by DM get a denial and no job."""
+    ctx = make_world(conn_factory, tmp_path, llm=route_llm("what_if", amount_eur="30000", month="March", what="oven"))
+    out = chat.run(ctx, dm(who, "what if we buy an oven for 30k in March?"))
+    with conn_factory() as conn:
+        assert conn.execute("SELECT 1 FROM agent_jobs WHERE kind='what_if'").fetchone() is None
+        deny = conn.execute("SELECT * FROM audit_log WHERE decision='DENY' AND requester=%s AND policy LIKE 'what-if%%'",
+                            (who,)).fetchall()
+    assert len(deny) == 1 and "denied" in kinds(ctx, out.id)
+    assert "owner" in ctx.notifier.updates[-1]["text"] and "balance" not in ctx.notifier.updates[-1]["text"]
+
 
 def test_question_from_waitstaff_denied_ceo_answered(conn_factory, tmp_path):
     def handler(messages, tools):  # noqa: ANN001

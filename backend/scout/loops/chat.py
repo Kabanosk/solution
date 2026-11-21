@@ -393,6 +393,12 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                       source="slack:dm", detail={"q": text[:MSG_CHARS]})
 
     if intent == "what_if":
+        if role != "ceo":  # as the start_what_if tool: the forecast shows the company's balance and buffer
+            ctx.audit.record("agent", "what_if", "forecast", text[:200], "DENY", task_id=task.id, requester=sender,
+                             role=role, policy="what-if: owner-only")
+            ctx.recorder.step(task.id, "denied", "Only the owner can run a what-if", source="iam")
+            return _finish(ctx, task, p, f"Only {ctx.hr.name(ctx.settings.ceo_id)} (the owner) can run a what-if on "
+                                         "the company's cash. I've logged the request.", level="NOTIFY")
         ctx.jobs.enqueue("what_if", {**{k: route.get(k) for k in ("amount_eur", "month", "what", "direction")},
                                      "amount": route.get("amount_eur"), "from_id": sender,
                                      "status_ref": p.get("status_ref")}, f"what_if:{job.dedupe_key}")

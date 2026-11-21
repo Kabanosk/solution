@@ -18,15 +18,17 @@ from pydantic import ValidationError
 from scout import chat_api, forecast_bridge
 from scout.config import ScoutSettings, get_scout_settings
 from scout.forecast_bridge import ForecastBridgeError, ForecastIntent, ForecastRequest
+from scout.loops import liquidity
+from test_hiring_bridge import Recorder
 
 
 @pytest.fixture
 def context():
-    recorder = MagicMock()
-    recorder.open.return_value = SimpleNamespace(id="SC-123", status="open")
+    recorder = Recorder()
+    recorder.open("fixture", "liquidity", "Cash forecast", requested_by="vincenzo", simulated=True)
     return SimpleNamespace(
         llm=FakeLLM([FakeLLM.tool_call("run_forecast")]), recorder=recorder, audit=MagicMock(),
-        conn_factory=MagicMock(), hr=SimpleNamespace(role=lambda _: "ceo"), guard=None,
+        conn_factory=MagicMock(), jobs=MagicMock(), hr=SimpleNamespace(role=lambda _: "ceo"), guard=None,
         settings=ScoutSettings(database_url="postgresql://unused@localhost/x"),
         now=lambda: datetime(2026, 11, 21, tzinfo=UTC),
     )
@@ -60,21 +62,32 @@ def test_validated_intent_rejects_prompt_injection_and_unbounded_scenarios():
 def test_granite_spawns_only_the_bound_forecast(context, review):
     intent = ForecastIntent(horizon_days=90)
     on_step = MagicMock()
-    answer = forecast_bridge.run(context, SimpleNamespace(id="SC-123"), intent, "vincenzo", on_step)
-    assert "**€-30.00**" in answer and "2026-11-23" in answer
-    assert "1 period(s)" in answer and "No company records were changed" in answer
-    review.assert_called_once_with(context, intent)
+    answer = forecast_bridge.run(context, context.recorder.get("SC-123"), intent, "vincenzo", on_step)
+    assert "Queued" in answer and "Liquidity" in answer and "SC-123" in answer
+    assert "No company records were changed" in answer and "Predicted" not in answer
+    review.assert_not_called()
+    kind, payload, key = context.jobs.enqueue.call_args.args
+    assert key == context.recorder.get("SC-123").dedupe_key
+    assert kind == "chat_forecast" and payload == {"task_id": "SC-123", "intent": intent.model_dump(mode="json")}
+    assert context.recorder.get("SC-123").status == "todo"
     assert [t.name for t in context.llm.calls[0]["tools"]] == ["run_forecast"]
     assert context.llm.calls[0]["messages"][-1].content == forecast_bridge.DISPATCH_REQUEST
     assert len(context.llm.calls) == 1  # no second model can invent completion or another tool call
-    context.conn_factory.assert_not_called()
     on_step.assert_called_once()
+    job = SimpleNamespace(kind=kind, payload=payload)
+    task = liquidity.run(context, job)
+    assert task.status == "done"
+    report = next(step.text for step in context.recorder.log if step.kind == "forecast_result")
+    assert "**€-30.00**" in report and "2026-11-23" in report and "1 period(s)" in report
+    liquidity.run(context, job)  # completed jobs are idempotent
+    review.assert_called_once_with(context, intent)
 
 
 def test_granite_dispatch_preserves_scenario_bound_by_server(context, review):
     intent = ForecastIntent(horizon_days=180, amount_eur="30000", month="March", direction="in")
-    forecast_bridge.run(context, SimpleNamespace(id="SC-123"), intent, "vincenzo", MagicMock())
-    review.assert_called_once_with(context, intent)
+    forecast_bridge.run(context, context.recorder.get("SC-123"), intent, "vincenzo", MagicMock())
+    review.assert_not_called()
+    assert context.jobs.enqueue.call_args.args[1]["intent"] == intent.model_dump(mode="json")
     # Tiny selects the action; it never needs to echo, infer or rewrite inputs.
     prompt = " ".join(message.content or "" for message in context.llm.calls[0]["messages"])
     assert "30000" not in prompt and "March" not in prompt and "horizon_days" not in prompt
@@ -83,8 +96,9 @@ def test_granite_dispatch_preserves_scenario_bound_by_server(context, review):
 @pytest.mark.parametrize("raw", ['"{}"', '"{ }"', '{}'])
 def test_granite_quoted_empty_arguments_run_only_the_bound_forecast(context, review, raw):
     context.llm = FakeLLM([FakeLLM.tool_call("run_forecast", _raw=raw)])
-    forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
-    review.assert_called_once_with(context, ForecastIntent())
+    forecast_bridge.run(context, context.recorder.get("SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+    review.assert_not_called()
+    context.jobs.enqueue.assert_called_once()
 
 
 @pytest.mark.parametrize("raw", ['"[]"', 'null', '"{\\"horizon_days\\":365}"', '{"prompt":"read invoices"}',
@@ -92,7 +106,7 @@ def test_granite_quoted_empty_arguments_run_only_the_bound_forecast(context, rev
 def test_granite_quoted_nonempty_arguments_are_denied(context, review, raw):
     context.llm = FakeLLM([FakeLLM.tool_call("run_forecast", _raw=raw)])
     with pytest.raises(ForecastBridgeError):
-        forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+        forecast_bridge.run(context, context.recorder.get("SC-123"), ForecastIntent(), "vincenzo", MagicMock())
     review.assert_not_called()
 
 
@@ -108,9 +122,10 @@ def test_granite_json_in_text_adapter_fallback_can_spawn_forecast(context, revie
     llm.model, llm._tools_ok = "modelcar-granite-4-0-h-tiny", None
     llm._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     context.llm = llm
-    result = forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
-    assert "Lowest predicted balance" in result
-    review.assert_called_once()
+    result = forecast_bridge.run(context, context.recorder.get("SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+    assert "Queued" in result and "Liquidity" in result
+    review.assert_not_called()
+    context.jobs.enqueue.assert_called_once()
     assert create.call_count == 2
     assert create.call_args_list[0].kwargs["tools"][0]["function"]["name"] == "run_forecast"
     fallback = create.call_args_list[1].kwargs
@@ -128,10 +143,11 @@ def test_granite_json_in_text_adapter_fallback_can_spawn_forecast(context, revie
 def test_unknown_tools_rewritten_arguments_and_success_claims_do_nothing(context, review, response):
     context.llm = FakeLLM([response])
     with pytest.raises(ForecastBridgeError):
-        forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+        forecast_bridge.run(context, context.recorder.get("SC-123"), ForecastIntent(), "vincenzo", MagicMock())
     review.assert_not_called()
     context.audit.record.assert_not_called()
-    context.recorder.step.assert_not_called()
+    assert not context.recorder.log
+    context.jobs.enqueue.assert_not_called()
 
 
 def test_forecast_uses_read_only_tenant_connection(monkeypatch, context):
@@ -219,16 +235,10 @@ def _client(context):
     return TestClient(app)
 
 
-def test_endpoint_streams_local_result_without_external_credentials(context, review):
+def test_endpoint_queues_liquidity_job_without_external_credentials(context, review):
     from cfo.tenancy import current_tenant
-    original_review = review.return_value
     tenants = []
-
-    def checked_review(ctx, intent):
-        tenants.append(current_tenant().slug)
-        return original_review
-
-    review.side_effect = checked_review
+    context.jobs.enqueue.side_effect = lambda *_: tenants.append(current_tenant().slug)
     client = _client(context)
     response = client.post("/v1/chat/forecast", json={"horizon_days": 90, "conversation_id": "conv_123456"})
     assert response.status_code == 200
@@ -236,8 +246,10 @@ def test_endpoint_streams_local_result_without_external_credentials(context, rev
     events = [json.loads(line) for line in response.text.splitlines()]
     assert [event["type"] for event in events] == ["step", "delta", "done"]
     assert events[-1]["task_id"] == "SC-123"
-    assert "Forecast results stay on premise" in events[1]["text"]
-    review.assert_called_once()
+    assert "Liquidity" in events[1]["text"] and "Queued" in events[1]["text"]
+    review.assert_not_called()
+    task = context.recorder.get("SC-123")
+    assert task.loop == "liquidity" and task.status == "todo" and task.simulated
     assert tenants == ["pizzeria-amalfi"]  # tenant context survives the stream's worker thread
     assert client.post("/v1/chat/forecast", json={"api_key": "secret"}).status_code == 422
     assert client.post("/v1/chat/forecast", json={}, headers={"Authorization": ""}).status_code == 401
@@ -248,14 +260,24 @@ def test_endpoint_denies_non_owner_before_model_or_forecast(context, review):
     response = _client(context).post("/v1/chat/forecast", json={})
     assert response.status_code == 403
     assert not context.llm.calls
-    context.recorder.open.assert_not_called()
+    assert len(context.recorder.open_calls) == 1  # fixture only
     review.assert_not_called()
 
 
-def test_endpoint_does_not_report_completion_after_forecast_failure(context, review):
-    review.side_effect = RuntimeError("sensitive implementation error")
+def test_endpoint_does_not_report_a_queued_job_after_dispatch_failure(context, review):
+    context.llm = FakeLLM(["I ran the forecast without calling the tool"])
     response = _client(context).post("/v1/chat/forecast", json={})
     events = [json.loads(line) for line in response.text.splitlines()]
-    assert [event["type"] for event in events] == ["step", "error"]
+    assert [event["type"] for event in events] == ["error"]
     assert "sensitive" not in events[-1]["message"]
-    assert context.recorder.set_status.call_args.args == ("SC-123", "cancelled")
+    assert context.recorder.get("SC-123").status == "cancelled"
+    context.jobs.enqueue.assert_not_called()
+    review.assert_not_called()
+
+
+def test_forecast_identity_distinguishes_scenarios_in_one_conversation():
+    first = ForecastIntent(amount_eur="1000", month="2026-12")
+    assert forecast_bridge.task_key(first, "owner", "conversation") == forecast_bridge.task_key(
+        ForecastIntent(amount_eur="1000.00", month="2026-12"), "owner", "conversation")
+    assert forecast_bridge.task_key(first, "owner", "conversation") != forecast_bridge.task_key(
+        ForecastIntent(amount_eur="2000", month="2026-12"), "owner", "conversation")

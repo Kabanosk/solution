@@ -266,29 +266,29 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
         raise ApiError(403, "forbidden", "Only the company owner may request this forecast.")
 
     conversation = body.conversation_id or secrets.token_hex(8)
-    task = ctx.recorder.open(f"web-forecast:{requester}:{conversation}", "chat", "Dashboard chat: local forecast",
-                             requested_by=requester, owner_id=requester)
-    ctx.recorder.set_status(task.id, "in_progress")
-    ctx.recorder.step(task.id, "picked_up", "Received a structured forecast request from the external chat",
-                      source="dashboard")
+    intent = body.intent()
+    title = (f"Cash forecast: {intent.horizon_days} days" if intent.amount_eur is None else
+             f"What if: €{intent.amount_eur:,.2f} {'in' if intent.direction == 'in' else 'out'} in {intent.month}")
+    task = ctx.recorder.open(forecast_bridge.task_key(intent, requester, conversation), "liquidity", title,
+                             requested_by=requester, owner_id=requester, simulated=True,
+                             amount=(intent.amount_eur if intent.direction == "in" else -intent.amount_eur)
+                             if intent.amount_eur is not None else None)
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     def run() -> None:
         try:
-            reply = forecast_bridge.run(ctx, task, body.intent(), requester,
+            reply = forecast_bridge.run(ctx, task, intent, requester,
                                         lambda text: events.put({"type": "step", "text": text}))
             reply = guardrails.screen_output(ctx, task.id, reply, requester=requester,
                                              source="local forecast reply", role=role)
-            ctx.recorder.step(task.id, "answered", "Returned forecast results directly to the dashboard",
-                              source="granite")
-            ctx.recorder.set_status(task.id, "done", outcome="Local forecast completed", resolved_via="forecast",
-                                    level="AUTO")
             events.put({"type": "delta", "text": reply})
             events.put({"type": "done", "truncated": False, "task_id": task.id})
         except Exception as error:
             log.exception("local forecast handoff failed")
             ctx.recorder.step(task.id, "error", f"Local forecast failed: {type(error).__name__}", source="granite")
-            ctx.recorder.set_status(task.id, "cancelled", outcome="Local forecast failed")
+            # A failure after enqueueing must not cancel an independently running job.
+            if not any(step.kind == "queued" for step in ctx.recorder.steps(task.id)):
+                ctx.recorder.set_status(task.id, "cancelled", outcome="Forecast handoff failed")
             events.put({"type": "error", "message": str(error) if isinstance(error, ForecastBridgeError)
                         else "The local forecast could not run. Check the scenario date and try again."})
         finally:

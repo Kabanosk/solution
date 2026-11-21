@@ -44,7 +44,10 @@ def old_scout(upgrade_db, request):
         conn.execute("INSERT INTO scout_auth.sessions(token_hash,user_id,organization_id,expires_at) VALUES (%s,%s,%s,now()+interval '1 hour')",
                      (hashlib.sha256(uid.bytes).hexdigest(), uid, oid))
         conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
-        conn.execute("CREATE TABLE agent_tasks(id text PRIMARY KEY, title text); INSERT INTO agent_tasks VALUES ('SC-1','Preserved task')")
+        # The columns and tables the packaged upgrades (scout_strategy.sql, scout_slack_members.sql) alter or reference.
+        conn.execute("CREATE TABLE agent_tasks(id text PRIMARY KEY, title text, loop text); "
+                     "INSERT INTO agent_tasks VALUES ('SC-1','Preserved task','chat')")
+        conn.execute("CREATE TABLE employees(id text PRIMARY KEY, name text); INSERT INTO employees VALUES ('owner','Owner')")
         conn.execute("CREATE TABLE agent_jobs(id bigint PRIMARY KEY,kind text,payload jsonb); INSERT INTO agent_jobs VALUES (1,'dm','{}')")
         conn.execute("CREATE TABLE transactions(id text PRIMARY KEY,amount numeric); INSERT INTO transactions VALUES ('payment',-642.80)")
         conn.execute("CREATE TABLE checkpoints(id text PRIMARY KEY,body jsonb); INSERT INTO checkpoints VALUES ('checkpoint','{\"approved\":false}')")
@@ -59,7 +62,8 @@ def old_scout(upgrade_db, request):
     finally:
         with psycopg.connect(upgrade_db) as conn:
             if schema == "public":
-                for table in ("dm_replies", "dm_requests", "guardrail_strikes", "guardrail_alerts", "flagged_documents", *tables):
+                for table in ("dm_replies", "dm_requests", "guardrail_strikes", "guardrail_alerts", "flagged_documents",
+                              "slack_members", "employees", *tables):
                     conn.execute(sql.SQL("DROP TABLE IF EXISTS {}.{} CASCADE").format(sql.Identifier(schema), sql.Identifier(table)))
             else:
                 conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))

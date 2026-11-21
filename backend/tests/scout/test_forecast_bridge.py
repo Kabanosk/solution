@@ -158,7 +158,7 @@ def test_forecast_uses_read_only_tenant_connection(monkeypatch, context):
     assert args[0][0]["on"].isoformat() == "2027-03-01"
     assert args[0][0]["amount"] == Decimal(30000)
     assert kwargs == {"conn": conn, "transactions": transactions, "model": model, "days": 145}
-    train.assert_called_once_with(transactions, log_to_mlflow=False)
+    train.assert_called_once_with(transactions, log_to_mlflow=False, band=False)
     get_model.assert_not_called()
 
 

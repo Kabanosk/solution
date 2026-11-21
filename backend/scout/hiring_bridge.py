@@ -174,7 +174,7 @@ def _review(ctx: JobContext, intent: HiringIntent) -> tuple[Any, Any]:
         days = max(90, (outflows[-1]["on"] - last_booking).days + 30)
         if days > 730:
             raise HiringBridgeError("The hiring schedule must fit within two years of the latest bank booking.")
-        model = fm.train(transactions, log_to_mlflow=False)
+        model = fm.train(transactions, log_to_mlflow=False, band=False)  # the band is only read by the API
         base = review_liquidity([], conn=conn, transactions=transactions, model=model, days=days)
         scenario = review_liquidity(outflows, conn=conn, transactions=transactions, model=model, days=days)
     return base, scenario

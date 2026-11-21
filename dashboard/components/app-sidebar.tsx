@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, ChevronDown, ChevronRight, Cpu, Inbox, KeyRound, LogOut, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Play, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Cpu, Inbox, KeyRound, LogOut, MessageSquare, LayoutGrid, ListTodo, Play, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { ScoutMark } from "@/components/brand";
 import { NAV, type IconName, type NavItem, type Route } from "@/lib/nav";
 import { LOOP_SIGNAL_LABEL, type LoopSignal } from "@/lib/task-signals";
@@ -36,7 +36,6 @@ export function AppSidebar({ active, counts, user, organizationName, organizatio
   active: string | null; counts: NavCounts; user: { name: string; role: string }; organizationName: string; organizationSlug: string; googleAvailable: boolean; demo: boolean;
   onNavigate: (route: Route) => void; onSearch: () => void; onNewTask: () => void;
 }) {
-  const { toggleSidebar } = useSidebar();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try { setCollapsed(JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEY)) ?? "{}")); } catch { /* Defaults stay expanded. */ }
@@ -103,7 +102,6 @@ export function AppSidebar({ active, counts, user, organizationName, organizatio
     <SidebarFooter className="flex-row items-center gap-1 border-t px-2 py-2">
       <Avatar className="size-6"><AvatarFallback className="bg-primary text-[10px] text-primary-foreground">{user.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
       <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-[13px]">{user.name}</span><span className="block truncate text-[11px] text-muted-foreground">{user.role}</span></span>
-      <Button id="scout-sidebar-collapse" variant="ghost" size="icon" className="size-7" aria-label="Collapse sidebar" title="Collapse sidebar  ⌘B" onClick={toggleSidebar}><PanelLeftClose className="size-4" aria-hidden="true" /></Button>
     </SidebarFooter>
   </Sidebar>;
 }

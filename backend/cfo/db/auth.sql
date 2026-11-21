@@ -97,3 +97,10 @@ CREATE TABLE IF NOT EXISTS scout_auth.strategy_settings (
     next_run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- One-use sign-in links Scout sends on Slack ("send me a link to the dashboard"). Only the SHA-256 is stored.
+CREATE TABLE IF NOT EXISTS scout_auth.login_links (
+    token_hash text PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES scout_auth.users(id) ON DELETE CASCADE,
+    organization_id uuid NOT NULL REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
+    expires_at timestamptz NOT NULL
+);

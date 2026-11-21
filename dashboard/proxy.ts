@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
   // OAuth provider navigation has no tenant header. Only these GET callbacks bypass the header check;
   // each callback still verifies the signed-in owner, browser proof and one-use provider state itself.
   const setupCallback = request.method === "GET" && /^\/api\/onboarding\/callback\/(google|slack)$/.test(path);
-  if (path.startsWith("/api/auth/") || path.startsWith("/join/") || PUBLIC.has(path) || setupCallback) {
+  if (path.startsWith("/api/auth/") || path.startsWith("/join/") || path.startsWith("/login/") || PUBLIC.has(path) || setupCallback) {
     response = NextResponse.next({ request: { headers: requestHeaders } });
   } else if (path.startsWith("/api/")) {
     const slug = request.headers.get("x-scout-organization") ?? "";

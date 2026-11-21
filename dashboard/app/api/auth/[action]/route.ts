@@ -37,6 +37,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
       (await cookies()).set(SESSION_COOKIE, result.token, cookieOptions());
       return json({ redirect: `/${result.session.slug}` });
     }
+    if (action === "link") {
+      if (!(await store.rateLimit(`link:address:${clientAddress(request.headers)}`, 60))) return json({ error: "Too many attempts. Try again in 15 minutes." }, 429);
+      const result = await store.consumeLoginLink(field("slug"), field("token"));
+      if (!result) return json({ error: "This sign-in link has expired or was already used. Ask Scout on Slack for a new one." }, 401);
+      const previous = (await cookies()).get(SESSION_COOKIE)?.value;
+      if (previous) await store.logout(previous);
+      (await cookies()).set(SESSION_COOKIE, result.token, cookieOptions());
+      return json({ redirect: `/${result.session.slug}` });
+    }
     if (action === "join") {
       if (!(await store.rateLimit(`join:address:${clientAddress(request.headers)}`, 30))) return json({ error: "Too many attempts. Try again in 15 minutes." }, 429);
       const result = await store.join({ slug: field("slug"), token: field("token"), firstName: field("firstName"), lastName: field("lastName"), email: field("email"), password: field("password") });

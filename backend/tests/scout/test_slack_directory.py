@@ -155,7 +155,7 @@ def test_invite_links_to_join_the_named_workspace(conn_factory, db, fake_slack):
     assert ui.sweep() == 2
     post = next(p for p in fake_slack.named("chat_postMessage") if p["channel"] == "D_U_ANNA")
     assert "Join Pizzeria Amalfi workspace" in post["text"]
-    token = re.search(r"https://scout\.test/join/pizzeria-amalfi/([\w-]+)\|", post["text"]).group(1)
+    token = re.search(r"https://scout\.test/join/pizzeria-amalfi/([\w-]+)", post["text"]).group(1)
     row = db.execute("SELECT * FROM slack_members WHERE slack_user_id = 'U_ANNA'").fetchone()
     assert row["invite_token_hash"] == hashlib.sha256(token.encode()).hexdigest()
     assert row["slack_name"] == "Anna Kowalska" and row["status"] == "invited"

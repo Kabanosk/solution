@@ -97,7 +97,9 @@ def build(conn_factory: ConnFactory, settings: ScoutSettings, slack_client: Any 
     rows = _rows(conn_factory)
     chat: ChatConnector = NoChat()
     if slack_client is not None and "slack" in rows:
-        chat = SlackChat(slack_client, (rows["slack"]["config"] or {}).get("channels") or settings.chat_channels, audit)
+        cfg = rows["slack"]["config"] or {}
+        chat = SlackChat(slack_client, cfg.get("channels") or settings.chat_channels, audit,
+                         any_member=cfg.get("managed_by") == "onboarding")
     return Connectors(
         bank=RevolutMockBank(settings.bank_api_url),
         invoicing=PostgresInvoicing(conn_factory, audit),
@@ -190,12 +192,12 @@ def build_tenant(conn_factory: ConnFactory, settings: ScoutSettings, audit: Audi
             log.warning("tenant Gmail connection unusable")
     if (found := usable("slack")) and found[1]:
         channels = (found[0]["config"] or {}).get("channels") or []
-        if channels:
-            try:
-                from slack_sdk import WebClient
-                closed.chat = SlackChat(WebClient(token=found[1], timeout=10), channels, audit)
-            except Exception:  # noqa: BLE001
-                log.exception("slack connection unusable")
+        try:
+            from slack_sdk import WebClient
+            # Every channel Scout is a member of, including ones it was added to after the install.
+            closed.chat = SlackChat(WebClient(token=found[1], timeout=10), channels, audit, any_member=True)
+        except Exception:  # noqa: BLE001
+            log.exception("slack connection unusable")
     if found := usable("ksef"):
         cfg = found[0]["config"] or {}
         if cfg.get("nip"):  # test environment only, no known demo sellers

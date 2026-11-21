@@ -59,9 +59,11 @@ def matches(text: str, *, invoice_number: str | None, supplier: str | None, amou
 class SlackChat:
     name = "slack"
 
-    def __init__(self, client: Any, channels: list[str], audit: Audit | None = None):
+    def __init__(self, client: Any, channels: list[str], audit: Audit | None = None, *, any_member: bool = False):
         self._client = client
         self._wanted = [c.lstrip("#") for c in channels]
+        # Onboarding installs: a channel someone added Scout to later counts too (adding it is the consent).
+        self._any_member = any_member
         self._audit = audit
         self._ids: dict[str, str] | None = None
 
@@ -72,7 +74,8 @@ class SlackChat:
                 res = self._client.conversations_list(types="public_channel,private_channel", limit=200,
                                                       exclude_archived=True, cursor=cursor)
                 for c in res.get("channels", []):
-                    if (c.get("id") in self._wanted or c.get("name") in self._wanted) and c.get("is_member"):
+                    wanted = self._any_member or c.get("id") in self._wanted or c.get("name") in self._wanted
+                    if wanted and c.get("is_member"):
                         found[c["name"]] = c["id"]
                 cursor = (res.get("response_metadata") or {}).get("next_cursor")
                 if not cursor:

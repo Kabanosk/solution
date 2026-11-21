@@ -42,6 +42,7 @@ class ScoutSettings(BaseSettings):
     scout_demo: bool = False
     guardrails_url: str = ""  # NeMo Guardrails check service; empty = safety checks off (D-029)
     guardrails_token: str = ""
+    guardrails_ca: str = "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"  # OpenShift service CA
     compliance_contact: str = ""  # employee id or Slack user id told about repeated blocked prompts; empty = the CEO
     ksef_api_url: str = "https://api-test.ksef.mf.gov.pl/v2"  # KSeF test environment (self-signed seals allowed)
 

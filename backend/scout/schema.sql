@@ -145,3 +145,22 @@ CREATE INDEX IF NOT EXISTS bank_mock_transactions_booked_idx ON bank_mock_transa
 
 -- The real Slack person who plays an HR role (written by the worker from SLACK_USER_MAP; the dashboard shows it).
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS slack_name TEXT;
+
+-- Guardrails (T052). The prompts of blocked human messages, in full, for the compliance report. Never exposed by
+-- an API and never copied to audit_log. `reported_at` is set when the strikes went into a compliance alert.
+CREATE TABLE IF NOT EXISTS guardrail_strikes (
+    id           BIGSERIAL PRIMARY KEY,
+    person       TEXT NOT NULL,
+    ts           TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    prompt       TEXT NOT NULL,
+    rails        TEXT NOT NULL DEFAULT '',
+    reported_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS guardrail_strikes_person_idx ON guardrail_strikes (person, ts DESC);
+
+-- Outside items (mail, file, chat message, KSeF number) the owner was already told about.
+CREATE TABLE IF NOT EXISTS guardrail_alerts (
+    item_key     TEXT PRIMARY KEY,
+    rails        TEXT NOT NULL DEFAULT '',
+    notified_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

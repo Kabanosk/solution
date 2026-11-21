@@ -161,7 +161,7 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
                 seen[key] = "1"
                 ctx.recorder.step(task.id, "looked_up", summarize(call.name, args, result),
                                   source="scout", detail={"tool": call.name, "args": args})
-            content = guardrails.screen_tool(ctx, task.id, call.name, dumps(result), requester=sender)
+            content = guardrails.screen_tool(ctx, task.id, call.name, dumps(result), requester=sender, result=result)
             messages.append(Message(role="tool", tool_call_id=call.id, content=content))
         if box.blocked_reply:  # a message Scout was about to send for the user was blocked: say so, nothing else
             return box.blocked_reply

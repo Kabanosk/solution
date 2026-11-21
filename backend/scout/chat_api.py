@@ -80,8 +80,9 @@ def build_context(settings: ScoutSettings) -> JobContext:
                            bot_token=settings.slack_bot_token, dashboard_url=settings.dashboard_url, icon_url=icon,
                            names=names)
     return JobContext(conn_factory=cf, recorder=recorder, audit=audit,
-                      connectors=registry.build(cf, settings, slack, audit), llm=get_llm(), notifier=notifier,
-                      jobs=jobs, settings=settings, hr=HR(cf, user_map, names))
+                      connectors=registry.build(cf, settings, slack, audit), llm=traced_llm(get_llm()), notifier=notifier,
+                      jobs=jobs, settings=settings, hr=HR(cf, user_map, names),
+                      guard=guardrails.from_settings(settings))
 
 
 _NAMES: dict[str, dict[str, str]] = {}
@@ -154,7 +155,8 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
             role = ctx.hr.role(asker)
-            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id)
+            earlier = [t["content"] for t in turns[:-1] if t["role"] == "user"]  # the client supplies the history
+            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id, earlier=earlier)
             if reply is not None:  # blocked by the safety policy: no model call at all
                 ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
                                   source="guardrails")

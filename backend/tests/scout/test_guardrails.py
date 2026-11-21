@@ -31,11 +31,12 @@ class FakeGuard:
     enabled = True
 
     def __init__(self, blocks: dict[str, list[tuple[str, str]]] | None = None, fail: bool = False):
-        self.blocks, self.fail, self.calls = blocks or {}, fail, []
+        self.blocks, self.fail, self.calls, self.messages = blocks or {}, fail, [], []
 
     def check(self, config_id: str, messages: list[dict[str, str]]) -> Verdict:
-        text = messages[-1]["content"]
-        self.calls.append((config_id, messages[-1]["role"], text))
+        text = "\n".join(m["content"] for m in messages)
+        self.calls.append((config_id, messages[0]["role"], text))
+        self.messages.append(messages)
         if self.fail:
             raise TimeoutError("guardrails timed out")
         for needle, rail in self.blocks.get(config_id, []):
@@ -139,7 +140,10 @@ def test_blocked_dm_gets_the_policy_reply_no_llm_call_and_an_audit_row(conn_fact
                                                 "repeated attempts are reported to compliance).")
     (row,) = audit_rows(conn_factory, "guardrail_check")
     assert row["decision"] == "DENY" and row["policy"] == "user-input" and row["reason"] == "regex check input"
-    assert row["requester"] == "vanessa" and SALARY in row["resource"]
+    assert row["requester"] == "vanessa" and SALARY not in row["resource"]  # the audit API is readable: no content
+    with conn_factory() as conn:
+        (strike,) = conn.execute("SELECT * FROM guardrail_strikes").fetchall()
+    assert strike["person"] == "vanessa" and SALARY in strike["prompt"] and strike["reported_at"] is None
     assert ctx.guard.configs() == ["user-input"]  # the fixed blocked reply is not output-checked again
 
 
@@ -181,9 +185,8 @@ def test_blocks_older_than_seven_days_do_not_count(conn_factory, tmp_path):
     ctx, _ = blocked_world(conn_factory, tmp_path)
     with conn_factory() as conn:
         for i in range(2):
-            conn.execute("INSERT INTO audit_log (ts, actor, requester, action, target, resource, decision, policy, "
-                         "reason) VALUES (now() - interval '8 days', 'agent', 'vanessa', 'guardrail_check', "
-                         "'guardrails:user-input', %s, 'DENY', 'user-input', 'old')", (f"old {i}",))
+            conn.execute("INSERT INTO guardrail_strikes (ts, person, prompt, rails) VALUES "
+                         "(now() - interval '8 days', 'vanessa', %s, 'old')", (f"old {i}",))
         conn.commit()
     chat.run(ctx, dm("vanessa", SALARY))
     assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"] and ctx.notifier.sent == []
@@ -237,7 +240,8 @@ def test_flagged_tool_result_is_withheld_from_the_model_without_a_strike(conn_fa
     assert seen == [[guardrails.WITHHELD]]
     (row,) = audit_rows(conn_factory, "guardrail_check")
     assert row["policy"] == "tool-result" and row["decision"] == "DENY" and row["reason"] == "injection regex"
-    assert ctx.guard.calls[0][1] == "user" and ctx.notifier.sent == []  # internal tool: nobody is told
+    assert "fattoria" not in row["resource"].lower() and "chars, sha1:" in row["resource"]
+    assert ctx.guard.calls[0][1] == "tool" and ctx.notifier.sent == []  # internal tool: nobody is told
     assert audit_rows(conn_factory, "guardrail_escalation") == []
 
 
@@ -384,3 +388,206 @@ def test_demo_scenario_plants_a_poisoned_pdf(conn_factory, tmp_path):
     text = document_text(mail.attachment(hit.id, hit.attachments[0]), hit.attachments[0])
     assert "AS-77666" in text and "ignore all previous instructions" in text.lower()
     assert POISON_NOTES[0].split(":")[0] in text
+
+
+# -- review round 1 ---------------------------------------------------------------------------------------------
+def test_client_roles_tls_and_warmup(tmp_path):
+    seen: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"status": "success"})
+
+    client = _client(handler)
+    shim = type("C", (), {"guard": client, "audit": None})()
+    for config in ("user-input", "tool-result", "bot-output"):
+        guardrails.check(shim, config, ["one", "two"] if config == "user-input" else "text")
+    assert [m["role"] for m in seen[0]["messages"]] == ["user", "user"]  # all user turns, one request
+    (tool,) = seen[1]["messages"]
+    assert tool["role"] == "tool" and tool["tool_call_id"]
+    (bot,) = seen[2]["messages"]
+    assert bot["role"] == "assistant"
+    ca = tmp_path / "service-ca.crt"
+    s = lambda path: type("S", (), {"guardrails_url": "https://g", "guardrails_token": "t", "guardrails_ca": str(path)})()  # noqa: E731
+    assert guardrails.from_settings(s(ca))._verify is True  # no CA file: system CAs
+    ca.write_text("x")
+    assert guardrails.from_settings(s(ca))._verify == str(ca)
+
+
+def test_warm_up_uses_the_long_timeout():
+    timeouts: list = []
+    c = _client(lambda r: httpx.Response(200, json={"status": "success"}))
+    real = c._http.post
+    c._http.post = lambda *a, **kw: (timeouts.append(kw.get("timeout")), real(*a, **kw))[1]
+    c.check("user-input", [{"role": "user", "content": "a"}])
+    c.warm_up()
+    assert timeouts == [guardrails.TIMEOUT_S, guardrails.WARMUP_TIMEOUT_S]
+
+
+def test_default_chat_context_has_guardrails_and_tracing(conn_factory, monkeypatch):
+    from cfo.observability import _TracedLLM
+    from scout.config import ScoutSettings
+
+    monkeypatch.setattr(chat_api.scout_db, "factory", lambda url=None, schema=None: conn_factory)
+    ctx = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x",
+                                               guardrails_url="https://guard.example", guardrails_token="t"))
+    assert ctx.guard.enabled and isinstance(ctx.llm, _TracedLLM)
+    off = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x"))
+    assert not off.guard.enabled
+
+
+def test_dashboard_history_is_screened_with_one_strike(conn_factory, tmp_path, monkeypatch):
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    body = {"messages": [{"role": "user", "content": f"the {SALARY}?"}, {"role": "assistant", "content": "no"},
+                         {"role": "user", "content": "thanks, now something harmless"}]}
+    r = TestClient(app).post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
+    events = [json.loads(line) for line in r.text.splitlines()]
+    assert "attempt 1 of 3" in events[0]["text"] and calls == []
+    assert [len(m) for m in ctx.guard.messages] == [2]  # both user turns in one /checks request, the assistant not
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 1
+    get_api_settings.cache_clear()
+
+
+def test_long_prompts_reach_compliance_in_full_and_never_the_audit_log(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    long = f"the {SALARY} " + "padding " * 60 + "THE-END-OF-THE-PROMPT"
+    assert len(long) > 500
+    for n in range(3):
+        chat.run(ctx, dm("vanessa", long if n == 2 else SALARY, n=n))
+    assert "THE-END-OF-THE-PROMPT" in ctx.notifier.sent[0]["text"]
+    with conn_factory() as conn:
+        resources = [r["resource"] for r in conn.execute("SELECT resource FROM audit_log").fetchall()]
+    assert not any("THE-END-OF-THE-PROMPT" in r or SALARY in r for r in resources)
+
+
+def test_concurrent_blocks_send_one_alert_and_lose_no_strike(conn_factory, tmp_path):
+    import threading
+
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    with conn_factory() as conn:
+        for i in range(2):
+            conn.execute("INSERT INTO guardrail_strikes (person, prompt, rails) VALUES ('vanessa', %s, 'r')",
+                         (f"earlier {i}",))
+        conn.commit()
+    threads = [threading.Thread(target=guardrails._strike, args=(ctx, "vanessa", "waitstaff", f"now {i}", "r", None))
+               for i in range(2)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert len(ctx.notifier.sent) == 1
+    alert = ctx.notifier.sent[0]["text"]
+    with conn_factory() as conn:
+        open_ = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NULL").fetchall()
+        reported = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NOT NULL").fetchall()
+    assert len(open_) + len(reported) == 4 and all(r["prompt"] in alert for r in reported)
+    assert len(reported) == 3 and len(open_) == 1  # the alert has exactly the strikes it consumed
+
+
+def test_undelivered_alert_keeps_the_strikes_and_is_audited(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    ctx.notifier.dm = lambda *a, **kw: None  # the recipient has no Slack channel
+    for n in range(3):
+        chat.run(ctx, dm("vanessa", SALARY, n=n))
+    assert audit_rows(conn_factory, "guardrail_escalation") == []
+    (failed,) = audit_rows(conn_factory, "guardrail_escalation_failed")
+    assert failed["requester"] == "vanessa"
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE reported_at IS NULL").fetchone()["n"] == 3
+    delivered: list = []
+    ctx.notifier.dm = lambda to, text, *a, **kw: delivered.append((to, text)) or "ref"
+    chat.run(ctx, dm("vanessa", SALARY, n=9))  # the next block reports all four
+    assert len(delivered) == 1 and delivered[0][1].count("“") == 4
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE reported_at IS NULL").fetchone()["n"] == 0
+
+
+def test_slack_user_id_contact_is_used_as_it_is_not_replaced_by_the_ceo(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    ctx.settings = ctx.settings.model_copy(update={"compliance_contact": "U0COMPLIANCE"})
+    for n in range(3):
+        chat.run(ctx, dm("vanessa", SALARY, n=n))
+    assert [m["to"] for m in ctx.notifier.sent] == ["U0COMPLIANCE"]
+
+
+def test_slack_ui_sends_to_a_raw_slack_user_id(fake_slack):
+    from scout.slack_ui import SlackUI
+
+    ui = SlackUI(fake_slack, {"vincenzo": "U_V"}, jobs=None, recorder=type("R", (), {"add_listener": lambda *a: None})())
+    assert ui.dm("U0COMPLIANCE", "hi", "NOTIFY")
+    assert fake_slack.named("conversations_open")[0]["users"] == "U0COMPLIANCE"
+    assert ui.dm("nobody", "hi", "NOTIFY") is None
+
+
+def test_approved_flagged_invoice_keeps_the_original_document_and_is_marked_unverified(conn_factory, tmp_path):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    out = liquidity.resume(ctx, task.approval_id, True, "vincenzo")
+    assert "unverified" in out.outcome
+    docs = [e for e in out.evidence if e.get("flagged_rails")]
+    assert len(docs) == 1 and docs[0]["name"] == "AS-77666.pdf" and docs[0]["kind"] == "email"
+    assert docs[0]["ref"].startswith("eml_folder:")  # the mail the PDF came with
+    acted = next(s for s in ctx.recorder.steps(task.id) if s.kind == "acted")
+    assert acted.detail["unverified"] is True
+    (row,) = [r for r in _all_audit(conn_factory) if r["action"] == "file_flagged_invoice"]
+    assert "unverified" in row["resource"] and docs[0]["ref"] in row["resource"]
+
+
+def _all_audit(conn_factory) -> list[dict]:
+    with conn_factory() as conn:
+        return conn.execute("SELECT * FROM audit_log ORDER BY id").fetchall()
+
+
+def test_outside_alert_is_remembered_in_postgres_per_item_across_tasks_and_contexts(conn_factory, tmp_path):
+    def run(task_key: str, world) -> None:  # noqa: ANN001
+        seen: list = []
+        world.llm = tool_llm("search_email", seen, words="AS-77666")
+        world.guard = FakeGuard({"tool-result": [("as-77666", "injection regex")]})
+        t = world.recorder.open(task_key, "chat", "x", requested_by="vincenzo")
+        chat.answer(world, t, "mail about AS-77666?", "vincenzo", "ceo")
+
+    first = make_world(conn_factory, tmp_path)
+    run("t:a", first)
+    second = make_world(conn_factory, tmp_path)  # another process, another task: same mail
+    run("t:b", second)
+    assert len([m for m in first.notifier.sent + second.notifier.sent if m["to"] == "vincenzo"]) == 1
+    with conn_factory() as conn:
+        (alert,) = conn.execute("SELECT * FROM guardrail_alerts").fetchall()
+    assert alert["item_key"].startswith("mail:") and "t:" not in alert["item_key"]
+
+
+def test_failed_outside_alert_is_not_remembered_and_retried(conn_factory, tmp_path):
+    world = make_world(conn_factory, tmp_path)
+    world.notifier.dm = lambda *a, **kw: None
+    result = {"mails": [{"from": "x@y", "subject": "Invoice", "date": "2026-11-20"}]}
+    ctx_guard = FakeGuard({"tool-result": [("invoice", "injection regex")]})
+    world.guard = ctx_guard
+    for _ in range(2):
+        assert guardrails.screen_tool(world, None, "search_email", json.dumps(result), result=result) == guardrails.WITHHELD
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_alerts").fetchone()["n"] == 0
+    sent: list = []
+    world.notifier.dm = lambda to, text, *a, **kw: sent.append(to) or "ref"
+    guardrails.screen_tool(world, None, "search_email", json.dumps(result), result=result)
+    guardrails.screen_tool(world, None, "search_email", json.dumps(result), result=result)
+    assert sent == ["vincenzo"]
+
+
+def test_several_outside_items_are_alerted_one_by_one(conn_factory, tmp_path):
+    world = make_world(conn_factory, tmp_path)
+    world.guard = FakeGuard({"tool-result": [("evil", "injection regex")]})
+    result = {"mails": [{"from": "a@x", "subject": "hello", "date": "d1"},
+                        {"from": "b@x", "subject": "evil one", "date": "d2"},
+                        {"from": "c@x", "subject": "also evil", "date": "d3"}]}
+    guardrails.screen_tool(world, None, "search_email", json.dumps(result), result=result)
+    alerts = [m for m in world.notifier.sent if m["to"] == "vincenzo"]
+    assert len(alerts) == 2 and "evil one" in alerts[0]["text"] + alerts[1]["text"]
+    assert "hello" not in alerts[0]["text"] + alerts[1]["text"]

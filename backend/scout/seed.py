@@ -35,7 +35,7 @@ from scout.mock_bank.store import BankStore, week_shift
 COMPANY_TABLES = ["audit_log", "agent_task_steps", "approvals", "expected_cash_events", "agent_jobs", "agent_tasks",
                   "watcher_state", "connection_credentials", "connections", "bank_mock_transactions", "access_log",
                   "rules", "cost_metrics", "invoice_lines", "transactions", "invoices", "vacations", "employees",
-                  "teams", "llm_usage"]
+                  "teams", "llm_usage", "guardrail_strikes", "guardrail_alerts"]
 
 DEFAULT_CONNECTIONS: list[dict[str, Any]] = [
     {"id": "bank", "kind": "bank", "provider": "revolut_mock", "display_name": "Revolut Business",

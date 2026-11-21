@@ -98,23 +98,31 @@ def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | No
 def hold_flagged(ctx: JobContext, task: Task, flagged: dict[str, Any], number: str | None, day: date,
                  doc: InvoiceDoc | None = None) -> bool:
     """A document the safety check flagged is never filed on its own: it goes to the CEO's approval card with a
-    `Suspicious content` badge and the rail. Without a readable `doc` (nothing was extracted, the model never saw
-    the text) approving files the payment's own number and amount against this payment."""
-    ev = flagged.get("evidence") or {}
+    `Suspicious content` badge and the rail. The model never read the text, so nothing was extracted: Approve
+    attaches the ORIGINAL document (its reference goes on the task as evidence) and files the invoice with the
+    number and amount of the payment, marked unverified. KSeF documents are filed with their own fields."""
+    ev = {**(flagged.get("evidence") or {})}
+    ev.setdefault("name", flagged["name"])
+    ev.setdefault("kind", "document")
+    ev.setdefault("ref", flagged["name"])
+    ev["flagged_rails"] = flagged["rails"]
+    unverified = doc is None
     doc = doc or InvoiceDoc(number=number or f"FLAGGED-{task.id}", supplier=(task.counterparty or "unknown")[:200],
-                            issue_date=day, total=abs(task.amount), source=ev.get("ref") or "flagged")
+                            issue_date=day, total=abs(task.amount), source=ev["ref"])
     where = flagged["name"] + (f" ({flagged['from']})" if flagged.get("from") else "")
     ctx.recorder.step(task.id, "flagged", f"Suspicious content in {where}: not read by the model, not filed "
                                           f"(rail: {flagged['rails']})", source="guardrails",
                       detail={"rails": flagged["rails"], "document": flagged["name"]})
-    summary = f"file {where} as invoice {doc.number} for {eur(doc.total)}"
+    summary = (f"file {where} as invoice {doc.number} for {eur(doc.total)}"
+               + (", with values taken from the payment" if unverified else ""))
     ctx.recorder.step(task.id, "proposed", f"Proposed to {summary} after approval", source="guardrails",
                       detail={"summary": summary[0].upper() + summary[1:],
                               "flagged_invoice": {"doc": doc.model_dump(mode="json"), "evidence": ev,
-                                                  "rails": flagged["rails"]}})
+                                                  "rails": flagged["rails"], "unverified": unverified}})
     question = (f"*Suspicious content*: {where}, for the {eur(task.amount)} payment to {task.counterparty} "
                 f"({task.id}), was flagged by the safety check (rail: {flagged['rails']}). I did not read it "
-                f"and did not file it. Approve to {summary}, or Reject to leave the payment without an invoice.")
+                f"and did not file it. Approve to {summary} (the document is attached as evidence, its content "
+                "unverified), or Reject to leave the payment without an invoice.")
     liquidity._ask_approval(ctx, task, question)  # the same card, buttons and graph as the liquidity approvals
     return True
 
@@ -129,23 +137,29 @@ def decide_flagged(ctx: JobContext, task: Task, proposal: dict[str, Any], approv
         ctx.recorder.set_status(task.id, "cancelled", outcome=outcome, resolved_via="approval")
         return
     ctx.recorder.step(task.id, "approved", f"{who} approved filing the flagged document", source="approval")
-    doc = InvoiceDoc(**info["doc"])
-    evidence = {"kind": "invoice", "name": doc.number, "source": "approval", **(info.get("evidence") or {})}
-    if _file(ctx, task, doc, via="approval", evidence=evidence, who=who) is not True:
+    doc, unverified = InvoiceDoc(**info["doc"]), bool(info.get("unverified"))
+    evidence = {"source": "approval", **info["evidence"]}  # the original document: name, ref, where it came from
+    ctx.audit.record(task.owner_id or "agent", "file_flagged_invoice", "invoicing",
+                     f"{doc.number} -> {task.transaction_id}: original {evidence.get('ref')}; "
+                     + ("values taken from the payment, unverified" if unverified else "values from the document"),
+                     task_id=task.id, requester=task.owner_id, role="ceo", policy="guardrails: flagged document")
+    if _file(ctx, task, doc, via="approval", evidence=evidence, who=who, unverified=unverified) is not True:
         ctx.recorder.set_status(task.id, "escalated", owner_id=ctx.settings.ceo_id)
 
 
 def _file(ctx: JobContext, task: Task, doc: InvoiceDoc, *, via: str, evidence: dict[str, Any], who: str | None = None,
-          text_excerpt: str = "") -> bool | str:
+          text_excerpt: str = "", unverified: bool = False) -> bool | str:
     """File `doc` for the task's payment and close the task. True when filed, else the error code."""
     ok, res = ctx.connectors.invoicing.file(doc, task.transaction_id, task_id=task.id)
     if not ok:
         ctx.recorder.step(task.id, "note", f"Could not file {doc.number}: {res.replace('_', ' ')}", source="invoicing_pg")
         return res
     ctx.recorder.step(task.id, "acted", f"Filed invoice {doc.number} in the invoicing system", source="invoicing_pg",
-                      detail={"invoice_id": res, "lines": len(doc.lines), "text_excerpt": text_excerpt[:1500]},
+                      detail={"invoice_id": res, "lines": len(doc.lines), "text_excerpt": text_excerpt[:1500],
+                              **({"unverified": True} if unverified else {})},
                       evidence=evidence)
-    outcome = f"Resolved · {eur(doc.total)} filed as {doc.number}"
+    outcome = (f"Resolved · {eur(doc.total)} filed as {doc.number}"
+               + (" (values taken from the payment, the document was not read: unverified)" if unverified else ""))
     ctx.recorder.step(task.id, "resolved", outcome + (f" (sent by {who})" if who else ""), source=evidence.get("source"))
     ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via=via, level="AUTO")
     return True

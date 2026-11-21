@@ -193,6 +193,8 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
         ctx.hr.link_slack(user_map, names)
     except Exception:  # noqa: BLE001 - the dashboard keeps the HR names; Scout itself works either way
         log.warning("could not write the Slack names to HR", exc_info=True)
+    if ctx.guard.enabled:  # the first check after a NeMo restart is slow: warm it up without blocking the start
+        threading.Thread(target=ctx.guard.warm_up, name="guardrails-warmup", daemon=True).start()
     bank = BankWatcher(cf, connectors, jobs)
     mail = MailWatcher(cf, connectors, jobs, recorder)
 

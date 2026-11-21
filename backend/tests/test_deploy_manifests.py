@@ -127,12 +127,14 @@ def test_seed_job_deadline_covers_image_build(docs):
 
 
 def test_scout_reaches_the_guardrails_service(docs):
-    """T052: GUARDRAILS_URL in the shared ConfigMap, the token from Secret `guardrails`, for api (dashboard chat) and worker."""
+    """T052: GUARDRAILS_URL in the shared ConfigMap, the token from Secret scout-guardrails-client (key token), for
+    api (dashboard chat) and worker; the Secret is optional."""
     config = _by_kind(docs, "ConfigMap")["cfo-config"]["data"]
-    assert config["GUARDRAILS_URL"].startswith("http")
+    assert config["GUARDRAILS_URL"] == "https://scout-guardrails.cfo-agent-uwur.svc.cluster.local"
     deployments = _by_kind(docs, "Deployment")
     for name, container in (("api", "api"), ("scout-worker", "worker")):
-        env_from = _container(deployments[name], container)["envFrom"]
-        assert {"name": "cfo-config"} == next(e["configMapRef"] for e in env_from if "configMapRef" in e)
-        guard = next(e["secretRef"] for e in env_from if e.get("secretRef", {}).get("name") == "guardrails")
-        assert guard.get("optional") is True  # the service is optional: without the Secret Scout runs unauthenticated
+        env = {e["name"]: e for e in _container(deployments[name], container)["env"]}
+        ref = env["GUARDRAILS_TOKEN"]["valueFrom"]["secretKeyRef"]
+        assert (ref["name"], ref["key"], ref.get("optional")) == ("scout-guardrails-client", "token", True)
+        assert {"name": "cfo-config"} == next(e["configMapRef"] for e in _container(deployments[name], container)["envFrom"]
+                                              if "configMapRef" in e)

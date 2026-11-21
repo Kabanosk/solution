@@ -1,0 +1,12 @@
+# Forecast model Jobs (T064). Deliberately NOT part of deploy/kustomization.yaml or deploy/openshift/app: a normal
+# deploy must not start a hyperparameter search. Apply by hand, one file at a time (see docs/mlflow.md, "Forecast model
+# lifecycle"):
+#   oc create -f deploy/openshift/forecast/tune-job.yaml          # one search now
+#   oc apply  -f deploy/openshift/forecast/retrain-cronjob.yaml   # the nightly retrain
+# `oc apply -k deploy/openshift/forecast` would do both, i.e. also start a search; this file exists to render and
+# validate the two objects (`oc kustomize deploy/openshift/forecast`).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - tune-job.yaml
+  - retrain-cronjob.yaml

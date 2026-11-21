@@ -310,7 +310,7 @@ def test_real_payroll_forecast_uses_one_tenant_model_no_files_no_mlflow(context,
     assert scenario.forecast.loc["2027-01-31", "what_if"] == -14400
     assert scenario.forecast.loc["2027-02-28", "what_if"] == -14400
     assert round(float(scenario.forecast.iloc[-1]["balance"] - base.forecast.iloc[-1]["balance"]), 2) == -43200
-    train.assert_called_once_with(transactions, log_to_mlflow=False)
+    train.assert_called_once_with(transactions, log_to_mlflow=False, band=False)
     conn = context.conn_factory.return_value.__enter__.return_value
     conn.execute.assert_called_once_with("SET TRANSACTION READ ONLY")
 

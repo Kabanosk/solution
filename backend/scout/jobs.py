@@ -62,10 +62,11 @@ class JobQueue:
     def reap_expired(self) -> list[Job]:
         """Jobs whose worker died on their last attempt (lease expired, no attempts left), leased to the caller so
         it records the failure (escalate the task, end a KSeF run) and then ends them with `fail(attempt=...)`.
-        Until then they stay `running`: a caller that dies leaves them to be reaped again when this lease ends."""
+        Reaping bumps the attempt number (the fencing token), so the expired worker can no longer renew or finish
+        the job. Until `fail`, the job stays `running`: a caller that dies leaves it to be reaped again."""
         with self._cf() as conn:
             rows = conn.execute(
-                "UPDATE agent_jobs SET updated_at = now() WHERE id IN (SELECT id FROM agent_jobs "
+                "UPDATE agent_jobs SET updated_at = now(), attempts = attempts + 1 WHERE id IN (SELECT id FROM agent_jobs "
                 f"WHERE status = 'running' AND updated_at < now() - {_LEASE_SQL} AND attempts >= %s "
                 "FOR UPDATE SKIP LOCKED) RETURNING *",
                 (Jsonb(LEASES), LEASE_SECONDS, MAX_ATTEMPTS),

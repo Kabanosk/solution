@@ -127,3 +127,23 @@ def test_renewing_the_lease_keeps_a_live_job_from_being_reclaimed(conn_factory):
     _age(conn_factory, jid, LEASE_SECONDS + 5)
     assert q.renew(job.id, job.attempts)
     assert q.claim("thief") is None
+
+
+def test_reaping_changes_the_fencing_token_of_the_expired_worker(conn_factory):
+    """After the reaper leased the dead last attempt, the expired worker can no longer renew or finish it."""
+    from scout.jobs import LEASE_SECONDS
+
+    q = JobQueue(conn_factory)
+    jid = q.enqueue("ksef_connect", {}, "k")
+    stale = q.claim("slow")
+    _exhaust(conn_factory, jid)
+    _age(conn_factory, jid, LEASE_SECONDS + 5)
+    (reaped,) = q.reap_expired()
+    old = stale.attempts + 2  # MAX_ATTEMPTS (3): the token the expired worker holds
+    assert old == 3
+    assert reaped.attempts > old
+    assert not q.renew(jid, old)
+    assert q.done(jid, "SC-1", attempt=old) is False
+    assert q.fail(jid, "late", attempt=old) is False
+    assert q.get(jid).status == "running"
+    assert q.fail(jid, "lease expired", attempt=reaped.attempts) is True and q.get(jid).status == "failed"

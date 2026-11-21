@@ -23,7 +23,7 @@ from scout import dm_replies, guardrails
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
-from scout.jobs import JobQueue, lease_seconds
+from scout.jobs import MAX_ATTEMPTS, JobQueue, lease_seconds
 from scout.loops import chat, cost_control, invoicing, liquidity
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
@@ -53,7 +53,7 @@ def _ksef_connect(ctx: JobContext, job: Job) -> Any:
 def _ksef_abandon(ctx: JobContext, job: Job) -> None:
     from scout import ksef_sync
 
-    ksef_sync.abandon(ctx.conn_factory, "the worker stopped in the middle of the sync")
+    ksef_sync.abandon(ctx.conn_factory, "the worker stopped in the middle of the sync", job.payload.get("run_id"))
 
 
 # What else a finally failed job leaves behind, besides its task (`Worker._give_up`).
@@ -163,9 +163,9 @@ class Worker:
         except Exception as e:
             beat.set()
             log.exception("job %s (%s) failed", job.id, job.kind)
-            final = self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}", attempt=job.attempts)
-            if final:
-                self._give_up(job, e)
+            if job.attempts >= MAX_ATTEMPTS and not self._give_up(job, e):
+                return True  # not recorded: left `running`, the reaper records it when the lease ends
+            self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}", attempt=job.attempts)  # after the cleanup
             return True
         beat.set()
         task_id = getattr(result, "id", None) if not isinstance(result, list) else None

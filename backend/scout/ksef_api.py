@@ -3,11 +3,13 @@ generic `/v1/demo/play/{scenario}`). The API only starts work; the `ksef_connect
 
 from __future__ import annotations
 
+import secrets
 import time
 from typing import Any
 
 import httpx
 from fastapi import APIRouter
+from psycopg.types.json import Jsonb
 
 from cfo.api.errors import ApiError
 from scout import db as scout_db
@@ -24,12 +26,13 @@ router = APIRouter(prefix="/v1")
 def ksef_connect(conn: Conn, _: WriteAuth) -> dict[str, Any]:
     """Starts a `ksef_connect` worker job; progress shows in `GET /v1/connections` (row `ksef`, `config.phase`,
     `config.steps`). 409 while a run is in progress."""
-    if not ksef_sync.start(conn, commit=False):  # committed below with the job and the audit row, or not at all
+    run_id = secrets.token_hex(8)  # the run, in its mark and its job: only its own cleanup may end it
+    if not ksef_sync.start(conn, commit=False, run_id=run_id):  # committed below with the job and the audit row, or not at all
         conn.rollback()
         raise ApiError(409, "already_running", "A KSeF sync is already running.")
-    job = conn.execute("INSERT INTO agent_jobs (kind, payload, dedupe_key) VALUES ('ksef_connect', '{}', %s) "
+    job = conn.execute("INSERT INTO agent_jobs (kind, payload, dedupe_key) VALUES ('ksef_connect', %s, %s) "
                        "ON CONFLICT (dedupe_key) DO NOTHING RETURNING id",
-                       (f"ksef_connect:{time.time_ns()}",)).fetchone()
+                       (Jsonb({"run_id": run_id}), f"ksef_connect:{time.time_ns()}")).fetchone()
     conn.execute("SELECT pg_notify('scout_jobs', 'ksef_connect')")
     conn.execute("INSERT INTO audit_log (actor, action, target, resource, decision) VALUES "
                  "('dashboard', 'connect', 'invoicing:ksef', 'KSeF test environment', 'ALLOW')")

@@ -211,6 +211,116 @@ def test_sync_whose_worker_died_on_the_last_attempt_can_be_started_again(company
         assert ksef_sync.start(conn)
 
 
+def _stranded_ksef_job(company, run_id):  # noqa: ANN001, ANN202
+    """A KSeF run marked running whose worker died on the last attempt."""
+    from scout.jobs import LEASE_SECONDS, MAX_ATTEMPTS, JobQueue
+
+    with company() as conn:
+        assert ksef_sync.start(conn, run_id=run_id)
+    q = JobQueue(company)
+    q.enqueue("ksef_connect", {"run_id": run_id}, f"ksef_connect:{run_id}")
+    assert q.claim("dead-pod")
+    with company() as conn:
+        conn.execute("UPDATE agent_jobs SET attempts = %s, updated_at = now() - make_interval(secs => %s)",
+                     (MAX_ATTEMPTS, LEASE_SECONDS + 5))
+        conn.commit()
+    return q
+
+
+def _worker(company, q):  # noqa: ANN001, ANN202
+    from types import SimpleNamespace
+
+    from scout.tasks import TaskRecorder
+    from scout.worker import Worker
+
+    ctx = SimpleNamespace(jobs=q, conn_factory=company, recorder=TaskRecorder(company), notifier=None,
+                          settings=SimpleNamespace(ceo_id="vincenzo"))
+    return Worker(ctx, 1)
+
+
+def test_reaping_an_old_sync_never_fails_a_newer_one(company):
+    """The old job expires after its run ended; a user started another sync meanwhile: that run stays running."""
+    q = _stranded_ksef_job(company, "run-old")
+    with company() as conn:  # the old run published `done`, the user then started a new run
+        conn.execute("UPDATE connections SET config = config || '{\"phase\": \"done\"}' WHERE id = 'ksef'")
+        conn.commit()
+        assert ksef_sync.start(conn, run_id="run-new")
+    assert _worker(company, q).run_one() is False  # the old job is reaped and recorded
+    cfg = _row(company)["config"]
+    assert cfg["phase"] == "running" and cfg["run_id"] == "run-new"
+    with company() as conn:
+        assert conn.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "failed"
+
+
+def test_the_sync_is_ended_before_its_job_is_marked_failed(company, monkeypatch):
+    """Cleanup runs while the job is still `running`: a crash before `failed` leaves a job the reaper retries."""
+    from scout import worker as worker_mod
+
+    q = _stranded_ksef_job(company, "run-1")
+    seen = {}
+    real = worker_mod.ON_GIVE_UP["ksef_connect"]
+
+    def spy(ctx, job):  # noqa: ANN001, ANN202
+        seen["job_status"] = q.get(job.id).status
+        real(ctx, job)
+
+    monkeypatch.setitem(worker_mod.ON_GIVE_UP, "ksef_connect", spy)
+    assert _worker(company, q).run_one() is False
+    assert seen["job_status"] == "running"
+    assert _row(company)["config"]["phase"] == "error"
+
+
+def test_a_crash_after_cleanup_before_failed_is_finished_by_the_next_reap(company, monkeypatch):
+    from scout.jobs import JobQueue, LEASE_SECONDS
+
+    q = _stranded_ksef_job(company, "run-2")
+    w = _worker(company, q)
+    monkeypatch.setattr(JobQueue, "fail", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("crash")))
+    with pytest.raises(RuntimeError):
+        w.run_one()
+    monkeypatch.undo()
+    assert _row(company)["config"]["phase"] == "error"  # cleaned already
+    with company() as conn:
+        assert conn.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "running"
+        conn.execute("UPDATE agent_jobs SET updated_at = now() - make_interval(secs => %s)", (LEASE_SECONDS + 5,))
+        conn.commit()
+    assert w.run_one() is False
+    with company() as conn:
+        assert conn.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "failed"
+
+
+def test_a_final_failure_of_the_handler_cleans_up_before_failing_the_job(company, monkeypatch):
+    """The exception path of the last attempt, not only the reaper: cleanup first, then `failed`."""
+    from scout import worker as worker_mod
+    from scout.jobs import MAX_ATTEMPTS
+
+    with company() as conn:
+        assert ksef_sync.start(conn, run_id="run-3")
+    from scout.jobs import JobQueue
+
+    q = JobQueue(company)
+    q.enqueue("ksef_connect", {"run_id": "run-3"}, "ksef_connect:run-3")
+    with company() as conn:
+        conn.execute("UPDATE agent_jobs SET attempts = %s", (MAX_ATTEMPTS - 1,))
+        conn.commit()
+    seen = {}
+    real = worker_mod.ON_GIVE_UP["ksef_connect"]
+
+    def spy(ctx, job):  # noqa: ANN001, ANN202
+        seen["job_status"] = q.get(job.id).status
+        real(ctx, job)
+
+    def boom(ctx, job):  # noqa: ANN001, ANN202
+        raise RuntimeError("handler blew up")
+
+    monkeypatch.setitem(worker_mod.ON_GIVE_UP, "ksef_connect", spy)
+    monkeypatch.setitem(worker_mod.HANDLERS, "ksef_connect", boom)
+    assert _worker(company, q).run_one() is True
+    assert seen["job_status"] == "running" and _row(company)["config"]["phase"] == "error"
+    with company() as conn:
+        assert conn.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "failed"
+
+
 def test_start_commits_only_when_asked(company):
     """The API marks the run and queues its job in one transaction: a rollback leaves no stranded `running`."""
     with company() as conn:

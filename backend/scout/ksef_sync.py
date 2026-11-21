@@ -125,27 +125,30 @@ class Progress:
         self.save(**config)
 
 
-def start(conn: Any, *, commit: bool = True) -> bool:
+def start(conn: Any, *, commit: bool = True, run_id: str | None = None) -> bool:
     """Mark a run as started; False when one is already running (the API answers 409). With `commit=False` the caller
-    commits the mark together with the job that runs it, so a crash in between strands no `running` mark."""
+    commits the mark together with the job that runs it, so a crash in between strands no `running` mark.
+    `run_id` names the run (also in its job's payload): only a cleanup of that run may end it (`abandon`)."""
     ensure_row(conn)
     row = conn.execute(
         "UPDATE connections SET config = config || %s WHERE id = %s AND coalesce(config->>'phase', 'idle') <> 'running' "
-        "RETURNING id", (Jsonb({"phase": "running", "steps": []}), CONNECTION_ID)).fetchone()
+        "RETURNING id", (Jsonb({"phase": "running", "steps": [], "run_id": run_id}), CONNECTION_ID)).fetchone()
     if commit:
         conn.commit()
     return row is not None
 
 
-def abandon(conn_factory: ConnFactory, reason: str) -> None:
-    """The worker running the sync stopped for good (it died on the last attempt): end the run in `error`, so the
-    dashboard shows why and the next click can start a new one."""
+def abandon(conn_factory: ConnFactory, reason: str, run_id: str | None = None) -> None:
+    """The worker running the sync stopped for good (it died on the last attempt): end THAT run in `error`, so the
+    dashboard shows why and the next click can start a new one. A run is identified by `run_id` (None: a run started
+    without one); a newer run, or one that already ended, is left alone."""
     step = {"at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "text": f"Failed: {reason}", "ok": False}
     with conn_factory() as conn:
         conn.execute(
             "UPDATE connections SET config = jsonb_set(config || '{\"phase\": \"error\"}', '{steps}', "
             "coalesce(config->'steps', '[]'::jsonb) || %s), status = 'error', last_error = %s "
-            "WHERE id = %s AND config->>'phase' = 'running'", (Jsonb([step]), reason[:500], CONNECTION_ID))
+            "WHERE id = %s AND config->>'phase' = 'running' AND config->>'run_id' IS NOT DISTINCT FROM %s",
+            (Jsonb([step]), reason[:500], CONNECTION_ID, run_id))
         conn.commit()
 
 
@@ -266,7 +269,7 @@ def _screen(ctx: Any, doc: dict[str, Any], ksef_number: str) -> str:
     task = ctx.recorder.open(f"txn:{txn.id}", "invoicing", f"Invoice {doc['number']} for {txn.counterparty}",
                              amount=txn.amount, counterparty=txn.counterparty, transaction_id=txn.id)
     inv = InvoiceDoc(number=doc["number"], supplier=(doc["supplier"] or txn.counterparty or "?")[:200],
-                     issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
+                     issue_date=doc["issue_date"], total=doc["total"], currency=doc["currency"][:3], source=f"ksef:{ksef_number}",
                      lines=[{"description": (ln["description"] or "-")[:300], "quantity": ln["quantity"],
                              "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"][:200]])
     flagged = {"name": f"KSeF {ksef_number}", "rails": v.rails, "from": inv.supplier,

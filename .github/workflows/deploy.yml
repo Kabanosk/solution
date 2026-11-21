@@ -20,6 +20,11 @@ on:
         description: Apply deploy/openshift/app and deploy/openshift/dashboard
         type: boolean
         default: false
+      dependencies:
+        description: Rebuild the backend dependency image first
+        type: boolean
+        default: false
+
 
 concurrency:
   group: deploy-openshift
@@ -38,6 +43,7 @@ jobs:
       backend: ${{ inputs.backend || steps.filter.outputs.backend == 'true' }}
       dashboard: ${{ inputs.dashboard || steps.filter.outputs.dashboard == 'true' }}
       manifests: ${{ inputs.manifests || false }}
+      dependencies: ${{ inputs.dependencies || steps.filter.outputs.dependencies == 'true' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -49,8 +55,13 @@ jobs:
               - 'backend/**'
               - 'Containerfile'
               - 'deploy/cfo-entrypoint.sh'
+              - 'Containerfile.dependencies'
             dashboard:
               - 'dashboard/**'
+            dependencies:
+              - 'backend/uv.lock'
+              - 'backend/pyproject.toml'
+              - 'Containerfile.dependencies'
 
   manifests:
     needs: changes
@@ -91,6 +102,9 @@ jobs:
           certificate_authority_data: ${{ secrets.OPENSHIFT_CA }}
 
       # Image triggers roll out api, scout-worker, bank-mock, mcp-* and usage-sampler.
+      - if: needs.changes.outputs.dependencies == 'true'
+        run: oc start-build cfo-backend-dependencies --commit=${{ github.sha }} --follow --wait
+
       - run: oc start-build cfo-backend --commit=${{ github.sha }} --follow --wait
       - run: oc rollout status deploy/api --timeout=600s
       - run: oc rollout status deploy/scout-worker --timeout=600s

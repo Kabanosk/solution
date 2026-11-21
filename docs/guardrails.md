@@ -240,4 +240,4 @@ re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666
 
 `docs/guardrails-demo.md` is the presenter's runbook (seven attack scenarios, checklist, troubleshooting). The prompts live
 in `backend/scout/demo_guard.py`; `python -m scout.demo guard-preflight` checks them against the NeMo service (no strikes,
-no audit rows), `guard-reset` returns the demo personas to "attempt 1 of 3", `plant` writes the evidence files (poisoned mail).
+no audit rows), `guard-reset` returns the demo personas to "attempt 1 of 3", `plant` writes the evidence files (poisoned mail) and runs as the one-off Job `deploy/openshift/guardrails/demo-plant-job.yaml`, because the worker mounts the data volume read-only.

@@ -124,18 +124,25 @@ def test_preflight_flags_a_block_by_a_rail_outside_the_expected_set():
     assert bad.probe is victim and "rail" in bad.why
 
 
-def test_input_attacks_may_be_caught_by_either_input_rail_but_never_pass():
-    """T081 moved jailbreaks from the judge to the regex rail: the verdict is strict, the rail is one of a set."""
-    probes = [p for s in demo_guard.SCENARIOS for p in s.probes if p.config == "user-input" and p.expect == "blocked"]
-    assert probes and all(set(p.expected_rails) == {"regex check input", "self check input"} for p in probes)
-    lies = {}
-    for i, p in enumerate(probes):
-        other = "self check input" if i % 2 else "regex check input"
-        lies[(p.config, p.sent_text())] = Verdict("blocked", (other,))
-    assert all(r.ok for r in demo_guard.preflight(TableGuard(lies)))
-    p = probes[0]
-    (bad,) = [r for r in demo_guard.preflight(TableGuard({(p.config, p.sent_text()): Verdict("success")})) if not r.ok]
-    assert bad.probe is p and "expected blocked, got success" in bad.why
+def test_each_input_probe_names_the_rail_that_stops_it_since_t081():
+    """A: the judge (named salary). B and C: the regex rail (jailbreaks, Polish override). Strict, per scenario."""
+    for key, rail in (("A", "self check input"), ("B", "regex check input"), ("C", "regex check input")):
+        blocked = [p for p in demo_guard.scenario(key).probes if p.config == "user-input"]
+        assert blocked and all(p.expected_rails == (rail,) for p in blocked), key
+
+
+def test_scenario_b_caught_by_the_judge_or_c_by_the_judge_is_a_mismatch():
+    for key in ("B", "C"):
+        p = demo_guard.scenario(key).probes[0]
+        guard = TableGuard({(p.config, p.sent_text()): Verdict("blocked", ("self check input",))})
+        (bad,) = [r for r in demo_guard.preflight(guard) if not r.ok]
+        assert bad.probe is p and "wrong rail" in bad.why
+    a = demo_guard.scenario("A").probes[0]
+    (bad,) = [r for r in demo_guard.preflight(TableGuard({(a.config, a.sent_text()): Verdict("blocked", ("regex check input",))}))
+              if not r.ok]
+    assert bad.probe is a
+    (bad,) = [r for r in demo_guard.preflight(TableGuard({(a.config, a.sent_text()): Verdict("success")})) if not r.ok]
+    assert "expected blocked, got success" in bad.why
 
 
 def test_preflight_treats_a_failed_service_as_a_mismatch_not_a_pass():
@@ -203,10 +210,16 @@ def test_cli_preflight_only_one_scenario(monkeypatch, capsys):
 
 
 # -- reset -------------------------------------------------------------------------------------------------
+DEMO_KEYS = ("doc:eml_folder:002-invoice-AS-77666.eml:aaaa1111aaaa1111", "doc:eml_folder:002-invoice-AS-77666.eml:bbbb2222bbbb2222")
+OTHER_KEYS = ("doc:eml_folder:001-invoice-CWM-4471.eml:cccc3333cccc3333", "doc:gmail:77:dddd4444dddd4444",
+              "doc:eml_folder:002-invoice-AS-77666-copy.eml:eeee", "mail:111", "file:x/y.pdf", "chat:222",
+              "tool:search_email:333", "ksef:123-4")
+
+
 def _seed_rows(db):
     for person in ("vanessa", "grazyna", "vincenzo", "stranger"):
         db.execute("INSERT INTO guardrail_strikes (person, prompt, rails) VALUES (%s, 'p', 'r')", (person,))
-    for key in ("doc:mail:7:abc", "mail:111", "file:x/y.pdf", "chat:222", "tool:search_email:333", "ksef:123-4"):
+    for key in (*DEMO_KEYS, *OTHER_KEYS):
         db.execute("INSERT INTO guardrail_alerts (item_key, rails) VALUES (%s, 'check tool result')", (key,))
     db.execute("INSERT INTO audit_log (actor, action, target, resource, decision) VALUES "
                "('agent', 'guardrail_check', 't', 'r', 'BLOCK')")
@@ -217,19 +230,44 @@ def _left(db, table, col):
     return {r[col] for r in db.execute(f"SELECT {col} FROM {table}").fetchall()}
 
 
-def test_reset_clears_demo_personas_and_outside_item_alerts_but_keeps_audit(conn_factory, db):
+def test_reset_clears_demo_personas_and_the_poisoned_mail_alert_only_and_keeps_audit(conn_factory, db):
     _seed_rows(db)
     out = demo_guard.reset(conn_factory)
-    assert out == {"strikes": 3, "alerts": 5}
+    assert out == {"strikes": 3, "alerts": 2}
     assert _left(db, "guardrail_strikes", "person") == {"stranger"}
-    assert _left(db, "guardrail_alerts", "item_key") == {"ksef:123-4"}
+    assert _left(db, "guardrail_alerts", "item_key") == set(OTHER_KEYS)  # unrelated alerts are never touched
     assert db.execute("SELECT count(*) AS n FROM audit_log").fetchone()["n"] == 1
 
 
-def test_reset_person_only_touches_that_person(conn_factory, db):
+def test_reset_person_only_touches_that_persons_strikes(conn_factory, db):
     _seed_rows(db)
     assert demo_guard.reset(conn_factory, ["vanessa"])["strikes"] == 1
     assert _left(db, "guardrail_strikes", "person") == {"grazyna", "vincenzo", "stranger"}
+    assert _left(db, "guardrail_alerts", "item_key") == set(OTHER_KEYS)
+
+
+def test_demo_alert_prefix_is_the_key_the_invoicing_loop_really_writes(conn_factory, tmp_path):
+    """Drive `_alert_flagged` with the poisoned mail as the loop names it, then reset must remove exactly that row."""
+    import hashlib
+    from types import SimpleNamespace
+
+    from scout.loops import invoicing
+
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard()
+    entry = lambda ref, data: {"name": "AS-77666.pdf", "evidence": {"ref": ref}, "rails": "check tool result",  # noqa: E731
+                               "data": data, "from": "billing@asimex-wholesale.example"}
+    m = SimpleNamespace(doc=object(), flagged_all=[entry("eml_folder:002-invoice-AS-77666.eml", b"pdf-bytes"),
+                                                   entry("eml_folder:001-invoice-CWM-4471.eml", b"other")])
+    invoicing._alert_flagged(ctx, SimpleNamespace(id="SC-1"), m)
+    with conn_factory() as conn:
+        keys = {r["item_key"] for r in conn.execute("SELECT item_key FROM guardrail_alerts").fetchall()}
+    sha = hashlib.sha256(b"pdf-bytes").hexdigest()[:16]
+    assert f"doc:eml_folder:002-invoice-AS-77666.eml:{sha}" in keys and len(keys) == 2
+    assert demo_guard.reset(conn_factory)["alerts"] == 1
+    with conn_factory() as conn:
+        left = {r["item_key"] for r in conn.execute("SELECT item_key FROM guardrail_alerts").fetchall()}
+    assert left == keys - {f"doc:eml_folder:002-invoice-AS-77666.eml:{sha}"}
 
 
 def test_reset_is_idempotent(conn_factory, db):
@@ -258,7 +296,7 @@ def test_after_reset_scenario_a_starts_again_at_attempt_one(conn_factory, tmp_pa
 def test_after_reset_the_ceo_alert_for_the_same_item_fires_again(conn_factory, tmp_path):
     ctx, _ = blocked_world(conn_factory, tmp_path)
     ctx.guard = FakeGuard()
-    key = "doc:mail:poisoned:abc"
+    key = f"doc:eml_folder:{demo_guard.POISONED_MAIL}:abc"
     guardrails.alert_outside(ctx, key, "AS-77666.pdf", "check tool result", None)
     guardrails.alert_outside(ctx, key, "AS-77666.pdf", "check tool result", None)
     assert len(ctx.notifier.sent) == 1  # dedup
@@ -315,3 +353,32 @@ def test_runbook_commits_no_slack_ids_tokens_or_hostnames():
 
     doc = RUNBOOK.read_text(encoding="utf-8") + Path(demo_guard.__file__).read_text(encoding="utf-8")
     assert not re.search(r"\bU[A-Z0-9]{8,}\b|xox[abp]-|\.apps\.[a-z0-9.-]+|\.openshiftapps\.com", doc)
+
+
+# -- the one-off Job that plants the files (the worker mounts the data volume read-only) -------------------------------
+JOB = REPO_ROOT / "deploy" / "openshift" / "guardrails" / "demo-plant-job.yaml"
+
+
+def test_plant_job_writes_to_the_data_volume_the_worker_reads_and_is_in_no_kustomization():
+    import yaml
+
+    job = yaml.safe_load(JOB.read_text(encoding="utf-8"))
+    pod = job["spec"]["template"]["spec"]
+    (c,) = pod["containers"]
+    assert job["kind"] == "Job" and c["command"] == ["python", "-m", "scout.demo", "plant"]
+    mount = next(m for m in c["volumeMounts"] if m["name"] == "data")
+    assert mount["mountPath"] == "/app/data" and not mount.get("readOnly")  # the worker's mount is read-only
+    assert pod["volumes"][0]["persistentVolumeClaim"]["claimName"] == "cfo-data"
+    assert {"configMapRef": {"name": "cfo-config"}} in c["envFrom"]  # DATA_DIR, the folder the connectors read
+    worker = yaml.safe_load_all((REPO_ROOT / "deploy/openshift/app/scout-worker.yaml").read_text(encoding="utf-8"))
+    dep = next(d for d in worker if d and d.get("kind") == "Deployment")
+    wmount = next(m for m in dep["spec"]["template"]["spec"]["containers"][0]["volumeMounts"] if m["name"] == "data")
+    assert wmount["mountPath"] == mount["mountPath"] and wmount["readOnly"] is True
+    for kust in (REPO_ROOT / "deploy").rglob("kustomization.yaml"):
+        assert "demo-plant" not in kust.read_text(encoding="utf-8"), kust
+
+
+def test_runbook_plants_with_the_job_not_with_exec_into_the_read_only_worker():
+    doc = RUNBOOK.read_text(encoding="utf-8")
+    assert "demo-plant-job.yaml" in doc and "oc delete job/scout-demo-plant" in doc
+    assert "deploy/scout-worker -- python -m scout.demo plant" not in doc

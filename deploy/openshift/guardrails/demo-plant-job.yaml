@@ -1,0 +1,41 @@
+# One-off Job for the guardrails demo (T080): `python -m scout.demo plant` writes the demo evidence files, including the
+# poisoned supplier mail, into the `cfo-data` volume. The scout-worker mounts that volume read-only, so the files are
+# written from here, like the seed Job does (same image, same volume, same mount path).
+#
+# NOT part of any kustomization: `oc apply -k deploy/openshift/guardrails` and `oc apply -k deploy/` never create it.
+#   oc create -f deploy/openshift/guardrails/demo-plant-job.yaml -n <project>
+#   oc wait --for=condition=complete job/scout-demo-plant --timeout=120s -n <project>
+#   oc logs job/scout-demo-plant -n <project>
+#   oc delete job/scout-demo-plant -n <project>
+# It touches no database. DATA_DIR comes from ConfigMap `cfo-config` (/app/data/generated), the folder the worker's
+# mail connector (`mailbox`) and files connector (`workstations`) read.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scout-demo-plant
+  labels: {app: scout-demo-plant}
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: {app: scout-demo-plant}
+    spec:
+      restartPolicy: Never
+      enableServiceLinks: false
+      containers:
+        - name: plant
+          image: cfo-backend:latest
+          imagePullPolicy: Always
+          command: [python, -m, scout.demo, plant]
+          envFrom:
+            - configMapRef: {name: cfo-config}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /app/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: cfo-data}

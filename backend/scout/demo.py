@@ -96,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         return demo_guard.exit_code(results)
     if args.cmd == "guard-reset":
         out = demo_guard.reset(db_factory(s), args.person)
-        print(f"reset: {out['strikes']} strikes, {out['alerts']} outside-item alerts deleted (audit rows kept)")
+        print(f"reset: {out['strikes']} strikes, {out['alerts']} poisoned-mail alert rows deleted (audit rows kept)")
         return 0
     if args.cmd == "plant":
         from scout.seed import plant_demo_evidence

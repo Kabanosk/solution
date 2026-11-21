@@ -165,3 +165,24 @@ def test_one_conversation_is_one_chat_task(conn_factory, tmp_path, monkeypatch):
                  headers={"Authorization": "Bearer tok"})
     assert bad.status_code == 422
     get_api_settings.cache_clear()
+
+
+def test_chat_says_when_a_followup_will_come(conn_factory, tmp_path, monkeypatch):
+    def handler(messages, tools):  # noqa: ANN001
+        if not any(m.role == "tool" for m in messages):
+            return FakeLLM.tool_call("start_what_if", amount_eur="30000", month="March", what="an oven")
+        return "The forecast is running; I'll post the result here."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    r = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": "what if an oven 30k march"}],
+                                               "conversation_id": "conv_whatif1"}, headers={"Authorization": "Bearer tok"})
+    done = [json.loads(x) for x in r.text.splitlines()][-1]
+    assert done["type"] == "done" and done["followups"] is True
+    get_api_settings.cache_clear()

@@ -421,8 +421,10 @@ class Toolbox:
         if not amt:
             return {"error": "amount_missing"}
         self.ctx.jobs.enqueue("what_if", {"amount": str(amt), "month": month, "what": what or "the purchase",
-                                          "from_id": self.requester}, f"what_if:{self.task.id}:{amt}:{month}")
-        return {"started": True, "note": "The forecast result will arrive as its own Slack message."}
+                                          "from_id": self.requester, "chat_task": self.task.id},
+                              f"what_if:{self.task.id}:{amt}:{month}")
+        return {"started": True, "note": "Tell the user the forecast is running; its result, and the approval if one "
+                "is needed, will appear in this chat by itself."}
 
 
 def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:

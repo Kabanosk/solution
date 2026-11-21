@@ -4,13 +4,15 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 /** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it.
  *  kind "summary": Scout compacted the earlier conversation into `content`; `replaced` counts the messages it stands for. */
 export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[];
-  kind?: "summary"; replaced?: number };
+  kind?: "summary"; replaced?: number; awaiting?: boolean; followups?: ChatFollowup[] };
+/** Something Scout started in an answer (a what-if, an approval) reporting back later: a `followup` step on the task. */
+export type ChatFollowup = { id: number; text: string };
 /** A file Scout produced for the answer (e.g. an invoice list as CSV); data is base64. */
 export type ChatFile = { name: string; mime: string; dataB64: string; sentToSlack: boolean };
 export type ChatEvent =
   | { type: "step"; text: string }
   | { type: "delta"; text: string }
-  | { type: "done"; truncated: boolean; task_id?: string }
+  | { type: "done"; truncated: boolean; task_id?: string; followups?: boolean }
   | { type: "error"; message: string }
   | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean }
   | { type: "compacted"; summary: string; replaced: number };
@@ -36,7 +38,8 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
     case "step": return text?.trim() ? { type: "step", text: text.slice(0, 500) } : null;
     case "delta": return text !== null ? { type: "delta", text } : null;
     case "done": return typeof event.task_id === "string" && TASK_ID.test(event.task_id)
-      ? { type: "done", truncated: event.truncated === true, task_id: event.task_id } : { type: "done", truncated: event.truncated === true };
+      ? { type: "done", truncated: event.truncated === true, task_id: event.task_id, ...(event.followups === true ? { followups: true } : {}) }
+      : { type: "done", truncated: event.truncated === true };
     case "file": {
       const data = typeof event.data_b64 === "string" ? event.data_b64.replace(/\s+/g, "") : "";
       if (!data || data.length > MAX_FILE_B64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return null;
@@ -99,7 +102,8 @@ export function requestFor(turns: ChatTurn[]): { messages: ChatMessage[]; source
     const answer = turns[index + 1];
     if (!answer) pairs.push({ messages: [{ role: "user", content: user.content }], sources: [user.id] });
     else if ((answer.status === "complete" || answer.status === "stopped") && answer.content.trim()) {
-      pairs.push({ messages: [{ role: "user", content: user.content }, { role: "assistant", content: answer.content.slice(0, MAX_MESSAGE_LENGTH) }], sources: [user.id, answer.id] });
+      const updates = (answer.followups ?? []).map(update => `\n\nUpdate: ${update.text}`).join("");
+      pairs.push({ messages: [{ role: "user", content: user.content }, { role: "assistant", content: (answer.content + updates).slice(0, MAX_MESSAGE_LENGTH) }], sources: [user.id, answer.id] });
     }
   }
   // Fallback for very long chats the backend has not compacted: the newest whole exchanges that fit.
@@ -167,4 +171,17 @@ export async function* readJsonLines(body: ReadableStream<Uint8Array>): AsyncGen
     }
     if (buffer.trim()) yield JSON.parse(buffer) as ChatEvent;
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+}
+
+/** Attach the task's new `followup` steps to the answer that is waiting for them (the newest such answer).
+ *  Returns the same array when there is nothing new, so React can skip the update. */
+export function mergeFollowups(turns: ChatTurn[], steps: { id: number; kind: string; text: string }[]): ChatTurn[] {
+  const known = new Set(turns.flatMap(turn => (turn.followups ?? []).map(update => update.id)));
+  const fresh = steps.filter(step => step.kind === "followup" && !known.has(step.id) && step.text.trim())
+    .sort((a, b) => a.id - b.id).map(step => ({ id: step.id, text: step.text.slice(0, MAX_MESSAGE_LENGTH) }));
+  if (!fresh.length) return turns;
+  let target = -1;
+  for (let index = turns.length - 1; index >= 0; index--) if (turns[index].awaiting) { target = index; break; }
+  if (target < 0) return turns;
+  return turns.map((turn, index) => index === target ? { ...turn, followups: [...(turn.followups ?? []), ...fresh] } : turn);
 }

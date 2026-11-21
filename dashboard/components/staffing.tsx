@@ -264,7 +264,7 @@ export function Staffing({ data, onBack }: StaffingProps) {
       <Card id="scout-payroll-insight" className="border-success-border bg-success-muted" aria-labelledby="scout-payroll-insight-title">
         <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <CardTitle id="scout-payroll-insight-title" className="text-base font-medium">CFO insight</CardTitle>
+            <CardTitle id="scout-payroll-insight-title" className="text-base font-medium">Scout insight</CardTitle>
             <CardDescription className="max-w-3xl leading-6">
               The latest salary month contains {currency.format(data.monthlyPayroll)} in monthly net payroll.
               Review these recorded payments alongside other operating expenses.

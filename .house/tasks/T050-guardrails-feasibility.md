@@ -1,7 +1,7 @@
 ---
 id: T050
 title: Scout access control for salaries and task logs (hard guardrails in code)
-status: todo
+status: review
 owner: coder
 branch: task/T050-scout-access
 depends_on: []

@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action     TEXT NOT NULL,
     target     TEXT NOT NULL,
     resource   TEXT NOT NULL,
-    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY')),
+    decision   TEXT NOT NULL CHECK (decision IN ('ALLOW', 'DENY', 'MASK')),
     policy     TEXT,
     reason     TEXT
 );
@@ -145,3 +145,7 @@ CREATE INDEX IF NOT EXISTS bank_mock_transactions_booked_idx ON bank_mock_transa
 
 -- The real Slack person who plays an HR role (written by the worker from SLACK_USER_MAP; the dashboard shows it).
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS slack_name TEXT;
+
+-- MASK = salary rows folded into one payroll total for the office manager (T050); older databases allowed only ALLOW/DENY.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_decision_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_decision_check CHECK (decision IN ('ALLOW', 'DENY', 'MASK'));

@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { clock, fullTimestamp, type AuditRow } from "@/lib/scout-model";
 import { cn } from "@/lib/utils";
 
-export function DecisionBadge({ decision }: { decision: "ALLOW" | "DENY" }) {
-  return <Badge variant="outline" className={cn("font-mono text-[10px]", decision === "DENY" ? "border-danger-border text-danger" : "border-success-border text-success")}>{decision}</Badge>;
+export function DecisionBadge({ decision }: { decision: "ALLOW" | "DENY" | "MASK" }) {
+  const tone = decision === "DENY" ? "border-danger-border text-danger" : decision === "MASK" ? "border-warning-border text-warning" : "border-success-border text-success";
+  return <Badge variant="outline" className={cn("font-mono text-[10px]", tone)}>{decision}</Badge>;
 }
 
 export function AuditTable({ rows, compact = false }: { rows: AuditRow[]; compact?: boolean }) {

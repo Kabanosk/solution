@@ -290,6 +290,19 @@ class SlackUI:
                                            thread_ts=thread_ts, unfurl_links=False, **self._identity)
         return f"{res['channel']}:{res['ts']}"
 
+    def link(self, employee_id: str, text: str, label: str, url: str) -> str | None:
+        """A DM with one link button (e.g. "Sign in to Acme"); returns "channel:ts" or None when not sent."""
+        channel = self._channel_for(employee_id)
+        if not channel:
+            return None
+        blocks = self._blocks(text, "NOTIFY", None, ())
+        blocks.append({"type": "actions", "elements": [{
+            "type": "button", "action_id": directory.JOIN_ACTION, "style": "primary", "url": url,
+            "text": {"type": "plain_text", "text": label[:75]}}]})
+        res = self.client.chat_postMessage(channel=channel, text=f"[NOTIFY] {text} {url}", blocks=blocks,
+                                           unfurl_links=False, **self._identity)
+        return f"{res['channel']}:{res['ts']}"
+
     def upload(self, employee_id: str, files: list[tuple[str, bytes]], comment: str) -> str | None:
         channel = self._channel_for(employee_id)
         if not channel or not files:

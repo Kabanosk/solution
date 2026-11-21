@@ -63,20 +63,16 @@ def is_salary_row(row: Row) -> bool:
 
 
 def payee_of(row: Row, people: Iterable[Row]) -> str | None:
-    """Whose pay is this row? The row's own `employee_id` if it has one, else the one employee whose full name is the
-    counterparty (then the one named in the reference). None when unknown or ambiguous."""
-    emp = row.get("employee_id")
-    if emp:
-        return str(emp)
+    """Whose pay is this row? The one employee that the row's `employee_id`, its counterparty and its reference agree
+    on. None when it names nobody known, or more than one person (then it is treated as someone else's pay)."""
     people = list(people)
+    named: set[str] = set()
+    if row.get("employee_id"):
+        named.add(str(row["employee_id"]))
     for text in (row.get("counterparty"), row.get("reference")):
         text = (text or "").casefold()
-        hits = {p["id"] for p in people if p.get("name") and p["name"].casefold() in text}
-        if len(hits) == 1:
-            return next(iter(hits))
-        if len(hits) > 1:
-            return None
-    return None
+        named |= {p["id"] for p in people if p.get("name") and p["name"].casefold() in text}
+    return next(iter(named)) if len(named) == 1 else None
 
 
 def reports_of(viewer: str, people: Iterable[Row]) -> set[str]:
@@ -116,19 +112,27 @@ def can_see_salary(viewer: str, role: str, payee: str | None, reports: Iterable[
 class SalaryView:
     visible: list[Row]
     hidden: list[tuple[Row, str, str]] = field(default_factory=list)  # (row, DENY|MASK, policy)
-    summary: str | None = None
+    summaries: list[str] = field(default_factory=list)  # office manager: one `Payroll YYYY-MM (N employees): X EUR` per month
+
+
+def _month(row: Row) -> str:
+    d = row.get("booking_date")
+    return f"{d:%Y-%m}" if hasattr(d, "strftime") else str(d)[:7]
 
 
 def filter_salary_rows(rows: Sequence[Row], viewer: str, role: str, people: Sequence[Row]) -> SalaryView:
-    """Drop (staff) or fold into one `Payroll (N employees): X EUR` line (office manager) the salary rows `viewer`
-    may not see. Rows that are not salary rows pass through untouched."""
+    """Drop (staff) or fold into `Payroll YYYY-MM (N employees): X EUR` lines (office manager) the salary rows `viewer`
+    may not see. Rows that are not salary rows pass through untouched.
+
+    The totals are per whole calendar month, so differencing two queries only ever gives a month's total; callers
+    must therefore hand in every salary row of each month they include. A month with fewer than `MIN_AGGREGATE`
+    hidden people is dropped (DENY): a total over one person is that person's pay."""
     people = list(people)
     reports = reports_of(viewer, people)
     role = (role or "").casefold()
     visible: list[Row] = []
     hidden: list[tuple[Row, str, str]] = []
-    payees: set[str] = set()
-    total = Decimal(0)
+    months: dict[str, list[tuple[Row, str]]] = {}  # month -> (row, payee key) of rows to fold
     for row in rows:
         if not is_salary_row(row):
             visible.append(row)
@@ -137,21 +141,22 @@ def filter_salary_rows(rows: Sequence[Row], viewer: str, role: str, people: Sequ
         ok, policy = can_see_salary(viewer, role, payee, reports)
         if ok:
             visible.append(row)
-            continue
-        if role in FINANCE_ROLES:
-            hidden.append((row, "MASK", policy + "; folded into the payroll total"))
-            payees.add(payee or f"?{row.get('counterparty')}")
-            total += abs(Decimal(str(row.get("amount") or 0)))
+        elif role in FINANCE_ROLES:
+            months.setdefault(_month(row), []).append((row, payee or f"?{row.get('counterparty')}"))
+            hidden.append((row, "MASK", policy + "; folded into the monthly payroll total"))
         else:
             hidden.append((row, "DENY", policy))
-    summary = None
-    if role in FINANCE_ROLES and hidden:
+    summaries: list[str] = []
+    too_few = "salary: a one-person payroll total would reveal that person's pay"
+    for month in sorted(months, reverse=True):
+        payees = {k for _, k in months[month]}
         if len(payees) >= MIN_AGGREGATE:
-            summary = f"Payroll ({len(payees)} employees): {total:,.2f} EUR"
-        else:  # a lone payee cannot be summed without naming their pay
-            policy = "salary: a one-person payroll total would reveal that person's pay"
-            hidden = [(r, "DENY", policy) for r, _, _ in hidden]
-    return SalaryView(visible, hidden, summary)
+            total = sum((abs(Decimal(str(r.get("amount") or 0))) for r, _ in months[month]), Decimal(0))
+            summaries.append(f"Payroll {month} ({len(payees)} employees): {total:,.2f} EUR")
+        else:
+            ids = {id(r) for r, _ in months[month]}
+            hidden = [(r, "DENY", too_few) if id(r) in ids else (r, d, pol) for r, d, pol in hidden]
+    return SalaryView(visible, hidden, summaries)
 
 
 # -- task logs: a person sees the tasks they asked for or were asked to handle, the CEO sees all ---------------

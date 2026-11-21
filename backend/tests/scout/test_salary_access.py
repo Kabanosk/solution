@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from decimal import Decimal
 
 from scout.audit import (can_see_salary, filter_salary_rows, is_salary_row, payee_of, reports_of, salary_sql)
@@ -68,6 +69,11 @@ def test_payee_resolution():
     assert payee_of({"counterparty": "ACME", "reference": "Net Salary Yusuf Akcit"}, PEOPLE) == "yusuf"
     assert payee_of({"counterparty": "ACME", "reference": "Net Salary", "employee_id": "vanessa"}, PEOPLE) == "vanessa"
     assert payee_of({"counterparty": "Nobody Known", "reference": "Net Salary Nobody Known"}, PEOPLE) is None
+    # counterparty and reference disagree (or the reference names someone else): never "own" pay
+    assert payee_of({"counterparty": "Rosa Pavese", "reference": "Net Salary Yusuf Akcit"}, PEOPLE) is None
+    assert payee_of({"counterparty": "Rosa Pavese", "reference": "Net Salary", "employee_id": "yusuf"}, PEOPLE) is None
+    assert payee_of({"counterparty": "Rosa Pavese", "reference": "Net Salary Rosa Pavese", "employee_id": "rosa"},
+                    PEOPLE) == "rosa"
     assert payee_of({"counterparty": "X", "reference": "Salary Rosa Pavese and Yusuf Akcit"}, PEOPLE) is None
 
 
@@ -91,20 +97,35 @@ def test_can_see_salary_matrix():
 
 
 def test_filter_masks_for_office_manager_and_denies_for_others():
-    rows = [dict(type=t, reference=r, counterparty=c, amount=Decimal(a), category="payroll", id=i)
-            for i, c, t, r, a, _ in SALARIES]
-    rows.append(dict(type="GIRO", reference="Invoice", counterparty="Asimex", amount=Decimal("-400"), category="food", id="s"))
+    rows = [dict(type=t, reference=r, counterparty=c, amount=Decimal(a), category="payroll", id=i,
+                 booking_date=date(2026, 11, 20)) for i, c, t, r, a, _ in SALARIES]
+    rows.append(dict(type="GIRO", reference="Invoice", counterparty="Asimex", amount=Decimal("-400"), category="food", id="s",
+                     booking_date=date(2026, 11, 20)))
     fm = filter_salary_rows(rows, "grazyna", "office_manager", PEOPLE)
     assert [r["id"] for r in fm.visible] == ["sal_n", "s"]  # her report Vanessa and the non-salary row
-    assert fm.summary == "Payroll (3 employees): 7,650.00 EUR"
+    assert fm.summaries == ["Payroll 2026-11 (3 employees): 7,650.00 EUR"]
     assert {d for _, d, _ in fm.hidden} == {"MASK"}
     rosa = filter_salary_rows(rows, "rosa", "head_chef", PEOPLE)
-    assert [r["id"] for r in rosa.visible] == ["sal_y", "sal_r", "s"] and rosa.summary is None
+    assert [r["id"] for r in rosa.visible] == ["sal_y", "sal_r", "s"] and rosa.summaries == []
     assert {d for _, d, _ in rosa.hidden} == {"DENY"}
     ceo = filter_salary_rows(rows, "vincenzo", "ceo", PEOPLE)
-    assert len(ceo.visible) == 5 and ceo.summary is None and ceo.hidden == []
+    assert len(ceo.visible) == 5 and ceo.summaries == [] and ceo.hidden == []
     waiter = filter_salary_rows(rows, "vanessa", "waitstaff", PEOPLE)
-    assert [r["id"] for r in waiter.visible] == ["sal_n", "s"] and waiter.summary is None
+    assert [r["id"] for r in waiter.visible] == ["sal_n", "s"] and waiter.summaries == []
+
+
+def test_office_manager_totals_are_per_whole_month_and_never_one_person():
+    def pay(i: str, who: str, day: date, amt: str = "-100") -> dict:
+        return dict(id=i, type="SALARY PAYMENT", reference=f"Net Salary {who}", counterparty=who, amount=Decimal(amt),
+                    category="payroll", booking_date=day)
+
+    rows = [pay("o1", "Rosa Pavese", date(2026, 10, 28)), pay("o2", "Yusuf Akcit", date(2026, 10, 28)),
+            pay("n1", "Rosa Pavese", date(2026, 11, 3), "-250"), pay("n2", "Vincenzo Amalfi", date(2026, 11, 28), "-50"),
+            pay("n3", "Yusuf Akcit", date(2026, 11, 28), "-50"), pay("s1", "Rosa Pavese", date(2026, 9, 28))]
+    fm = filter_salary_rows(rows, "grazyna", "office_manager", PEOPLE)
+    assert fm.summaries == ["Payroll 2026-11 (3 employees): 350.00 EUR", "Payroll 2026-10 (2 employees): 200.00 EUR"]
+    lone = [(r["id"], d) for r, d, _ in fm.hidden if r["id"] == "s1"]
+    assert lone == [("s1", "DENY")]  # September has one payee only: dropped, not summed
 
 
 def test_unknown_payee_is_someone_elses_pay():
@@ -113,11 +134,12 @@ def test_unknown_payee_is_someone_elses_pay():
     for who, role in (("rosa", "head_chef"), ("vanessa", "waitstaff")):
         assert filter_salary_rows([row], who, role, PEOPLE).visible == []
     # a lone hidden payee is dropped, never summed: an "aggregate" of one person is that person's pay
+    row["booking_date"] = date(2026, 11, 20)
     lone = filter_salary_rows([row], "grazyna", "office_manager", PEOPLE)
-    assert lone.visible == [] and lone.summary is None and {d for _, d, _ in lone.hidden} == {"DENY"}
+    assert lone.visible == [] and lone.summaries == [] and {d for _, d, _ in lone.hidden} == {"DENY"}
     two = filter_salary_rows([row, {**row, "id": "y", "counterparty": "Other", "reference": "Net Salary Other"}],
                              "grazyna", "office_manager", PEOPLE)
-    assert two.summary == "Payroll (2 employees): 2.00 EUR"
+    assert two.summaries == ["Payroll 2026-11 (2 employees): 2.00 EUR"]
 
 
 # -- tools ---------------------------------------------------------------------------------------------------
@@ -136,10 +158,12 @@ def test_search_payments_manager_sees_own_and_reports(conn_factory, db, tmp_path
     out = box(ctx, "rosa").call("search_payments", {})
     assert amounts(out) == {"Yusuf Akcit", "Rosa Pavese"}  # no general bank access: only salary rows she may see
     assert "payroll_summary" not in out
-    assert audit_rows(db) == []  # others' rows are never even fetched for someone without bank access
+    hidden = audit_rows(db)  # Vincenzo's and Vanessa's rows were hidden from her, one audit row each
+    assert len(hidden) == 2 and {h["decision"] for h in hidden} == {"DENY"} and {h["requester"] for h in hidden} == {"rosa"}
     # asking for someone else by name gets nothing
     assert box(ctx, "rosa").call("search_payments", {"counterparty": "Vincenzo"})["error"] == "access_denied"
     assert box(ctx, "rosa").call("search_payments", {"amount_eur": "3200"})["error"] == "access_denied"
+    assert len(audit_rows(db)) == 2 * 3  # every attempt leaves its salary_filter DENY rows
 
 
 def test_search_payments_staff_sees_only_own_row(conn_factory, db, tmp_path):
@@ -158,7 +182,7 @@ def test_search_payments_office_manager_gets_one_payroll_line(conn_factory, db, 
     seed_bank(ctx)
     out = box(ctx, "grazyna").call("search_payments", {})
     assert amounts(out) == {"Vanessa Paradi", "Asimex Wholesale Ltd", "Tax Office Frankfurt am Main"}
-    assert out["payroll_summary"] == "Payroll (3 employees): 7,650.00 EUR"
+    assert out["payroll_summary"] == ["Payroll 2026-11 (3 employees): 7,650.00 EUR"]
     blob = str(out)
     for secret in ("3200", "2350", "2100", "Vincenzo", "Yusuf", "Rosa"):
         assert secret not in blob
@@ -174,7 +198,7 @@ def test_specific_search_cannot_pry_a_salary_out(conn_factory, db, tmp_path):
         out = box(ctx, "grazyna").call("search_payments", args)
         assert out["rows"] == []
         # the aggregate covers everyone hidden in the period, it is never narrowed to the person asked about
-        assert out["payroll_summary"] == "Payroll (3 employees): 7,650.00 EUR"
+        assert out["payroll_summary"] == ["Payroll 2026-11 (3 employees): 7,650.00 EUR"]
         assert "Yusuf" not in str(out) and "2350" not in str(out) and "2,350" not in str(out)
     # a lone remaining payee must not be summed either
     with ctx.conn_factory() as conn:
@@ -192,8 +216,8 @@ def test_missing_invoices_never_carries_salary_rows(conn_factory, db, tmp_path):
         conn.commit()
     out = box(ctx, "grazyna").call("missing_invoices", {})
     assert "Yusuf" not in str(out) and "Vincenzo" not in str(out) and "2350" not in str(out)
-    assert out["payroll_summary"] == "Payroll (2 employees): 5,550.00 EUR"
-    assert {r["decision"] for r in audit_rows(db)} == {"MASK"}
+    assert "payroll_summary" not in out  # no totals from a list that has nothing to do with payroll
+    assert len(audit_rows(db)) == 2
     ceo = box(ctx, "vincenzo").call("missing_invoices", {})
     assert {r["counterparty"] for r in ceo["payments_without_invoice"]} >= {"Yusuf Akcit", "Vincenzo Amalfi"}
     assert box(ctx, "yusuf").call("missing_invoices", {})["error"] == "access_denied"
@@ -239,4 +263,63 @@ def test_team_budgets_never_reveal_others_pay(conn_factory, db, tmp_path):
     assert Decimal(spent("grazyna")["kitchen"]) == Decimal("400.00") and Decimal(spent("grazyna")["front"]) == Decimal("950.00")
     assert any(r["decision"] == "MASK" for r in audit_rows(db))  # Grazyna: aggregate
     note = box(ctx, "grazyna").call("team_budgets", {})
-    assert "payroll_summary" in note and "Yusuf" not in str(note)
+    assert note["payroll_summary"] == ["Payroll 2026-11 (3 employees): 7,650.00 EUR"] and "Yusuf" not in str(note)
+
+
+def add_salary(ctx, tid: str, who: str, day: date, amount: str = "-100") -> None:  # noqa: ANN001
+    with ctx.conn_factory() as conn:
+        conn.execute("INSERT INTO transactions (id, booking_date, type, reference, counterparty, amount, category) "
+                     "VALUES (%s,%s,'SALARY PAYMENT',%s,%s,%s,'payroll')",
+                     (tid, day, f"Net Salary {who}", who, Decimal(amount)))
+        conn.commit()
+
+
+def test_adjacent_windows_only_ever_differ_by_whole_months(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    # TODAY is 2026-11-20. October: two payees, the second paid one day later than the first.
+    add_salary(ctx, "oct_a", "Rosa Pavese", date(2026, 10, 27), "-2100")
+    add_salary(ctx, "oct_b", "Yusuf Akcit", date(2026, 10, 28), "-2350")
+    add_salary(ctx, "oct_c", "Vincenzo Amalfi", date(2026, 10, 28), "-3200")
+    seen = set()
+    for days in range(22, 28):  # the cutoff slides over 27 and 28 October
+        out = box(ctx, "grazyna").call("search_payments", {"days": days})
+        seen.add(tuple(out.get("payroll_summary", [])))
+    assert seen == {("Payroll 2026-10 (3 employees): 7,650.00 EUR",)}
+
+
+def test_salary_rows_beyond_500_are_not_cut_off(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    with ctx.conn_factory() as conn:
+        for i in range(520):
+            conn.execute("INSERT INTO transactions (id, booking_date, type, reference, counterparty, amount, category) "
+                         "VALUES (%s,%s,'SALARY PAYMENT','Net Salary Rosa Pavese','Rosa Pavese',-1,'payroll')",
+                         (f"bulk{i}", TODAY - timedelta(days=i % 30)))
+        conn.execute("INSERT INTO transactions (id, booking_date, type, reference, counterparty, amount, category) "
+                     "VALUES ('old', %s,'SALARY PAYMENT','Net Salary Rosa Pavese','Rosa Pavese',-7777,'payroll')",
+                     (TODAY - timedelta(days=30),))
+        conn.commit()
+    out = box(ctx, "vincenzo").call("search_payments", {"amount_eur": "7777", "days": 60})
+    assert [r["amount"] for r in out["rows"]] == ["-7777.00"]
+
+
+def test_conflicting_counterparty_and_reference_is_not_own_pay(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    with ctx.conn_factory() as conn:
+        conn.execute("INSERT INTO transactions (id, booking_date, type, reference, counterparty, amount, category) "
+                     "VALUES ('trick', %s, 'SALARY PAYMENT', 'Net Salary Vincenzo Amalfi', 'Yusuf Akcit', -3200, "
+                     "'payroll')", (TODAY,))
+        conn.commit()
+    assert box(ctx, "yusuf").call("search_payments", {})["error"] == "access_denied"
+    assert [h["decision"] for h in audit_rows(db)] == ["DENY"]
+
+
+def test_cash_position_audits_that_payroll_is_in_the_totals(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    seed_bank(ctx)
+    ceo = box(ctx, "vincenzo").call("cash_position", {})
+    assert audit_rows(db) == []  # the CEO may see everything: nothing to record
+    out = box(ctx, "grazyna").call("cash_position", {})
+    assert out["balance"] == ceo["balance"] and out["money_out_30d"] == ceo["money_out_30d"]  # real numbers
+    log = audit_rows(db)
+    assert len(log) == 1 and log[0]["decision"] == "MASK" and log[0]["requester"] == "grazyna"
+    assert log[0]["policy"] == "cash-position: payroll included in totals"

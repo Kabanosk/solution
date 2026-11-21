@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import scout.loops.toolbox as toolbox_module
 from scout.audit import can_see_task
 from scout.loops.toolbox import Toolbox
 from test_invoicing_loop import make_world
@@ -84,3 +85,25 @@ def test_scout_tasks_lists_only_own_unless_ceo(conn_factory, db, tmp_path):
     assert box(ctx, "rosa").call("scout_tasks", {"status": "in_progress"})["rows"]
     hidden = db.execute("SELECT * FROM audit_log WHERE decision = 'DENY' AND target = 'tasks'").fetchall()
     assert hidden and all(h["requester"] in ("rosa", "yusuf") for h in hidden)
+
+
+def test_reassignment_between_check_and_read_does_not_leak_steps(conn_factory, db, tmp_path, monkeypatch):
+    ctx = make_world(conn_factory, tmp_path)
+    ids = make_tasks(ctx)
+    real = toolbox_module.can_see_task
+    calls: list[int] = []
+
+    def reassign_after_first_check(*args, **kw):  # noqa: ANN002, ANN003
+        result = real(*args, **kw)
+        if not calls:  # the task changes hands right after the permission check
+            with ctx.conn_factory() as conn:
+                conn.execute("UPDATE agent_tasks SET owner_id = 'yusuf', requested_by = 'yusuf' WHERE id = %s",
+                             (ids["mine"],))
+                conn.commit()
+        calls.append(1)
+        return result
+
+    monkeypatch.setattr(toolbox_module, "can_see_task", reassign_after_first_check)
+    out = box(ctx, "rosa").call("task_log", {"task_id": ids["mine"]})
+    assert out["error"] == "access_denied" and "steps" not in out
+    assert denials(db) and denials(db)[-1]["requester"] == "rosa"

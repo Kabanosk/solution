@@ -8,7 +8,11 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 /** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it.
  *  kind "summary": Scout compacted the earlier conversation into `content`; `replaced` counts the messages it stands for. */
 export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[];
-  kind?: "summary"; replaced?: number; awaiting?: boolean; followups?: ChatFollowup[]; research?: PublicResearch };
+  kind?: "summary"; replaced?: number; awaiting?: boolean; followups?: ChatFollowup[]; research?: PublicResearch;
+  /** Which model produced an assistant turn (or the summary of its history): private Granite turns never go to an external provider. */
+  producedBy?: ChatTarget };
+/** Where a request goes: the on-premise model sees the whole conversation, an external provider only what an external model said. */
+export type ChatTarget = "granite" | "external";
 /** Something Scout started in an answer (a what-if, an approval) reporting back later: a `followup` step on the task. */
 export type ChatFollowup = { id: number; text: string };
 /** A file Scout produced for the answer (e.g. an invoice list as CSV); data is base64. */
@@ -115,15 +119,20 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
 // Unanswered/failed exchanges remain visible but do not become invented model
 // context. A stopped response is included only if actual content was received.
 // `sources[i]` is the id of the turn message i came from, so a "compacted" answer can be mapped back.
-export function requestFor(turns: ChatTurn[]): { messages: ChatMessage[]; sources: string[] } {
-  const summary = turns[0]?.kind === "summary" ? turns[0] : null;
+export function requestFor(turns: ChatTurn[], target: ChatTarget = "granite"): { messages: ChatMessage[]; sources: string[] } {
+  // An external provider gets the user turns and the answers an external model itself gave, nothing else: not Granite's
+  // answers (company data), not untagged older turns, not follow-up updates (a colleague's Slack reply, what-if results).
+  // An exchange whose answer is withheld is dropped whole, so the roles still alternate.
+  const external = target === "external";
+  const first = turns[0]?.kind === "summary" ? turns[0] : null;
+  const summary = first && (!external || first.producedBy === "external") ? first : null;
   const pairs: { messages: ChatMessage[]; sources: string[] }[] = [];
-  for (let index = summary ? 1 : 0; index < turns.length; index += 2) {
+  for (let index = first ? 1 : 0; index < turns.length; index += 2) {
     const user = turns[index];
     const answer = turns[index + 1];
     if (!answer) pairs.push({ messages: [{ role: "user", content: user.content }], sources: [user.id] });
-    else if ((answer.status === "complete" || answer.status === "stopped") && answer.content.trim()) {
-      const updates = (answer.followups ?? []).map(update => `\n\nUpdate: ${update.text}`).join("");
+    else if ((answer.status === "complete" || answer.status === "stopped") && answer.content.trim() && (!external || answer.producedBy === "external")) {
+      const updates = external ? "" : (answer.followups ?? []).map(update => `\n\nUpdate: ${update.text}`).join("");
       pairs.push({ messages: [{ role: "user", content: user.content }, { role: "assistant", content: (answer.content + updates).slice(0, MAX_MESSAGE_LENGTH) }], sources: [user.id, answer.id] });
     }
   }
@@ -140,20 +149,20 @@ export function requestFor(turns: ChatTurn[]): { messages: ChatMessage[]; source
   return { messages: all.flatMap(pair => pair.messages), sources: all.flatMap(pair => pair.sources) };
 }
 
-export function conversationForRequest(turns: ChatTurn[]): ChatMessage[] {
-  return requestFor(turns).messages;
+export function conversationForRequest(turns: ChatTurn[], target: ChatTarget = "granite"): ChatMessage[] {
+  return requestFor(turns, target).messages;
 }
 
 /** Scout summarized the first `replaced` messages it was sent: put one summary item in their place.
  *  Turns before the last summarized one (including failed exchanges that were never sent) go with them. */
-export function applyCompaction(turns: ChatTurn[], sources: string[], event: { summary: string; replaced: number }, id: string): ChatTurn[] {
+export function applyCompaction(turns: ChatTurn[], sources: string[], event: { summary: string; replaced: number }, id: string, producedBy?: ChatTarget): ChatTurn[] {
   const covered = new Set(sources.slice(0, event.replaced));
   let last = -1;
   turns.forEach((turn, index) => { if (covered.has(turn.id)) last = index; });
   if (last < 0) return turns;
   const replaced = turns.slice(0, last + 1).filter(turn => covered.has(turn.id))
     .reduce((sum, turn) => sum + (turn.kind === "summary" ? turn.replaced ?? 1 : 1), 0);
-  return [{ id, role: "assistant", kind: "summary", content: event.summary, status: "complete", replaced }, ...turns.slice(last + 1)];
+  return [{ id, role: "assistant", kind: "summary", content: event.summary, status: "complete", replaced, ...(producedBy ? { producedBy } : {}) }, ...turns.slice(last + 1)];
 }
 
 export async function readChatBody(request: Request): Promise<unknown> {

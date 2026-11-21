@@ -171,3 +171,39 @@ test("only followups on screen that were not acknowledged yet are reported, per 
   assert.deepEqual(unacknowledgedFollowups(turns, new Set([7, 8, 9])), []);
   assert.deepEqual(unacknowledgedFollowups([{ ...turns[0], taskId: undefined }], new Set()), []);
 });
+
+const answered = (id: string, content: string, producedBy?: "granite" | "external", extra: Partial<ChatTurn> = {}): ChatTurn =>
+  ({ id, role: "assistant", content, status: "complete", ...(producedBy ? { producedBy } : {}), ...extra });
+const asked = (id: string, content = "q"): ChatTurn => ({ id, role: "user", content, status: "complete" });
+
+test("an external request never carries Granite's answers, follow-up updates or untagged history", () => {
+  const turns: ChatTurn[] = [
+    asked("u1", "what is our bank balance"), answered("a1", "PRIVATE-GRANITE-BALANCE €41,000", "granite"),
+    asked("u2", "how do I filter tasks?"), answered("a2", "Use the status filter.", "external", { followups: [{ id: 3, text: "PRIVATE-SLACK-REPLY" }] }),
+    asked("u3", "old turn from before tagging"), answered("a3", "PRIVATE-UNTAGGED"),
+    asked("u4", "and the sidebar?"),
+  ];
+  const external = requestFor(turns, "external");
+  assert.deepEqual(external.sources, ["u2", "a2", "u4"]);
+  const sent = JSON.stringify(external.messages);
+  assert.doesNotMatch(sent, /PRIVATE|41,000|Update:/);
+  assert.equal(external.messages.length, 3);
+  assert.doesNotThrow(() => parseChatRequest({ model: "external", external: { provider: "xai", model: "grok-4.7", apiKey: "xai-test-123456" }, messages: external.messages }),
+    "the route still accepts the strictly alternating history");
+  // Granite keeps its whole conversation, follow-ups included.
+  const granite = requestFor(turns);
+  assert.equal(granite.messages.length, 7);
+  assert.match(JSON.stringify(granite.messages), /PRIVATE-SLACK-REPLY/);
+  assert.deepEqual(conversationForRequest(turns, "external"), external.messages);
+});
+
+test("a summary reaches an external provider only when an external model's history produced it", () => {
+  const summary = (producedBy?: "granite" | "external"): ChatTurn => ({ id: "s", role: "assistant", kind: "summary", content: "Paid Asimex €612.", status: "complete", replaced: 4, ...(producedBy ? { producedBy } : {}) });
+  for (const tag of ["granite", undefined] as const)
+    assert.deepEqual(requestFor([summary(tag), asked("u1")], "external").sources, ["u1"]);
+  const kept = requestFor([summary("external"), asked("u1")], "external");
+  assert.deepEqual(kept.sources, ["s", "u1"]);
+  assert.equal(kept.messages[0].content, `${SUMMARY_PREFIX}\nPaid Asimex €612.`);
+  const compacted = applyCompaction([asked("u1"), answered("a1", "x", "external"), asked("u2")], ["u1", "a1", "u2"], { summary: "Public talk.", replaced: 2 }, "s1", "external");
+  assert.equal(compacted[0].producedBy, "external");
+});

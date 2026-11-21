@@ -46,14 +46,14 @@ export function ExternalProviderDialog({ config, onClose, onSave, onRemove, pers
         <div id="scout-external-model-field" className="space-y-1.5">
           <label id="scout-external-model-label" htmlFor="scout-external-model" className="text-sm font-medium">Model ID</label>
           <Input id="scout-external-model" className="h-11" value={model} maxLength={150} required aria-describedby="scout-external-model-help scout-external-error" onChange={event => { setModel(event.target.value); setError(""); }} />
-          <p id="scout-external-model-help" className="text-xs text-muted-foreground">Choose a model available to your account that supports tool calls. Public hiring research is available with OpenAI and Mistral.</p>
+          <p id="scout-external-model-help" className="text-xs text-muted-foreground">Choose a model available to your account that supports tool calls. Daily Strategy news research is available with OpenAI and Mistral.</p>
         </div>
         <div id="scout-external-key-field" className="space-y-1.5">
           <label id="scout-external-key-label" htmlFor="scout-external-key" className="text-sm font-medium">API key</label>
           <Input id="scout-external-key" className="h-11" type="password" autoComplete="off" spellCheck={false} value={apiKey} maxLength={512} required aria-describedby="scout-external-key-help scout-external-error" onChange={event => { setApiKey(event.target.value); setError(""); }} />
           <p id="scout-external-key-help" className="text-xs text-muted-foreground">Kept in this tab unless you save it for Strategy below. Saved Strategy keys are encrypted on the server and survive reloads. Removing the chat provider only clears this tab.</p>
         </div>
-        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Your public conversation and cited research are shared with the provider so follow-up messages keep their context. Do not paste private company data. Invoices and Granite's results stay private. Hiring proposals create simulated Liquidity actions on premise, without changing company records or hiring anyone.</p>
+        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">This conversation is shared with the provider so follow-up messages keep their context. Do not paste private company data. Company data stays with Granite: the provider cannot read invoices, bank, email or files, and never sees Granite's answers. It can explain the dashboard, start a what-if (computed on premise) and send Slack messages for you.</p>
         <label id="scout-external-persist-label" htmlFor="scout-external-persist" className="flex min-h-11 items-center gap-2 text-sm"><input id="scout-external-persist" type="checkbox" className="accent-primary" checked={persist} disabled={persistForStrategy || saving} onChange={event => setPersist(event.target.checked)} />Save provider for the daily Strategy loop</label>
         {error && <p id="scout-external-error" role="alert" className="text-sm text-danger">{error}</p>}
         <DialogFooter id="scout-external-footer" className="gap-2">

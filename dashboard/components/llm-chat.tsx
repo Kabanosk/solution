@@ -91,7 +91,8 @@ export function LlmChat({ active }: { active: boolean }) {
     const controller = new AbortController();
     request.current = controller;
     const id = crypto.randomUUID();
-    setMessages([...history, { id, role: "assistant", content: "", status: "pending" }]);
+    const target = model === "external" ? "external" : "granite";  // tags the answer, and decides what history may be sent
+    setMessages([...history, { id, role: "assistant", content: "", status: "pending", producedBy: target }]);
     setBusy(true); setError(null); setNotice(""); setTruncated(false);
     follow.current = true;
     const update = (change: Partial<ChatTurn>) => setMessages(current => current.map(turn => turn.id === id ? { ...turn, ...change } : turn));
@@ -100,7 +101,7 @@ export function LlmChat({ active }: { active: boolean }) {
     const files: ChatFile[] = [];
     let completed = false;
     let failure = "Could not reach Scout. Try again.";
-    const request_ = requestFor(history);
+    const request_ = requestFor(history, target);
     try {
       const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, messages: request_.messages,
@@ -119,7 +120,7 @@ export function LlmChat({ active }: { active: boolean }) {
         else if (event.type === "delta" && typeof event.text === "string") { content += event.text; update({ content }); }
         else if (event.type === "compacted") {
           const summaryId = crypto.randomUUID();
-          setMessages(current => applyCompaction(current, request_.sources, event, summaryId));
+          setMessages(current => applyCompaction(current, request_.sources, event, summaryId, target));
           setNotice("Earlier messages were summarized to fit the model.");
         }
         else if (event.type === "file") { files.push({ name: event.name, mime: event.mime, dataB64: event.data_b64, sentToSlack: event.sent_to_slack }); update({ files: [...files] }); }
@@ -268,7 +269,7 @@ export function LlmChat({ active }: { active: boolean }) {
           </DropdownMenu>
           <p className="truncate text-[11px] text-muted-foreground">{busy ? "Scout is working…" : <><span className="hidden sm:inline">Enter to send · Shift + Enter for a new line · </span>Stays in this tab</>}</p>
         </div>
-        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">{EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name} answers with Scout's tools: your conversation and the company data those tools return are sent to this provider.</p>}
+        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">{EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name} receives this conversation. Company data stays with Granite: this model cannot read invoices, bank, email or files, but it can explain the dashboard, start a what-if and send Slack messages for you.</p>}
         <p role="status" className="sr-only">{notice}</p>
       </div>
     </div>

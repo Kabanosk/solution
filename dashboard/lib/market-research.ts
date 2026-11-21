@@ -128,7 +128,7 @@ export async function researchJobMarket(config: ExternalConfig, query: MarketRes
   providerFetch: typeof fetch = fetch): Promise<PublicResearch> {
   try { config = parseExternalConfig(config); query = parseMarketResearchQuery(query); }
   catch { throw new MarketResearchError("Specify a valid external provider, job role and location for research."); }
-  if (!supportsMarketResearch(config.provider)) throw new MarketResearchError("Live job-market research is available with OpenAI or Mistral. Groq's hosted web-search service has been retired.");
+  if (!supportsMarketResearch(config.provider)) throw new MarketResearchError(config.provider === "groq" ? "Live job-market research is available with OpenAI or Mistral. Groq's hosted web-search service has been retired." : "Live job-market research is available with OpenAI or Mistral.");
   const prompt = `Research date: ${new Date().toISOString().slice(0, 10)}. Public job criteria: ${JSON.stringify(query)}`;
   return researchPublicNews(config, INSTRUCTIONS, prompt, signal, providerFetch);
 }

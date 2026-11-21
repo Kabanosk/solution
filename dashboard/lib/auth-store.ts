@@ -86,6 +86,13 @@ export class AuthStore {
     } finally { client.release(); }
   }
 
+  /** A one-use sign-in link Scout sent on Slack: a session for that member, once, within 15 minutes. */
+  async consumeLoginLink(slug: string, token: string) {
+    if (!validSlug(slug) || !/^[a-f0-9]{64}$/.test(token)) return null;
+    const row = (await this.pool.query("WITH used AS (DELETE FROM scout_auth.login_links WHERE token_hash=$1 AND expires_at>now() RETURNING user_id,organization_id) SELECT u.user_id FROM used u JOIN scout_auth.organizations o ON o.id=u.organization_id WHERE o.slug=$2", [tokenHash(token), slug]).catch(() => ({ rows: [] }))).rows[0];
+    return row ? this.issue(this.pool, row.user_id, slug) : null;
+  }
+
   /** Every organization this account belongs to (the workspace switcher). */
   async organizations(userId: string) {
     return (await this.pool.query("SELECT o.slug,o.name FROM scout_auth.memberships m JOIN scout_auth.organizations o ON o.id=m.organization_id WHERE m.user_id=$1 ORDER BY lower(o.name)", [userId])).rows as { slug: string; name: string }[];

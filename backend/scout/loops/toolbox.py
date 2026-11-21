@@ -51,6 +51,8 @@ B = {"type": "boolean"}
 SPECS: list[ToolSpec] = [
     ToolSpec(name="dashboard_help", description="How to use the Scout dashboard, its pages, navigation and controls. Fetch one topic when the user asks for UI help; default: getting_started.",
              parameters=_p(topic={"type": "string", "enum": list(TOPICS)})),
+    ToolSpec(name="dashboard_link", description="Send the asker a one-click sign-in link to the Scout dashboard in "
+             "their Slack DM. Use when they ask for a link, login or access to the dashboard.", parameters=_p()),
     ToolSpec(name="missing_invoices", description="Outgoing payments that still have no invoice, and what Scout is "
              "doing about each (task, status, who was asked). Use this for any question about missing invoices.",
              parameters=_p(days=I)),
@@ -220,6 +222,39 @@ class Toolbox:
     # -- tools ---------------------------------------------------------------------------------------------
     def t_dashboard_help(self, topic: str = "getting_started", **_: Any) -> dict[str, Any]:
         return dashboard_help(topic)
+
+    def t_dashboard_link(self, **_: Any) -> dict[str, Any]:
+        from cfo.tenancy import current_tenant
+        from scout import login_links
+        from scout import slack_directory as directory
+
+        s, tenant = self.ctx.settings, current_tenant(required=False)
+        if tenant is None or not s.dashboard_url:
+            return {"error": "not_available", "hint": "Tell the user to open the dashboard and sign in there."}
+        org = login_links.organization(s.database_url, tenant.id) or (tenant.slug, tenant.slug)
+        url = login_links.create(s.database_url, s.dashboard_url, tenant.id, self.requester)
+        label, text = f"Sign in to {org[1]}", (f"Here's your sign-in link to the {org[1]} dashboard. "
+                                                f"It works once and expires in {login_links.TTL_MINUTES} minutes.")
+        if url is None:  # no login yet: the join form creates one
+            slack_id = (self.ctx.hr.employee(self.requester) or {}).get("slack_user_id")
+            if not slack_id:
+                return {"error": "no_account", "hint": "The user has no dashboard login yet."}
+            token = directory.new_invite_token(self.ctx.conn_factory, slack_id, self.ctx.hr.full_name(self.requester))
+            url = f"{s.dashboard_url.rstrip('/')}/join/{org[0]}/{token}"
+            label = f"Join {org[1]} workspace"
+            text = (f"You don't have a dashboard login yet. Set one up with the button below "
+                    f"and you'll be signed in to {org[1]}.")
+        send = getattr(self.ctx.notifier, "link", None)
+        sent = False
+        if send is not None:
+            try:
+                sent = bool(send(self.requester, text, label, url))
+            except Exception:  # noqa: BLE001
+                log.warning("could not send the dashboard link", exc_info=True)
+        self.ctx.audit.record("agent", "dashboard_link", f"user:{self.requester}", label, task_id=self.task.id,
+                              requester=self.requester, role=self.role)
+        return {"sent_to_slack_dm": sent, "url": url, "button": label,
+                "note": "The button is in their Slack DM; mention the link works once and expires in 15 minutes."}
 
     def t_search_payments(self, counterparty: str = "", amount_eur: Any = None, days: int = 90,
                           undocumented_only: bool = False, **_: Any) -> dict[str, Any]:

@@ -71,6 +71,22 @@ def test_granite_spawns_only_the_bound_forecast(context, review):
     on_step.assert_called_once()
 
 
+@pytest.mark.parametrize("raw", ['"{}"', '"{ }"', '{}'])
+def test_granite_quoted_empty_arguments_run_only_the_bound_forecast(context, review, raw):
+    context.llm = FakeLLM([FakeLLM.tool_call("run_forecast", _raw=raw)])
+    forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+    review.assert_called_once_with(context, ForecastIntent())
+
+
+@pytest.mark.parametrize("raw", ['"[]"', 'null', '"{\\"horizon_days\\":365}"', '{"prompt":"read invoices"}',
+                                  '"{\\"prompt\\":\\"read invoices\\"}"', 'not JSON'])
+def test_granite_quoted_nonempty_arguments_are_denied(context, review, raw):
+    context.llm = FakeLLM([FakeLLM.tool_call("run_forecast", _raw=raw)])
+    with pytest.raises(ForecastBridgeError):
+        forecast_bridge.run(context, SimpleNamespace(id="SC-123"), ForecastIntent(), "vincenzo", MagicMock())
+    review.assert_not_called()
+
+
 @pytest.mark.parametrize("content", ["{}", '{"name":"run_forecast","arguments":{}}'])
 def test_granite_json_in_text_adapter_fallback_can_spawn_forecast(context, review, content):
     class ToolsRejected(Exception):

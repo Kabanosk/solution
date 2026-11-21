@@ -70,6 +70,25 @@ class ForecastBridgeError(Exception):
     """A safe failure with no forecast or company action performed."""
 
 
+def _empty_arguments(arguments: dict[str, Any]) -> bool:
+    """Granite may quote its JSON arguments; accept only an encoded empty object.
+
+    The OpenAI adapter preserves non-object arguments under `_raw`. Decoding this
+    one known shape never permits the model to supply or change forecast inputs.
+    """
+    if not arguments:
+        return True
+    if set(arguments) != {"_raw"} or not isinstance(arguments["_raw"], str):
+        return False
+    try:
+        value = json.loads(arguments["_raw"])
+        if isinstance(value, str):
+            value = json.loads(value)
+    except (ValueError, TypeError):
+        return False
+    return isinstance(value, dict) and not value
+
+
 def _scenario_date(month: str, today: date) -> date:
     if re.fullmatch(r"20\d{2}-\d{2}", month):
         return date(int(month[:4]), int(month[5:]), 1)
@@ -147,7 +166,7 @@ def run(ctx: JobContext, task: Task, intent: ForecastIntent, requester: str,
     if len(response.tool_calls) != 1:
         raise ForecastBridgeError("Granite did not request the forecasting action. Try again.")
     call = response.tool_calls[0]
-    if call.name != RUN_FORECAST.name or call.arguments:
+    if call.name != RUN_FORECAST.name or not _empty_arguments(call.arguments):
         raise ForecastBridgeError("Granite requested an unsupported action. Nothing was changed.")
     ctx.audit.record("granite", "forecast", "bank", "read-only liquidity forecast", task_id=task.id,
                      requester=requester, policy="forecast-bridge: bound parameters; no company writes")

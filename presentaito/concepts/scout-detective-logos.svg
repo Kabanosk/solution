@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Scout detective hat logos</title>
+  <desc id="desc">Four options for Scout: a red fedora tipped over the S, a fedora badge, a fedora sitting over the o, and a frog wearing a fedora. The hat has a black band.</desc>
+  <defs>
+    <style>
+      text{font-family:system-ui,-apple-system,sans-serif;fill:#20392C}
+      .title{font-size:48px;font-weight:640;letter-spacing:-2.4px}
+      .word{font-size:86px;font-weight:650;letter-spacing:-5px}
+      .label{font-size:22px;font-weight:650;letter-spacing:-.55px}
+      .detail{font-size:17px;fill:#4D6354}
+      .rule{stroke:#CDD8C8}
+    </style>
+    <!-- Shared silhouette: pinched crown, exposed black ribbon, swept brim. -->
+    <symbol id="fedora" viewBox="0 0 100 62">
+      <path fill="#D22D35" d="M22 39c3-5 7-19 11-28C37 3 46 10 51 10c7 1 15-7 20 0 5 8 7 20 10 28-9 9-53 10-59 1Z"/>
+      <path fill="#F26562" d="M33 16c3-8 7-8 13-6l6 2c-9 0-14 4-18 12l-4 10-3 1Z"/>
+      <path fill="#251E20" d="M24 32c16 6 38 6 54-1l3 10c-15 8-42 8-60 1Z"/>
+      <path fill="#BB222D" d="M22 39c15 8 45 8 60-2 5-3 13-6 15-2 3 5-6 12-17 16-19 7-51 8-66 3C2 50 1 44 6 41c3-2 10-3 16-2Z"/>
+      <path fill="none" stroke="#F26562" stroke-width="2" stroke-linecap="round" d="M11 48c11 6 32 7 50 4"/>
+    </symbol>
+    <symbol id="frog" viewBox="0 0 96 96">
+      <path fill="#E1F4BC" d="M19 50a15 15 0 0 1 26-11h6a15 15 0 0 1 26 11c5 4 8 10 8 16 0 14-16 21-37 21S11 80 11 66c0-6 3-12 8-16Z"/>
+      <circle cx="31" cy="52" r="4.5" fill="#20392C"/><circle cx="65" cy="52" r="4.5" fill="#20392C"/>
+      <path d="M40 68q8 6 16 0" fill="none" stroke="#20392C" stroke-width="3" stroke-linecap="round"/>
+      <use href="#fedora" x="21" y="4" width="59" height="37" transform="rotate(-9 50 26)"/>
+    </symbol>
+    <symbol id="tile" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#20392C"/></symbol>
+  </defs>
+  <rect width="1200" height="800" fill="#F6F8F0"/>
+  <text class="title" x="64" y="83">Scout with a detective hat</text>
+  <text class="detail" x="66" y="118">Two hats worn by the wordmark, two standalone icons.</text>
+  <path class="rule" d="M64 152h1072M600 152v574M64 439h1072M64 726h1072" fill="none"/>
+  <g transform="translate(66 152)">
+    <text class="word" x="43" y="173">Scout</text>
+    <use href="#fedora" x="22" y="71" width="84" height="52" transform="rotate(-12 63 101)"/>
+    <text class="label" x="0" y="224">The Tip</text>
+    <text class="detail" x="0" y="253">A tilted fedora sits right on the S.</text>
+  </g>
+  <g transform="translate(648 152)">
+    <use href="#tile" x="12" y="83" width="93" height="93"/>
+    <use href="#fedora" x="22" y="104" width="73" height="45" transform="rotate(-7 58 127)"/>
+    <text class="word" x="127" y="165">Scout</text>
+    <use href="#tile" x="448" y="120" width="28" height="28"/>
+    <use href="#fedora" x="451" y="126" width="22" height="14" transform="rotate(-7 462 133)"/>
+    <text class="label" x="0" y="224">The Fedora</text>
+    <text class="detail" x="0" y="253">Just the hat. A clean badge for the app and Slack.</text>
+  </g>
+  <g transform="translate(66 439)">
+    <text class="word" x="43" y="173">Scout</text>
+    <use href="#fedora" x="124" y="87" width="65" height="40" transform="rotate(8 156 110)"/>
+    <text class="label" x="0" y="224">Undercover</text>
+    <text class="detail" x="0" y="253">A smaller hat tucked into the middle of the name.</text>
+  </g>
+  <g transform="translate(648 439)">
+    <use href="#tile" x="12" y="83" width="93" height="93"/>
+    <use href="#frog" x="12" y="83" width="93" height="93"/>
+    <text class="word" x="127" y="165">Scout</text>
+    <use href="#tile" x="448" y="120" width="28" height="28"/>
+    <use href="#frog" x="448" y="120" width="28" height="28"/>
+    <text class="label" x="0" y="224">The Detective Frog</text>
+    <text class="detail" x="0" y="253">The opening-slide mascot gets the hat.</text>
+  </g>
+</svg>

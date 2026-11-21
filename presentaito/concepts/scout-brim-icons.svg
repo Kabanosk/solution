@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="565" viewBox="0 0 1120 565" role="img" aria-labelledby="title desc">
+  <title id="title">Black-and-white brimmed hat marks</title>
+  <desc id="desc">Four takes on the same pinched-crown hat: front, three-quarter, side, and overhead. A fifth mark adds a magnifying glass. Each is shown black on white and as a small white icon on black.</desc>
+  <defs>
+    <symbol id="hat-front" viewBox="0 0 80 64">
+      <path fill="currentColor" fill-rule="evenodd" d="M16 40l7-20c1-4 4-7 8-7 4 0 6 4 9 4s5-4 9-4c4 0 7 3 8 7l7 20 10 3c4 1 4 5 0 7-9 5-20 7-34 7S15 55 6 50c-4-2-4-6 0-7l10-3Zm6 4c10 8 26 8 36 0-11 3-25 3-36 0Z"/>
+    </symbol>
+    <symbol id="hat-angled" viewBox="0 0 80 64">
+      <path fill="currentColor" fill-rule="evenodd" d="M16 43l3-19c1-6 5-9 9-9 5-1 9 3 13 2 5-1 6-6 12-6 4 0 6 3 7 6l8 18 7-2c3-1 5 2 3 5-7 11-23 19-43 21-11 1-23 0-30-5-3-2-3-5 0-7l11-4Zm9 2c11 5 28 1 39-7-5 9-28 15-39 7Z"/>
+    </symbol>
+    <symbol id="hat-side" viewBox="0 0 80 64">
+      <path fill="currentColor" fill-rule="evenodd" d="M14 41l5-22c1-5 5-8 10-8 5 1 8 5 13 5 5 1 10-1 13 2 3 3 5 7 8 16l12 3c4 1 4 5 0 7-14 9-31 13-51 11-9-1-16-4-20-8-2-3 0-6 3-6h7Zm9 1c10 4 22 4 34-1-9 9-25 9-34 1Z"/>
+    </symbol>
+    <symbol id="hat-overhead" viewBox="0 0 80 64">
+      <path fill="currentColor" fill-rule="evenodd" d="M40 4c20-1 36 10 37 26 2 18-13 30-36 30C19 61 3 49 3 33 3 17 18 5 40 4Zm0 9c-15 0-26 8-26 19 0 12 12 20 27 20 14 0 25-8 25-20 0-11-11-19-26-19Zm0 4c-11 0-21 6-21 15s10 15 22 15c11 0 20-6 20-15 0-8-9-15-21-15Zm-3 5c-5 5-5 12 0 19 1 2 5 2 6 0 4-6 4-14 0-19-2-2-4-2-6 0Z"/>
+    </symbol>
+    <symbol id="hat-find" viewBox="0 0 80 72">
+      <use href="#hat-angled" x="2" y="-5" width="65" height="52"/>
+      <circle cx="48" cy="53" r="10.5" fill="none" stroke="currentColor" stroke-width="5"/>
+      <path d="m56 61 9 8" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="tile" viewBox="0 0 44 44"><rect width="44" height="44" rx="10" fill="#141416"/></symbol>
+    <style>text{font:500 15px system-ui,-apple-system,sans-serif;fill:#555760;text-anchor:middle}</style>
+  </defs>
+  <rect width="1120" height="565" fill="#F6F7F9"/>
+  <rect x="32.5" y="32.5" width="1055" height="355" rx="16" fill="#FFF" stroke="#DFE1E7"/>
+  <path d="M296 33v354M560 33v354M824 33v354" stroke="#DFE1E7"/>
+  <g color="#141416">
+    <use href="#hat-front" x="100" y="96" width="128" height="102.4"/>
+    <use href="#hat-angled" x="364" y="96" width="128" height="102.4"/>
+    <use href="#hat-side" x="628" y="96" width="128" height="102.4"/>
+    <use href="#hat-overhead" x="892" y="96" width="128" height="102.4"/>
+  </g>
+  <g color="#FFF">
+    <use href="#tile" x="142" y="242" width="44" height="44"/><use href="#hat-front" x="150" y="252" width="28" height="22.4"/>
+    <use href="#tile" x="406" y="242" width="44" height="44"/><use href="#hat-angled" x="414" y="252" width="28" height="22.4"/>
+    <use href="#tile" x="670" y="242" width="44" height="44"/><use href="#hat-side" x="678" y="252" width="28" height="22.4"/>
+    <use href="#tile" x="934" y="242" width="44" height="44"/><use href="#hat-overhead" x="942" y="252" width="28" height="22.4"/>
+  </g>
+  <text x="164" y="334">1 · Front</text><text x="428" y="334">2 · Three-quarter</text>
+  <text x="692" y="334">3 · Side</text><text x="956" y="334">4 · Overhead</text>
+  <rect x="32.5" y="406.5" width="1055" height="126" rx="16" fill="#FFF" stroke="#DFE1E7"/>
+  <use href="#hat-find" x="121" y="421" width="86" height="96" color="#141416"/>
+  <text x="324" y="475">5 · Hat + magnifier</text>
+  <use href="#tile" x="934" y="448" width="44" height="44"/>
+  <use href="#hat-find" x="942" y="455" width="28" height="30" color="#FFF"/>
+</svg>

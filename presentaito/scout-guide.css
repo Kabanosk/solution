@@ -1,0 +1,22 @@
+/* The guide is drawn on one transparent canvas over the whole 1600 × 900 stage. */
+.guide-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+
+/* Make room for each hop; the product UI never has to wait for the frog. */
+[data-mascot-scene="loop"] .loopgrid { margin-bottom: 118px; }
+[data-mascot-scene="loop"] [data-perch]::after {
+  content: ""; position: absolute; width: 63px; height: 2px; border-radius: 4px;
+  left: 50%; bottom: -94px; translate: -50% 0; background: var(--line-2);
+}
+[data-mascot-scene="receipt"] .sk-msgs { padding-left: 132px; }
+[data-mascot-scene="receipt"] .sk-t { max-width: 1060px; }
+[data-mascot-scene="forecast"] .pitch-split > div { min-height: 368px; }
+[data-mascot-scene="forecast"] .pitch-result { align-content: start; }
+.mascot-no-dm { margin-left: auto; border: 1px solid var(--line-2); border-radius: 20px; padding: 4px 12px; font-size: 16px; color: var(--ink); }
+.mascot-meadow { position: absolute; right: 139px; bottom: 118px; width: 360px; height: 92px; }
+
+/* Hiding spots: the frog peeks over the top of a panel or around its side. */
+[data-mascot-scene="hide-top"] .uc { padding-top: 60px; }
+
+/* The reward on the last slide shows once the frog has settled. */
+.guide-reveal { margin: 0; font-size: 22px; color: var(--muted); opacity: 0; transition: opacity .7s ease; }
+.slide.reveal .guide-reveal { opacity: 1; }

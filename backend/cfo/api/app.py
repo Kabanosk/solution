@@ -16,6 +16,7 @@ from cfo.api.settings import get_api_settings
 from cfo.observability import init_tracing
 from scout.api import router as scout_router
 from scout.chat_api import router as scout_chat_router
+from scout.documents_api import router as documents_router
 from scout.ksef_api import router as ksef_router
 
 VERSION = "0.1.0"
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
         app.include_router(module.router)
     app.include_router(ksef_router)  # before Scout's router: /v1/demo/play/ksef beats /v1/demo/play/{scenario}
     app.include_router(scout_router)
+    app.include_router(documents_router)
     app.include_router(scout_chat_router)
 
     @app.get("/healthz", response_model=Health, tags=["system"], summary="Liveness probe (no database access)")

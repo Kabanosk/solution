@@ -40,8 +40,10 @@ MAX_STRIKES = 3
 WINDOW_DAYS = 7
 TIMEOUT_S = 5.0
 WARMUP_TIMEOUT_S = 30.0
-PROMPT_CHARS = 700  # per prompt in the compliance DM (Slack caps a message near 3000 characters)
-CHECK_CHARS = 8000  # the rails read the start of a long text; the service has no use for megabytes
+PROMPT_CHARS = 700  # per prompt, only when the full prompts could not be uploaded as a file to the compliance DM
+CHECK_CHARS = 8000  # one message to the service; longer texts are cut into overlapping chunks, all of them checked
+CHUNK_OVERLAP = 300  # so an instruction cut at a chunk boundary is still whole in one of them
+MAX_CHUNKS = 100
 
 WITHHELD = "[content withheld: flagged by guardrail]"
 OUTPUT_REPLY = "I could not share that answer safely. Please rephrase your question."
@@ -154,12 +156,20 @@ def _digest(text: str) -> str:
 
 def _messages(config_id: str, texts: list[str]) -> list[dict[str, str]]:
     """The shape each config expects: `user` messages, `tool` messages (with a tool_call_id), one `assistant`."""
-    texts = [t[:CHECK_CHARS] for t in texts]
+    chunks = [c for t in texts for c in _chunks(t)][:MAX_CHUNKS]
     if config_id == TOOL_RESULT:
-        return [{"role": "tool", "tool_call_id": f"scout-{i}", "content": t} for i, t in enumerate(texts, 1)]
+        return [{"role": "tool", "tool_call_id": f"scout-{i}", "content": c} for i, c in enumerate(chunks, 1)]
     if config_id == BOT_OUTPUT:
-        return [{"role": "assistant", "content": "\n".join(texts)}]
-    return [{"role": "user", "content": t} for t in texts]
+        return [{"role": "assistant", "content": c} for c in chunks]
+    return [{"role": "user", "content": c} for c in chunks]
+
+
+def _chunks(text: str) -> list[str]:
+    """The whole text, as messages of at most CHECK_CHARS that overlap a little (each is checked on its own)."""
+    if len(text) <= CHECK_CHARS:
+        return [text]
+    step = CHECK_CHARS - CHUNK_OVERLAP
+    return [text[i:i + CHECK_CHARS] for i in range(0, len(text) - CHUNK_OVERLAP, step)]
 
 
 def check(ctx: Any, config_id: str, texts: str | list[str], *, task_id: str | None = None,
@@ -188,7 +198,7 @@ def check(ctx: Any, config_id: str, texts: str | list[str], *, task_id: str | No
                              task_id=task_id, requester=requester, policy=config_id, reason=v.detail or v.status)
         elif v.blocked and record_block:
             ctx.audit.record("agent", "guardrail_check", f"guardrails:{config_id}",
-                             f"{source or config_id}: {_digest(chr(10).join(texts))}", "DENY", task_id=task_id,
+                             f"{source or config_id}: {_digest(chr(10).join(texts))}", "BLOCK", task_id=task_id,
                              requester=requester, policy=config_id, reason=v.rails)
     except Exception:  # noqa: BLE001 - an audit failure must not turn a verdict into a crash
         log.exception("could not audit the guardrail verdict")
@@ -229,7 +239,7 @@ def _strike(ctx: Any, person: str | None, role: str | None, prompt: str, rails: 
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"guardrail-strikes:{who}",))
         conn.execute("INSERT INTO guardrail_strikes (person, prompt, rails) VALUES (%s, %s, %s)",
                      (who, prompt, rails))
-        _audit(conn, "guardrail_check", f"guardrails:{USER_INPUT}", f"{USER_INPUT}: {_digest(prompt)}", "DENY",
+        _audit(conn, "guardrail_check", f"guardrails:{USER_INPUT}", f"{USER_INPUT}: {_digest(prompt)}", "BLOCK",
                task_id=task_id, requester=person, role=role, policy=USER_INPUT, reason=rails)
         strikes = conn.execute(
             "SELECT id, ts, prompt, rails FROM guardrail_strikes WHERE person = %s AND reported_at IS NULL "
@@ -255,11 +265,23 @@ def _report(ctx: Any, conn: Any, person: str | None, who: str, role: str | None,
             task_id: str | None) -> None:
     target = _compliance_target(ctx)
     rails = sorted({r for s in strikes for r in (s["rails"] or "").split(", ") if r})
-    lines = "\n".join(f"{i}. {s['ts']:%Y-%m-%d %H:%M} UTC: “{s['prompt'][:PROMPT_CHARS]}”"
-                      f"{' (shortened)' if len(s['prompt']) > PROMPT_CHARS else ''}" for i, s in enumerate(strikes, 1))
-    text = (f"Compliance alert: {ctx.hr.name(person) if person else 'someone'} "
+    listing = "\n\n".join(f"{i}. {s['ts']:%Y-%m-%d %H:%M} UTC\n{s['prompt']}" for i, s in enumerate(strikes, 1))
+    head = (f"Compliance alert: {ctx.hr.name(person) if person else 'someone'} "
             f"({(role or 'unknown role').replace('_', ' ')}) had {len(strikes)} messages blocked by the safety "
-            f"policy within {WINDOW_DAYS} days. Rails: {', '.join(rails) or 'unknown'}.\nThe blocked prompts:\n{lines}")
+            f"policy within {WINDOW_DAYS} days. Rails: {', '.join(rails) or 'unknown'}.")
+    link = None
+    try:  # the full prompts go as a file, so nothing is cut; the DM stays short
+        link = ctx.notifier.upload(target, [(f"blocked-prompts-{who}.txt", listing.encode())],
+                                   f"The {len(strikes)} blocked prompts of {who}, in full.")
+    except Exception:  # noqa: BLE001
+        log.exception("could not upload the blocked prompts")
+    if link:
+        text = f"{head}\nThe full prompts are in the file sent with this message."
+    else:  # no file possible: put the prompts in the message, shortened to what Slack can carry
+        short = "\n".join(f"{i}. {s['ts']:%Y-%m-%d %H:%M} UTC: “{s['prompt'][:PROMPT_CHARS]}”"
+                          f"{' (shortened)' if len(s['prompt']) > PROMPT_CHARS else ''}"
+                          for i, s in enumerate(strikes, 1))
+        text = f"{head}\nThe blocked prompts:\n{short}"
     ref: Any = None
     try:
         ref = ctx.notifier.dm(target, text, "NOTIFY", task_id=task_id)
@@ -299,6 +321,10 @@ def _outside_items(tool: str, result: dict[str, Any] | None) -> list[tuple[str, 
                  f"Slack message in {m.get('channel')} from {m.get('from')}", str(m.get("text") or ""))
                 for m in r.get("messages") or []]
     return []
+
+
+def alert_outside(ctx: Any, key: str, label: str, rails: str, task_id: str | None) -> None:
+    _notify_ceo_once(ctx, key, label, rails, task_id)
 
 
 def _notify_ceo_once(ctx: Any, key: str, label: str, rails: str, task_id: str | None) -> None:
@@ -358,3 +384,24 @@ def screen_output(ctx: Any, task_id: str | None, text: str, *, requester: str | 
     """`text`, or the rephrase request when the output rails block it. Not a strike."""
     v = check(ctx, BOT_OUTPUT, text, task_id=task_id, requester=requester, source=source)
     return OUTPUT_REPLY if v.blocked else text
+
+
+# -- 4. earlier turns the client sent --------------------------------------------------------------------
+def screen_history(ctx: Any, turns: list[dict[str, str]], *, task_id: str | None = None,
+                   requester: str | None = None) -> list[dict[str, str]]:
+    """The earlier turns of a dashboard conversation as the model may see them. The client supplies them, so Scout
+    cannot know it wrote the assistant turns: they are checked like tool results (one request; if it blocks, each
+    turn on its own) and a flagged one becomes the withheld notice. No strike: the sender may not be the author."""
+    mine = [i for i, t in enumerate(turns) if t["role"] == "assistant"]
+    if not mine:
+        return turns
+    v = check(ctx, TOOL_RESULT, [turns[i]["content"] for i in mine], task_id=task_id, requester=requester,
+              source="earlier assistant turns")
+    if not v.blocked:
+        return turns
+    out = list(turns)
+    for i in mine:
+        if check(ctx, TOOL_RESULT, turns[i]["content"], task_id=task_id, requester=requester,
+                 source="earlier assistant turn", record_block=False).blocked:
+            out[i] = {**turns[i], "content": WITHHELD}
+    return out

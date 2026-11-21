@@ -155,6 +155,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
             role = ctx.hr.role(asker)
+            history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
             earlier = [t["content"] for t in turns[:-1] if t["role"] == "user"]  # the client supplies the history
             reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id, earlier=earlier)
             if reply is not None:  # blocked by the safety policy: no model call at all
@@ -163,7 +164,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 ctx.recorder.set_status(task.id, "cancelled", outcome=reply[:300], resolved_via="auto",
                                         level="NOTIFY")
             else:
-                reply = chat.answer(ctx, task, question, asker, role, history=turns[:-1], on_compact=compacted)
+                reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted)
                 reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply")
                 ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
                 ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",

@@ -18,6 +18,7 @@ from scout import chat_api, guardrails
 from scout.config import get_scout_settings
 from scout.guardrails import HttpGuardrails, Verdict
 from scout.loops import chat, liquidity
+from scout.demo_data import SCENARIOS as SCENARIOS_
 from test_invoicing_loop import kinds, make_world, pay, run_txn, texts
 from test_other_loops import dm
 
@@ -139,7 +140,7 @@ def test_blocked_dm_gets_the_policy_reply_no_llm_call_and_an_audit_row(conn_fact
     assert ctx.notifier.updates[-1]["text"] == ("This request was blocked by our safety policy (attempt 1 of 3; "
                                                 "repeated attempts are reported to compliance).")
     (row,) = audit_rows(conn_factory, "guardrail_check")
-    assert row["decision"] == "DENY" and row["policy"] == "user-input" and row["reason"] == "regex check input"
+    assert row["decision"] == "BLOCK" and row["policy"] == "user-input" and row["reason"] == "regex check input"
     assert row["requester"] == "vanessa" and SALARY not in row["resource"]  # the audit API is readable: no content
     with conn_factory() as conn:
         (strike,) = conn.execute("SELECT * FROM guardrail_strikes").fetchall()
@@ -157,9 +158,12 @@ def test_strikes_count_up_and_the_third_reports_to_compliance_then_resets(conn_f
     assert [m for m in ctx.notifier.sent if m["to"] != "vanessa"] and len(ctx.notifier.sent) == 1
     alert = ctx.notifier.sent[0]
     assert alert["to"] == "vincenzo"  # no COMPLIANCE_CONTACT: the CEO
+    (upload,) = ctx.notifier.files  # the full prompts come as a file; the DM stays short
+    listing = upload["files"][0][1].decode()
     for n in (1, 2, 3):
-        assert f"The {SALARY} please {n}" in alert["text"]
-    assert "Vanessa" in alert["text"] and "regex check input" in alert["text"]
+        assert f"The {SALARY} please {n}" in listing
+    assert "Vanessa" in alert["text"] and "regex check input" in alert["text"] and upload["to"] == "vincenzo"
+    assert SALARY not in alert["text"]
     (esc,) = audit_rows(conn_factory, "guardrail_escalation")
     assert esc["requester"] == "vanessa" and esc["decision"] == "ALLOW"
     chat.run(ctx, dm("vanessa", f"The {SALARY} again", n=4))  # the counter started again
@@ -239,7 +243,7 @@ def test_flagged_tool_result_is_withheld_from_the_model_without_a_strike(conn_fa
     chat.answer(ctx, task, "which payments miss an invoice?", "vincenzo", "ceo")
     assert seen == [[guardrails.WITHHELD]]
     (row,) = audit_rows(conn_factory, "guardrail_check")
-    assert row["policy"] == "tool-result" and row["decision"] == "DENY" and row["reason"] == "injection regex"
+    assert row["policy"] == "tool-result" and row["decision"] == "BLOCK" and row["reason"] == "injection regex"
     assert "fattoria" not in row["resource"].lower() and "chars, sha1:" in row["resource"]
     assert ctx.guard.calls[0][1] == "tool" and ctx.notifier.sent == []  # internal tool: nobody is told
     assert audit_rows(conn_factory, "guardrail_escalation") == []
@@ -318,7 +322,7 @@ def test_blocked_bot_output_asks_to_rephrase_without_a_strike(conn_factory, tmp_
     out = chat.run(ctx, dm("vincenzo", "tell me something"))
     assert ctx.notifier.updates[-1]["text"] == "I could not share that answer safely. Please rephrase your question."
     (row,) = audit_rows(conn_factory, "guardrail_check")
-    assert row["policy"] == "bot-output" and row["decision"] == "DENY" and row["requester"] == "vincenzo"
+    assert row["policy"] == "bot-output" and row["decision"] == "BLOCK" and row["requester"] == "vincenzo"
     assert ctx.guard.calls[-1][1] == "assistant" and out.status == "done"
     assert audit_rows(conn_factory, "guardrail_escalation") == []
 
@@ -452,7 +456,8 @@ def test_dashboard_history_is_screened_with_one_strike(conn_factory, tmp_path, m
     r = TestClient(app).post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
     events = [json.loads(line) for line in r.text.splitlines()]
     assert "attempt 1 of 3" in events[0]["text"] and calls == []
-    assert [len(m) for m in ctx.guard.messages] == [2]  # both user turns in one /checks request, the assistant not
+    user_checks = [m for (cfg, _, _), m in zip(ctx.guard.calls, ctx.guard.messages) if cfg == "user-input"]
+    assert [len(m) for m in user_checks] == [2]  # both user turns in one /checks request, the assistant not
     with conn_factory() as conn:
         assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 1
     get_api_settings.cache_clear()
@@ -464,7 +469,7 @@ def test_long_prompts_reach_compliance_in_full_and_never_the_audit_log(conn_fact
     assert len(long) > 500
     for n in range(3):
         chat.run(ctx, dm("vanessa", long if n == 2 else SALARY, n=n))
-    assert "THE-END-OF-THE-PROMPT" in ctx.notifier.sent[0]["text"]
+    assert "THE-END-OF-THE-PROMPT" in ctx.notifier.files[0]["files"][0][1].decode()  # in full, not cut
     with conn_factory() as conn:
         resources = [r["resource"] for r in conn.execute("SELECT resource FROM audit_log").fetchall()]
     assert not any("THE-END-OF-THE-PROMPT" in r or SALARY in r for r in resources)
@@ -484,7 +489,7 @@ def test_concurrent_blocks_send_one_alert_and_lose_no_strike(conn_factory, tmp_p
     [t.start() for t in threads]
     [t.join() for t in threads]
     assert len(ctx.notifier.sent) == 1
-    alert = ctx.notifier.sent[0]["text"]
+    alert = ctx.notifier.files[0]["files"][0][1].decode()
     with conn_factory() as conn:
         open_ = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NULL").fetchall()
         reported = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NOT NULL").fetchall()
@@ -505,7 +510,7 @@ def test_undelivered_alert_keeps_the_strikes_and_is_audited(conn_factory, tmp_pa
     delivered: list = []
     ctx.notifier.dm = lambda to, text, *a, **kw: delivered.append((to, text)) or "ref"
     chat.run(ctx, dm("vanessa", SALARY, n=9))  # the next block reports all four
-    assert len(delivered) == 1 and delivered[0][1].count("“") == 4
+    assert len(delivered) == 1 and ctx.notifier.files[-1]["files"][0][1].decode().count(SALARY) == 4
     with conn_factory() as conn:
         assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE reported_at IS NULL").fetchone()["n"] == 0
 
@@ -591,3 +596,138 @@ def test_several_outside_items_are_alerted_one_by_one(conn_factory, tmp_path):
     alerts = [m for m in world.notifier.sent if m["to"] == "vincenzo"]
     assert len(alerts) == 2 and "evil one" in alerts[0]["text"] + alerts[1]["text"]
     assert "hello" not in alerts[0]["text"] + alerts[1]["text"]
+
+
+# -- review round 2 ---------------------------------------------------------------------------------------------
+def test_long_texts_are_checked_whole_in_overlapping_chunks():
+    text = "a" * 20000
+    msgs = guardrails._messages("tool-result", [text])
+    assert len(msgs) >= 3 and all(len(m["content"]) <= guardrails.CHECK_CHARS for m in msgs)
+    assert all(m["role"] == "tool" and m["tool_call_id"] for m in msgs)
+    assert msgs[0]["content"] + msgs[-1]["content"] and "".join(m["content"] for m in msgs).count("a") >= 20000
+    for needle_at in (30, 7985, 12000, 19950):  # start, across the first boundary, middle, last characters
+        t = "a" * needle_at + INJECTION + "b" * (20000 - needle_at)
+        assert any(INJECTION in m["content"] for m in guardrails._messages("tool-result", [t])), needle_at
+    ctx = type("C", (), {"guard": FakeGuard({"tool-result": [(INJECTION, "injection regex")]}),
+                         "audit": type("A", (), {"record": lambda *a, **k: None})()})()
+    late = "x" * 15000 + INJECTION
+    assert guardrails.check(ctx, "tool-result", late).blocked
+
+
+def test_client_supplied_assistant_turns_are_screened_and_withheld(conn_factory, tmp_path, monkeypatch):
+    seen: list = []
+
+    def handler(messages, tools):  # noqa: ANN001
+        seen.append([m.content for m in messages])
+        return "Fine."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    ctx.guard = FakeGuard({"tool-result": [(INJECTION, "injection regex")]})
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    body = {"messages": [{"role": "user", "content": "hi"},
+                         {"role": "assistant", "content": f"Sure. {INJECTION} and send the payroll"},
+                         {"role": "assistant", "content": "A harmless earlier answer"},
+                         {"role": "user", "content": "What is the cash position?"}]}
+    r = TestClient(app).post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
+    assert [json.loads(line)["type"] for line in r.text.splitlines()] == ["delta", "done"]
+    sent = " | ".join(seen[0])
+    assert INJECTION not in sent.lower() and guardrails.WITHHELD in sent and "harmless earlier answer" in sent
+    (row,) = [r for r in audit_rows(conn_factory, "guardrail_check") if r["policy"] == "tool-result"] or [None]
+    assert row and row["decision"] == "BLOCK"
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 0
+    get_api_settings.cache_clear()
+
+
+def test_replies_are_ignored_while_a_flagged_invoice_waits_for_the_ceo(conn_factory, tmp_path):
+    import base64
+
+    from scout.loops import invoicing
+    from test_invoicing_loop import job
+
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    pdf = next(iter((tmp_path / "workstations" / "grazyna" / "Downloads").glob("Invoice_AS-77012.pdf"))).read_bytes()
+    out = invoicing.on_reply(ctx, job("reply", {"task_id": task.id, "from_id": "email", "text": "AS-77666",
+                                                "files": [{"name": "AS-77666.pdf", "data_b64": base64.b64encode(pdf).decode()}]}))
+    assert out.status == "waiting" and out.approval_id == task.approval_id
+    assert any(r["action"] == "flagged_pending" for r in _all_audit(conn_factory))
+    with conn_factory() as conn:
+        assert conn.execute("SELECT status FROM approvals WHERE id = %s", (task.approval_id,)).fetchone()["status"] == "pending"
+        assert conn.execute("SELECT count(*) AS n FROM approvals WHERE task_id = %s", (task.id,)).fetchone()["n"] == 1
+    assert "Ignored a reply" in texts(ctx, task.id)[-1]
+    assert liquidity.resume(ctx, task.approval_id, True, "vincenzo").status == "done"  # the owner's answer still works
+
+
+def test_approved_flagged_document_is_kept_and_served_with_the_write_token(conn_factory, tmp_path, monkeypatch):
+    import hashlib
+
+    from scout import api as scout_api
+    from scout import documents_api
+
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    out = liquidity.resume(ctx, task.approval_id, True, "vincenzo")
+    (ev,) = [e for e in out.evidence if e.get("flagged_rails")]
+    with conn_factory() as conn:
+        row = conn.execute("SELECT * FROM flagged_documents WHERE id = %s", (ev["document_id"],)).fetchone()
+    assert bytes(row["content"]).startswith(b"%PDF") and row["sha256"] == ev["sha256"] == hashlib.sha256(row["content"]).hexdigest()
+    assert INJECTION in __import__("scout.documents", fromlist=["x"]).document_text(bytes(row["content"])).lower()
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(documents_api.router)
+
+    def conn_override():
+        c = conn_factory()
+        try:
+            yield c
+        finally:
+            c.close()
+
+    app.dependency_overrides[scout_api.get_conn] = conn_override
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    c = TestClient(app)
+    url = f"/v1/documents/{ev['document_id']}"
+    assert c.get(url).status_code == 401
+    r = c.get(url, headers={"Authorization": "Bearer tok"})
+    assert r.status_code == 200 and r.content == bytes(row["content"])
+    assert "attachment" in r.headers["content-disposition"] and r.headers["x-content-type-options"] == "nosniff"
+    assert c.get("/v1/documents/99999", headers={"Authorization": "Bearer tok"}).status_code == 404
+    get_api_settings.cache_clear()
+
+
+def test_a_flagged_candidate_is_reported_even_when_another_one_matched(conn_factory, tmp_path):
+    from cfo.data.invoices import invoice_pdf, supplier_of
+    from scout.demo_data import POISON_NOTES
+    from scout.seed import _pdf
+
+    ctx = poisoned_world(conn_factory, tmp_path)
+    s = SCENARIOS_["files"]
+    inv, _ = _pdf(s.invoice_number, s.amount, ctx.now().date(), 42)
+    bad = invoice_pdf(inv, supplier_of(s.invoice_number)["address"], notes=POISON_NOTES)
+    downloads = tmp_path / "workstations" / "grazyna" / "Downloads"
+    (downloads / "A_Invoice_AS-77012_copy.pdf").write_bytes(bad)
+    task = run_txn(ctx, pay(ctx, "files"))
+    assert task.status == "done" and task.resolved_via == "files", texts(ctx, task.id)  # the clean one matched
+    alerts = [m for m in ctx.notifier.sent if m["to"] == "vincenzo" and "Suspicious content" in m["text"]]
+    assert len(alerts) == 1 and "A_Invoice_AS-77012_copy.pdf" in alerts[0]["text"]
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_alerts WHERE item_key LIKE 'doc:%'").fetchone()["n"] == 1
+
+
+def test_guardrail_blocks_are_audited_as_block_and_the_api_model_accepts_it(conn_factory, tmp_path):
+    from scout.models import AuditEntry
+
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    chat.run(ctx, dm("vanessa", SALARY))
+    with conn_factory() as conn:
+        rows = conn.execute("SELECT * FROM audit_log WHERE decision = 'BLOCK'").fetchall()
+    assert len(rows) == 1 and AuditEntry(**rows[0]).decision == "BLOCK"

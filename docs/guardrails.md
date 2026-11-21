@@ -173,7 +173,7 @@ too, in the same request; one request is one strike). `tool-result`: `tool` mess
 **Strikes.** A blocked human message is stored in full in the table `guardrail_strikes` (person, time, prompt, rails),
 which no API exposes. Strikes are counted per person in a rolling 7-day window. Recording, counting, the alert and the
 reset happen in one transaction under a per-person advisory lock. The 3rd open strike DMs the compliance contact
-(who, when, the rails and the prompts it consumes, each shortened to 700 characters in the DM) and marks those
+(who, when and the rails in the message; the prompts it consumes in full as a `.txt` file sent with it, shortened to 700 characters in the message only if no file can be sent) and marks those
 strikes reported (`guardrail_escalation`). If the DM was not delivered (no Slack channel), nothing is reset and
 `guardrail_escalation_failed` is audited; the next block reports again.
 
@@ -181,16 +181,18 @@ strikes reported (`guardrail_escalation`). If the DM was not delivered (no Slack
 the text passes, a warning is logged and an audit row `guardrail_unavailable` is written. The worker fires one warm-up call
 (30 s timeout) at start, because the first call after a NeMo restart takes 10-25 s.
 
-**Audit.** Every blocking verdict (`guardrail_check`, decision `DENY`, policy = config id, reason = rails), every
-fail-open and every escalation shows up on the dashboard Audit page ("DENY only" filters the blocks). The checked content is
+**Audit.** Every blocking verdict (`guardrail_check`, decision `BLOCK`, policy = config id, reason = rails), every
+fail-open and every escalation shows up on the dashboard Audit page ("DENY / BLOCK only" filters them; BLOCK is a red badge). The checked content is
 never stored in `audit_log` (its `resource` holds the config id, the length and a short hash): the audit API is readable.
+
+**Long texts and history.** Texts over 8000 characters are cut into overlapping chunks, each sent as its own message of one `/checks` call (any blocked chunk blocks). The assistant turns of the dashboard history are client-supplied, so they are checked with `tool-result`; a flagged one reaches the model as `[content withheld: flagged by guardrail]` (audited, no strike).
 
 **Outside content.** A flagged mail, file or chat message in a tool result is withheld from the model and the owner is
 DMed once per item; the item key (mail hash, file path, chat message hash) is kept in `guardrail_alerts` and only
 written after the DM was delivered. A flagged invoice goes to the owner's approval card. Approve attaches the original
 document as task evidence (mail id or file path, flagged rails) and files the invoice with the number and amount of the
 payment, marked unverified in the step, the outcome and the audit row `file_flagged_invoice`; a KSeF invoice is filed with
-its own fields. Reject leaves the payment without an invoice.
+its own fields. Reject leaves the payment without an invoice. The original flagged PDF is kept in `flagged_documents` (evidence `document_id`, `sha256`) and served by `GET /v1/documents/{id}` (`scout/documents_api.py`) with the write token. While the card is pending the task ignores new replies (audit `flagged_pending`). A flagged candidate that is not on a card (another candidate matched) gets the once-per-document suspicious-content DM.
 
 **MLflow.** Scout's LLM client is wrapped with `traced_llm` and `init_tracing()` runs in the worker (the API app
 already calls it); each job is one trace `scout.<job kind>`, guardrail checks are `guardrails.check` spans with

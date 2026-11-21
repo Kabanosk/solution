@@ -10,6 +10,7 @@ yet) and `reply` (a person or a mail answered, maybe with a PDF).
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
@@ -69,6 +70,7 @@ class Match:
         self.text = ""
         self.mismatch: InvoiceDoc | None = None
         self.flagged: dict[str, Any] | None = None  # the first document the safety check flagged (never read)
+        self.flagged_all: list[dict[str, Any]] = []  # every flagged candidate, the first one included
 
 
 def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | None, day: date) -> Match:
@@ -81,8 +83,10 @@ def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | No
             continue
         v = guardrails.screen_document(ctx, task.id, text, f"{ev.get('kind', 'document')} {name}")
         if v.blocked:  # the model never sees it; the CEO decides (see `hold_flagged`)
-            m.flagged = m.flagged or {"name": name, "evidence": ev, "rails": v.rails,
-                                      "from": ev.get("from") or ev.get("location") or ""}
+            entry = {"name": name, "evidence": ev, "rails": v.rails, "data": data,
+                     "from": ev.get("from") or ev.get("location") or ""}
+            m.flagged_all.append(entry)
+            m.flagged = m.flagged or entry
             continue
         doc = _doc_from_text(ctx, text, number=number, supplier=task.counterparty or "", fallback_day=day,
                              source=ev["ref"])
@@ -93,6 +97,32 @@ def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | No
             return m
         m.mismatch = m.mismatch or doc
     return m
+
+
+def _alert_flagged(ctx: JobContext, task: Task, m: Match) -> None:
+    """Every flagged candidate reaches the owner, once per document: the first one is on the approval card when no
+    candidate matched (`hold_flagged`); the others, and all of them when another candidate matched and was filed,
+    get the suspicious-content DM."""
+    for f in m.flagged_all[(0 if m.doc else 1):]:
+        ev = f["evidence"]
+        key = f"doc:{ev.get('ref') or f['name']}:{hashlib.sha256(f['data']).hexdigest()[:16]}"
+        guardrails.alert_outside(ctx, key, f"{f['name']}" + (f" ({f['from']})" if f.get("from") else ""),
+                                 f["rails"], task.id)
+
+
+def _keep_document(ctx: JobContext, task: Task, name: str, data: bytes) -> int:
+    """The original flagged document, kept in Postgres so that an approved invoice has a retrievable attachment."""
+    with ctx.conn_factory() as conn:
+        row = conn.execute("INSERT INTO flagged_documents (task_id, name, sha256, content) VALUES (%s, %s, %s, %s) "
+                           "RETURNING id", (task.id, name, hashlib.sha256(data).hexdigest(), data)).fetchone()
+        conn.commit()
+    return row["id"]
+
+
+def _approval_pending(ctx: JobContext, task: Task) -> bool:
+    with ctx.conn_factory() as conn:
+        return conn.execute("SELECT 1 FROM approvals WHERE task_id = %s AND status = 'pending'",
+                            (task.id,)).fetchone() is not None
 
 
 def hold_flagged(ctx: JobContext, task: Task, flagged: dict[str, Any], number: str | None, day: date,
@@ -106,6 +136,9 @@ def hold_flagged(ctx: JobContext, task: Task, flagged: dict[str, Any], number: s
     ev.setdefault("kind", "document")
     ev.setdefault("ref", flagged["name"])
     ev["flagged_rails"] = flagged["rails"]
+    if flagged.get("data"):  # keep the original: a Slack PDF has no other place to be fetched from
+        ev["document_id"] = _keep_document(ctx, task, flagged["name"], flagged["data"])
+        ev["sha256"] = hashlib.sha256(flagged["data"]).hexdigest()
     unverified = doc is None
     doc = doc or InvoiceDoc(number=number or f"FLAGGED-{task.id}", supplier=(task.counterparty or "unknown")[:200],
                             issue_date=day, total=abs(task.amount), source=ev["ref"])
@@ -271,6 +304,7 @@ def _rung_files(ctx: JobContext, task: Task, number: str | None, day: date) -> t
              else "no receipt")
     ctx.recorder.step(task.id, "checked_files", f"Checked {ctx.hr.name(owner)}'s company folders: {found}",
                       source=f"workstation:{owner}", result_count=len(files))
+    _alert_flagged(ctx, task, m)
     if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, day):
         return True, None
     if m.doc and _file_match(ctx, task, m, "files"):
@@ -301,6 +335,7 @@ def _rung_email(ctx: JobContext, task: Task, number: str | None, day: date) -> t
     found = (f"found {m.name}" if m.doc else "found a different amount" if m.mismatch else "no receipt")
     ctx.recorder.step(task.id, "checked_email", f"Checked company email: {found}", source=f"mail:{mail.name}",
                       result_count=len(hits))
+    _alert_flagged(ctx, task, m)
     if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, day):
         return True, None
     if m.doc and _file_match(ctx, task, m, "email"):
@@ -471,6 +506,12 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
         return task
     who_id = p.get("from_id")
     who = "Company email" if who_id == "email" else ctx.hr.name(who_id)
+    if _approval_pending(ctx, task):  # a flagged document waits for the owner: nothing new changes that
+        ctx.recorder.step(task.id, "note", f"Ignored a reply from {who} while the owner decides on a flagged document",
+                          source="guardrails")
+        ctx.audit.record("agent", "flagged_pending", f"task:{task.id}", f"reply from {who_id} ignored", "DENY",
+                         task_id=task.id, requester=who_id, policy="guardrails: approval pending")
+        return ctx.recorder.get(task.id)
     via = "email" if who_id == "email" else "slack_dm"
     files = p.get("files") or []
     number = invoice_number_in(task.title) or invoice_number_in(p.get("text") or "")
@@ -489,6 +530,7 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
                    "source": "slack:dm" if via == "slack_dm" else "mail"}) for f in pdfs]
         m = _match(ctx, task, cands, number, ctx.now().date())
         mismatch = m.mismatch
+        _alert_flagged(ctx, task, m)
         if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, ctx.now().date()):
             return ctx.recorder.get(task.id)
         if m.doc and _file_match(ctx, task, m, via, who=None if via == "email" else who):

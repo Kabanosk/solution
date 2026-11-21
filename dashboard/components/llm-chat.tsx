@@ -183,8 +183,8 @@ export function LlmChat({ active }: { active: boolean }) {
                 {turn.content ? <Markdown source={turn.content} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
                   : turn.files?.length ? null : turn.status === "pending" ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />Working…</span>
                   : <span className="text-sm text-muted-foreground">No response received.</span>}
-                {turn.followups?.map(update => <div key={update.id} className="rounded-lg border border-emerald-600/20 bg-emerald-50/60 px-3.5 py-2.5 dark:bg-emerald-950/30">
-                  <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-emerald-700 uppercase dark:text-emerald-400"><BellRing className="size-3" aria-hidden="true" />Update</p>
+                {turn.followups?.map(update => <div key={update.id} className="rounded-lg border border-success-border bg-success-muted px-3.5 py-2.5">
+                  <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-success uppercase"><BellRing className="size-3" aria-hidden="true" />Update</p>
                   <Markdown source={update.text} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
                 </div>)}
                 {turn.awaiting && turn.id === [...messages].reverse().find(item => item.awaiting)?.id && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Scout posts updates here as they happen</p>}

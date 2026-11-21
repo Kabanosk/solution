@@ -38,7 +38,7 @@ export function TaskRow({ task, ownerName, unseen = false, onOpen }: { task: Age
       <span className="w-14 shrink-0 font-mono text-[12px] text-muted-foreground">{task.id}</span>
       <StatusIcon status={task.status} />
       <span className={cn("min-w-0 flex-1 truncate", task.status === "cancelled" && "text-muted-foreground line-through", unseen && "font-medium")}>{task.title}</span>
-      {unseen && <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="New result" aria-label="New result" />}
+      {unseen && <span className="size-1.5 shrink-0 rounded-full bg-primary" title="New result" aria-label="New result" />}
       <span className="hidden shrink-0 text-[11px] text-muted-foreground md:inline">{LOOP_LABEL[task.loop] ?? task.loop}</span>
       {task.simulated && <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">SIMULATED</Badge>}
       <ChannelChip task={task} />

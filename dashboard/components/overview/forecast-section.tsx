@@ -7,7 +7,6 @@ import type { Forecast } from "@/lib/finance-model";
 import {
   BUFFER_STATUS_LABEL, coverage, formatCoverage, gaugeStatus, niceTicks, TIGHT_UNDER, withWhatIf, type BufferStatus, type WhatIf,
 } from "@/lib/overview-model";
-import { cn } from "@/lib/utils";
 import { day, eur, Panel, Segmented, Swatch } from "./panel";
 
 type Range = "90d" | "12m";
@@ -88,12 +87,7 @@ function ForecastCard({ forecast, range, onRange, scenario, onScenario, whatIf }
   </Panel>;
 }
 
-const STATUS_COLOR: Record<BufferStatus, string> = { healthy: "var(--success)", tight: "var(--warning)", below: "var(--danger)" };
-const STATUS_PILL: Record<BufferStatus, string> = {
-  healthy: "border-success-border bg-success-muted text-success",
-  tight: "border-warning-border bg-warning-muted text-warning",
-  below: "border-danger-border text-danger",
-};
+const STATUS_COLOR: Record<BufferStatus, string> = { healthy: "var(--chart-balance)", tight: "var(--warning-mark)", below: "var(--danger)" };
 const SCALE = 3; // the dial runs from 0 to 3× the buffer; more is shown as "3×+" on the dial and exactly in the text
 
 /** Semicircle of cash against the safety buffer: zones labelled, today's coverage as the filled arc, the lowest point ahead as a marker. */
@@ -118,14 +112,14 @@ function BufferGauge({ forecast, range }: { forecast: Forecast | null; range: Ra
   const ticks: [number, string][] = [[0, "0"], [1, "1× buffer"], [TIGHT_UNDER, "1.5×"], [SCALE, "3×"]];
 
   return <Panel id="scout-buffer" title="Safety buffer" meta={`One month of fixed costs · ${horizon}`}
-    actions={<span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", STATUS_PILL[status])} data-status={status}>{BUFFER_STATUS_LABEL[status]}</span>}>
+    actions={<span className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium" data-status={status}><span aria-hidden="true" className="size-1.5 rounded-full" style={{ background: STATUS_COLOR[status] }} />{BUFFER_STATUS_LABEL[status]}</span>}>
     <div className="flex flex-1 flex-col gap-3 px-4 pt-3 pb-4" data-ratio={ratio.toFixed(3)} data-lowest={lowest.balance} data-buffer={buffer}>
       <figure className="relative mx-auto w-full max-w-[260px]">
         <svg viewBox="0 0 220 122" role="img" aria-label={sentence} className="w-full overflow-visible">
-          <path d={arc(0, 1)} fill="none" stroke="var(--danger)" strokeOpacity={0.18} strokeWidth={12} />
-          <path d={arc(1, TIGHT_UNDER)} fill="none" stroke="var(--warning)" strokeOpacity={0.2} strokeWidth={12} />
-          <path d={arc(TIGHT_UNDER, SCALE)} fill="none" stroke="var(--success)" strokeOpacity={0.16} strokeWidth={12} />
+          <path d={arc(0, SCALE)} fill="none" stroke="var(--muted)" strokeWidth={12} />
           {ratio > 0 && <path d={arc(0, Math.min(ratio, SCALE))} fill="none" stroke={STATUS_COLOR[status]} strokeWidth={12} strokeLinecap="butt" />}
+          {[1, TIGHT_UNDER].map((value) => { const [a, b] = point(value, r - 6); const [c, d] = point(value, r + 6);
+            return <line key={value} x1={a} y1={b} x2={c} y2={d} stroke="var(--card)" strokeWidth={2} />; })}
           <line x1={lx1} y1={ly1} x2={lx2} y2={ly2} stroke="var(--foreground)" strokeWidth={2} />
           {ticks.map(([value, label]) => {
             const [x, y] = point(value, r + 20);
@@ -133,7 +127,7 @@ function BufferGauge({ forecast, range }: { forecast: Forecast | null; range: Ra
           })}
         </svg>
         <figcaption className="absolute inset-x-0 bottom-0 text-center" aria-hidden="true">
-          <span className="block font-mono text-[28px] leading-none font-medium tracking-tight" style={{ color: STATUS_COLOR[status] }}>{formatCoverage(ratio)}</span>
+          <span className="block font-mono text-[28px] leading-none font-medium tracking-tight">{formatCoverage(ratio)}</span>
           <span className="mt-1 block text-[11px] text-muted-foreground">covers {formatCoverage(ratio)} the buffer</span>
         </figcaption>
       </figure>

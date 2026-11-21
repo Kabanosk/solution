@@ -1,7 +1,7 @@
 ---
 id: T051
 title: NeMo Guardrails service on OpenShift AI with three check configs (input, tool result, output)
-status: todo
+status: review
 owner: coder
 branch: task/T051-nemo-guardrails
 depends_on: []

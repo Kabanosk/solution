@@ -1,7 +1,7 @@
 ---
 id: T052
 title: Scout calls NeMo checks at three points, strikes and compliance escalation, audit and MLflow
-status: todo
+status: review
 owner: coder
 branch: task/T052-scout-guardrails
 depends_on: ["T051"]

@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 16
+    assert len(SPECS) == 17
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -170,3 +170,20 @@ def test_send_dm_messages_a_colleague_on_slack_with_attribution(conn_factory, tm
     assert b.call("send_dm", {"person": "Rosa", "text": "hi"})["error"] == "not_on_slack"
     assert b.call("send_dm", {"person": "Norbert", "text": "hi"})["error"] == "unknown_person"
     assert b.call("send_dm", {"person": "Wojtek", "text": " "})["error"] == "missing_arguments"
+
+
+def test_close_tasks_by_their_owner_with_a_reason(conn_factory, tmp_path):
+    from test_other_loops import waiting_task
+
+    ctx = make_world(conn_factory, tmp_path, grazyna_away=False)
+    t = waiting_task(ctx)
+    assert box(ctx, "grazyna").call("close_tasks", {"task_ids": t.id})["error"] == "missing_arguments"
+    denied = box(ctx, "vanessa").call("close_tasks", {"task_ids": t.id, "reason": "refund, no invoice"})
+    assert denied["closed"] == [] and denied["skipped"][0]["why"] == "not yours to close"
+    out = box(ctx, "grazyna").call("close_tasks", {"task_ids": "all", "reason": "It was refunded, no invoice"})
+    assert out["closed"] == [t.id]
+    done = ctx.recorder.get(t.id)
+    assert done.status == "done" and done.resolved_via == "slack_dm" and "refunded" in done.outcome
+    assert any(u["ref"] == done.slack_ref and "Closed" in u["text"] for u in ctx.notifier.updates)
+    again = box(ctx, "grazyna").call("close_tasks", {"task_ids": t.id.lower(), "reason": "x refund"})
+    assert again["closed"] == [] and again["skipped"][0]["why"] == "already done"

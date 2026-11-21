@@ -48,11 +48,12 @@ export function decimalCents(amount: string): bigint {
   return (BigInt(match[2]) * 100n + BigInt(match[3])) * (match[1] ? -1n : 1n);
 }
 
+// the same teal ramp + greys as the Overview charts (globals.css --chart-*): no one-off hex colours
 const palette: Record<string, [string, string]> = {
-  payroll: ["Payroll", "#277757"], food: ["Food", "#929292"],
-  beverages: ["Beverages", "#626262"], partner_investment: ["Partner investment", "#F3A455"],
-  rent: ["Rent", "#42C994"], utilities: ["Utilities", "#277757"],
-  tax: ["Tax", "#E86B6B"], social_security: ["Social security", "#F3A455"],
+  payroll: ["Payroll", "var(--chart-balance)"], social_security: ["Social security", "var(--chart-2)"],
+  rent: ["Rent", "var(--chart-3)"], tax: ["Tax", "var(--chart-4)"], utilities: ["Utilities", "var(--chart-5)"],
+  food: ["Food", "var(--chart-2)"], beverages: ["Beverages", "var(--chart-3)"],
+  partner_investment: ["Partner investment", "var(--chart-5)"],
 };
 
 export function financePeriod(rows: { category: string | null; count: string; income: string; expense: string }[]): FinancePeriod {
@@ -68,7 +69,7 @@ export function financePeriod(rows: { category: string | null; count: string; in
     transactions, totalRevenue: displayCents(income), totalExpenses: displayCents(expense),
     expenses: rows.filter(row => BigInt(row.expense) > 0n).map(row => ({
       name: palette[row.category ?? ""]?.[0] ?? row.category?.replaceAll("_", " ") ?? "Other",
-      color: palette[row.category ?? ""]?.[1] ?? "#626262",
+      color: palette[row.category ?? ""]?.[1] ?? "var(--chart-4)",
       amount: displayCents(row.expense),
       percentage: expense === 0n ? 0 : Number(BigInt(row.expense) * 10000n / expense) / 100,
     })),

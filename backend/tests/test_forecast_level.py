@@ -235,10 +235,18 @@ def test_compare_scores_every_feature_set_and_names_the_best(statement):
     best = min(result["scores"], key=lambda k: result["scores"][k]["balance_error_90d"])
     assert result["best_feature_set"] == best
     assert result["best_feature_set"] != "calendar"
-    # T068: the default of train() follows the verdict of `compare --weekly` (a new set must clear the whole bar on
-    # the weekly folds to replace the reference); the lowest month-end error alone no longer decides, because the
-    # six month-end folds (four reach 90 days, one is the unknowable 30 Jun origin) are too few to carry a default
-    assert cmp.assess(statement)["best_feature_set"] == m.DEFAULT_FEATURE_SET, "the default must be the verdict's winner"
+    # T068 / D-039: the default is `components` by the owner's explicit decision (.house/DECISIONS.md D-039,
+    # .house/reports/T068.md), NOT because the frozen bar calls it better. The verdict stays as measured: `components`
+    # misses the weekly balance_error_90d point (9.3 % below `level_baseline`, 10 % required), so it is `not_better`
+    # and the reference of the bar is still `level_baseline` with its own parameters.
+    assert m.DEFAULT_FEATURE_SET == "components"
+    verdict = cmp.assess(statement)
+    assert verdict["verdict"] == "not_better" and verdict["reference"] == "level_baseline"
+    assert verdict["best_feature_set"] == "level_baseline" and verdict["best_candidate"] == "components"
+    failed = [p["id"] for p in verdict["bar"] if not p["passed"]]
+    assert failed == ["weekly_balance_error_90d"], failed
+    point = verdict["bar"][0]
+    assert point["value"] == pytest.approx(6692.3, abs=1.0) and point["threshold"] == pytest.approx(6637.7, abs=1.0)
 
 
 # -- review round 1 ----------------------------------------------------------------------------------------
@@ -246,12 +254,36 @@ def test_default_feature_set_falls_back_to_calendar_when_the_levels_cannot_be_bu
     short = _stepped_history(start="2025-12-01", end="2025-12-10")  # 10 days: too short for a level model
     with caplog.at_level("WARNING"):
         model = m.train(short, log_to_mlflow=False)
-    assert model.feature_set == "calendar" and model.level_values == {}
-    assert "calendar" in caplog.text
+    assert model.feature_set == "calendar" and model.level_values == {} and model.schedule is None
+    assert "calendar" in caplog.text and "level_baseline" in caplog.text  # components -> level_baseline -> calendar
     fc = m.liquidity_forecast(5, model=model, transactions=short)
     assert len(fc) == 5 and fc["predicted_net"].notna().all()
     with pytest.raises(ValueError, match="level"):  # an explicit request is not silently changed
         m.train(short, feature_set="level_baseline", log_to_mlflow=False)
+    with pytest.raises(ValueError, match="level"):
+        m.train(short, feature_set="components", log_to_mlflow=False)
+
+
+def test_the_default_falls_back_components_then_level_baseline_then_calendar(monkeypatch):
+    history = _stepped_history()
+    assert m.DEFAULT_FEATURE_SET == "components" and m.FALLBACK_CHAIN == ("level_baseline", "calendar")
+    assert m.train(history, log_to_mlflow=False, holdout_days=0, band=False).feature_set == "components"
+    real = m._open_training_days
+    monkeypatch.setattr(m, "_open_training_days", lambda table: 0 if "scheduled" in str(table.attrs) else real(table))
+    # make only `components` fail: its table is the only one built without the fixed-cost categories in the target
+    real_table = m._training_table
+
+    def table(tx, excluded, feature_set="calendar", **kw):
+        out = real_table(tx, excluded, feature_set, **kw)
+        if feature_set == "components":
+            out.attrs["scheduled"] = True
+        return out
+
+    monkeypatch.setattr(m, "_training_table", table)
+    model = m.train(history, log_to_mlflow=False, holdout_days=0, band=False)
+    assert model.feature_set == "level_baseline" and model.schedule is None
+    monkeypatch.setattr(m, "_open_training_days", lambda t: 0 if t.attrs.get("scheduled") or "recent_revenue_28d" in t else real(t))
+    assert m.train(history, log_to_mlflow=False, holdout_days=0, band=False).feature_set == "calendar"
 
 
 def test_a_history_that_is_closed_in_every_training_row_falls_back_and_never_gives_nan_contributions():

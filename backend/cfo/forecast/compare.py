@@ -2,7 +2,8 @@
 
 `python -m cfo.forecast.compare [--json]` scores every set of `features.FEATURE_SETS` on the organizer's statement
 (same origins, same horizon) and names the best one: the lowest `balance_error_90d`. That name is the default of
-`model.train` (`model.DEFAULT_FEATURE_SET`); a test keeps the two in step.
+`model.train` unless a decision says otherwise: since T068 the default is `components` by the owner's decision D-039
+(`.house/reports/T068.md`), while the verdict of `--weekly` (below) stays as measured.
 
 The mean balance error hides which origin is wrong, so the result also carries `per_origin`: for every set and
 origin the cumulative error (predicted - actual, EUR) after 30 days and at the end of the fold.

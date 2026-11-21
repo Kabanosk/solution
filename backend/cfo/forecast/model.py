@@ -64,9 +64,11 @@ PARTNER_CATEGORY = "partner_investment"
 PARTNER_TRANCHES_TOTAL = 12
 EXCLUDED_CATEGORIES = (PARTNER_CATEGORY,)
 FEATURE_COLUMNS = list(feat.CALENDAR_COLUMNS)  # the `calendar` feature set (kept for old callers)
-# The feature set `train` uses unless told otherwise: the best of `python -m cfo.forecast.compare` (T061).
-DEFAULT_FEATURE_SET = "level_baseline"
-MIN_LEVEL_TRAIN_DAYS = 28  # open training days a level set needs (fewer: the default falls back to `calendar`)
+# The feature set `train` uses unless told otherwise. `components` since T068 by explicit decision D-039 (owner), not
+# because `compare --weekly` calls it better: it misses the frozen bar by one point, see .house/reports/T068.md.
+# To revert: set this to "level_baseline" (its parameters are untouched).
+DEFAULT_FEATURE_SET = "components"
+MIN_LEVEL_TRAIN_DAYS = 28  # open training days a level set needs (fewer: the default falls back along `FALLBACK_CHAIN`)
 MODEL_FILENAME = "liquidity_xgb.json"
 MLFLOW_EXPERIMENT = "liquidity-forecast"  # `MLFLOW_EXPERIMENT_NAME` overrides
 REGISTERED_MODEL_NAME = "liquidity-forecast"
@@ -417,27 +419,34 @@ def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str,
     }
 
 
+FALLBACK_CHAIN = ("level_baseline", "calendar")  # tried in this order when the default set cannot be built
+
+
+def _open_training_days(table: pd.DataFrame) -> int:
+    return int((table["shutdown_flag"] == 0).sum())
+
+
 def _usable_table(transactions: pd.DataFrame, excluded: tuple[str, ...],
                   requested: str | None) -> tuple[str, pd.DataFrame]:
-    """(feature set, training table); the default set falls back to `calendar` when its levels cannot be built."""
+    """(feature set, training table). An explicitly requested set is built or raises. The default set falls back
+    along `FALLBACK_CHAIN` (`components` -> `level_baseline` -> `calendar`) to the first one this history can train."""
     name = requested or DEFAULT_FEATURE_SET
-    table = _training_table(transactions, excluded, name)
-    if not feat.needs_levels(name):
-        if table.empty:
-            raise ValueError("no usable training days")
-        return name, table
-    open_days = int((table["shutdown_flag"] == 0).sum())
-    if open_days >= MIN_LEVEL_TRAIN_DAYS:
-        return name, table
-    reason = (f"feature set {name!r} needs at least {MIN_LEVEL_TRAIN_DAYS} open training days with a recent level "
-              f"(a level needs {feat.LEVEL_MIN_OPEN_DAYS} open days before it); this history has {open_days}")
-    if requested is not None:
-        raise ValueError(f"no usable training days: {reason}")
-    log.warning("%s; training the calendar feature set instead", reason)
-    table = _training_table(transactions, excluded, "calendar")
-    if table.empty:
-        raise ValueError("no usable training days")
-    return "calendar", table
+    candidates = [name] if requested is not None else [name, *(c for c in FALLBACK_CHAIN if c != name)]
+    for position, candidate in enumerate(candidates):
+        table = _training_table(transactions, excluded, candidate)
+        if not feat.needs_levels(candidate):
+            if table.empty:
+                raise ValueError("no usable training days")
+            return candidate, table
+        open_days = _open_training_days(table)
+        if open_days >= MIN_LEVEL_TRAIN_DAYS:
+            return candidate, table
+        reason = (f"feature set {candidate!r} needs at least {MIN_LEVEL_TRAIN_DAYS} open training days with a recent "
+                  f"level (a level needs {feat.LEVEL_MIN_OPEN_DAYS} open days before it); this history has {open_days}")
+        if requested is not None:
+            raise ValueError(f"no usable training days: {reason}")
+        log.warning("%s; trying %s instead", reason, candidates[position + 1] if position + 1 < len(candidates) else "-")
+    raise ValueError("no usable training days")
 
 
 def train(
@@ -459,8 +468,8 @@ def train(
 
     `feature_set` names the columns the model learns from (`features.FEATURE_SETS`); it is stored in the model and
     its metadata. Left out it is `DEFAULT_FEATURE_SET`, and when that set cannot be built from this history (too
-    few open days for the recent level, or every usable day is a shutdown) the model is trained as `calendar`
-    with a warning instead of failing. An explicitly requested level set raises a `ValueError` in that case.
+    few open days for the recent level, or every usable day is a shutdown) the model is trained as the next set of
+    `FALLBACK_CHAIN` (`level_baseline`, then `calendar`) with a warning instead of failing. An explicitly requested level set raises a `ValueError` in that case.
 
     With `MLFLOW_TRACKING_URI` set the run is logged to MLflow (`log_to_mlflow`), and with `register=True` also
     registered as the new `champion` of `liquidity-forecast` (see `log_to_mlflow_if_configured`).

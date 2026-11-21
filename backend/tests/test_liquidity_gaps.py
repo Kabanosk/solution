@@ -306,7 +306,9 @@ def test_statement_oven_in_may_breaks_the_buffer_in_june(statement, statement_mo
     assert june_gap, "70k oven should break the 17.7k buffer around the June shutdown"
     (proposal,) = review.proposals
     assert proposal.action_type == liq.CREDIT_LINE and proposal.level == PolicyLevel.APPROVAL
-    assert proposal.month == "2026-06" and Decimal("5000") <= proposal.amount <= Decimal("12000")
+    # T068 / D-039: the default model is `components` (fixed costs exact, June trough = one month of fixed costs, base-case
+    # surplus 60k instead of 64k): the same credit line in the same month, 12k instead of 7k
+    assert proposal.month == "2026-06" and Decimal("9000") <= proposal.amount <= Decimal("15000")
     assert "oven 70,000 EUR on 2026-05-15" in proposal.reason and "closed about 4 weeks" in proposal.reason
 
 

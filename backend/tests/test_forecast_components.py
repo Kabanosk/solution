@@ -474,3 +474,34 @@ def test_with_levels_from_uses_the_rent_posted_this_month(model):
     assert sc.amounts(fresh.schedule, pd.date_range("2026-01-11", "2026-01-31"))["rent"].sum() == 0.0
     assert sc.amounts(fresh.schedule, ["2026-02-01"])["rent"].iloc[0] == -1500.0
     assert sc.amounts(model.schedule, ["2026-02-01"])["rent"].iloc[0] == -1000.0  # the stored model is untouched
+
+
+# -- #49: the simulated recurring payroll of the hiring bridge on top of the schedule ----------------------------
+def test_simulated_hiring_payroll_is_added_once_on_top_of_the_scheduled_payroll():
+    from datetime import date
+
+    from cfo.forecast import liquidity as liq
+    from scout import hiring_bridge
+
+    h = history(partner=True)  # to 31 Dec 2025, payroll of 2,000 on the 28th is part of the schedule
+    mod = m.train(h, log_to_mlflow=False, holdout_days=0)
+    assert mod.feature_set == "components" and mod.schedule["categories"]["payroll"]["profiles"]["0"] == [[28, -2000.0]]
+    intent = hiring_bridge.HiringIntent(
+        role="Cook", location="Berlin", headcount=2, monthly_salary_eur="3000", salary_range_min_eur="2500",
+        salary_range_max_eur="3500", start_month="2026-01", duration_months=3, employer_cost_percent="20",
+        research={"summary": "x", "sources": [{"title": "t", "url": "https://example.com/s"}],
+                  "researched_at": "2025-12-31T10:00:00Z"})
+    outflows = hiring_bridge.payroll_outflows(intent)
+    assert [o["on"] for o in outflows] == [date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 31)]
+    base = liq.review_liquidity([], transactions=h, model=mod, days=90)
+    scenario = liq.review_liquidity(outflows, transactions=h, model=mod, days=90)
+    monthly = float(intent.monthly_payroll)  # 7,200
+    # the model part (variable flow + the schedule's own payroll, rent, ...) is identical: nothing lost, nothing doubled
+    assert scenario.forecast["predicted_net"].tolist() == base.forecast["predicted_net"].tolist()
+    assert (scenario.forecast["net"] - base.forecast["net"]).round(2).loc[lambda s: s != 0].to_dict() == {
+        pd.Timestamp(o["on"]): -monthly for o in outflows}
+    assert scenario.forecast["balance"].iloc[-1] == pytest.approx(base.forecast["balance"].iloc[-1] - 3 * monthly)
+    payroll_28th = base.forecast.loc[["2026-01-28", "2026-02-28"], "predicted_net"]
+    plain = m.liquidity_forecast(90, model=mod, transactions=h, scheduled_payments=[])["predicted_net"]
+    assert plain.loc["2026-01-28"] == payroll_28th.iloc[0]  # the existing payroll is still in the forecast on the 28th
+    assert sc.amounts(mod.schedule, ["2026-01-28"])["payroll"].iloc[0] == -2000.0

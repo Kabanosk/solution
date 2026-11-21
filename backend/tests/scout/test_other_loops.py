@@ -340,6 +340,35 @@ def test_unclear_typed_answer_to_an_approval_asks_for_the_buttons(conn_factory, 
     assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]
 
 
+@pytest.mark.parametrize("text", ["I do not approve", "not approved", "Do NOT approve this", "never approve that",
+                                  "I cannot accept this", "nope, not ok", "I can't approve this",
+                                  "I can\u2019t approve this", "I won\u2019t accept it", "not sure yet",
+                                  "no idea, approve?", "ok but what is it", "yes no",
+                                  "tell me why first, then I approve", "nie wiem", "nie jestem pewien, ale tak"])
+def test_negated_typed_answer_never_approves(conn_factory, tmp_path, text):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "oven", "from_id": "vincenzo"}))
+    chat.run(ctx, dm("vincenzo", text, n=33, thread=ctx.recorder.get(t.id).slack_ref))
+    after = ctx.recorder.get(t.id)
+    assert after.status == "waiting", (text, after.status, after.outcome)
+    assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]
+
+
+@pytest.mark.parametrize("text,approved", [("I approve", True), ("Approved!", True), ("  yes, go ahead. ", True),
+                                           ("OK", True), ("Tak", True), ("reject", False), ("No.", False),
+                                           ("Rejected", False), ("nie", False), ("Nie zgadzam si\u0119", False),
+                                           ("nie zgadzam sie.", False), ("nie akceptuj\u0119", False)])
+def test_complete_typed_answer_decides_the_approval(conn_factory, tmp_path, text, approved):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "oven", "from_id": "vincenzo"}))
+    chat.run(ctx, dm("vincenzo", text, n=34, thread=ctx.recorder.get(t.id).slack_ref))
+    after = ctx.recorder.get(t.id)
+    assert after.status != "waiting", (text, after.status)
+    assert ("SIMULATED" in (after.outcome or "")) is approved, (text, after.outcome)
+
+
 def test_hand_over_a_waiting_invoice_question(conn_factory, tmp_path):
     from scout.loops.toolbox import Toolbox
 

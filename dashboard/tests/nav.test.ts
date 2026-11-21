@@ -23,7 +23,9 @@ test("sidebar sections, order and hrefs: Overview first, one task list, no separ
 });
 
 test("hash routing, legacy hashes and g-shortcuts", () => {
-  assert.deepEqual(routeFromHash(""), { view: "overview" });
+  assert.deepEqual(routeFromHash(""), { view: "chat" });
+  assert.deepEqual(routeFromHash("#"), { view: "chat" });
+  assert.deepEqual(routeFromHash("#overview"), { view: "overview" });
   assert.deepEqual(routeFromHash("#forecast"), { view: "overview" });
   assert.deepEqual(routeFromHash("#tasks"), { view: "tasks", filter: {} });
   assert.deepEqual(routeFromHash("#tasks?loop=invoicing&status=done"), { view: "tasks", filter: { loop: "invoicing", status: "done" } });

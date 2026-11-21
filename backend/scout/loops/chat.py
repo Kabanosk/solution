@@ -16,6 +16,7 @@ from typing import Any
 from cfo.db.repo import Repository
 from cfo.llm import Message
 from cfo.usage.recorder import usage_context
+from scout import dm_replies
 from scout.audit import check as access_check
 from scout.llm_tasks import route_dm
 from scout.loops import invoicing
@@ -309,6 +310,9 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     sender = p.get("from_id")
     text = (p.get("text") or "").strip()
+    answered = dm_replies.intercept(ctx, job)  # the recipient's reply to a message Scout sent: not a new question
+    if answered is not None:
+        return answered
     has_open = bool(p.get("thread")) or bool(ctx.recorder.find_open(owner_id=sender))
     route = None
     if has_open and not p.get("files"):

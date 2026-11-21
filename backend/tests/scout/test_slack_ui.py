@@ -187,3 +187,70 @@ def test_channel_mention_is_answered_in_a_thread(conn_factory, db, fake_slack):
     assert p["mention"] is True and p["from_id"] == "grazyna"
     s.on_mention({"type": "app_mention", "channel": "C9", "user": "U_STRANGER", "ts": "7.2", "text": "<@U_BOT> hi"})
     assert len(jobs(db)) == 1  # unknown people are ignored
+
+
+def test_channel_reply_continues_the_mentioned_thread_without_another_mention(conn_factory, db, fake_slack):
+    s, _, _ = ui(conn_factory, fake_slack)
+    s.on_mention({"type": "app_mention", "channel": "C9", "user": "U_GRA", "ts": "8.1", "text": "<@U_BOT> seen invoices?"})
+    followup = {"type": "message", "channel_type": "channel", "channel": "C9", "user": "U_GRA", "ts": "8.2", "thread_ts": "8.1", "text": "the invoice for the latest lunch"}
+    s.on_message(followup)
+    assert len(jobs(db)) == 2
+    second = jobs(db)[1]
+    assert second["payload"]["thread"] == "C9:8.1"
+    assert second["payload"]["mention"] is True
+    assert second["payload"]["text"] == "the invoice for the latest lunch"
+    assert fake_slack.named("chat_postMessage")[-1]["thread_ts"] == "8.1"
+    s.on_message(followup)  # redelivery must not post another placeholder or queue another response
+    s.on_mention({**followup, "type": "app_mention", "text": "<@U_BOT> the invoice for the latest lunch"})
+    assert len(jobs(db)) == 2
+    assert len(fake_slack.named("chat_postMessage")) == 2
+
+
+def test_channel_thread_membership_survives_worker_restart_and_ignores_unrelated_messages(conn_factory, db, fake_slack):
+    s, rec, _ = ui(conn_factory, fake_slack)
+    rec.open("dmthread:G9:9.1", "chat", "Existing Scout thread", requested_by="grazyna", owner_id="grazyna")
+    restarted, _, _ = ui(conn_factory, fake_slack)
+    base = {"type": "message", "channel_type": "group", "channel": "G9", "user": "U_GRA", "ts": "9.2", "thread_ts": "9.1", "text": "any update?"}
+    restarted.on_message({**base, "user": "U_STRANGER"})
+    restarted.on_message({**base, "bot_id": "B_SCOUT"})
+    restarted.on_message({**base, "thread_ts": "unrelated"})
+    restarted.on_message({**base, "thread_ts": None})
+    assert jobs(db) == [] and fake_slack.calls == []
+    restarted.on_message(base)
+    [pending] = jobs(db)
+    assert pending["payload"]["thread"] == "G9:9.1"
+    assert pending["payload"]["text"] == "any update?"
+    assert fake_slack.named("chat_postMessage")[-1]["thread_ts"] == "9.1"
+
+
+def test_channel_conversation_replies_in_place_and_keeps_history_without_repeat_mention(conn_factory, tmp_path, fake_slack):
+    from cfo.llm import FakeLLM
+    from scout.worker import Worker
+    from test_invoicing_loop import make_world
+
+    seen = []
+
+    def handler(messages, tools):
+        if any(tool.name == "route_message" for tool in tools or []):
+            return FakeLLM.tool_call("route_message", intent="question" if not seen else "smalltalk")
+        seen.append([(message.role, message.content) for message in messages])
+        return "Which invoice do you mean?" if len(seen) == 1 else "You mean the invoice for the latest lunch."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    scout = SlackUI(fake_slack, USERS, ctx.jobs, ctx.recorder, conn_factory=conn_factory)
+    ctx.notifier = scout
+    worker = Worker(ctx, 1)
+    scout.on_mention({"type": "app_mention", "channel": "C9", "user": "U_GRA", "ts": "10.1", "text": "<@U_BOT> seen invoices?"})
+    assert worker.run_one()
+    scout.on_message({"type": "message", "channel_type": "channel", "channel": "C9", "user": "U_GRA", "ts": "10.2", "thread_ts": "10.1", "text": "the invoice for the latest lunch"})
+    assert worker.run_one()
+    assert len(seen) == 2
+    assert [(role, text) for role, text in seen[1] if role != "system"] == [
+        ("user", "seen invoices?"), ("assistant", "Which invoice do you mean?"),
+        ("user", "the invoice for the latest lunch"),
+    ]
+    assert all(post["channel"] == "C9" and post["thread_ts"] == "10.1" for post in fake_slack.named("chat_postMessage"))
+    assert fake_slack.named("chat_update")[-1]["text"] == "[AUTO] You mean the invoice for the latest lunch."
+    assert fake_slack.named("conversations_open") == []  # never switch the channel conversation to a DM
+    with conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM agent_tasks").fetchone()["n"] == 1

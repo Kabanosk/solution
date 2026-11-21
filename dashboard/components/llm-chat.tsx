@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
-import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
+import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, unacknowledgedFollowups, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -51,6 +51,26 @@ export function LlmChat({ active }: { active: boolean }) {
     const timer = setInterval(poll, 4000);
     return () => { stopped = true; clearInterval(timer); };
   }, [watchedTask]);
+
+  // A colleague's reply to a message Scout sent is also DMed to the asker unless this chat confirms it showed it:
+  // only an active, visible chat acknowledges (through the authenticated Next route; the token stays server-side).
+  const acknowledged = useRef(new Set<number>());
+  useEffect(() => {
+    if (!active) return;
+    const acknowledge = () => {
+      if (document.hidden) return;
+      for (const { taskId, stepIds } of unacknowledgedFollowups(messages, acknowledged.current)) {
+        stepIds.forEach(id => acknowledged.current.add(id));
+        fetch("/api/chat/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId, stepIds }), signal: AbortSignal.timeout(10_000) })
+          .then(response => { if (!response.ok) stepIds.forEach(id => acknowledged.current.delete(id)); })
+          .catch(() => stepIds.forEach(id => acknowledged.current.delete(id)));
+      }
+    };
+    acknowledge();
+    const timer = setInterval(acknowledge, 2000);
+    document.addEventListener("visibilitychange", acknowledge);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", acknowledge); };
+  }, [messages, active]);
 
   async function reply(history: ChatTurn[]) {
     if (request.current) return;
@@ -229,6 +249,7 @@ const SUGGESTIONS = [
   "What does the cash forecast look like for the next 90 days?",
   "Which tasks are waiting on me?",
   "What did we spend on beverages this quarter?",
+  "How do I use this dashboard?",
 ];
 
 function FileChip({ file }: { file: ChatFile }) {

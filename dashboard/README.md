@@ -69,9 +69,23 @@ Builds require no database, credentials or company data. The home page and `/api
 
 ## Scout chat
 
-Open `/#chat` (the old `/#llm` still works) or choose **Scout chat** in the sidebar. Send with Enter, Shift+Enter for a new line, stop or retry a response, **New chat** to clear it. The conversation stays in memory while you switch pages and is cleared by a reload; it is not stored by the dashboard.
+The dashboard opens **Scout chat** by default at `/`; `/#chat` and the old `/#llm` still work. Choose **Overview** in the sidebar or open `/#overview` for the financial overview. Send with Enter, Shift+Enter for a new line, stop or retry a response, **New chat** to clear it. The conversation stays in memory while you switch pages and is cleared by a reload; it is not stored by the dashboard.
 
 Authenticated `POST /api/chat` accepts `{ "model": "modelcar-granite-4-0-h-tiny", "messages": [{ "role": "user", "content": "hi" }] }`, validates it (alternating user/assistant roles, 64 messages, 16,000 characters per message, 64,000 total, 256 KiB body) and proxies it server-side to the Scout API's `POST ${CFO_API_URL}/v1/chat` with `API_WRITE_TOKEN`. Scout answers with its tools (missing invoices, forecast, tasks, costs). The response is private/no-store NDJSON: zero or more `{"type":"step","text":"…"}` tool lines, then `delta`, then `done` (optionally with `task_id`) or `error`. Events are validated before they reach the browser. The page shows the tool lines live above each answer and an **Open SC-123** link when Scout recorded a task. Generation has a 120-second timeout and stopping cancels the upstream request. `GET /api/chat` returns the model list (one Granite entry).
+
+Ask **How do I use this dashboard?** (also available as a suggested prompt) for navigation help. Scout's read-only `dashboard_help` tool retrieves one short topic at a time: getting started, chat, overview, tasks, transactions, connections, audit, policies or LLM usage. No full guide is added to every system prompt; the tool schema is under 650 characters and each response is capped by regression tests at 1,600 characters. Dashboard links in answers open in the current tab so the conversation survives navigation. This tool requires the updated backend; preview chat still needs a real API or a controlled test fixture.
+
+## Connections
+
+`/#connections` uses a compact integrations list with shared theme tokens and Lucide SVG icons. Each row shows status and last sync; chevrons expand KSeF sync results, Slack scopes, and Google Workspace setup instructions. KSeF and Google actions retain their existing API flows. Failed OAuth callbacks and failed syncs are announced as errors and remain retryable. E2E tests use controlled error responses and never trigger live connector writes.
+
+## Replies to delegated Slack messages
+
+When Scout sends a message on your behalf, it labels it **MESSAGE**, tracks the returned Slack thread and leaves the conversation task waiting. A reply from the intended recipient in that exact thread becomes an attributed chat update, without going through the generic smalltalk or invoice classifier. Repeated Slack events reuse the stored reply/step; several requests retain their own recipients and question previews.
+
+An active, visible dashboard chat acknowledges displayed replies through the private `/api/chat/ack` proxy. Failed acknowledgments retry while visible, and restoring a hidden tab retries them too. If no receipt arrives within about 12 seconds, a queued worker job sends the response to the original requester on Slack instead. New chat does not acknowledge the discarded conversation. Stale worker claims are recoverable; exhausted delivery attempts escalate the original task rather than disappearing silently.
+
+This requires the backend's `dm_requests` and `dm_replies` tables (including `claimed_at`), updated API and worker, and a dashboard rebuild. Existing threads sent before tracking was installed are not retroactively correlated. Slack/network delivery is retry-based, not a strict exactly-once guarantee: a crash after Slack accepts a message but before the database marks it delivered can produce a repeated notification. Tests use isolated local Postgres schemas and fake Slack/model services, not real employee messages.
 
 ## LLM usage
 

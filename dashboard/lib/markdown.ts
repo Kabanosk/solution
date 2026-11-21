@@ -1,5 +1,5 @@
 // A small Markdown subset for chat answers: headings, paragraphs, bullet / numbered lists, fenced code, bold,
-// italic, inline code and http(s) links. It produces plain data; the React renderer never injects raw HTML.
+// italic, inline code, http(s) links and same-dashboard hash links. It produces plain data; the React renderer never injects raw HTML.
 
 export type Inline =
   | { type: "text"; text: string }
@@ -14,7 +14,7 @@ export type Block =
   | { type: "list"; ordered: boolean; start: number; items: Inline[][] }
   | { type: "code"; text: string };
 
-const SAFE_HREF = /^https?:\/\//i;
+const SAFE_HREF = /^(?:https?:\/\/|\/#[a-z0-9][a-z0-9/?=&%_-]*$)/i;
 
 export function parseInline(source: string): Inline[] {
   const out: Inline[] = [];

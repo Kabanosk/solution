@@ -86,6 +86,7 @@ class SlackUI:
         self._pending: dict[str, tuple[str, str]] = {}  # ref -> (text, level) held back by the throttle
         self._dm_channels: dict[str, str] = {}
         self._origin: dict[str, tuple[str, str]] = {}  # status ref -> the DM it answers (channel, ts)
+        self._handling_mentions: set[str] = set()  # message + app_mention can deliver the same event concurrently
         recorder.add_listener(self.on_step)
 
     # -- outbound -------------------------------------------------------------------------------------------
@@ -204,6 +205,11 @@ class SlackUI:
         if event.get("bot_id") or event.get("subtype") not in (None, "file_share"):
             return
         if event.get("channel_type") != "im":
+            root = event.get("thread_ts")
+            if (event.get("channel_type") in ("channel", "group") and root
+                    and event.get("user") in self._emp
+                    and self._is_scout_thread(f"{event['channel']}:{root}")):
+                self.on_mention(event)
             return
         employee = self._emp.get(event.get("user", ""))
         if not employee:
@@ -237,27 +243,51 @@ class SlackUI:
                                   "channel": channel, "ts": ts, "thread": thread, "status_ref": status_ref},
                            f"dm:{channel}:{ts}")
 
+    def _is_scout_thread(self, ref: str) -> bool:
+        if self._recorder.by_key(f"dmthread:{ref}") is not None:
+            return True
+        # A quick follow-up may arrive before the worker processes the initial mention.
+        if self._cf is not None:
+            with self._cf() as conn:
+                return conn.execute("SELECT 1 FROM agent_jobs WHERE kind = 'dm' AND payload->>'thread' = %s "
+                                    "AND payload->>'mention' = 'true' LIMIT 1", (ref,)).fetchone() is not None
+        return False
+
     def on_mention(self, event: dict[str, Any]) -> None:
-        """@Scout in a channel: answered in a thread under the mention; the thread is one conversation."""
+        """An explicit mention, or a continuation in a known Scout thread; always reply in that thread."""
         employee = self._emp.get(event.get("user", ""))
         if not employee or event.get("bot_id"):
             log.info("ignoring a mention from an unknown Slack user")
             return
         channel, ts = event["channel"], event["ts"]
-        root = event.get("thread_ts") or ts
-        text = re.sub(r"^\s*(<@[A-Z0-9_]+>\s*)+", "", event.get("text") or "").strip()
-        try:
-            self.client.reactions_add(channel=channel, timestamp=ts, name="eyes")
-        except Exception:  # noqa: BLE001
-            log.warning("could not add the eyes reaction", exc_info=True)
-        res = self.client.chat_postMessage(channel=channel, thread_ts=root, text="[WORKING] Working on it…",
-                                           blocks=self._blocks("Working on it…", "WORKING", None, ()), **self._identity)
-        status_ref = f"{res['channel']}:{res['ts']}"
+        key = f"dm:{channel}:{ts}"
         with self._lock:
-            self._origin[status_ref] = (channel, ts)
-        self._jobs.enqueue("dm", {"from_id": employee, "text": text, "files": [], "channel": channel, "ts": ts,
-                                  "thread": f"{channel}:{root}", "status_ref": status_ref, "mention": True},
-                           f"dm:{channel}:{ts}")
+            if key in self._handling_mentions:
+                return
+            self._handling_mentions.add(key)
+        try:
+            if self._cf is not None:
+                with self._cf() as conn:
+                    if conn.execute("SELECT 1 FROM agent_jobs WHERE dedupe_key = %s", (key,)).fetchone():
+                        return
+            root = event.get("thread_ts") or ts
+            text = event.get("text") or ""
+            if event.get("type") == "app_mention":
+                text = re.sub(r"^\s*(<@[A-Z0-9_]+>\s*)+", "", text).strip()
+            try:
+                self.client.reactions_add(channel=channel, timestamp=ts, name="eyes")
+            except Exception:  # noqa: BLE001
+                log.warning("could not add the eyes reaction", exc_info=True)
+            res = self.client.chat_postMessage(channel=channel, thread_ts=root, text="[WORKING] Working on it…",
+                                               blocks=self._blocks("Working on it…", "WORKING", None, ()), **self._identity)
+            status_ref = f"{res['channel']}:{res['ts']}"
+            with self._lock:
+                self._origin[status_ref] = (channel, ts)
+            self._jobs.enqueue("dm", {"from_id": employee, "text": text, "files": [], "channel": channel, "ts": ts,
+                                      "thread": f"{channel}:{root}", "status_ref": status_ref, "mention": True}, key)
+        finally:
+            with self._lock:
+                self._handling_mentions.discard(key)
 
     def on_action(self, ack: Callable[[], None], body: dict[str, Any]) -> None:
         ack()

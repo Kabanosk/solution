@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, mergeFollowups, newConversationId, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
+import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, mergeFollowups, newConversationId, requestFor, SUMMARY_PREFIX, unacknowledgedFollowups, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
 import { completionEvents } from "../lib/chat-stream.ts";
 
 const model = CHAT_MODELS[0].id;
@@ -159,4 +159,15 @@ test("follow-ups attach once to the answer waiting for them and go back to the m
   assert.equal(mergeFollowups(merged, steps), merged);  // nothing new: same array
   assert.match(requestFor(merged).messages[1].content, /Update: Wojciech approved it\./);
   assert.equal(sanitizeChatEvent({ type: "done", truncated: false, task_id: "SC-1", followups: true })?.type, "done");
+});
+
+test("only followups on screen that were not acknowledged yet are reported, per task", () => {
+  const turns: ChatTurn[] = [
+    { id: "a", role: "assistant", content: "x", status: "complete", taskId: "SC-1", awaiting: true, followups: [{ id: 7, text: "Anna replied" }, { id: 8, text: "again" }] },
+    { id: "b", role: "assistant", content: "y", status: "complete", taskId: "SC-2", followups: [{ id: 9, text: "Bob replied" }] },
+    { id: "c", role: "assistant", content: "z", status: "complete" },
+  ];
+  assert.deepEqual(unacknowledgedFollowups(turns, new Set([8])), [{ taskId: "SC-1", stepIds: [7] }, { taskId: "SC-2", stepIds: [9] }]);
+  assert.deepEqual(unacknowledgedFollowups(turns, new Set([7, 8, 9])), []);
+  assert.deepEqual(unacknowledgedFollowups([{ ...turns[0], taskId: undefined }], new Set()), []);
 });

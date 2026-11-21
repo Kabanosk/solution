@@ -8,7 +8,7 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
       case "strong": return <strong key={index} className="font-semibold text-foreground"><Inlines nodes={node.children} /></strong>;
       case "em": return <em key={index}><Inlines nodes={node.children} /></em>;
       case "code": return <code key={index} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{node.text}</code>;
-      case "link": return <a key={index} href={node.href} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-foreground"><Inlines nodes={node.children} /></a>;
+      case "link": return <a key={index} href={node.href} target={node.href.startsWith("/#") ? undefined : "_blank"} rel={node.href.startsWith("/#") ? undefined : "noreferrer noopener"} className="underline underline-offset-2 hover:text-foreground"><Inlines nodes={node.children} /></a>;
     }
   })}</>;
 }

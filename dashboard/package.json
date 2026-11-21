@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "prepare:assets": "node scripts/prepare-assets.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:e2e": "node tests/ui-cleanup.e2e.cjs"
+    "test:e2e": "node tests/ui-cleanup.e2e.cjs && node tests/connections.e2e.cjs && node tests/dm-reply.e2e.cjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

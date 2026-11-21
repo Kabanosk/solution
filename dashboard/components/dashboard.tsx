@@ -77,7 +77,7 @@ function useTaskDetail(id: string | undefined, version: string | undefined, live
 
 function DashboardContent({ data }: { data: DashboardData }) {
   const { setOpenMobile } = useSidebar();
-  const [route, setRoute] = useState<Route>({ view: "overview" });
+  const [route, setRoute] = useState<Route>({ view: "chat" });
   const page: View = route.view;
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();

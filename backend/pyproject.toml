@@ -28,6 +28,8 @@ dependencies = [
 
 [project.optional-dependencies]
 mlflow = ["mlflow>=3"]
+# hyperparameter search (cfo.forecast.tune); matplotlib draws the optimisation history plot logged to MLflow
+tuning = ["optuna>=4", "matplotlib>=3.8"]
 
 [dependency-groups]
 dev = [

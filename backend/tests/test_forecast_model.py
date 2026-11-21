@@ -18,8 +18,9 @@ from cfo.forecast import model as m
 
 HISTORY_END = "2025-11-30"
 # What the data supports (measured on the seeded statement, with margin):
-#  * June 2026 predicted net flow is about -14k to -15k (June 2025 without the tranche: -17.7k), every other month
-#    Dec 2025 - Jul 2026 is positive (+3k ... +17k): the dip is unmistakable.
+#  * June 2026 predicted net flow is about -17k (June 2025 without the tranche: -17.7k), every other month
+#    Dec 2025 - Jul 2026 is positive (+10k ... +17k with the default `level_baseline` set, T061; the old `calendar`
+#    set replayed +3k ... +17k): the dip is unmistakable.
 #  * The balance does NOT go below zero from the end-of-November balance (23.5k): partner tranche 12/12 is the last
 #    one, so 2026 keeps 4.2k a month more than 2025, the balance is about 60k on 31 May and troughs near 45k.
 #    The dip is therefore asserted as a drop (>= 10k within June, the deepest drawdown of the horizon), not as < 0.
@@ -127,7 +128,7 @@ def test_default_model_path_is_under_git_ignored_models(monkeypatch):
 
 def test_feature_importances_and_explanation(trained):
     imp = trained.feature_importances()
-    assert set(imp.index) == set(m.FEATURE_COLUMNS) and imp.sum() == pytest.approx(1.0)
+    assert set(imp.index) == set(trained.feature_columns) and imp.sum() == pytest.approx(1.0)
     assert imp.is_monotonic_decreasing and imp.iloc[0] > 0
     assert {"shutdown_flag", "month", "day_of_year", "is_weekend", "weekday"} & set(imp.index[:4])
     contrib = trained.contributions(pd.date_range("2026-06-01", "2026-06-05"))
@@ -142,22 +143,36 @@ def test_feature_importances_and_explanation(trained):
 
 
 # -- MLflow only when configured ---------------------------------------------------------------------------
+fake_calls: list[tuple] = []  # the fake's MlflowClient has no reference to the module instance
+
+
 class _FakeMlflow(types.ModuleType):
     def __init__(self):
         super().__init__("mlflow")
-        self.calls: list[tuple] = []
+        self.calls: list[tuple] = fake_calls
+        fake_calls.clear()
         self.xgboost = types.SimpleNamespace(
             log_model=lambda booster, name, **kwargs: self.calls.append(("model", name)))
 
     def set_tracking_uri(self, uri): self.calls.append(("uri", uri))
-    def set_experiment(self, name): self.calls.append(("experiment", name))
+    def get_experiment_by_name(self, name):  # the experiment is looked up, never made the active one (T064)
+        self.calls.append(("experiment", name))
+        return types.SimpleNamespace(experiment_id="exp-1")
+
+    def set_experiment(self, name): raise AssertionError("set_experiment changes the process-wide active experiment")
+
+    class MlflowClient:
+        def __init__(self_inner): pass
+
+        def log_batch(self_inner, run_id, metrics=()): fake_calls.append(("batch", run_id, sorted({x.key for x in metrics})))
     def log_params(self, params): self.calls.append(("params", sorted(params)))
     def log_param(self, key, value): self.calls.append(("param", key))
     def log_metrics(self, metrics): self.calls.append(("metrics", sorted(metrics)))
     def log_artifact(self, path): self.calls.append(("artifact", path.rsplit("/", 1)[-1]))
 
-    def start_run(self, run_name=None):
+    def start_run(self, experiment_id=None, run_name=None):
         calls = self.calls
+        assert experiment_id == "exp-1"
 
         class Run:
             info = types.SimpleNamespace(run_id="run-1")
@@ -184,6 +199,8 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     fake = _FakeMlflow()
     monkeypatch.setitem(sys.modules, "mlflow", fake)
     monkeypatch.setitem(sys.modules, "mlflow.xgboost", fake.xgboost)
+    monkeypatch.setitem(sys.modules, "mlflow.entities",
+                        types.SimpleNamespace(Metric=lambda key, value, ts, step: types.SimpleNamespace(key=key)))
     model = m.train(history)
     kinds = [c[0] for c in fake.calls]
     assert kinds[:3] == ["uri", "experiment", "start"] and kinds[-1] == "end"
@@ -193,6 +210,8 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     assert model.mlflow_run_id == "run-1" and model.model_version is None  # logged, not registered
     logged_metrics = next(c[1] for c in fake.calls if c[0] == "metrics")
     assert "holdout_mae" in logged_metrics and set(logged_metrics) == set(model.metrics)
+    batches = [c for c in fake.calls if c[0] == "batch"]  # the training curves go out through log_batch
+    assert {c[1] for c in batches} == {"run-1"} and {k for c in batches for k in c[2]} == set(m.CURVE_NAMES)
 
 
 def test_missing_mlflow_package_does_not_break_training(history, monkeypatch):
@@ -243,9 +262,10 @@ def test_june_2026_dip_is_clearly_visible(statement, statement_model):
 
 
 def test_stress_balance_goes_negative_in_june(statement, statement_model):
-    """Stress, not the base case: a thin buffer (balance 30k lower than the real one) goes negative in June
+    """Stress, not the base case: a thin buffer (T061: balance 93k lower than the real one; the model now follows the
+    current revenue level, so it takes more than the old 55k to get there) goes negative in June
     2026 and ends the month at its lowest point since March; June is where a credit line is needed."""
-    fc = m.liquidity_forecast(240, start_balance=23_552.09 - 55_000.0, model=statement_model, transactions=statement)
+    fc = m.liquidity_forecast(240, start_balance=23_552.09 - 93_000.0, model=statement_model, transactions=statement)
     june = fc.loc["2026-06-01":"2026-06-30", "balance"]
     assert fc.loc["2026-05-31", "balance"] > 0 > june.min() and june.idxmin() >= pd.Timestamp("2026-06-20")
     assert fc.loc["2026-05-31", "balance"] - june.min() > MIN_JUNE_DROP

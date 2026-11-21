@@ -45,6 +45,65 @@ CALENDAR_COLUMNS = [
     "days_to_month_end", "is_month_start", "is_month_end", "is_public_holiday", "shutdown_flag", *DUE_COLUMNS,
 ]
 
+# Recent-level features (T061): how much the business earns and spends per open day right now. They replace the
+# columns that memorise one year (`month`, `day_of_year`, ...) so a revenue step is carried forward as the new level.
+LEVEL_WINDOWS = (28, 90)  # number of open days the level is averaged over
+LEVEL_MIN_OPEN_DAYS = 7  # fewer open days before a day: no level yet (NaN)
+FIXED_COST_CATEGORIES = tuple(DEFAULT_DUE_DAYS)  # booked on due days, not a function of how busy the days are
+LEVEL_COLUMNS = [f"recent_{kind}_{n}d" for kind in ("revenue", "variable_cost") for n in LEVEL_WINDOWS]
+# Calendar columns that identify a position inside one particular year; a level model must not use them.
+YEAR_MEMORY_COLUMNS = ("month", "quarter", "day_of_year", "week_of_year")
+# Named feature sets chosen by `model.train(feature_set=...)`; each is a pure function of (dates, history).
+_NO_MEMORY = [c for c in CALENDAR_COLUMNS if c not in YEAR_MEMORY_COLUMNS]
+FEATURE_SETS: dict[str, list[str]] = {
+    "calendar": list(CALENDAR_COLUMNS),
+    # the booster sees the recent levels as inputs (trees cannot extrapolate a level they saw for a few weeks)
+    "level": [*_NO_MEMORY, *LEVEL_COLUMNS],
+    # the booster sees no level at all: it learns the deviation from the recent level, i.e. the target is the net
+    # flow minus `level_baseline`, which is added back when predicting
+    "level_baseline": list(_NO_MEMORY),
+    # fixed costs are an inferred schedule (`schedule.py`), so the booster only sees the variable flows (revenue, food,
+    # drinks): no due-day flags, no level inputs; like `level_baseline` it learns the deviation from the recent level
+    "components": [c for c in _NO_MEMORY if c not in DUE_COLUMNS],
+}
+OFFSET_SETS = frozenset({"level_baseline", "components"})
+# Sets whose forecast is the booster's variable part plus the fixed-cost schedule (`schedule.infer`, T068); their
+# training target leaves the fixed-cost categories out.
+COMPONENT_SETS = frozenset({"components"})
+SCHEDULE_PREFIX = "scheduled_"  # names of the schedule parts in `contributions` / `explain`: `scheduled_payroll`, ...
+BASELINE_COLUMN = "recent_level_baseline"  # the offset as it appears in `contributions` / `explain`
+
+
+def level_baseline(frame: pd.DataFrame) -> pd.Series:
+    """Recent net flow of an open day before fixed costs: revenue minus variable cost, each averaged over the
+    28- and 90-day levels (0 where no level exists yet)."""
+    revenue = (frame["recent_revenue_28d"] + frame["recent_revenue_90d"]) / 2
+    cost = (frame["recent_variable_cost_28d"] + frame["recent_variable_cost_90d"]) / 2
+    return (revenue - cost).fillna(0.0).rename(BASELINE_COLUMN)
+
+
+def applied_baseline(frame: pd.DataFrame) -> pd.Series:
+    """What a `level_baseline` set subtracts from the target and adds back to the prediction: the baseline of an
+    open day, 0 on shutdown days (no revenue, only fixed costs, whatever the level)."""
+    return (level_baseline(frame) * (1 - frame["shutdown_flag"])).rename(BASELINE_COLUMN)
+
+
+def has_schedule(name: str) -> bool:
+    """Whether the forecast of a feature set is the booster plus the fixed-cost schedule."""
+    return name in COMPONENT_SETS
+
+
+def feature_set_columns(name: str) -> list[str]:
+    try:
+        return list(FEATURE_SETS[name])
+    except KeyError:
+        raise ValueError(f"unknown feature_set {name!r}; choose one of {sorted(FEATURE_SETS)}") from None
+
+
+def needs_levels(name: str) -> bool:
+    """Whether a feature set needs the recent levels (as model inputs, as the baseline, or both)."""
+    return name in OFFSET_SETS or any(c in LEVEL_COLUMNS for c in feature_set_columns(name))
+
 
 # -- reading from the database ---------------------------------------------------------------------------
 def _query(conn: psycopg.Connection | None, sql: str) -> list[dict[str, Any]]:
@@ -145,6 +204,30 @@ def infer_shutdown_days(transactions: pd.DataFrame, *, min_run: int = 7) -> froz
     return frozenset(pairs)
 
 
+def closed_days(transactions: pd.DataFrame, *, min_run: int = 7) -> pd.Series:
+    """1 for every day of the history inside a run of at least `min_run` days without revenue, else 0.
+
+    Unlike `infer_shutdown_days` this also counts a run that reaches the last booking day. For *training rows*
+    that is right: the days did happen and were closed (other bookings continue, revenue does not). It is not a
+    claim about the future: the (month, day) window of an unfinished run is not used for forecast dates. Indexed
+    by calendar day from the first to the last booking.
+    """
+    days = pd.date_range(transactions["booking_date"].min().normalize(), transactions["booking_date"].max().normalize(),
+                         freq="D", name="date")
+    revenue = (transactions[transactions["category"] == "revenue"].groupby(transactions["booking_date"].dt.normalize())
+               ["amount"].sum().reindex(days, fill_value=0.0))
+    closed = pd.Series(0, index=days, dtype="int64")
+    run: list[pd.Timestamp] = []
+    for day, amount in [*revenue.items(), (None, 1.0)]:  # the sentinel closes a run that reaches the end
+        if amount == 0:
+            run.append(day)
+            continue
+        if len(run) >= min_run:
+            closed.loc[run] = 1
+        run = []
+    return closed
+
+
 def calendar_features(
     dates: Iterable[Any],
     *,
@@ -178,6 +261,51 @@ def calendar_features(
         flags = [any(min(due, dim) == day for due in days) for day, dim in zip(index.day, index.days_in_month)]
         out[column] = [int(f) for f in flags]
     return out[CALENDAR_COLUMNS].astype("int64")
+
+
+# -- recent level -----------------------------------------------------------------------------------------
+def recent_levels(
+    transactions: pd.DataFrame,
+    dates: Iterable[Any],
+    *,
+    windows: Iterable[int] = LEVEL_WINDOWS,
+) -> pd.DataFrame:
+    """Recent revenue and variable cost per open day, for each of `dates` (columns `LEVEL_COLUMNS`).
+
+    A pure function of (dates, history), built the same way for training rows and for the forecast:
+
+    * An *open* day is a calendar day with a revenue booking (the summer shutdown and any other closed day have
+      none), so a closed stretch at the end of the history does not drag the level to zero.
+    * `recent_revenue_<n>d` / `recent_variable_cost_<n>d` are the mean revenue / variable cost (food, drinks, any
+      category that is not revenue, partner money or a fixed due-day cost; EUR, positive) over the last `n` open
+      days **strictly before** the day. A booking on or after day D never changes the value of day D.
+    * For days after the last booking nothing newer exists, so the value at the end of the history is held
+      constant: that is the "origin held constant over the horizon" rule.
+    * NaN while fewer than `LEVEL_MIN_OPEN_DAYS` open days precede the day.
+    """
+    index = pd.DatetimeIndex(pd.to_datetime(list(dates))).normalize().rename("date")
+    windows = tuple(windows)
+    columns = [f"recent_{kind}_{n}d" for kind in ("revenue", "variable_cost") for n in windows]
+    if transactions.empty or len(index) == 0:
+        return pd.DataFrame(float("nan"), index=index, columns=columns)
+    day = transactions["booking_date"].dt.normalize()
+    variable = ~transactions["category"].isin(("revenue", "partner_investment", *FIXED_COST_CATEGORIES))
+    daily = pd.DataFrame({
+        "revenue": transactions["amount"].where(transactions["category"] == "revenue", 0.0),
+        "variable_cost": -transactions["amount"].where(variable, 0.0),
+    }).groupby(day).sum()
+    open_days = daily[daily["revenue"] > 0]
+    out = pd.DataFrame(index=index)
+    if open_days.empty:
+        return out.reindex(columns=columns)
+    # the value known on day D comes from the last open day strictly before D
+    known_from = open_days.index.searchsorted(index, side="left") - 1
+    for n in windows:
+        rolled = open_days.rolling(n, min_periods=LEVEL_MIN_OPEN_DAYS).mean()
+        for kind in ("revenue", "variable_cost"):
+            values = rolled[kind].to_numpy()
+            out[f"recent_{kind}_{n}d"] = [values[i] if i >= 0 else float("nan") for i in known_from]
+    return out[columns]
 
 
 # -- daily cash flow --------------------------------------------------------------------------------------

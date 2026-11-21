@@ -1,0 +1,41 @@
+# One hyperparameter search of the forecast XGBoost (Optuna, every trial a run in MLflow experiment
+# `liquidity-forecast-tuning`), then `--promote-if-better`: the best configuration is retrained on the whole history and
+# registered as `liquidity-forecast` (alias `challenger`); `champion` moves to it only when it beats the current
+# champion's real 90-day balance error by 2 %. The API follows the `champion` alias every 60 s.
+#   Start:    oc create -f deploy/openshift/forecast/tune-job.yaml
+#   Again:    oc delete job forecast-tune && oc create -f deploy/openshift/forecast/tune-job.yaml   (a Job spec is immutable)
+#   Watch:    oc logs -f job/forecast-tune     and the MLflow UI (docs/mlflow.md)
+# 200 trials take a few minutes on one core. `--source db` fails loudly instead of silently tuning on the CSV; exit code 2
+# means the champion lookup failed (nothing registered, champion untouched). Same env conventions as api / scout-worker.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: forecast-tune
+  labels: {app: forecast-tune, app.kubernetes.io/component: forecast-job}
+spec:
+  backoffLimit: 0                    # a failed search is looked at, not retried
+  ttlSecondsAfterFinished: 86400     # the pod and its log disappear a day after it finished (the runs stay in MLflow)
+  activeDeadlineSeconds: 3600
+  template:
+    metadata:
+      labels: {app: forecast-tune, app.kubernetes.io/component: forecast-job}
+    spec:
+      restartPolicy: Never
+      enableServiceLinks: false        # Service `api` would inject API_PORT=tcp://... like in the Deployments
+      containers:
+        - name: tune
+          image: cfo-backend:latest    # ImageStream with lookupPolicy local (deploy/openshift/app/imagestream.yaml)
+          imagePullPolicy: Always
+          args: [python, -m, cfo.forecast.tune, --trials, "200", --source, db, --promote-if-better, --json]
+          envFrom:
+            - configMapRef: {name: cfo-config}   # MLFLOW_TRACKING_URI
+          env:
+            # DATABASE_URL is composed from the keys of Secret `postgres`, as in api.yaml ($(VAR) needs these above it).
+            - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+            - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+            - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+          resources:                    # CPU only: the L4 belongs to vLLM
+            requests: {cpu: "1", memory: 2Gi}
+            limits: {cpu: "2", memory: 4Gi}

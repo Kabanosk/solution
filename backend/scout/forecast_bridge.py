@@ -142,7 +142,7 @@ def _review(ctx: JobContext, intent: ForecastIntent) -> Any:
             days = max(days, required_days)
         # Train only on this request's tenant rows. Never consult or update a
         # filesystem model cache, and never export company data to MLflow.
-        model = fm.train(transactions, log_to_mlflow=False)
+        model = fm.train(transactions, log_to_mlflow=False, band=False)  # the band is only read by the API
         return review_liquidity(outflows, conn=conn, transactions=transactions, model=model, days=days)
 
 

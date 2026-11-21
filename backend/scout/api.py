@@ -65,11 +65,33 @@ def _jsonable(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _strategy_exec() -> bool:
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    return bool(tenant and tenant.role in {"owner", "ceo"})
+
+
+@router.post("/strategy/review", tags=["tasks"], summary="Queue today's CEO strategy briefing")
+def strategy_review(conn: Conn, _: WriteAuth) -> dict[str, Any]:
+    from zoneinfo import ZoneInfo
+    if not _strategy_exec():
+        raise ApiError(403, "forbidden", "Only the organization owner can run a strategy review.")
+    day = str(datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin")).date())
+    key = f"strategy:{day}"
+    row = conn.execute("INSERT INTO agent_jobs(kind,payload,dedupe_key) VALUES ('strategy_review',%s,%s) "
+                       "ON CONFLICT (dedupe_key) DO NOTHING RETURNING id", (Jsonb({"day": day}), key)).fetchone()
+    task = conn.execute("SELECT id FROM agent_tasks WHERE dedupe_key=%s", (key,)).fetchone()
+    scout_db.notify(conn, "scout_jobs", "strategy_review")
+    conn.commit()
+    return {"status": "queued" if row else "already_scheduled", "day": day, "task_id": task["id"] if task else None}
+
+
 # -- tasks --------------------------------------------------------------------------------------------------
 @router.get("/tasks", tags=["tasks"], summary="Agent tasks, newest activity first, with counts per status")
 def list_tasks(conn: Conn, status: str | None = None, loop: str | None = None, owner: str | None = None,
                q: str | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 50) -> dict[str, Any]:
-    where, args = ["TRUE"], []
+    visible = "TRUE" if _strategy_exec() else "loop <> 'strategy'"
+    where, args = [visible], []
     for col, val in (("status", status), ("loop", loop), ("owner_id", owner)):
         if val:
             where.append(f"{col} = ANY(%s)")
@@ -80,7 +102,7 @@ def list_tasks(conn: Conn, status: str | None = None, loop: str | None = None, o
     rows = conn.execute(f"SELECT * FROM agent_tasks WHERE {' AND '.join(where)} ORDER BY updated_at DESC LIMIT %s",
                         [*args, limit]).fetchall()
     counts = {r["status"]: r["n"] for r in conn.execute(
-        "SELECT status, count(*)::int AS n FROM agent_tasks GROUP BY status").fetchall()}
+        f"SELECT status, count(*)::int AS n FROM agent_tasks WHERE {visible} GROUP BY status").fetchall()}
     return {"items": [_jsonable(r) for r in rows], "counts": counts}
 
 
@@ -112,6 +134,8 @@ def task_stream(settings: Settings) -> StreamingResponse:
 def get_task(task_id: str, conn: Conn) -> dict[str, Any]:
     task = conn.execute("SELECT * FROM agent_tasks WHERE id = %s", (task_id,)).fetchone()
     if task is None:
+        raise ApiError(404, "not_found", f"No task {task_id}.")
+    if task["loop"] == "strategy" and not _strategy_exec():
         raise ApiError(404, "not_found", f"No task {task_id}.")
     steps = conn.execute("SELECT * FROM agent_task_steps WHERE task_id = %s ORDER BY id", (task_id,)).fetchall()
     audit = conn.execute("SELECT * FROM audit_log WHERE task_id = %s ORDER BY id", (task_id,)).fetchall()

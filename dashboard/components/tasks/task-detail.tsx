@@ -42,6 +42,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   const running = task.status === "in_progress";
   const hiringReport = task.loop === "liquidity" ? [...steps].reverse().find(step => step.hiringReport)?.hiringReport : undefined;
   const evidence = [...task.evidence, ...steps.flatMap(step => step.evidence ? [step.evidence] : [])]
+    .filter(item => item.kind !== "strategy_briefing")
     .filter((item, index, all) => all.findIndex(other => evidenceView(other).label === evidenceView(item).label) === index);
   const subtitle = [
     transaction?.cardLast4 ? `Company card •${transaction.cardLast4}` : transaction?.id ?? task.transactionId,
@@ -71,6 +72,10 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
     </header>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
+        {task.loop === "strategy" && task.outcome && <section aria-labelledby="strategy-brief-title" className="rounded-xl border bg-card">
+          <h2 id="strategy-brief-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Daily CEO briefing</h2>
+          <p className="whitespace-pre-wrap break-words px-4 py-3 text-sm leading-6">{task.outcome}</p>
+        </section>}
         {hiringReport && <section id={`scout-hiring-report-${task.id}`} aria-labelledby={`scout-hiring-report-title-${task.id}`} className="rounded-xl border bg-card">
           <h2 id={`scout-hiring-report-title-${task.id}`} className="border-b px-4 py-2.5 text-[13px] font-medium">Hiring simulation</h2>
           <Markdown source={hiringReport} className="min-w-0 px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere]" />
@@ -125,7 +130,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
           <Property label="Category">{task.category ? task.category.replaceAll("_", " ") : "—"}</Property>
           <Property label="Transaction">{transaction ? <span className="block"><span className="font-mono text-xs">{transaction.id}</span>
             <span className="block text-xs text-muted-foreground">{transaction.reference} · {money(transaction.amount)}</span></span> : task.transactionId ? <span className="font-mono text-xs">{task.transactionId}</span> : "—"}</Property>
-          {task.outcome && <Property label="Outcome">{task.outcome}</Property>}
+          {task.outcome && task.loop !== "strategy" && <Property label="Outcome">{task.outcome}</Property>}
         </dl>
       </aside>
     </div>

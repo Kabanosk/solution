@@ -75,6 +75,9 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="close_tasks", description="Close Scout tasks waiting on the asker, with the asker's reason (e.g. 'a "
              "refund, no invoice'). task_ids: SC-123, SC-124 or all. Approves pending approvals.",
              parameters=_p(task_ids=S, reason=S)),
+    ToolSpec(name="reassign_approval", description="Hand a pending approval (task_id, e.g. SC-268) to another "
+             "person, who gets the Approve / Reject card on Slack. Use when asked to let someone else decide.",
+             parameters=_p(task_id=S, person=S)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -481,6 +484,33 @@ class Toolbox:
         except (PermissionError, KeyError):
             return False
         return self.ctx.recorder.get(t.id).status == "done"
+
+    def t_reassign_approval(self, task_id: str = "", person: str = "", **_: Any) -> dict[str, Any]:
+        from scout.loops import liquidity
+
+        ids = re.findall(r"SC-\d+", str(task_id).upper())
+        if not ids or not person:
+            return {"error": "missing_arguments", "hint": "Call again with task_id (SC-…) and person."}
+        try:
+            t = self.ctx.recorder.get(ids[0])
+        except Exception:  # noqa: BLE001
+            return {"error": "no_such_task", "task": ids[0]}
+        if not t.approval_id or t.status != "waiting":
+            return {"error": "no_pending_approval", "task": t.id, "status": t.status}
+        who = self._person(person)
+        if who is None:
+            return {"error": "unknown_person", "person": person}
+        try:
+            if self.requester not in (t.owner_id, self.ctx.settings.ceo_id):
+                raise PermissionError
+            if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+                return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
+            liquidity.reassign(self.ctx, t.approval_id, who, self.requester)
+        except PermissionError:
+            return {"error": "access_denied", "policy": "approvals: the approver or the owner"}
+        except ValueError as e:
+            return {"error": "no_pending_approval", "detail": str(e)}
+        return {"reassigned": True, "task": t.id, "to": self.ctx.hr.name(who)}
 
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

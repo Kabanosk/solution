@@ -35,7 +35,7 @@ export function AuditTable({ rows, compact = false }: { rows: AuditRow[]; compac
   </Table>;
 }
 
-export function AuditLog({ rows }: { rows: AuditRow[] }) {
+export function AuditLog({ rows, controls }: { rows: AuditRow[]; controls?: React.ReactNode }) {
   const [denyOnly, setDenyOnly] = useState(false);
   const shown = denyOnly ? rows.filter(row => row.decision === "DENY" || row.decision === "BLOCK") : rows;
   return <section className="space-y-4">
@@ -44,6 +44,7 @@ export function AuditLog({ rows }: { rows: AuditRow[] }) {
         <p className="mt-1 text-sm text-muted-foreground">Every connector read, DM and access-policy decision, newest first.</p></div>
       <Button variant={denyOnly ? "default" : "outline"} size="sm" aria-pressed={denyOnly} onClick={() => setDenyOnly(!denyOnly)}>DENY / BLOCK only</Button>
     </div>
+    {controls}
     <div className="rounded-xl border bg-card"><AuditTable rows={shown} /></div>
   </section>;
 }

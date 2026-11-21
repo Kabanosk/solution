@@ -1,0 +1,30 @@
+# Config `user-input`: what an employee or the CEO types to Scout. Check-only (POST /v1/guardrail/checks).
+# Judge model = Granite itself (one L4 GPU, no room for a second model). regex runs first, then the self check.
+models:
+  - type: main
+    engine: openai
+    model: modelcar-granite-4-0-h-tiny
+    parameters:
+      base_url: http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1
+      temperature: 0.0
+  - type: self_check_input
+    engine: openai
+    model: modelcar-granite-4-0-h-tiny
+    parameters:
+      base_url: http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1
+      temperature: 0.0
+rails:
+  config:
+    regex_detection:
+      input:
+        case_insensitive: true
+        patterns:
+          - "\\b(ignore|disregard|forget|override)\\b.{0,30}\\b(previous|prior|above|earlier|all|your|system)\\b.{0,30}\\b(instructions?|rules?|prompts?|guidelines?|polic(y|ies))\\b"
+          - "\\bzignoruj\\b.{0,30}\\b(instrukcj\\w*|polece\\w*|zasad\\w*)\\b"
+          - "\\b(reveal|show|print|repeat|leak)\\b.{0,25}\\b(system|hidden|initial)\\s+(prompt|message|instructions?)\\b"
+          - "\\b(developer|god|jailbreak|dan)\\s+mode\\b"
+          - "<\\|?(system|start_of_role|end_of_role|im_start|im_end)\\|?>"
+  input:
+    flows:
+      - regex check input
+      - self check input

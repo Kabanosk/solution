@@ -1,0 +1,30 @@
+# NeMo Guardrails as a check-only sidecar (T051, D-029). Applied separately from deploy/:
+#   oc apply -k deploy/openshift/guardrails -n <project>
+# The config ConfigMaps are generated without a name hash because the NemoGuardrails CR refers to them by name.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - nemoguardrails.yaml
+  - rbac.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/part-of: cfo
+    app.kubernetes.io/component: guardrails
+configMapGenerator:
+  - name: guard-user-input
+    files:
+      - config.yaml=configs/user-input/config.yaml
+      - prompts.yml=configs/user-input/prompts.yml
+      - rails.co=configs/user-input/rails.co
+      - config.py=configs/quiet_logs.py
+  - name: guard-tool-result
+    files:
+      - config.yaml=configs/tool-result/config.yaml
+      - rails.co=configs/tool-result/rails.co
+      - config.py=configs/quiet_logs.py
+  - name: guard-bot-output
+    files:
+      - config.yaml=configs/bot-output/config.yaml
+      - rails.co=configs/bot-output/rails.co
+      - config.py=configs/quiet_logs.py

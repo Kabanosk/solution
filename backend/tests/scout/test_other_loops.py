@@ -263,3 +263,41 @@ def test_file_requests_need_a_file_word(conn_factory, tmp_path):
     ctx = make_world(conn_factory, tmp_path, llm=route_llm("request_files"))
     out = chat.run(ctx, dm("vincenzo", "no i mean make them approved and done"))
     assert "checked_files" not in kinds(ctx, out.id)
+
+
+def test_approval_handed_to_someone_else_who_approves_by_typing(conn_factory, tmp_path):
+    from scout.loops.toolbox import Toolbox
+
+    ctx = make_world(conn_factory, tmp_path, grazyna_away=False)
+    ctx.hr.link_slack({"vincenzo": "U_VIN", "grazyna": "U_GRA"}, {})
+    ctx.forecaster = fake_review(gap=True)
+    chat_task = ctx.recorder.open("web:conv77777777", "chat", "Dashboard chat")
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "an oven",
+                                           "from_id": "vincenzo", "chat_task": chat_task.id}))
+    # only the current approver (or the CEO) may hand it over
+    denied = Toolbox(ctx, "vanessa", "staff", chat_task).call("reassign_approval", {"task_id": t.id, "person": "Rosa"})
+    assert denied["error"] == "access_denied"
+    out = Toolbox(ctx, "vincenzo", "ceo", chat_task).call("reassign_approval",
+                                                         {"task_id": t.id, "person": "Grazyna"})
+    assert out["reassigned"] is True and out["to"] == "Grazyna"
+    card = ctx.notifier.sent[-1]
+    assert card["to"] == "grazyna" and [b.action_id for b in card["buttons"]] == ["scout_approve", "scout_reject"]
+    task = ctx.recorder.get(t.id)
+    assert task.owner_id == "grazyna" and task.status == "waiting"
+    assert any("Grazyna" in s.text for s in ctx.recorder.steps(chat_task.id) if s.kind == "followup")
+    with pytest.raises(PermissionError):  # the old approver no longer decides
+        liquidity.resume(ctx, task.approval_id, True, "vincenzo")
+    # Grazyna types "I approve" in the card's thread
+    chat.run(ctx, dm("grazyna", "I approve", n=31, thread=task.slack_ref))
+    done = ctx.recorder.get(t.id)
+    assert done.status == "done" and "SIMULATED" in done.outcome
+    assert any("Grazyna approved" in s.text for s in ctx.recorder.steps(chat_task.id) if s.kind == "followup")
+
+
+def test_unclear_typed_answer_to_an_approval_asks_for_the_buttons(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "oven", "from_id": "vincenzo"}))
+    chat.run(ctx, dm("vincenzo", "hmm what does this mean", n=32, thread=ctx.recorder.get(t.id).slack_ref))
+    assert ctx.recorder.get(t.id).status == "waiting"
+    assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]

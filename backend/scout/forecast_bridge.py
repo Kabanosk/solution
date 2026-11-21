@@ -64,6 +64,12 @@ RUN_FORECAST = ToolSpec(
     description="Run the single validated read-only cash forecast in the user's request. Parameters are already bound.",
     parameters={"type": "object", "properties": {}, "additionalProperties": False},
 )
+DISPATCH_SYSTEM = (
+    "You are the on-premise Granite forecast dispatcher. The server has validated the read-only forecast "
+    "request and bound all parameters. Call run_forecast exactly once with {}. Do not supply forecast "
+    "parameters or any other arguments. No other action is available."
+)
+DISPATCH_REQUEST = "Run the validated forecast now."
 
 
 class ForecastBridgeError(Exception):
@@ -155,11 +161,9 @@ def _report(review: Any, intent: ForecastIntent) -> str:
 def run(ctx: JobContext, task: Task, intent: ForecastIntent, requester: str,
         on_step: Callable[[str], None]) -> str:
     """Ask the configured on-premise model to spawn exactly one bound forecast."""
-    messages = [
-        Message(role="system", content="You are the on-premise Granite forecast dispatcher. Call run_forecast "
-                "exactly once with {} to execute the validated intent. No other action is available."),
-        Message(role="user", content=json.dumps(intent.model_dump(mode="json"))),
-    ]
+    # The action is already bound to the validated intent. Giving Tiny the JSON
+    # again makes it copy those fields into the empty-argument tool call.
+    messages = [Message(role="system", content=DISPATCH_SYSTEM), Message(role="user", content=DISPATCH_REQUEST)]
     with usage_context(purpose="forecast_handoff"):
         response = ctx.llm.chat(messages, [RUN_FORECAST], max_tokens=256)
     # Never dispatch arbitrary tools or use the model's proposed parameter values.

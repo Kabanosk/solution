@@ -65,10 +65,19 @@ def test_granite_spawns_only_the_bound_forecast(context, review):
     assert "1 period(s)" in answer and "No company records were changed" in answer
     review.assert_called_once_with(context, intent)
     assert [t.name for t in context.llm.calls[0]["tools"]] == ["run_forecast"]
-    assert context.llm.calls[0]["messages"][-1].content == json.dumps(intent.model_dump(mode="json"))
+    assert context.llm.calls[0]["messages"][-1].content == forecast_bridge.DISPATCH_REQUEST
     assert len(context.llm.calls) == 1  # no second model can invent completion or another tool call
     context.conn_factory.assert_not_called()
     on_step.assert_called_once()
+
+
+def test_granite_dispatch_preserves_scenario_bound_by_server(context, review):
+    intent = ForecastIntent(horizon_days=180, amount_eur="30000", month="March", direction="in")
+    forecast_bridge.run(context, SimpleNamespace(id="SC-123"), intent, "vincenzo", MagicMock())
+    review.assert_called_once_with(context, intent)
+    # Tiny selects the action; it never needs to echo, infer or rewrite inputs.
+    prompt = " ".join(message.content or "" for message in context.llm.calls[0]["messages"])
+    assert "30000" not in prompt and "March" not in prompt and "horizon_days" not in prompt
 
 
 @pytest.mark.parametrize("raw", ['"{}"', '"{ }"', '{}'])

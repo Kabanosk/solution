@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Play, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -12,7 +12,7 @@ import { LOOP_SIGNAL_LABEL, type LoopSignal } from "@/lib/task-signals";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<IconName, LucideIcon> = {
-  inbox: Inbox, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu,
+  inbox: Inbox, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu, play: Play,
 };
 const STORAGE_KEY = "scout-nav-collapsed";
 
@@ -31,8 +31,8 @@ function LoopDot({ status }: { status?: LoopStatus }) {
   return <span className={cn("size-1.5 shrink-0 rounded-full", DOT[status.signal])} role="img" data-loop-signal={status.signal} title={parts} aria-label={LOOP_SIGNAL_LABEL[status.signal]} />;
 }
 
-export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTask }: {
-  active: string | null; counts: NavCounts; user: { name: string; role: string };
+export function AppSidebar({ active, counts, user, demo, onNavigate, onSearch, onNewTask }: {
+  active: string | null; counts: NavCounts; user: { name: string; role: string }; demo: boolean;
   onNavigate: (route: Route) => void; onSearch: () => void; onNewTask: () => void;
 }) {
   const { toggleSidebar } = useSidebar();
@@ -75,7 +75,7 @@ export function AppSidebar({ active, counts, user, onNavigate, onSearch, onNewTa
             {section.section}{hidden ? <ChevronRight className="size-3" aria-hidden="true" /> : <ChevronDown className="size-3 opacity-0 group-hover/section:opacity-100" aria-hidden="true" />}
           </button>}
           {!hidden && <SidebarGroupContent><SidebarMenu className="gap-px">
-            {section.items.map(item => {
+            {section.items.filter(item => demo || !item.demoOnly).map(item => {
               const Icon = ICONS[item.icon];
               const value = count(item);
               const current = active === item.id;

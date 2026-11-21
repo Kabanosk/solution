@@ -4,7 +4,7 @@ import type { TaskStatus } from "./scout-model";
 export type View =
   | "overview" | "tasks" | "chat"
   | "transactions" | "staffing"
-  | "connections" | "audit" | "policies" | "llm-usage";
+  | "connections" | "audit" | "policies" | "llm-usage" | "demo";
 
 /** "inbox": waiting on / escalated to the CEO (or a pending approval); "mine": owned by the CEO. */
 export type TaskScope = "inbox" | "mine";
@@ -16,7 +16,7 @@ export type Route = { view: View; filter?: TaskFilter; taskId?: string };
 
 export type IconName =
   | "inbox" | "list-todo" | "refresh" | "layout" | "receipt" | "users"
-  | "plug" | "scroll" | "shield" | "message" | "cpu";
+  | "plug" | "scroll" | "shield" | "message" | "cpu" | "play";
 
 export type CountKey = "inbox" | "openTasks" | "loop";
 
@@ -29,6 +29,8 @@ export type NavItem = {
   countKey?: CountKey;
   /** agent_tasks.loop value for loop items. */
   loop?: string;
+  /** Only shown when the demo scenarios are enabled (SCOUT_DEMO=1). */
+  demoOnly?: boolean;
 };
 
 export type NavSection = { section: "primary" | "Loops" | "Finance" | "Workspace"; collapsible: boolean; items: NavItem[] };
@@ -63,11 +65,12 @@ export const NAV: NavSection[] = [
     view("audit", "Audit log", "scroll"),
     view("policies", "Access policies", "shield"),
     view("llm-usage", "LLM usage", "cpu"),
+    view("demo", "Demo", "play", { demoOnly: true }),
   ] },
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV.flatMap(section => section.items);
-const VIEWS = new Set<string>(["overview", "tasks", "chat", "transactions", "staffing", "connections", "audit", "policies", "llm-usage"]);
+const VIEWS = new Set<string>(["overview", "tasks", "chat", "transactions", "staffing", "connections", "audit", "policies", "llm-usage", "demo"]);
 
 /** Route to a URL hash: `#overview`, `#tasks?loop=invoicing&status=done`, `#task/SC-110`. */
 export function hashFromRoute(route: Route): string {
@@ -119,5 +122,5 @@ export const GO_SHORTCUTS: Record<string, Route> = {
 
 export const VIEW_LABEL: Record<View, string> = {
   overview: "Overview", tasks: "Tasks", chat: "Scout chat", transactions: "Transactions", staffing: "Staffing",
-  connections: "Connections", audit: "Audit log", policies: "Access policies", "llm-usage": "LLM usage",
+  connections: "Connections", audit: "Audit log", policies: "Access policies", "llm-usage": "LLM usage", demo: "Demo",
 };

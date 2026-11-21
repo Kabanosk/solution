@@ -8,14 +8,16 @@ test("sidebar sections, order and hrefs: Overview first, one task list, no separ
     ["Overview", "Inbox", "Tasks", "Scout chat"],
     ["Invoicing", "Cost control", "Liquidity", "Chat"],
     ["Transactions", "Staffing"],
-    ["Connections", "Audit log", "Access policies", "LLM usage"],
+    ["Connections", "Audit log", "Access policies", "LLM usage", "Demo"],
   ]);
   assert.deepEqual(NAV_ITEMS.map(item => item.href), [
     "/#overview", "/#tasks?scope=inbox", "/#tasks", "/#chat",
     "/#tasks?loop=invoicing", "/#tasks?loop=cost_control", "/#tasks?loop=liquidity", "/#tasks?loop=chat",
     "/#transactions", "/#staffing",
-    "/#connections", "/#audit", "/#policies", "/#llm-usage",
+    "/#connections", "/#audit", "/#policies", "/#llm-usage", "/#demo",
   ]);
+  assert.deepEqual(NAV_ITEMS.filter(item => item.demoOnly).map(item => item.id), ["demo"]);
+  assert.deepEqual(routeFromHash("#demo"), { view: "demo" });
   assert.deepEqual(NAV[1].items.map(item => item.loop), ["invoicing", "cost_control", "liquidity", "chat"]);
   assert.equal(NAV[0].collapsible, false);
   assert.ok(NAV.slice(1).every(section => section.collapsible));

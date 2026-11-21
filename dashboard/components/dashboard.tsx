@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, ChevronRight, Inbox, LayoutGrid, ListTodo, MessageSquare, RefreshCw, Search } from "lucide-react";
+import { Bell, CalendarClock, ChevronRight, LayoutGrid, ListTodo, MessageSquare, RefreshCw, Search, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
@@ -35,11 +35,10 @@ import { prefetchLlmUsage } from "@/components/llm-usage";
 import { cn } from "@/lib/utils";
 
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
-const mobileNavigation: { route: Route; id: string; label: string; icon: typeof Inbox }[] = [
+const mobileNavigation: { route: Route; id: string; label: string; icon: LucideIcon }[] = [
   { route: { view: "overview" }, id: "overview", label: "Overview", icon: LayoutGrid },
-  { route: { view: "tasks", filter: { scope: "inbox" } }, id: "inbox", label: "Inbox", icon: Inbox },
+  { route: { view: "chat" }, id: "chat", label: "Scout chat", icon: MessageSquare },
   { route: { view: "tasks" }, id: "tasks", label: "Tasks", icon: ListTodo },
-  { route: { view: "chat" }, id: "chat", label: "Chat", icon: MessageSquare },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
 const LOOPS = ["invoicing", "cost_control", "liquidity", "chat"];
@@ -277,7 +276,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
           <div hidden={!chat} className={cn(chat && "flex min-h-0 flex-1 flex-col")}><LlmChat active={chat} /></div>
         </section>
 
-        <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-4 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
+        <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-3 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
           {mobileNavigation.map(({route: target, id, label, icon: Icon})=>{ const current = (active?.id ?? null) === id && !route.taskId;
             return <Button key={id} id={`scout-mobile-${id}`} variant={current?"secondary":"ghost"} aria-current={current?"page":undefined} onClick={()=>navigate(target)} className="h-auto min-h-14 flex-col gap-1 text-[11px]"><Icon className="size-4" aria-hidden="true" />{label}</Button>; })}
         </nav>

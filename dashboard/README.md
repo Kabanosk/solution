@@ -49,6 +49,20 @@ npm --prefix dashboard run build
 npm --prefix dashboard start
 ```
 
+Browser regression checks run against the local development preview in a separate terminal. Install Chromium once:
+
+```bash
+npx --prefix dashboard playwright install chromium
+```
+
+With `DASHBOARD_PREVIEW=1` enabled on the running dev server:
+
+```bash
+npm --prefix dashboard run test:e2e
+```
+
+Set `BASE_URL` for a non-default port, or `CHROMIUM_PATH` to reuse an installed browser. The suite covers navigation, chat prompts, draft reset, a controlled streamed reply, conversation persistence, usage ranges, hydration, icon/axis styling, and overflow in both themes at desktop, phone and landscape sizes. It saves screenshots under `artifacts/ui-cleanup/` (gitignored). It does not verify live Scout model/backend connectivity.
+
 Builds require no database, credentials or company data. The home page and `/api/dashboard` render dynamically; responses use `Cache-Control: private, no-store`. Both require authentication, including server-rendered React requests. Missing login configuration fails closed. `/healthz` returns only process health and is available for cluster probes.
 
 `Containerfile` packages Next.js standalone output with local fonts and static assets. It supports OpenShift's arbitrary non-root UID and a read-only root filesystem. See `deploy/openshift/dashboard/README.md` for deployment.

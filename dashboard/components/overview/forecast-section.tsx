@@ -104,7 +104,8 @@ function BufferGauge({ forecast, range }: { forecast: Forecast | null; range: Ra
   const cx = 110, cy = 104, r = 84;
   const point = (value: number, radius = r) => {
     const angle = Math.PI * (1 - Math.min(Math.max(value, 0), SCALE) / SCALE);
-    return [cx + radius * Math.cos(angle), cy - radius * Math.sin(angle)] as const;
+    // Keep server and browser SVG attributes identical despite trig rounding differences.
+    return [Number((cx + radius * Math.cos(angle)).toFixed(6)), Number((cy - radius * Math.sin(angle)).toFixed(6))] as const;
   };
   const arc = (from: number, to: number) => { const [x1, y1] = point(from); const [x2, y2] = point(to); return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`; };
   const [lx1, ly1] = point(lowRatio, r - 11);

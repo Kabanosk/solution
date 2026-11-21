@@ -81,6 +81,7 @@ function useTaskDetail(id: string | undefined, version: string | undefined, live
 function DashboardContent({ data }: { data: DashboardData }) {
   const { setOpenMobile } = useSidebar();
   const [route, setRoute] = useState<Route>({ view: "chat" });
+  const [routeReady, setRouteReady] = useState(false);
   const page: View = route.view;
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -126,9 +127,13 @@ function DashboardContent({ data }: { data: DashboardData }) {
   const openTask = useCallback((task: AgentTask) => navigateRef.current({ view: "tasks", taskId: task.id }), []);
 
   useEffect(() => {
-    const fromHash = () => setRoute(routeFromHash(window.location.hash));
+    const fromHash = () => {
+      setRoute(routeFromHash(window.location.hash));
+      if (window.location.hash || !canEdit(role)) setRouteReady(true);
+    };
     let lastG = 0;
     const shortcut = (event: KeyboardEvent) => {
+      if (window.location.hash.startsWith("#setup")) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchOrigin.current = document.activeElement as HTMLElement;
@@ -163,7 +168,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     const controller = new AbortController();
     fetchSetup(tenantFetch, controller.signal).then(setup => {
       if (shouldOpenSetup({ hash: window.location.hash, role, status: setup.status })) navigateRef.current({ view: "setup" }, { replace: true });
-    }, () => undefined);
+    }, () => undefined).finally(() => { if (!controller.signal.aborted) setRouteReady(true); });
     return () => controller.abort();
   }, [role]);
 
@@ -223,8 +228,8 @@ function DashboardContent({ data }: { data: DashboardData }) {
     : <p role="status" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">Demo scenarios are switched off on this deployment (SCOUT_DEMO is not set).</p>;
   else if (page === "staffing") content = <Staffing data={data} onBack={() => navigate({ view: "overview" })} />;
   else if (page === "transactions") content = <TransactionsView tasks={scout.tasks} />;
-  else if (page === "connections") content = <Connections connections={scout.connections} onOpenSetup={canEdit(role) ? () => navigate({ view: "setup" }) : undefined} />;
-  else if (page === "setup") content = <Onboarding role={data.workspace?.role} onContinue={() => navigate({ view: "chat" })} />;
+  else if (page === "connections") content = <Connections connections={scout.connections} onOpenSetup={canEdit(role) ? setupStep => navigate({ view: "setup", setupStep }) : undefined} />;
+  else if (page === "setup") content = <Onboarding role={data.workspace?.role} initialStep={route.setupStep} onContinue={() => { navigate({ view: "chat" }); router.refresh(); }} />;
   else if (page === "audit") content = <AuditView />;
   else if (page === "policies") content = <AccessPolicies />;
   else if (page === "llm-usage") content = <LlmUsage active />;
@@ -277,6 +282,15 @@ function DashboardContent({ data }: { data: DashboardData }) {
   </div>;
 
   const chat = page === "chat" && !route.taskId;
+  // Resolve setup before mounting any dashboard chrome, including on a pending owner's ordinary load.
+  if (!routeReady) return <div id="scout-workspace-loading" role="status" className="flex min-h-dvh w-full items-center justify-center bg-background text-sm text-muted-foreground">Preparing your workspace…</div>;
+  if (page === "setup") return <main id="main-content" ref={mainRef} tabIndex={-1} aria-label="Workspace setup" className="min-h-dvh w-full bg-background px-4 py-5 outline-none sm:px-8">
+    <header id="scout-setup-header" className="mx-auto mb-6 flex w-full max-w-2xl items-center justify-between gap-3 text-sm">
+      <p className="min-w-0 truncate"><span className="font-medium">Scout</span><span className="ml-2 text-muted-foreground">{data.workspace?.name}</span></p>
+      <ThemeToggle className="size-8 shrink-0 border-0 shadow-none" />
+    </header>
+    {content}
+  </main>;
   return (
     <>
       <a id="scout-skip-link" href="#main-content" onClick={event=>{event.preventDefault();mainRef.current?.focus();}} className="fixed top-3 left-3 z-50 -translate-y-24 rounded-md bg-primary px-4 py-3 text-sm text-primary-foreground focus:translate-y-0">Skip to content</a>

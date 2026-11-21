@@ -75,7 +75,7 @@ class SlackUI:
                  icon_url: str | None = None, username: str = "Scout", download: Callable[[str], bytes] | None = None,
                  clock: Callable[[], float] = time.monotonic, names: Mapping[str, str] | None = None,
                  generation: str | None = None, installation_valid: Callable[[], bool] | None = None,
-                 workspace: tuple[str, str] | None = None):
+                 workspace: tuple[str, str] | None = None, installer: str | None = None):
         self.client = client
         self._slack = dict(user_map)  # employee id -> Slack user id
         self._emp = {v: k for k, v in self._slack.items()}
@@ -86,6 +86,7 @@ class SlackUI:
         self._token, self._dash = bot_token, dashboard_url.rstrip("/")
         self._generation = generation
         self._workspace = workspace  # (organization slug, organization name): join links in invites
+        self._installer = installer  # the Slack user who added Scout: linked already, never invited
         self._installation_valid = installation_valid
         self._identity = {"username": username, **({"icon_url": icon_url} if icon_url else {})}
         self._download = download or self._http_download
@@ -165,9 +166,31 @@ class SlackUI:
             slug, name = self._workspace
             member = next((m for m in self._members[1] if m.get("id") == slack_id), None)
             token = directory.new_invite_token(self._cf, slack_id, directory.profile_name(member) if member else None)
-            text = directory.INVITE.format(workspace=name, link=f"{self._dash}/join/{slug}/{token}")
+            link = f"{self._dash}/join/{slug}/{token}"
+            text = directory.INVITE.format(workspace=name)
+            blocks = self._blocks(text, "NOTIFY", None, ())
+            blocks.append({"type": "actions", "elements": [{
+                "type": "button", "action_id": directory.JOIN_ACTION, "style": "primary", "url": link,
+                "text": {"type": "plain_text", "text": f"Join {name} workspace"[:75]}}]})
+            self.client.chat_postMessage(channel=channel, text=f"[NOTIFY] {text} {link}", blocks=blocks,
+                                         **self._identity)
+            return
         self.client.chat_postMessage(channel=channel, text=f"[NOTIFY] {text}",
                                      blocks=self._blocks(text, "NOTIFY", None, ()), **self._identity)
+
+    def link_installer(self) -> bool:
+        """The person who added Scout to Slack is linked from the start (no invite, no DM)."""
+        sid = self._installer
+        emp = self._employee(sid) if sid else None
+        return bool(sid and emp and self._cf is not None and directory.claim_connected(self._cf, sid, emp))
+
+    def slack_id(self, employee_id: str) -> str | None:
+        """The Slack user id Scout messages for this employee (HR link or the installation's installer)."""
+        return self._slack_id(employee_id)
+
+    @staticmethod
+    def on_join_click(ack: Callable[[], None], *_: Any, **__: Any) -> None:
+        ack()  # a link button: Slack opens the URL itself, Scout only acknowledges the click
 
     def invite(self, slack_id: str) -> bool:
         """Ask a member without an account for their name, once. True when the question was sent now."""
@@ -186,7 +209,9 @@ class SlackUI:
             return 0
         known = directory.registered_ids(self._cf) | set(self._emp)
         asked = 0
-        for m in self.members(max_age=0):
+        members = self.members(max_age=0)
+        self.link_installer()
+        for m in members:
             if m["id"] not in known and self.invite(m["id"]):
                 asked += 1
         if asked:
@@ -474,3 +499,4 @@ class SlackUI:
         app.event("team_join")(self.on_team_join)
         app.action(APPROVE)(self.on_action)
         app.action(REJECT)(self.on_action)
+        app.action(directory.JOIN_ACTION)(self.on_join_click)

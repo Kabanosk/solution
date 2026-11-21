@@ -95,6 +95,16 @@ def tenant_user_map(cf: Any, installation: Any) -> dict[str, str]:
             exists = conn.execute("SELECT 1 FROM employees WHERE id=%s", (employee,)).fetchone()
         if owner and exists:
             links[employee] = installer
+    if installer and employee and links.get(employee) == installer:
+        # Persist the installer's link so every lookup (tools, dashboard, other processes) sees them on Slack.
+        try:
+            with cf() as conn:
+                conn.execute("UPDATE employees SET slack_user_id = %s WHERE id = %s AND slack_user_id IS NULL "
+                             "AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.slack_user_id = %s)",
+                             (installer, employee, installer))
+                conn.commit()
+        except Exception:
+            log.warning("could not store the installer's Slack link", exc_info=True)
     counts: dict[str, int] = {}
     for uid in links.values():
         counts[uid] = counts.get(uid, 0) + 1
@@ -293,7 +303,8 @@ def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool =
                            bot_token=installation.token, dashboard_url=s.dashboard_url, icon_url=icon, names=names,
                            generation=installation.generation,
                            installation_valid=lambda: installation_current(installation, s),
-                           workspace=organization_of(s.database_url))
+                           workspace=organization_of(s.database_url),
+                           installer=installation.config.get("installer_user_id"))
     elif s.slack_bot_token:
         from slack_bolt import App
         from slack_bolt.adapter.socket_mode import SocketModeHandler

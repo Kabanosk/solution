@@ -161,11 +161,22 @@ class Toolbox:
                 return hits.pop()
         return None
 
+    def _slack_of(self, employee_id: str) -> str | None:
+        """The person's Slack id: their HR link, else what the Slack connection knows (e.g. the installer)."""
+        sid = (self.ctx.hr.employee(employee_id) or {}).get("slack_user_id")
+        if sid:
+            return sid
+        known = getattr(self.ctx.notifier, "slack_id", None)
+        try:
+            return known(employee_id) if known else None
+        except Exception:  # noqa: BLE001
+            return None
+
     def _on_slack(self, name: str | None) -> str | None:
         """Slack is the source of truth: the person, found in HR or among the workspace's members, with a Slack id
         (a member who never registered gets an account from their Slack profile now)."""
         who = self._person(name)
-        if who is not None and (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+        if who is not None and self._slack_of(who):
             return who
         find = getattr(self.ctx.notifier, "slack_person", None)
         if find is None:
@@ -548,7 +559,7 @@ class Toolbox:
         if who is None:
             return {"error": "unknown_person", "person": person,
                     "hint": "Nobody by that name in the company or in the Slack workspace."}
-        if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+        if not self._slack_of(who):
             return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
         body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
         safe = guardrails.screen_output(self.ctx, self.task.id, body, requester=self.requester, source="send_dm",
@@ -649,7 +660,7 @@ class Toolbox:
             if self.requester not in (t.owner_id, self.ctx.settings.ceo_id):
                 skipped.append({"task": t.id, "why": "access_denied"})
                 continue
-            if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+            if not self._slack_of(who):
                 return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
             try:
                 if t.approval_id and t.loop == "liquidity":

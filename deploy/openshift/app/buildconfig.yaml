@@ -17,6 +17,7 @@ spec:
     type: Docker
     dockerStrategy:
       dockerfilePath: Containerfile   # the repo's `Dockerfile` is the sample-data file server, not the backend
+      from: {kind: ImageStreamTag, name: "cfo-backend-dependencies:latest"}
   output:
     to: {kind: ImageStreamTag, name: "cfo-backend:latest"}
   resources:
@@ -26,3 +27,27 @@ spec:
   failedBuildsHistoryLimit: 2
   triggers:
     - type: ConfigChange
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: cfo-backend-dependencies
+  labels: {app: cfo-backend}
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/Kabanosk/solution
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile.dependencies
+  output:
+    to: {kind: ImageStreamTag, name: "cfo-backend-dependencies:latest"}
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "4", memory: 6Gi}
+  successfulBuildsHistoryLimit: 1
+  failedBuildsHistoryLimit: 2

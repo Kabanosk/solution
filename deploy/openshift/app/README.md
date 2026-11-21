@@ -35,6 +35,23 @@ oc rollout restart deploy/api deploy/scout-worker
 
 To go through NeMo Guardrails, point `LLM_BASE_URL` at the proxy instead (D-009).
 
+The `usage-sampler` Deployment has zero replicas in the shared app. vLLM `/metrics` reports
+model-server totals, not organization usage, and the sampler requires explicitly authorized legacy
+configuration. Do not grant legacy connector access to make this pod start. Tenant-scoped per-request
+usage recording does not depend on the sampler. `/v1/llm/usage/live` stops receiving fresh samples and
+returns `503 metrics_unavailable` if the organization has no stored sample. Without a sampled
+server-token delta, the amortized cost estimate assumes 100% of server traffic.
+
+For an existing shared installation, merging the manifest does not scale the live Deployment down.
+An operator can reconcile just this workload with the intended state in the selected project:
+
+```sh
+oc scale deployment/usage-sampler --replicas=0
+oc get deployment/usage-sampler
+```
+
+Verify the Deployment reports `0/0` ready replicas.
+
 ## Secrets (never commit values; the repo is public)
 
 Slack app transport token lives in Secret `slack` (`SLACK_APP_TOKEN`, scope `connections:write`). Tenant bot tokens are sealed per organization during OAuth. Legacy demo bot credentials (`SLACK_BOT_TOKEN`, `SLACK_USER_MAP`) are optional and never used as a fallback for new organizations; the worker reads the app-level token

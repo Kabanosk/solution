@@ -68,8 +68,9 @@ once the agent processes events, e.g. after `POST /v1/sim:start`.
 | `GPU_HOURLY_COST_EUR`, `NODE_HOURLY_COST_EUR`, `USD_TO_EUR`, `HOSTED_PRICES_JSON` | defaults | change the rates without a code change |
 | `LLM_USAGE_RECORD` | `true` | `false` turns per-call recording off |
 
-Run exactly one sampler replica. Several replicas, or several model pods behind one service, would make counters look
-like restarts.
+The original single-organization setup ran one sampler replica. The shared app now runs zero; see the
+[current deployment guidance](../../deploy/openshift/app/README.md#fill-in-the-llm-endpoint). Several replicas, or
+several model pods behind one service, would make counters look like restarts.
 
 ### Files
 

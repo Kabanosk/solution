@@ -19,11 +19,19 @@ rails:
       input:
         case_insensitive: true
         patterns:
+          # Deterministic jailbreak detection. The Granite judge (prompts.yml) only answers one narrow question
+          # (salary of a named person): as a general jailbreak judge the 1B-active model blocked ordinary requests
+          # with typos or "attach/send" verbs and still missed role-play (measured 2026-11-21, 44 cases).
           - "\\b(ignore|disregard|forget|override)\\b.{0,30}\\b(previous|prior|above|earlier|all|your|system)\\b.{0,30}\\b(instructions?|rules?|prompts?|guidelines?|polic(y|ies))\\b"
           - "\\bzignoruj\\b.{0,30}\\b(instrukcj\\w*|polece\\w*|zasad\\w*)\\b"
           - "\\b(reveal|show|print|repeat|leak)\\b.{0,25}\\b(system|hidden|initial)\\s+(prompt|message|instructions?)\\b"
           - "\\b(developer|god|jailbreak|dan)\\s+mode\\b"
           - "<\\|?(system|start_of_role|end_of_role|im_start|im_end)\\|?>"
+          - "\\b(system|assistant)\\s+prompt\\b|\\bprompt\\s+systemow\\w*\\b|\\bukryte\\s+polecen\\w*\\b"
+          - "\\b(repeat|print|output|copy)\\b.{0,30}\\b(text|everything|words?)\\b.{0,15}\\b(above|before|verbatim|word for word)\\b"
+          - "\\b(pretend|roleplay|role-play)\\b.{0,20}\\b(you are|you're|to be|as)\\b|\\bact as if you\\b|\\b(act|behave) as (an? )?(unrestricted |unfiltered )?(ai|assistant|bot|model|hr|admin|administrator|developer|system)\\b"
+          - "\\byou are now (a|an|in|dan)\\b|\\byou are dan\\b|\\b(ai|assistant|bot|model) without (any )?(restrictions|limits|rules|filters)\\b"
+          - "\\b(decode|base64)\\b.{0,40}\\b(follow|execute|run|obey|do what)\\b|[A-Za-z0-9+]{20,}={1,2}(\\s|$)|[A-Za-z0-9+]{40,}"
   input:
     flows:
       - regex check input

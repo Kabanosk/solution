@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { appOrigin, authStore, SESSION_COOKIE } from "./lib/auth";
 import { sameOrigin, validSlug } from "./lib/auth-crypto";
 
-const PUBLIC = new Set(["/", "/healthz", "/scout-icon.svg", "/scout-icon.png", "/google-g.png", "/icon.svg", "/favicon.ico"]);
+const PUBLIC = new Set(["/", "/healthz", "/scout-icon.svg", "/scout-icon.png", "/google-g.png", "/icon.svg", "/favicon.ico", "/fonts/Inter.woff2", "/fonts/Mono.woff2"]);
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);

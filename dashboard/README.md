@@ -8,7 +8,7 @@ Start at `/` to find or create an organization. `/<organization-slug>` is that o
 
 The dashboard and Python API both verify opaque organization-bound sessions and current membership. Company queries run in a read-only repeatable-read transaction with a registered, tenant-only PostgreSQL search path. API calls carry the real member's session, not a shared write token. An organization URL/header is a selector, never authorization. There is no anonymous data-access bypass.
 
-**Read [the complete authentication/migration guide](../docs/scout-auth.md) before running this version against existing data.** The opt-in migration registers Pizzeria Amalfi without granting it to any visitor. An operator must explicitly enroll the intended verified owner. Google OAuth setup, exact callback URLs, secret configuration, worker binding, database-role limitations and backup/dry-run/rollback requirements are in that guide. The application database has not been migrated and this version has not been deployed yet.
+**Read [the complete authentication/migration guide](../docs/scout-auth.md) before running this version against existing data.** The opt-in migration registers Pizzeria Amalfi without granting it to any visitor. An operator must explicitly enroll the intended verified owner. Google OAuth setup, exact callback URLs, secret configuration, worker binding, database-role limitations and backup/dry-run/rollback requirements are in that guide. A dashboard-only legal-page image was deployed on 2026-11-21; that action did not run a database migration or authorize any connector.
 
 ## Local development
 

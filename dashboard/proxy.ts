@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { appOrigin, authStore, SESSION_COOKIE } from "./lib/auth";
 import { sameOrigin, validSlug } from "./lib/auth-crypto";
 
-const PUBLIC = new Set(["/", "/healthz", "/scout-icon.svg", "/scout-icon.png", "/google-g.png", "/icon.svg", "/favicon.ico", "/fonts/Inter.woff2", "/fonts/Mono.woff2"]);
+const PUBLIC = new Set(["/", "/privacy", "/terms", "/healthz", "/scout-icon.svg", "/scout-icon.png", "/google-g.png", "/icon.svg", "/favicon.ico", "/fonts/Inter.woff2", "/fonts/Mono.woff2"]);
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
@@ -28,7 +28,7 @@ export async function proxy(request: NextRequest) {
     else { requestHeaders.set("x-scout-organization", slug); response = NextResponse.next({ request: { headers: requestHeaders } }); }
   }
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
-  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  if (path !== "/privacy" && path !== "/terms") response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");

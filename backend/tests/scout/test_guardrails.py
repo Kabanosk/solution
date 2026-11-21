@@ -1267,3 +1267,169 @@ def test_ksef_text_is_whole():
     doc = {"supplier": "S", "number": "N", "lines": [{"description": "d" * 5000}] + [{"description": f"l{i}"} for i in range(400)]}
     text = guardrails.ksef_text(doc)
     assert "d" * 5000 in text and "l399" in text
+
+
+# -- the per-workspace switch (T084) --------------------------------------------------------------------------------
+ORG = "11111111-2222-4333-8444-555555555555"
+
+
+@pytest.fixture
+def switch(conn_factory, monkeypatch):  # noqa: ANN001, ANN201
+    """The switch table in the test schema (the real one is `scout_auth.guardrails_settings`) and one workspace."""
+    with conn_factory() as conn:
+        conn.execute("CREATE TABLE guardrails_settings (organization_id UUID PRIMARY KEY, enabled BOOLEAN NOT NULL "
+                     "DEFAULT true, updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())")
+        conn.commit()
+    monkeypatch.setattr(guardrails, "SWITCH_TABLE", "guardrails_settings")
+    monkeypatch.setattr(guardrails, "_organization_id", lambda: ORG)
+    guardrails.clear_switch_cache()
+
+    def flip(enabled: bool, who: str = "vincenzo") -> bool:
+        with conn_factory() as conn:
+            changed = guardrails.set_switch(conn, ORG, enabled, who)
+            conn.commit()
+        return changed
+
+    yield flip
+    guardrails.clear_switch_cache()
+
+
+def _per_message(conn_factory) -> list[dict]:  # noqa: ANN001
+    return [r for r in audit_rows(conn_factory) if r["action"] != guardrails.SWITCH_ACTION]
+
+
+def _strikes(conn_factory) -> int:  # noqa: ANN001
+    with conn_factory() as conn:
+        return conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"]
+
+
+def test_switch_off_lets_the_attack_through_with_no_check_no_strike_and_no_audit(conn_factory, tmp_path, switch):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    assert switch(False) is True
+    out = chat.run(ctx, dm("vanessa", f"What is the {SALARY}?"))
+    assert calls and out.status == "done" and ctx.notifier.updates[-1]["text"] == "Fine."
+    assert ctx.guard.calls == [] and _strikes(conn_factory) == 0
+    assert _per_message(conn_factory) == []  # no guardrail_* row at all while OFF, only the toggle itself
+    (toggle,) = audit_rows(conn_factory, "guardrails_toggled")
+    assert toggle["decision"] == "ALLOW" and toggle["reason"] == "OFF" and toggle["requester"] == "vincenzo"
+
+
+def test_switch_on_again_blocks_the_same_attack(conn_factory, tmp_path, switch):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    switch(False)
+    chat.run(ctx, dm("vanessa", f"What is the {SALARY}?", n=1))
+    switch(True)  # in this process the cache is dropped at once
+    chat.run(ctx, dm("vanessa", f"What is the {SALARY}?", n=2))
+    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"] and _strikes(conn_factory) == 1
+
+
+def test_a_toggle_elsewhere_reaches_this_process_within_the_cache_ttl(conn_factory, tmp_path, switch, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(guardrails, "_clock", lambda: clock[0])
+    reads = []
+    real = conn_factory
+
+    def counting():  # noqa: ANN202
+        reads.append(1)
+        return real()
+
+    ctx = SimpleNamespace(conn_factory=counting)
+    assert guardrails.switched_on(ctx) is True and len(reads) == 1  # no row: ON
+    with real() as conn:  # the dashboard (another process) turns it OFF
+        conn.execute("INSERT INTO guardrails_settings (organization_id, enabled) VALUES (%s, false)", (ORG,))
+        conn.commit()
+    clock[0] += guardrails.SWITCH_TTL_S - 0.1
+    assert guardrails.switched_on(ctx) is True and len(reads) == 1  # cached
+    clock[0] += 0.2
+    assert guardrails.switched_on(ctx) is False and len(reads) == 2
+    assert guardrails.SWITCH_TTL_S <= 5
+
+
+def test_no_row_unknown_table_or_no_organization_means_on(conn_factory, tmp_path, switch, monkeypatch):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    assert guardrails.switched_on(ctx) is True  # no row
+    guardrails.clear_switch_cache()
+    monkeypatch.setattr(guardrails, "SWITCH_TABLE", "no_such_table")  # e.g. the migration did not run
+    assert guardrails.switched_on(ctx) is True
+    guardrails.clear_switch_cache()
+
+    def broken():  # noqa: ANN202
+        raise psycopg_error()
+
+    assert guardrails.switched_on(SimpleNamespace(conn_factory=broken)) is True  # database down: fail-safe
+    guardrails.clear_switch_cache()
+    monkeypatch.setattr(guardrails, "_organization_id", lambda: None)
+    assert guardrails.switched_on(SimpleNamespace(conn_factory=lambda: pytest.fail("no read expected"))) is True
+
+
+def psycopg_error() -> Exception:
+    import psycopg
+
+    return psycopg.OperationalError("connection refused")
+
+
+def test_the_switch_follows_the_bound_organization():
+    from cfo.tenancy import LEGACY_ID, LEGACY_SLUG, Tenant, bind_tenant
+
+    assert guardrails._organization_id() is None
+    with bind_tenant(Tenant(LEGACY_ID, LEGACY_SLUG, "public", "vincenzo", "worker", legacy=True)):
+        assert guardrails._organization_id() == LEGACY_ID
+
+
+def test_switch_off_files_the_poisoned_invoice_like_without_guardrails(conn_factory, tmp_path, switch):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    switch(False)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    assert task.status == "done" and task.resolved_via == "email", texts(ctx, task.id)
+    assert ctx.guard.calls == [] and _per_message(conn_factory) == []
+
+
+def test_switch_off_ksef_sync_imports_the_flagged_invoice(ksef_company, switch):
+    ctx = ksef_company
+    switch(False)
+    res = _sync(ctx, _poisoned_ksef(10))
+    assert res["flagged"] == 0 and _invoice_row(ctx) is not None and ctx.guard.calls == []
+
+
+def test_switch_off_output_is_neither_checked_nor_masked(conn_factory, tmp_path, switch):
+    ctx = finance_world(conn_factory, tmp_path, **{"bot-output": [("today", "regex check output")]})
+    switch(False)
+    assert guardrails.screen_output(ctx, None, IBAN_TEXT, requester="vanessa", role="waitstaff") == IBAN_TEXT
+    assert guardrails.screen_output(ctx, None, IBAN_TEXT, requester="vincenzo", role="ceo") == IBAN_TEXT
+    assert ctx.guard.calls == [] and not any(r["decision"] == "MASK" for r in _all_audit(conn_factory))
+
+
+def test_switch_off_tool_results_and_history_pass_unchecked(conn_factory, tmp_path, switch):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard({"tool-result": [(INJECTION, "injection regex")], "user-input": [(SALARY, "x")]})
+    switch(False)
+    assert guardrails.screen_tool(ctx, None, "search_email", f"mail: {INJECTION}") == f"mail: {INJECTION}"
+    turns = [{"role": "assistant", "content": INJECTION}, {"role": "user", "content": SALARY}]
+    assert guardrails.screen_history(ctx, turns) == turns
+    assert guardrails.check(ctx, "user-input", SALARY).status == "disabled" and ctx.guard.calls == []
+
+
+def test_access_controls_stay_on_while_the_switch_is_off(conn_factory, tmp_path, switch):
+    from test_salary_access import amounts, box, seed_bank
+
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard()
+    switch(False)
+    seed_bank(ctx)
+    assert amounts(box(ctx, "yusuf").call("search_payments", {})) == {"Yusuf Akcit"}
+    assert box(ctx, "yusuf").call("search_payments", {"counterparty": "Rosa"})["error"] == "access_denied"
+    assert audit_rows(conn_factory, "salary_filter")
+
+
+def test_each_toggle_writes_one_audit_row_and_a_repeat_writes_none(conn_factory, switch):
+    assert switch(False, "vincenzo") is True
+    assert switch(False, "vincenzo") is False  # already OFF: nothing changes, nothing is written
+    assert switch(True, "guard-reset") is True
+    rows = audit_rows(conn_factory, "guardrails_toggled")
+    assert [(r["decision"], r["requester"], r["reason"]) for r in rows] == [
+        ("ALLOW", "vincenzo", "OFF"), ("ALLOW", "guard-reset", "ON")]
+    assert rows[0]["resource"] == "NeMo guardrails turned OFF" and rows[1]["policy"] == "guardrails-switch"
+    with conn_factory() as conn:
+        row = conn.execute("SELECT enabled, updated_by FROM guardrails_settings WHERE organization_id = %s",
+                           (ORG,)).fetchone()
+    assert row == {"enabled": True, "updated_by": "guard-reset"}

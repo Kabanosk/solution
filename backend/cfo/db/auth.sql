@@ -104,3 +104,11 @@ CREATE TABLE IF NOT EXISTS scout_auth.login_links (
     organization_id uuid NOT NULL REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
     expires_at timestamptz NOT NULL
 );
+-- Per-workspace NeMo guardrails switch for the demo (T084). No row means ON; the worker and the api read it with a
+-- short cache (scout/guardrails.py). Only the workspace owner changes it, from the dashboard Audit page.
+CREATE TABLE IF NOT EXISTS scout_auth.guardrails_settings (
+    organization_id UUID PRIMARY KEY REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    updated_by TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

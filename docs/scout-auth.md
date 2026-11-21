@@ -31,7 +31,7 @@ uv run --directory backend python -m cfo.db.migrate --check
 uv run --directory backend python -m cfo.db.migrate --migrate
 ```
 
-The packaged migration creates/updates `scout_auth.*` and the canonical provisioning function, including the OAuth transaction `registration` JSONB draft used by Google signup. It registers existing public-schema data without rewriting financial records as:
+The packaged migration creates/updates `scout_auth.*` and the canonical provisioning function, including the OAuth transaction `registration` JSONB draft used by Google signup and the per-workspace guardrails switch `scout_auth.guardrails_settings` (no row = ON, see `docs/guardrails.md`). It registers existing public-schema data without rewriting financial records as:
 
 - Display name: **Pizzeria Amalfi**
 - Slug: **pizzeria-amalfi**

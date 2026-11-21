@@ -215,6 +215,26 @@ its own fields. Reject leaves the payment without an invoice. The original flagg
 already calls it); each job is one trace `scout.<job kind>`, guardrail checks are `guardrails.check` spans with
 `guardrail.config_id`, `.status`, `.rails`, `.latency_ms`.
 
+### Workspace switch (demo)
+
+An owner can turn the whole NeMo layer off and on for one workspace: Audit page, **NeMo Guardrails** switch ("Checks
+every message, tool result and reply"). It exists for the demo: show an attack passing with the switch off, then the
+same attack blocked with it on. While it is off, every owner sees a warning on every dashboard page ("Guardrails are
+off for this workspace") with a one-click **Turn back on**.
+
+| | Switch OFF | Always on |
+|---|---|---|
+| What | `user-input`, `tool-result` (chat tools, invoice PDFs and mails, KSeF lines, so a poisoned invoice is filed like any other), `bot-output` and `bot-output-finance` are not called; no masking of IBANs, cards, e-mails or phones; no strikes, no compliance or owner alerts, no approval card for a flagged invoice | The access controls are authorization, not guardrails: salary visibility (`salary_filter`), task-log isolation, role checks and the policy engine stay on whatever the switch says |
+| Audit | Nothing per message (no `guardrail_*` rows while off) | Each change writes one row: action `guardrails_toggled`, decision `ALLOW`, requester = who, resource `NeMo guardrails turned OFF` / `ON`, policy `guardrails-switch` |
+
+State: `scout_auth.guardrails_settings (organization_id, enabled, updated_by, updated_at)`, created by
+`python -m cfo.db.migrate --migrate` (it is in `backend/cfo/db/auth.sql`). No row means ON. The api and the worker read
+it for the organization bound to the request or job, cached for 5 s per process, so a toggle takes effect within about
+5 s without a restart. A database error while reading it means ON (fail-safe; the service itself still fails open).
+`GET`/`PUT /api/guardrails` on the dashboard (owner only, 403 for anyone else; PUT `{"enabled": false}`) reads and sets
+it. `python -m scout.demo guard-reset` also turns it back ON (one `guardrails_toggled` row, requester `guard-reset`, when it
+was off); it exits 1 if it could not write the switch (the strikes are reset anyway).
+
 ### Configuration on the cluster
 
 | Variable | Where | Meaning |
@@ -240,4 +260,4 @@ re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666
 
 `docs/guardrails-demo.md` is the presenter's runbook (seven attack scenarios, checklist, troubleshooting). The prompts live
 in `backend/scout/demo_guard.py`; `python -m scout.demo guard-preflight` checks them against the NeMo service (no strikes,
-no audit rows), `guard-reset` returns the demo personas to "attempt 1 of 3", `plant` writes the evidence files (poisoned mail) and runs as the one-off Job `deploy/openshift/guardrails/demo-plant-job.yaml`, because the worker mounts the data volume read-only.
+no audit rows), `guard-reset` returns the demo personas to "attempt 1 of 3" and turns the workspace switch back ON, `plant` writes the evidence files (poisoned mail) and runs as the one-off Job `deploy/openshift/guardrails/demo-plant-job.yaml`, because the worker mounts the data volume read-only.

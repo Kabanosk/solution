@@ -4,7 +4,7 @@
     python -m scout.demo play <scenario>     # post that case's payment to the bank mock (Scout picks it up)
     python -m scout.demo list
     python -m scout.demo guard-preflight [--scenario A] [--repeat 3]   # guardrails demo kit, see scout.demo_guard
-    python -m scout.demo guard-reset [--person vanessa ...]
+    python -m scout.demo guard-reset [--person vanessa ...]           # also turns the guardrails switch back ON
     python -m scout.demo plant
 
 The chat messages are posted by the bot under the colleague's name (`chat:write.customize`), the way a real
@@ -70,6 +70,13 @@ def db_factory(settings):  # noqa: ANN001, ANN201
         return scout_db.factory()
 
 
+def organization_id(settings) -> str:  # noqa: ANN001
+    """The worker's organization (SCOUT_ORGANIZATION_ID, verified against the registry)."""
+    from cfo.tenancy import worker_tenant
+
+    return worker_tenant(settings.database_url).id
+
+
 def data_dir(settings) -> Path:  # noqa: ANN001
     return Path(settings.data_dir) if Path(settings.data_dir).is_absolute() else REPO_ROOT / settings.data_dir
 
@@ -84,7 +91,8 @@ def main(argv: list[str] | None = None) -> int:
     pf = sub.add_parser("guard-preflight", help="send every guardrails demo prompt to the check service (read-only)")
     pf.add_argument("--scenario", choices=[sc.key for sc in demo_guard.SCENARIOS], action="append")
     pf.add_argument("--repeat", type=int, default=1, help="send each prompt this many times, verdict must not change")
-    rs = sub.add_parser("guard-reset", help="clear the demo personas' strikes and the CEO-alert dedup rows")
+    rs = sub.add_parser("guard-reset", help="clear the demo personas' strikes and the CEO-alert dedup rows, and turn "
+                                           "the workspace guardrails switch back on")
     rs.add_argument("--person", choices=demo_guard.DEMO_PERSONAS, action="append")
     sub.add_parser("plant", help="write the demo evidence files (incl. the poisoned mail), nothing in the database")
     args = parser.parse_args(argv)
@@ -95,8 +103,15 @@ def main(argv: list[str] | None = None) -> int:
         print(demo_guard.format_results(results))
         return demo_guard.exit_code(results)
     if args.cmd == "guard-reset":
-        out = demo_guard.reset(db_factory(s), args.person)
+        factory = db_factory(s)
+        out = demo_guard.reset(factory, args.person)
         print(f"reset: {out['strikes']} strikes, {out['alerts']} poisoned-mail alert rows deleted (audit rows kept)")
+        switched = demo_guard.switch_on(factory, organization_id(s))
+        if switched is None:  # a saved OFF may still be there: not a finished reset
+            print("guardrails switch: could not be set back ON (see the log); strikes were reset. Turn it on in the "
+                  "dashboard (Audit page) or run guard-reset again.")
+            return 1
+        print(f"guardrails switch: {'turned back ON' if switched else 'already ON'}")
         return 0
     if args.cmd == "plant":
         from scout.seed import plant_demo_evidence

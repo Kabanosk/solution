@@ -425,6 +425,10 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     preview = text if len(text) <= 60 else text[:57] + "…"
     if intent == "request_files" and not FILE_WORDS.search(text):
         intent = "question"  # "mark them done" is not a file request, whatever the router says
+    if intent in ("request_files", "smalltalk") and FINANCE_WORDS.search(text):
+        intent = "question"  # invoices, email, PDFs: the tools (email_invoices, send_invoices) answer these
+    if intent == "smalltalk" and not GREETING.match(text):
+        intent = "question"  # anything but a bare greeting deserves a real answer, not the help text
     key = _thread_key(p["thread"]) if p.get("thread") else f"dm:{job.dedupe_key}"
     earlier = ctx.recorder.by_key(key)
     history = _history(ctx, earlier) if earlier else []
@@ -485,11 +489,17 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     from cfo.tenancy import current_tenant
     tenant = current_tenant(required=False)
     help_text = HELP if tenant is None or tenant.legacy else (
-        "I'm Scout, your organization's finance agent. I can answer questions from your own company database "
-        "and explain the available records. External bank, mail, Slack and file integrations are not configured. "
-        "Background forecasts and approvals require an organization-bound worker; queued work is not completion.")
+        "I'm Scout, your organization's finance agent. Ask me about invoices (I also find the PDFs in the "
+        "company email and attach them), payments, tasks or people, or ask me to message a colleague. "
+        "Example: \"send me all invoices from last month as PDF\".")
     return _finish(ctx, task, p, help_text)
 
+
+# Words that mean the message is about invoices or the mailbox, never a laptop-folder file request or small talk.
+FINANCE_WORDS = re.compile(r"\b(invoices?|faktur\w*|rachun\w*|receipts?|paragon\w*|e-?mails?|mail\w*|inbox|gmail|"
+                           r"pdfs?|attach\w*|załącz\w*|zalacz\w*)\b", re.IGNORECASE)
+GREETING = re.compile(r"^\s*(hi|hey|hello|hej|cześć|czesc|siema|yo|help|pomoc|thanks|thank you|dzięki|dzieki)\W*$",
+                      re.IGNORECASE)
 
 HANDLERS = {"dm": on_dm}
 

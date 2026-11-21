@@ -305,7 +305,7 @@ def test_after_reset_the_ceo_alert_for_the_same_item_fires_again(conn_factory, t
     assert len(ctx.notifier.sent) == 2
 
 
-def test_cli_reset_uses_the_bound_database_and_prints_counts(monkeypatch, capsys, conn_factory, db):
+def test_cli_reset_uses_the_bound_database_and_prints_counts(monkeypatch, capsys, conn_factory, db, switch):
     _seed_rows(db)
     monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
     monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
@@ -333,9 +333,11 @@ def test_guard_reset_still_resets_strikes_when_the_switch_cannot_be_written(monk
     monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
     monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
     monkeypatch.setattr(guardrails, "SWITCH_TABLE", "no_such_table")
-    assert demo.main(["guard-reset"]) == 0
+    assert demo.main(["guard-reset"]) == 1  # automation must not treat a switch left OFF as a finished reset
     out = capsys.readouterr().out
     assert "strikes" in out and "guardrails switch: could not be set" in out
+    with conn_factory() as conn:  # the strikes were still reset
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE person = 'vanessa'").fetchone()["n"] == 0
 
 
 # -- plant -------------------------------------------------------------------------------------------------

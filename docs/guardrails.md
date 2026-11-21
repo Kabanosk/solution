@@ -233,7 +233,7 @@ it for the organization bound to the request or job, cached for 5 s per process,
 5 s without a restart. A database error while reading it means ON (fail-safe; the service itself still fails open).
 `GET`/`PUT /api/guardrails` on the dashboard (owner only, 403 for anyone else; PUT `{"enabled": false}`) reads and sets
 it. `python -m scout.demo guard-reset` also turns it back ON (one `guardrails_toggled` row, requester `guard-reset`, when it
-was off).
+was off); it exits 1 if it could not write the switch (the strikes are reset anyway).
 
 ### Configuration on the cluster
 

@@ -107,8 +107,11 @@ def main(argv: list[str] | None = None) -> int:
         out = demo_guard.reset(factory, args.person)
         print(f"reset: {out['strikes']} strikes, {out['alerts']} poisoned-mail alert rows deleted (audit rows kept)")
         switched = demo_guard.switch_on(factory, organization_id(s))
-        print("guardrails switch: " + {True: "turned back ON", False: "already ON"}.get(
-            switched, "could not be set (see the log); a switch that cannot be read counts as ON"))
+        if switched is None:  # a saved OFF may still be there: not a finished reset
+            print("guardrails switch: could not be set back ON (see the log); strikes were reset. Turn it on in the "
+                  "dashboard (Audit page) or run guard-reset again.")
+            return 1
+        print(f"guardrails switch: {'turned back ON' if switched else 'already ON'}")
         return 0
     if args.cmd == "plant":
         from scout.seed import plant_demo_evidence

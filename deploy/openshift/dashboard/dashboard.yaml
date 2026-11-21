@@ -38,6 +38,9 @@ spec:
               valueFrom: {secretKeyRef: {name: scout-strategy, key: encryption-key, optional: true}}
             - name: API_KEY
               valueFrom: {secretKeyRef: {name: gpt-key, key: API_KEY}}
+            # Optional: the dashboard chat offers owners xAI (Grok) without pasting a key.
+            - name: XAI_API_KEY
+              valueFrom: {secretKeyRef: {name: xai-key, key: XAI_API_KEY, optional: true}}
             # Shared across replicas/restarts; values stay in the cluster Secret.
             - name: SCOUT_CHAT_CONTEXT_SECRET
               valueFrom: {secretKeyRef: {name: scout-chat-context, key: signing-key, optional: true}}

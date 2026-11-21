@@ -316,12 +316,13 @@ class ForecastModel:
 
 # -- training ---------------------------------------------------------------------------------------------
 def _training_table(transactions: pd.DataFrame, excluded: Iterable[str],
-                    feature_set: str = "calendar") -> pd.DataFrame:
+                    feature_set: str = "calendar", *, keep_closed: bool = False) -> pd.DataFrame:
     """History days with the target and the calendar columns, plus the level columns for a level feature set
     (lagged: a row only sees bookings before it; rows without a week of open days behind them are dropped). For a
     level set `shutdown_flag` also marks a closed run at the end of the history (`features.closed_days`). For a
     `components` set the target is the *variable* net flow (the fixed-cost categories are left out of it) and closed
-    days are not training rows (the forecast switches the variable part off there)."""
+    days are not training rows (the forecast switches the variable part off there) unless `keep_closed` (the holdout
+    split needs every calendar day to place its cutoff and must not look at the shutdown of the whole history)."""
     target_excluded = tuple(excluded)
     if feat.has_schedule(feature_set):  # the fixed costs are the schedule's job: the booster learns the variable flows
         target_excluded = (*target_excluded, *fsched.CATEGORIES)
@@ -331,7 +332,7 @@ def _training_table(transactions: pd.DataFrame, excluded: Iterable[str],
         # a closed stretch that reaches the end of the history is still closed days for the training rows
         table["shutdown_flag"] = np.maximum(table["shutdown_flag"], feat.closed_days(transactions).reindex(
             table.index, fill_value=0))
-    if feat.has_schedule(feature_set):  # closed days carry no variable flow by definition: nothing to learn there
+    if feat.has_schedule(feature_set) and not keep_closed:  # closed days carry no variable flow: nothing to learn there
         table = table[table["shutdown_flag"] == 0]
     return table
 
@@ -346,10 +347,13 @@ def backtest_split(transactions: pd.DataFrame, holdout_days: int,
     features (T045; the old split inferred from the full history and scored optimistically). The targets are the
     real daily cash flows of each part. Columns: `net_cash_flow` + the columns of `feature_set`, indexed by `date`.
     Level features come from the same bookings: lagged for training days, held at the last training day's value
-    over the holdout (exactly what a forecast made at that origin would use).
+    over the holdout (exactly what a forecast made at that origin would use). For `components` the cutoff is placed on
+    the calendar days of the history (closed days included, whatever the full history says about shutdowns), the
+    shutdown flags of both parts come from the bookings before the cutoff, only the *training* part drops its closed
+    days, and the test part keeps them (fixed payments still hit the account on those days).
     """
     columns = feat.feature_set_columns(feature_set)
-    table = _training_table(transactions, exclude_categories, feature_set)
+    table = _training_table(transactions, exclude_categories, feature_set, keep_closed=True)
     first_test = table.index[-holdout_days]
     seen = transactions[transactions["booking_date"] < first_test]
     shutdown = feat.infer_shutdown_days(seen)
@@ -362,7 +366,10 @@ def backtest_split(transactions: pd.DataFrame, holdout_days: int,
     # the level columns a set only uses as its baseline travel along, so `_backtest` can add the baseline back
     kept = [*columns, *(c for c in feat.LEVEL_COLUMNS if c not in columns and feat.needs_levels(feature_set))]
     split = features[kept].join(table["net_cash_flow"])[["net_cash_flow", *kept]]
-    return split.iloc[:-holdout_days], split.iloc[-holdout_days:]
+    train, test = split.iloc[:-holdout_days], split.iloc[-holdout_days:]
+    if feat.has_schedule(feature_set):
+        train = train[train["shutdown_flag"] == 0]
+    return train, test
 
 
 def _schedule_categories(excluded: Iterable[str]) -> tuple[str, ...]:
@@ -386,7 +393,10 @@ def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str,
     columns = feat.feature_set_columns(feature_set)
     train, test = backtest_split(transactions, holdout_days, exclude_categories, feature_set)
     regressor = XGBRegressor(**params).fit(train[columns], train["net_cash_flow"] - _offset(train, feature_set))
-    pred = regressor.predict(test[columns]) + np.asarray(_offset(test, feature_set))
+    booster = regressor.predict(test[columns])
+    if feat.has_schedule(feature_set):  # the variable part is switched off on closed days, as in `predict`
+        booster = booster * (1 - test["shutdown_flag"].to_numpy())
+    pred = booster + np.asarray(_offset(test, feature_set))
     truth, history = test["net_cash_flow"], train["net_cash_flow"]
     if feat.has_schedule(feature_set):
         # the booster covers the variable flows only: add the schedule inferred before the first test day and score

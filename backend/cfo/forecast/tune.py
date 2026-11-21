@@ -284,6 +284,7 @@ class TuningResult:
     mode: str = MODE_BALANCE
     daily_mae_cap: float | None = None  # constrained mode: the reference's daily MAE the best trial may not exceed
     feasible: bool | None = None  # constrained mode: whether the best trial respects the cap
+    reason: str | None = None  # constrained mode, no feasible trial: why the result must not be promoted
     origins: list[Any] | None = field(default=None, repr=False)  # the folds the scores come from (None = month ends)
     transactions: pd.DataFrame | None = field(default=None, repr=False)
 
@@ -350,7 +351,7 @@ class TuningResult:
             "seed": self.seed,
             "seconds_per_trial": self.seconds_per_trial,
             "data_source": self.data_source,
-            "mode": self.mode, "daily_mae_cap": self.daily_mae_cap, "feasible": self.feasible,
+            "mode": self.mode, "daily_mae_cap": self.daily_mae_cap, "feasible": self.feasible, "reason": self.reason,
             "mlflow": {"tracking_uri": redact_uri(self.tracking_uri), "experiment": self.experiment,
                        "parent_run_id": self.parent_run_id},
         })
@@ -601,6 +602,11 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
             # lexicographic: the objective (the balance error alone; penalised above the cap in constrained mode), then
             # the daily MAE; for a feasible or default-mode trial this is exactly `rank_key`
             best = min(pool, key=lambda t: (t["objective"], float(t["scores"]["daily_mae"]), t["number"]))
+            reason = None
+            if cap is not None and not best["feasible"]:  # the least-penalised violator: reported, never promotable
+                reason = (f"no trial kept the daily MAE under the cap of {cap:.1f} EUR (the reference's); the least "
+                          f"violating one has {float(best['scores']['daily_mae']):.1f}. It is reported for analysis only "
+                          "and is not a candidate: promotion refuses it")
             result = TuningResult(
                 best_feature_set=best["feature_set"], best_params=best["params"], best_scores=best["scores"],
                 baseline_scores=base_scores, baseline_feature_set=ref_set, baseline_params=ref_params,
@@ -610,7 +616,7 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
                 seconds_per_trial=elapsed / max(len(trials), 1), objective_metric=objective_value(base_scores)[1],
                 min_gain=min_gain, tracking_uri=tracker.uri, experiment=TUNING_EXPERIMENT,
                 parent_run_id=tracker.parent_run_id, data_source=data_source, mode=mode, daily_mae_cap=cap,
-                feasible=best["feasible"] if cap is not None else None, origins=rolling_kw.get("origins"),
+                feasible=best["feasible"] if cap is not None else None, reason=reason, origins=rolling_kw.get("origins"),
                 transactions=transactions)
             tracker.finish_parent(result)
         finally:
@@ -704,6 +710,9 @@ def promote(result: TuningResult, *, alias: str = CHALLENGER_ALIAS, if_better: b
     """
     if result.transactions is None:
         raise ValueError("this result carries no transactions to retrain on")
+    if result.feasible is False:  # constrained search without a trial inside the daily-MAE cap: nothing to promote
+        raise PromotionError(f"the search has no feasible configuration (daily MAE above the cap): {result.reason}; "
+                             "nothing was registered, the champion is untouched")
     if if_better and alias == m.CHAMPION_ALIAS:
         raise ValueError("if_better decides about the champion alias; register under another alias")
     margin = _check_min_gain(result.min_gain if min_gain is None else min_gain)
@@ -833,6 +842,8 @@ def _table(data: Mapping[str, Any]) -> str:
         p = data["promotion"]
         lines.append(f"promotion: version {p['version']} as {p['alias']}, champion moved: {p['moved_champion']} "
                      f"({p['reason']})")
+    if data.get("reason"):
+        lines.append(f"NOT FEASIBLE: {data['reason']}")
     if data.get("mode") == MODE_CONSTRAINED:
         lines.append(f"constrained: daily MAE of the best trial {fmt(data['best_scores'].get('daily_mae'))} "
                      f"(cap {fmt(data.get('daily_mae_cap'))}), feasible: {data.get('feasible')}")

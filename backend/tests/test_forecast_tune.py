@@ -502,3 +502,39 @@ def test_cli_constrained_weekly_with_three_seeds(history, no_tracking, monkeypat
     assert data["mode"] == "constrained" and data["robust"]["seeds"] == [0, 1, 2]
     assert data["robust"]["stable"] in (True, False) and data["best_balance_error_90d"] is not None
     assert data["best_scores"]["n_origins"] >= 20
+
+
+# -- T068 review: no feasible trial ------------------------------------------------------------------------
+# the reference is `level_baseline`; searching only the much weaker `calendar` set (a one-tree booster among the draws)
+# cannot get under its daily MAE on this history: no feasible trial
+INFEASIBLE = {"feature_sets": ["calendar"], "reference_set": "level_baseline", "mode": tune.MODE_CONSTRAINED}
+
+
+def test_a_constrained_search_without_a_feasible_trial_says_so(history, weekly, no_tracking):
+    result = tune.search(history, n_trials=3, seed=0, origins=weekly, **INFEASIBLE)
+    assert result.feasible is False
+    assert "no trial" in result.reason and "daily MAE" in result.reason
+    data = result.to_dict()
+    assert data["feasible"] is False and data["reason"] == result.reason
+    json.dumps(data, allow_nan=False)
+    ok = tune.search(history, n_trials=2, seed=0, mode=tune.MODE_CONSTRAINED, origins=weekly)
+    assert ok.feasible is True and ok.reason is None  # the normal case is not flagged
+
+
+def test_promotion_refuses_an_infeasible_result_and_registers_nothing(history, weekly, tracking):
+    result = tune.search(history, n_trials=3, seed=0, origins=weekly, **INFEASIBLE)
+    assert result.feasible is False
+    for kw in ({}, {"if_better": True}):
+        with pytest.raises(tune.PromotionError, match="daily MAE"):
+            tune.promote(result, **kw)
+    assert _versions(mlflow.MlflowClient()) == []  # not even a challenger
+
+
+def test_cli_exits_2_when_an_infeasible_result_is_promoted(history, tracking, monkeypatch, capsys):
+    monkeypatch.setattr(ev, "load_statement", lambda: history)
+    code = tune.main(["--trials", "2", "--source", "csv", "--constrained", "--weekly", "--feature-sets", "calendar",
+                     "--reference-set", "level_baseline", "--promote-if-better", "--json"])
+    assert code == 2
+    data = json.loads(capsys.readouterr().out)
+    assert data["feasible"] is False and "daily MAE" in data["promotion"]["error"]
+    assert data["promotion"]["moved_champion"] is False and _versions(mlflow.MlflowClient()) == []

@@ -397,3 +397,80 @@ def test_a_denser_origin_grid_visits_every_weekday_and_keeps_the_same_bounds():
     assert set(folds.weekly_origins(h)) <= set(folds.weekly_origins(h, every_days=1))
     with pytest.raises(ValueError, match="every_days"):
         folds.weekly_origins(h, every_days=0)
+
+
+# -- review round 1 ----------------------------------------------------------------------------------------
+def _closed_december(closed: bool) -> pd.DataFrame:
+    """The synthetic history with June closed and, if `closed`, 1-30 December without revenue or food (31 Dec is open)."""
+    h = history()
+    june = h["booking_date"].between("2025-06-01", "2025-06-30") & h["category"].isin(["revenue", "food"])
+    dec = h["booking_date"].between("2025-12-01", "2025-12-30") & h["category"].isin(["revenue", "food"]) & closed
+    return h[~june & ~dec].sort_values("booking_date", kind="stable").reset_index(drop=True)
+
+
+def test_the_components_holdout_split_ignores_what_the_holdout_bookings_look_like():
+    open_dec, closed_dec = _closed_december(False), _closed_december(True)
+    ta, sa = m.backtest_split(open_dec, 45, feature_set="components")
+    tb, sb = m.backtest_split(closed_dec, 45, feature_set="components")
+    assert sa.index.equals(sb.index) and sa.index[0] == pd.Timestamp("2025-11-17")  # the same cutoff
+    pd.testing.assert_frame_equal(ta.drop(columns="net_cash_flow"), tb.drop(columns="net_cash_flow"))  # same features
+    assert ta["net_cash_flow"].equals(tb["net_cash_flow"])
+    assert (sb.index >= "2025-12-01").sum() == 31  # the closed December days stay in the score
+    assert (sb["shutdown_flag"] == 1).sum() == 0  # the flags come from the bookings before the cutoff: no closed run yet
+    assert not (ta["shutdown_flag"] == 1).any()  # training rows: closed days dropped, by the bookings before the cutoff
+
+
+def test_closed_days_in_the_holdout_are_scored_with_their_fixed_payments():
+    closed = _closed_december(True)
+    mod_open = m.train(_closed_december(False), feature_set="components", log_to_mlflow=False, holdout_days=45, band=False)
+    mod_closed = m.train(closed, feature_set="components", log_to_mlflow=False, holdout_days=45, band=False)
+    assert mod_closed.metrics["holdout_days"] == 45.0
+    # no revenue in December: the model that does not know about it predicts revenue on the closed days and is off
+    assert mod_closed.metrics["holdout_mae"] > mod_open.metrics["holdout_mae"]
+    test = m.backtest_split(closed, 45, feature_set="components")[1]
+    full = f.daily_cash_flow(closed, exclude_categories=m.EXCLUDED_CATEGORIES)["net_cash_flow"]
+    assert full.reindex(test.index).abs().sum() > 0  # the 28th payroll etc. lie in the scored days
+
+
+def _raised_rent_history(end: str, *, rent_day: int = 1) -> pd.DataFrame:
+    """The synthetic history to July with rent 1,000, then rent 1,200 booked on `rent_day` of August."""
+    base = history(end="2025-07-31")
+    base = base[base["booking_date"] >= "2025-01-01"]
+    extra = _tx(fixed_rows("2025-08-01", end) + [(d, 200.0, "revenue", None) for d in pd.date_range("2025-08-01", end)])
+    extra = extra[extra["category"] != "rent"]
+    raised = _tx([(pd.Timestamp(f"2025-08-{rent_day:02d}"), -1200.0, "rent", "front")])
+    return pd.concat([base, extra, raised], ignore_index=True)
+
+
+def test_a_rent_raise_already_paid_this_month_is_used_and_not_paid_twice():
+    spec = sc.infer(_raised_rent_history("2025-08-10"))  # origin on the 10th, the new rent was posted on the 1st
+    august = sc.amounts(spec, pd.date_range("2025-08-11", "2025-08-31"))
+    assert august["rent"].sum() == 0.0  # this month's rent is posted already: not scheduled a second time
+    later = sc.amounts(spec, pd.date_range("2025-09-01", "2025-12-31"))["rent"]
+    assert later[later != 0].tolist() == [-1200.0] * 4  # the latest posted amount, every following month
+
+
+def test_a_payment_not_yet_posted_this_month_is_still_scheduled():
+    spec = sc.infer(_raised_rent_history("2025-08-10"))
+    august = sc.amounts(spec, pd.date_range("2025-08-11", "2025-08-31"))
+    assert august["payroll"].sum() == -2000.0 and august["social_security"].sum() == -600.0  # 27th / 28th still due
+    tax = august["tax"]  # August is position 1 of the quarter: 880 on the 10th (posted) and 225 on the 15th (due)
+    assert tax[tax != 0].to_dict() == {pd.Timestamp("2025-08-15"): -225.0}
+
+
+def test_a_payment_posted_a_few_days_off_its_usual_day_moves_the_due_day_and_is_not_doubled():
+    spec = sc.infer(_raised_rent_history("2025-08-10", rent_day=3))
+    assert sc.amounts(spec, pd.date_range("2025-08-11", "2025-08-31"))["rent"].sum() == 0.0
+    later = sc.amounts(spec, pd.date_range("2025-09-01", "2025-09-30"))["rent"]
+    assert later[later != 0].to_dict() == {pd.Timestamp("2025-09-03"): -1200.0}  # once, on the day it was last paid
+
+
+def test_with_levels_from_uses_the_rent_posted_this_month(model):
+    days = pd.date_range("2026-01-01", "2026-01-10")
+    january = _tx(fixed_rows("2026-01-01", "2026-01-10", rent=-1500.0)
+                  + [(d, 200.0, "revenue", None) for d in days] + [(d, -60.0, "food", "kitchen") for d in days])
+    longer = pd.concat([history(partner=True), january], ignore_index=True)
+    fresh = model.with_levels_from(longer)
+    assert sc.amounts(fresh.schedule, pd.date_range("2026-01-11", "2026-01-31"))["rent"].sum() == 0.0
+    assert sc.amounts(fresh.schedule, ["2026-02-01"])["rent"].iloc[0] == -1500.0
+    assert sc.amounts(model.schedule, ["2026-02-01"])["rent"].iloc[0] == -1000.0  # the stored model is untouched

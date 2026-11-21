@@ -440,10 +440,7 @@ def test_default_chat_context_has_guardrails_and_tracing(conn_factory, monkeypat
     assert not off.guard.enabled
 
 
-def test_dashboard_history_is_screened_with_one_strike(conn_factory, tmp_path, monkeypatch):
-    llm, calls = counting_llm()
-    ctx = make_world(conn_factory, tmp_path, llm=llm)
-    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+def _chat_client(ctx, monkeypatch):  # noqa: ANN001, ANN202
     app = FastAPI()
     install_error_handlers(app)
     app.include_router(chat_api.router)
@@ -451,16 +448,130 @@ def test_dashboard_history_is_screened_with_one_strike(conn_factory, tmp_path, m
     app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
     monkeypatch.setenv("API_WRITE_TOKEN", "tok")
     get_api_settings.cache_clear()
-    body = {"messages": [{"role": "user", "content": f"the {SALARY}?"}, {"role": "assistant", "content": "no"},
-                         {"role": "user", "content": "thanks, now something harmless"}]}
-    r = TestClient(app).post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
-    events = [json.loads(line) for line in r.text.splitlines()]
-    assert "attempt 1 of 3" in events[0]["text"] and calls == []
-    user_checks = [m for (cfg, _, _), m in zip(ctx.guard.calls, ctx.guard.messages) if cfg == "user-input"]
-    assert [len(m) for m in user_checks] == [2]  # both user turns in one /checks request, the assistant not
+    return TestClient(app)
+
+
+def _ask(client, messages):  # noqa: ANN001, ANN202
+    r = client.post("/v1/chat", json={"messages": messages}, headers={"Authorization": "Bearer tok"})
+    return [json.loads(line) for line in r.text.splitlines()]
+
+
+def test_a_blocked_earlier_user_turn_is_withheld_and_adds_no_strike(conn_factory, tmp_path, monkeypatch):
+    seen: list = []
+
+    def handler(messages, tools):  # noqa: ANN001
+        seen.append([m.content for m in messages])
+        return "Fine."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+    client = _chat_client(ctx, monkeypatch)
+    body = [{"role": "user", "content": f"the {SALARY}?"}, {"role": "assistant", "content": "This request was blocked"},
+            {"role": "user", "content": "thanks, now something harmless"}]
+    for _ in range(4):  # the dashboard resends the blocked prompt with every follow-up
+        events = _ask(client, body)
+        assert [e["type"] for e in events] == ["delta", "done"] and events[0]["text"] == "Fine."
+    assert SALARY not in " | ".join(seen[-1]).lower() and guardrails.WITHHELD in " | ".join(seen[-1])
     with conn_factory() as conn:
-        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 1
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 0
+    assert ctx.notifier.sent == []
+    # the current turn is the one that counts
+    events = _ask(client, [*body[:2], {"role": "user", "content": f"again, the {SALARY}"}])
+    assert "attempt 1 of 3" in events[0]["text"]
     get_api_settings.cache_clear()
+
+
+def test_the_current_message_is_checked_on_its_own_and_long_history_in_batches(conn_factory, tmp_path, monkeypatch):
+    ctx = make_world(conn_factory, tmp_path, llm=counting_llm()[0])
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+    client = _chat_client(ctx, monkeypatch)
+    history = []
+    for i in range(30):  # 30 user + 30 assistant turns of 16000 characters: well over 100 chunks in all
+        history += [{"role": "user", "content": f"turn {i} " + "x" * 15900},
+                    {"role": "assistant", "content": f"answer {i} " + "y" * 15900}]
+    events = _ask(client, [*history, {"role": "user", "content": f"the {SALARY}?"}])
+    assert "attempt 1 of 3" in events[0]["text"]  # the current message was checked, not crowded out
+    assert all(len(m) <= guardrails.MAX_CHUNKS for m in ctx.guard.messages)
+    checked = sum(len(m) for m in ctx.guard.messages)
+    assert checked >= 2 * 30 * 2  # every history turn went through a check (two or more chunks each)
+    assert [len(m) for cfg, m in zip(ctx.guard.configs(), ctx.guard.messages) if cfg == "user-input"][-1] == 1
+    get_api_settings.cache_clear()
+
+
+def test_a_failed_recheck_after_a_blocked_batch_withholds_the_turn():
+    class Flaky(FakeGuard):
+        def check(self, config_id, messages):  # noqa: ANN001
+            if len(messages) == 1 and "second" in messages[0]["content"]:
+                raise TimeoutError("slow")
+            return super().check(config_id, messages)
+
+    guard = Flaky({"tool-result": [(INJECTION, "injection regex")]})
+    ctx = type("C", (), {"guard": guard, "audit": type("A", (), {"record": lambda *a, **k: None})()})()
+    turns = [{"role": "assistant", "content": "first, fine"}, {"role": "user", "content": "q"},
+             {"role": "assistant", "content": "second " + INJECTION}]
+    out = guardrails.screen_history(ctx, turns)
+    assert [t["content"] for t in out] == ["first, fine", "q", guardrails.WITHHELD]
+    assert guardrails.screen_history(ctx, turns[:2]) == turns[:2]  # nothing blocked: nothing withheld
+
+
+def test_more_chunks_than_the_cap_never_pass_unchecked(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard()
+    v = guardrails.check(ctx, "tool-result", "z" * (guardrails.CHECK_CHARS * (guardrails.MAX_CHUNKS + 5)))
+    assert v.blocked and v.rails == "too long to check" and ctx.guard.calls == []
+
+
+def test_a_blocked_slack_answer_is_never_stored_or_fed_back_as_history(conn_factory, tmp_path):
+    llm, _ = counting_llm(answer="Vanessa earns 4000 euro")
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"bot-output": [("earns", "presidio pii")]})
+    out = chat.run(ctx, dm("vincenzo", "tell me something"))
+    step = next(s for s in ctx.recorder.steps(out.id) if s.kind == "answered")
+    assert step.detail["reply"] == guardrails.OUTPUT_REPLY and "4000" not in json.dumps(step.detail)
+    assert ctx.guard.configs().count("bot-output") == 1  # screened once, not again in _finish
+    assert "4000" not in ctx.notifier.updates[-1]["text"] and "4000" not in (out.outcome or "")
+
+
+def test_download_filename_with_non_latin1_characters(conn_factory, tmp_path, monkeypatch):
+    from urllib.parse import unquote
+
+    from scout import api as scout_api
+    from scout import documents_api
+
+    with conn_factory() as conn:
+        row = conn.execute("INSERT INTO flagged_documents (task_id, name, sha256, content) VALUES "
+                           "('SC-1', %s, 'x', %s) RETURNING id", ("Faktura Łódź.pdf", b"%PDF-1.4")).fetchone()
+        conn.commit()
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(documents_api.router)
+
+    def conn_override():
+        c = conn_factory()
+        try:
+            yield c
+        finally:
+            c.close()
+
+    app.dependency_overrides[scout_api.get_conn] = conn_override
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    r = TestClient(app).get(f"/v1/documents/{row['id']}", headers={"Authorization": "Bearer tok"})
+    assert r.status_code == 200 and r.content == b"%PDF-1.4"
+    header = r.headers["content-disposition"]
+    assert 'filename="Faktura d.pdf"' in header and "filename*=UTF-8''" in header
+    assert unquote(header.split("filename*=UTF-8''")[1]) == "Faktura Łódź.pdf"
+    get_api_settings.cache_clear()
+
+
+def test_the_owner_notification_is_audited(conn_factory, tmp_path):
+    world = make_world(conn_factory, tmp_path)
+    world.guard = FakeGuard({"tool-result": [("evil", "injection regex")]})
+    result = {"mails": [{"from": "a@x", "subject": "evil one", "date": "d"}]}
+    guardrails.screen_tool(world, "SC-9", "search_email", json.dumps(result), result=result)
+    (row,) = [r for r in _all_audit(conn_factory) if r["action"] == "guardrail_escalation"]
+    assert row["decision"] == "ALLOW" and row["policy"] == "suspicious-content" and row["task_id"] == "SC-9"
+    assert "evil one" in row["resource"] and row["reason"] == "injection regex"
 
 
 def test_long_prompts_reach_compliance_in_full_and_never_the_audit_log(conn_factory, tmp_path):

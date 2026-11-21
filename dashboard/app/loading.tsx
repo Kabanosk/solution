@@ -8,6 +8,7 @@ const SHOW: Record<SkeletonView, string> = {
   staffing: "group-data-[view=staffing]/loading:block", connections: "group-data-[view=connections]/loading:block",
   audit: "group-data-[view=audit]/loading:block", "llm-usage": "group-data-[view=llm-usage]/loading:block",
   chat: "group-data-[view=chat]/loading:block", policies: "group-data-[view=policies]/loading:block",
+  demo: "group-data-[view=demo]/loading:block",
 };
 
 // Streams at once while the company records load: the dashboard's own layout and the requested view's shape.

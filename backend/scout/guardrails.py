@@ -25,7 +25,6 @@ import logging
 import os
 import re
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -156,7 +155,7 @@ def _digest(text: str) -> str:
 
 def _messages(config_id: str, texts: list[str]) -> list[dict[str, str]]:
     """The shape each config expects: `user` messages, `tool` messages (with a tool_call_id), one `assistant`."""
-    chunks = [c for t in texts for c in _chunks(t)][:MAX_CHUNKS]
+    chunks = [c for t in texts for c in _chunks(t)]
     if config_id == TOOL_RESULT:
         return [{"role": "tool", "tool_call_id": f"scout-{i}", "content": c} for i, c in enumerate(chunks, 1)]
     if config_id == BOT_OUTPUT:
@@ -182,6 +181,11 @@ def check(ctx: Any, config_id: str, texts: str | list[str], *, task_id: str | No
     if client is None or not getattr(client, "enabled", False) or not texts:
         return Verdict("disabled")
     chars = sum(len(t) for t in texts)
+    if sum(len(_chunks(t)) for t in texts) > MAX_CHUNKS:  # never pass on what could not be checked whole
+        v = Verdict("blocked", ("too long to check",))
+        if record_block:
+            _audit_block(ctx, config_id, source, texts, v, task_id, requester)
+        return v
     with span("guardrails.check", span_type="TOOL",
               inputs={"config_id": config_id, "source": source, "messages": len(texts), "chars": chars}) as s:
         try:
@@ -197,12 +201,20 @@ def check(ctx: Any, config_id: str, texts: str | list[str], *, task_id: str | No
             ctx.audit.record("agent", "guardrail_unavailable", f"guardrails:{config_id}", source or config_id, "ALLOW",
                              task_id=task_id, requester=requester, policy=config_id, reason=v.detail or v.status)
         elif v.blocked and record_block:
-            ctx.audit.record("agent", "guardrail_check", f"guardrails:{config_id}",
-                             f"{source or config_id}: {_digest(chr(10).join(texts))}", "BLOCK", task_id=task_id,
-                             requester=requester, policy=config_id, reason=v.rails)
+            _audit_block(ctx, config_id, source, texts, v, task_id, requester)
     except Exception:  # noqa: BLE001 - an audit failure must not turn a verdict into a crash
         log.exception("could not audit the guardrail verdict")
     return v
+
+
+def _audit_block(ctx: Any, config_id: str, source: str, texts: list[str], v: Verdict, task_id: str | None,
+                 requester: str | None) -> None:
+    try:
+        ctx.audit.record("agent", "guardrail_check", f"guardrails:{config_id}",
+                         f"{source or config_id}: {_digest(chr(10).join(texts))}", "BLOCK", task_id=task_id,
+                         requester=requester, policy=config_id, reason=v.rails)
+    except Exception:  # noqa: BLE001
+        log.exception("could not audit the guardrail verdict")
 
 
 def _audit(conn: Any, action: str, target: str, resource: str, decision: str, *, task_id: str | None,
@@ -214,11 +226,11 @@ def _audit(conn: Any, action: str, target: str, resource: str, decision: str, *,
 
 # -- 1. human messages: strikes and compliance ------------------------------------------------------------
 def screen_human(ctx: Any, person: str | None, text: str, *, role: str | None = None, task_id: str | None = None,
-                 earlier: Sequence[str] = ()) -> str | None:
-    """Check a human message (and, for the dashboard, the user turns the client sent as history, in the same
-    request). None when it may go on; else the reply that tells the person it was blocked. One request is one
-    strike; the third in 7 days reaches the compliance contact."""
-    texts = [*earlier, text]
+                 ) -> str | None:
+    """Check the current human message, on its own. None when it may go on; else the reply that tells the person
+    it was blocked. One block is one strike; the third in 7 days reaches the compliance contact. (Earlier turns of
+    a resent dashboard history never add strikes: see `screen_history`.)"""
+    texts = [text]
     v = check(ctx, USER_INPUT, texts, task_id=task_id, requester=person, record_block=False)
     if not v.blocked:
         return None
@@ -339,6 +351,8 @@ def _notify_ceo_once(ctx: Any, key: str, label: str, rails: str, task_id: str | 
             if ref is not None:
                 conn.execute("INSERT INTO guardrail_alerts (item_key, rails) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                              (key, rails))
+                _audit(conn, "guardrail_escalation", f"slack:{ctx.settings.ceo_id}", f"owner told about {label}",
+                       "ALLOW", task_id=task_id, requester=None, role=None, policy="suspicious-content", reason=rails)
             conn.commit()
     except Exception:  # noqa: BLE001
         log.exception("could not tell the owner about suspicious content")
@@ -387,21 +401,40 @@ def screen_output(ctx: Any, task_id: str | None, text: str, *, requester: str | 
 
 
 # -- 4. earlier turns the client sent --------------------------------------------------------------------
+def _batches(turns: list[dict[str, str]], idx: list[int]) -> list[list[int]]:
+    """Group turn indexes so that one `/checks` call never needs more than MAX_CHUNKS messages."""
+    out: list[list[int]] = [[]]
+    used = 0
+    for i in idx:
+        n = len(_chunks(turns[i]["content"]))
+        if out[-1] and used + n > MAX_CHUNKS:
+            out.append([])
+            used = 0
+        out[-1].append(i)
+        used += n
+    return out
+
+
 def screen_history(ctx: Any, turns: list[dict[str, str]], *, task_id: str | None = None,
                    requester: str | None = None) -> list[dict[str, str]]:
     """The earlier turns of a dashboard conversation as the model may see them. The client supplies them, so Scout
-    cannot know it wrote the assistant turns: they are checked like tool results (one request; if it blocks, each
-    turn on its own) and a flagged one becomes the withheld notice. No strike: the sender may not be the author."""
-    mine = [i for i, t in enumerate(turns) if t["role"] == "assistant"]
-    if not mine:
-        return turns
-    v = check(ctx, TOOL_RESULT, [turns[i]["content"] for i in mine], task_id=task_id, requester=requester,
-              source="earlier assistant turns")
-    if not v.blocked:
-        return turns
+    cannot know who wrote them: assistant turns are checked like tool results, user turns like user input, in
+    batches of one request. If a batch blocks, each of its turns is checked on its own, and a flagged turn (or one
+    whose recheck failed: a batch already blocked) becomes the withheld notice. No strike: the current message is
+    the only one a person is answerable for."""
     out = list(turns)
-    for i in mine:
-        if check(ctx, TOOL_RESULT, turns[i]["content"], task_id=task_id, requester=requester,
-                 source="earlier assistant turn", record_block=False).blocked:
-            out[i] = {**turns[i], "content": WITHHELD}
+    for role, config in (("assistant", TOOL_RESULT), ("user", USER_INPUT)):
+        idx = [i for i, t in enumerate(turns) if t["role"] == role and t["content"].strip()]
+        for batch in _batches(turns, idx):
+            if not batch:
+                continue
+            v = check(ctx, config, [turns[i]["content"] for i in batch], task_id=task_id, requester=requester,
+                      source=f"earlier {role} turns")
+            if not v.blocked:
+                continue
+            for i in batch:
+                iv = check(ctx, config, turns[i]["content"], task_id=task_id, requester=requester,
+                           source=f"earlier {role} turn", record_block=False)
+                if iv.blocked or iv.failed:
+                    out[i] = {**turns[i], "content": WITHHELD}
     return out

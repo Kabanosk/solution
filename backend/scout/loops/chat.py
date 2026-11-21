@@ -244,6 +244,34 @@ def _request_files(ctx: JobContext, task: Task, p: dict[str, Any], route: dict[s
     return _finish(ctx, task, p, f"Found in {ctx.hr.name(target)}'s company folders:\n{listing}")
 
 
+YES = re.compile(r"\b(i approve|approved?|yes|ok(ay)?|go ahead|accept(ed)?|agreed?|zgoda|tak|akceptuj[eę])\b", re.I)
+NO = re.compile(r"\b(reject(ed)?|no|decline[d]?|deny|denied|don'?t|nie|odrzuc\w*)\b", re.I)
+
+
+def _typed_approval(ctx: JobContext, task: Task, p: dict[str, Any], text: str, sender: str | None) -> Task:
+    """A reply in the thread of an approval card: "I approve" / "reject" count like the buttons."""
+    from scout.loops import liquidity
+
+    yes, no = bool(YES.search(text)), bool(NO.search(text))
+
+    def say(msg: str, level: str = "AUTO") -> None:
+        if p.get("status_ref"):
+            ctx.notifier.update(p["status_ref"], msg, level)
+        else:
+            ctx.notifier.dm(sender or "", msg, level, task_id=task.id, thread=p.get("thread"))
+
+    if yes == no:
+        say("Reply “approve” or “reject” here, or use the Approve / Reject buttons on the card above.", "NOTIFY")
+        return task
+    try:
+        out = liquidity.resume(ctx, task.approval_id, yes, sender or "")
+    except PermissionError:
+        say(f"Only {ctx.hr.name(task.owner_id)} can answer this approval. I've logged the attempt.", "NOTIFY")
+        return task
+    say(f"{'Approved' if yes else 'Rejected'} · {out.outcome} ({out.id})")
+    return out
+
+
 def on_dm(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     sender = p.get("from_id")
@@ -264,6 +292,8 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     if has_open and not p.get("files"):
         route = route_dm(ctx.llm, text)
     target = _reply_target(ctx, p, route["intent"] if route else None) if has_open else None
+    if target is not None and target.loop == "liquidity" and target.approval_id:
+        return _typed_approval(ctx, target, p, text, sender)
     if target is not None:
         if p.get("status_ref"):
             ctx.notifier.track(target.id, p["status_ref"])
@@ -328,9 +358,11 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
         return _request_files(ctx, task, p, route, role)
     if intent == "question":
         reply = answer(ctx, task, text, sender, role, history=history)
+        # bot-output rails first: what is stored in the step (and fed back as history later) is what was sent
+        reply = guardrails.screen_output(ctx, task.id, reply, requester=sender, source="DM reply")
         ctx.recorder.step(task.id, "answered", "Answered the question", source="scout",
                           detail={"reply": reply[:MSG_CHARS]})
-        return _finish(ctx, task, p, reply)
+        return _finish(ctx, task, p, reply, screen=False)
     ctx.recorder.step(task.id, "answered", "Sent the help text", source="scout")
     return _finish(ctx, task, p, HELP)
 

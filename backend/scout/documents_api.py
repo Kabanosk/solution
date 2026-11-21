@@ -4,6 +4,7 @@ Write token only: the content was flagged by the guardrails and is served as a d
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter
 from fastapi.responses import Response
@@ -20,7 +21,9 @@ def flagged_document(document_id: int, conn: Conn, _: WriteAuth) -> Response:
                                               (document_id,)).fetchone()
     if row is None:
         raise ApiError(404, "not_found", f"No document {document_id}.")
-    name = row["name"].replace('"', "").replace("\n", " ")
+    name = "".join(c for c in row["name"] if c.isprintable() and c not in '"\\/;') or "document"
+    ascii_name = name.encode("ascii", "ignore").decode().strip() or "document"
     return Response(bytes(row["content"]), media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"',
+                    headers={"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
+                                                    f"filename*=UTF-8''{quote(name)}",
                              "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})

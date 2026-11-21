@@ -23,7 +23,7 @@ export function ChannelChip({ task }: { task: AgentTask }) {
   const chip = channelChip(task);
   if (!chip) return null;
   return <Badge variant="outline" className={cn("h-5 shrink-0 rounded-full px-2 text-[11px] font-normal text-muted-foreground",
-    chip === "CFO" && "border-danger-border text-danger")}>{chip}</Badge>;
+    chip === "Approval" && "border-danger-border text-danger")}>{chip}</Badge>;
 }
 
 /** Opens the task in place (plain click) or in a new tab (modifier click). */
@@ -115,13 +115,13 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
 }
 
 /** Compact list for the overview: the few tasks that need a person, linking to the full task list. */
-export function AttentionList({ tasks, names, onOpen, onShowAll }: { tasks: AgentTask[]; names: Record<string, string>; onOpen: OpenTask; onShowAll: () => void }) {
+export function AttentionList({ tasks, names, onOpen, onShowAll, limit = 8 }: { tasks: AgentTask[]; names: Record<string, string>; onOpen: OpenTask; onShowAll: () => void; limit?: number }) {
   return <section id="scout-attention-list" aria-labelledby="scout-attention-title" className="h-fit overflow-hidden rounded-xl border bg-card">
     <header className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
       <h2 id="scout-attention-title" className="text-[13px] font-medium">Open tasks <span className="ml-1 font-normal text-muted-foreground">{tasks.length}</span></h2>
       <Button id="scout-attention-all" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={onShowAll}>All tasks<ChevronRight className="size-3.5" aria-hidden="true" /></Button>
     </header>
     {tasks.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">Nothing open. Scout settled everything on its own.</p>
-      : <ul>{tasks.slice(0, 8).map(task => <TaskRow key={task.id} task={task} ownerName={task.ownerId ? names[task.ownerId] ?? task.ownerId : null} onOpen={onOpen} />)}</ul>}
+      : <ul>{tasks.slice(0, limit).map(task => <TaskRow key={task.id} task={task} ownerName={task.ownerId ? names[task.ownerId] ?? task.ownerId : null} onOpen={onOpen} />)}</ul>}
   </section>;
 }

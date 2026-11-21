@@ -3,7 +3,15 @@ import type { ScoutData } from "./scout-model";
 export type ExpenseCategory = { name: string; color: string; amount: number; percentage: number };
 export type FinancePeriod = { transactions: number; totalRevenue: number; totalExpenses: number; expenses: ExpenseCategory[] };
 export type Employee = { id: string; name: string; initials: string; role: string; team: string; salary: number | null; avatar: string };
-export type Forecast = { asOf: string; model: string; safetyBuffer: number; points: { day: number; balance: number }[] };
+export type ForecastPoint = { day: number; date: string; balance: number };
+/** One forecast run of the CFO API: `day` counts days from `asOf`; `lowest` covers the whole horizon. */
+export type Forecast = {
+  asOf: string; model: string; horizonDays: number; openingBalance: number; safetyBuffer: number;
+  lowest: { date: string; balance: number }; points: ForecastPoint[];
+};
+/** Spend per team in the current quarter. `budget` is three monthly budgets; null for spend without a team. */
+export type TeamSpend = { id: string | null; name: string; spent: number; budget: number | null };
+export type QuarterSpend = { label: string; start: string; through: string; teams: TeamSpend[] };
 export type DashboardData = {
   asOf: string;
   yearLabel: string;
@@ -15,7 +23,13 @@ export type DashboardData = {
   closingBalance: number;
   undocumentedPayments: number;
   scout: ScoutData;
+  /** 90 days, daily points. */
   forecast: Forecast | null;
+  /** 12 months, weekly points. */
+  forecastYear: Forecast | null;
+  quarterSpend: QuarterSpend;
+  /** Server time of this render (ISO), so "this month" is the same on the server and in the browser. */
+  generatedAt: string;
 };
 
 // Perform money arithmetic in Postgres NUMERIC/integer cents. Convert final
@@ -59,4 +73,15 @@ export function financePeriod(rows: { category: string | null; count: string; in
       percentage: expense === 0n ? 0 : Number(BigInt(row.expense) * 10000n / expense) / 100,
     })),
   };
+}
+
+/** Rows of the quarter-spend query (integer cents as text) to display amounts; biggest spender first, empty teams last. */
+export function quarterSpend(start: string | null, through: string | null,
+  rows: { id: string | null; name: string; budget: string | null; spent: string }[]): QuarterSpend {
+  const begin = start ?? "1970-01-01";
+  const label = `Q${Math.floor(Number(begin.slice(5, 7)) / 3) + 1} ${begin.slice(0, 4)}`;
+  const teams = rows.map(row => ({ id: row.id, name: row.name, spent: displayCents(row.spent), budget: row.budget === null ? null : displayCents(row.budget) }))
+    .filter(team => team.id !== null || team.spent > 0)
+    .sort((a, b) => b.spent - a.spent || a.name.localeCompare(b.name));
+  return { label, start: begin, through: through ?? begin, teams };
 }

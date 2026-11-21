@@ -156,8 +156,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
 
             role = ctx.hr.role(asker)
             history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
-            earlier = [t["content"] for t in turns[:-1] if t["role"] == "user"]  # the client supplies the history
-            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id, earlier=earlier)
+            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id)  # strikes: this turn only
             if reply is not None:  # blocked by the safety policy: no model call at all
                 ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
                                   source="guardrails")

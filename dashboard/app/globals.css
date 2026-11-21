@@ -85,6 +85,7 @@
   --danger-border: #e6b6b6;
   --chart-forecast: #a24b11;
   --chart-buffer: #b52626;
+  --chart-balance: oklch(.44 .075 163);
 }
 
 .dark {
@@ -126,6 +127,7 @@
   --danger-border: #663030;
   --chart-forecast: #f3a455;
   --chart-buffer: #e86b6b;
+  --chart-balance: oklch(.7 .11 163);
 }
 
 @font-face { font-family: "Inter"; src: url("/fonts/Inter.woff2") format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }

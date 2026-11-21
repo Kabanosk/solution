@@ -11,7 +11,7 @@ COPY backend/pyproject.toml backend/uv.lock backend/.python-version /app/backend
 
 COPY backend/cfo /app/backend/cfo
 COPY backend/scout /app/backend/scout
-RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-editable \
+RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --extra tuning --no-editable \
     && rm -rf /app/backend/cfo /app/backend/scout
 
 COPY deploy/cfo-entrypoint.sh /usr/local/bin/cfo

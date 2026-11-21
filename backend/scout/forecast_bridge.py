@@ -1,4 +1,4 @@
-"""The external chat's only local capability: a read-only forecast through Granite.
+"""Validated external forecast requests handed by Granite to the Liquidity queue.
 
 No prompt, history, provider key or external tool name crosses this interface. The
 validated intent is bound by code; Granite can request its execution once, but cannot
@@ -8,6 +8,7 @@ never to an external provider's tool-result conversation.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from calendar import month_name
@@ -61,12 +62,13 @@ class ForecastRequest(ForecastIntent):
 
 RUN_FORECAST = ToolSpec(
     name="run_forecast",
-    description="Run the single validated read-only cash forecast in the user's request. Parameters are already bound.",
+    description="Queue the validated read-only cash forecast for the Liquidity worker. Parameters are already bound.",
     parameters={"type": "object", "properties": {}, "additionalProperties": False},
 )
 DISPATCH_SYSTEM = (
     "You are the on-premise Granite forecast dispatcher. The server has validated the read-only forecast "
-    "request and bound all parameters. Call run_forecast exactly once with {}. Do not supply forecast "
+    "request and bound all parameters. Call run_forecast exactly once with {} to enqueue its Liquidity job. "
+    "The worker will execute it later; do not claim it has completed. Do not supply forecast "
     "parameters or any other arguments. No other action is available."
 )
 DISPATCH_REQUEST = "Run the validated forecast now."
@@ -102,6 +104,14 @@ def _scenario_date(month: str, today: date) -> date:
     return date(today.year + (number < today.month), number, 1)
 
 
+def task_key(intent: ForecastIntent, requester: str, conversation: str) -> str:
+    scenario = intent.model_dump(mode="json")
+    if intent.amount_eur is not None:
+        scenario["amount_eur"] = f"{intent.amount_eur:.2f}"
+    digest = hashlib.sha256(json.dumps(scenario, sort_keys=True).encode()).hexdigest()[:32]
+    return f"web-forecast:{requester}:{conversation}:{digest}"
+
+
 def _review(ctx: JobContext, intent: ForecastIntent) -> Any:
     from cfo.forecast import features
     from cfo.forecast import model as fm
@@ -132,7 +142,7 @@ def _review(ctx: JobContext, intent: ForecastIntent) -> Any:
             days = max(days, required_days)
         # Train only on this request's tenant rows. Never consult or update a
         # filesystem model cache, and never export company data to MLflow.
-        model = fm.train(transactions, log_to_mlflow=False)
+        model = fm.train(transactions, log_to_mlflow=False, band=False)  # the band is only read by the API
         return review_liquidity(outflows, conn=conn, transactions=transactions, model=model, days=days)
 
 
@@ -160,7 +170,20 @@ def _report(review: Any, intent: ForecastIntent) -> str:
 
 def run(ctx: JobContext, task: Task, intent: ForecastIntent, requester: str,
         on_step: Callable[[str], None]) -> str:
-    """Ask the configured on-premise model to spawn exactly one bound forecast."""
+    """Ask Granite to enqueue a bound forecast; only the Liquidity worker runs it."""
+    lock_id = int.from_bytes(hashlib.sha256(task.dedupe_key.encode()).digest()[:8], signed=True)
+    with ctx.conn_factory() as lock:
+        lock.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+        return _enqueue(ctx, task, intent, requester, on_step)
+
+
+def _enqueue(ctx: JobContext, task: Task, intent: ForecastIntent, requester: str,
+             on_step: Callable[[str], None]) -> str:
+    if any(step.kind == "queued" for step in ctx.recorder.steps(task.id)):
+        # Also repairs an interrupted handoff between recording and enqueueing.
+        ctx.jobs.enqueue("chat_forecast", {"task_id": task.id, "intent": intent.model_dump(mode="json")},
+                         task.dedupe_key)
+        return f"Forecast task {task.id} is available in Loops → Liquidity. Open it to see its status and results."
     # The action is already bound to the validated intent. Giving Tiny the JSON
     # again makes it copy those fields into the empty-argument tool call.
     messages = [Message(role="system", content=DISPATCH_SYSTEM), Message(role="user", content=DISPATCH_REQUEST)]
@@ -174,9 +197,25 @@ def run(ctx: JobContext, task: Task, intent: ForecastIntent, requester: str,
         raise ForecastBridgeError("Granite requested an unsupported action. Nothing was changed.")
     ctx.audit.record("granite", "forecast", "bank", "read-only liquidity forecast", task_id=task.id,
                      requester=requester, policy="forecast-bridge: bound parameters; no company writes")
-    step = "Granite started a read-only cash forecast on premise"
-    ctx.recorder.step(task.id, "looked_up", step, source="granite", detail={"tool": RUN_FORECAST.name})
+    step = f"Granite queued forecast task {task.id} in Liquidity"
+    ctx.recorder.set_status(task.id, "todo")
+    ctx.recorder.step(task.id, "queued", step, source="granite", detail={"tool": RUN_FORECAST.name})
+    ctx.jobs.enqueue("chat_forecast", {"task_id": task.id, "intent": intent.model_dump(mode="json")},
+                     task.dedupe_key)
     on_step(step)
-    review = _review(ctx, intent)
-    # Code renders the actual outcome instead of trusting a model's success claim.
-    return _report(review, intent)
+    return (f"Queued forecast task **{task.id}** in **Loops → Liquidity**. "
+            "The Liquidity worker will run it and save the results there. No company records were changed.")
+
+
+def complete(ctx: JobContext, task: Task, intent: ForecastIntent) -> Task:
+    """Execute within the Liquidity worker, preserving tenant-local forecasting."""
+    from scout import guardrails
+
+    ctx.recorder.set_status(task.id, "in_progress")
+    ctx.recorder.step(task.id, "picked_up", "Liquidity worker started the queued cash forecast", source="forecast")
+    report = _report(_review(ctx, intent), intent)
+    report = guardrails.screen_output(ctx, task.id, report, requester=task.requested_by,
+                                     source="local forecast reply", role=ctx.hr.role(task.requested_by))
+    ctx.recorder.step(task.id, "forecast_result", report, source="forecast")
+    return ctx.recorder.set_status(task.id, "done", outcome="Cash forecast completed", resolved_via="forecast",
+                                   level="AUTO")

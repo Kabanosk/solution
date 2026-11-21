@@ -405,7 +405,29 @@ def on_review(ctx: JobContext, job: Job) -> Task | None:
     return ctx.recorder.get(task.id)
 
 
-HANDLERS = {"what_if": on_what_if, "liquidity_review": on_review}
+def on_chat_scenario(ctx: JobContext, job: Job) -> Task:
+    """Execute validated public-chat handoffs through the normal worker queue."""
+    import hashlib
+
+    from scout import forecast_bridge, hiring_bridge
+
+    task = ctx.recorder.get(job.payload["task_id"])
+    if task.loop != LOOP or not task.simulated:
+        raise ValueError("Chat scenarios require a simulated Liquidity task")
+    # Serialize worker retries and API retries; a completed simulation is never rerun.
+    lock_id = int.from_bytes(hashlib.sha256(task.dedupe_key.encode()).digest()[:8], signed=True)
+    with ctx.conn_factory() as lock:
+        lock.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+        task = ctx.recorder.get(task.id)
+        if task.status in ("done", "cancelled"):
+            return task
+        if job.kind == "hiring_scenario":
+            return hiring_bridge.complete(ctx, task, hiring_bridge.HiringIntent.model_validate(job.payload["intent"]))
+        return forecast_bridge.complete(ctx, task, forecast_bridge.ForecastIntent.model_validate(job.payload["intent"]))
+
+
+HANDLERS = {"what_if": on_what_if, "liquidity_review": on_review,
+            "chat_forecast": on_chat_scenario, "hiring_scenario": on_chat_scenario}
 
 
 def run(ctx: JobContext, job: Job) -> Task | None:

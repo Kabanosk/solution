@@ -36,6 +36,8 @@ export type TaskStep = {
   resultCount: number | null;
   text: string;
   evidence: Evidence | null;
+  /** Only the persisted hiring report is exposed from step.detail; other internal metadata stays private. */
+  hiringReport?: string;
 };
 
 export type Approval = { id: string; approverId: string; question: string; status: "pending" | "approved" | "rejected"; answeredBy: string | null; answeredAt: string | null; createdAt: string };

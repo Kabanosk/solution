@@ -1,7 +1,10 @@
-import { currentSession } from "@/lib/auth";
+import { currentSession, sessionToken } from "@/lib/auth";
 import { CHAT_MODELS, ChatInputError, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatEvent } from "@/lib/chat-model";
 import { apiFetch, checkWriteRequest } from "@/lib/scout-api";
 import { externalChat, ExternalChatError } from "@/lib/external-chat";
+import { researchJobMarket } from "@/lib/market-research";
+import { openExternalContext, sealExternalContext, ExternalContextError, type ExternalContextBinding } from "@/lib/external-context";
+import type { PublicConversation } from "@/lib/external-conversation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,15 +24,33 @@ export async function POST(request: Request) {
   try { input = parseChatRequest(await readChatBody(request)); }
   catch (error) { return Response.json({ error: error instanceof ChatInputError ? error.message : "Invalid chat request." }, { status: 400, headers: privateHeaders }); }
   const abort = new AbortController();
-  const signal = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(120000)]);
+  const signal = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(input.external ? 180000 : 120000)]);
   if (input.external) {
     const config = input.external;
+    const session = await currentSession(), token = await sessionToken();
+    if (!session || !token) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+    const binding: ExternalContextBinding | undefined = input.conversationId ? {
+      sessionToken: token, organizationId: session.organizationId, conversationId: input.conversationId,
+      provider: config.provider, model: config.model, apiKey: config.apiKey,
+    } : undefined;
+    let context: PublicConversation | undefined;
+    if (input.externalContext) {
+      try { context = openExternalContext(input.externalContext, binding!); }
+      catch (error) { return Response.json({ error: error instanceof ExternalContextError ? error.message : "Could not restore external chat context. Start a new chat." }, { status: 400, headers: privateHeaders }); }
+    }
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const send = (event: ChatEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         try {
           for await (const event of externalChat(config, input.messages, signal, {
+            context,
+            ...(binding ? { sealContext: (state: PublicConversation) => sealExternalContext(state, binding) } : {}),
+            research: query => researchJobMarket(config, query, signal),
+            hiring: intent => apiFetch("/v1/chat/hiring", {
+              method: "POST", signal, headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+              body: JSON.stringify({ ...intent, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
+            }),
             forecast: intent => apiFetch("/v1/chat/forecast", {
               method: "POST", signal, headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
               body: JSON.stringify({ ...intent, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
@@ -64,7 +85,7 @@ export async function POST(request: Request) {
         for await (const raw of readJsonLines(body)) {
           if (signal.aborted) break;
           const event = sanitizeChatEvent(raw);
-          if (!event) continue;
+          if (!event || event.type === "external_context") continue;
           send(event);
           if (event.type === "done" || event.type === "error") { finished = true; break; }
         }

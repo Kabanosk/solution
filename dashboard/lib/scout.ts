@@ -72,9 +72,11 @@ export async function loadRecords<K extends keyof ScoutRecords>(client: PoolClie
 export async function loadTaskDetail(client: PoolClient, id: string): Promise<TaskDetail | null> {
   const row = (await client.query(`SELECT ${TASK_COLUMNS} FROM agent_tasks t WHERE t.id = $1`, [id])).rows[0];
   if (!row) return null;
-  const steps: TaskStep[] = (await client.query(`SELECT id::int AS id, ${iso("ts")} AS ts, kind, source, result_count, text, evidence
+  const steps: TaskStep[] = (await client.query(`SELECT id::int AS id, ${iso("ts")} AS ts, kind, source, result_count, text, evidence,
+      CASE WHEN kind = 'hiring_result' THEN left(detail->>'reply', 16000) END AS hiring_report
       FROM agent_task_steps WHERE task_id = $1 ORDER BY id`, [id])).rows.map(step => ({
     id: step.id, ts: step.ts, kind: step.kind, source: step.source, resultCount: step.result_count, text: step.text, evidence: step.evidence,
+    ...(typeof step.hiring_report === "string" && step.hiring_report.trim() ? { hiringReport: step.hiring_report } : {}),
   }));
   const approvalRow = (await client.query(`SELECT id, approver_id, question, status, answered_by, ${iso("answered_at")} AS answered_at,
       ${iso("created_at")} AS created_at FROM approvals WHERE task_id = $1 ORDER BY created_at DESC LIMIT 1`, [id])).rows[0];

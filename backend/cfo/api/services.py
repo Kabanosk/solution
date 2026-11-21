@@ -41,7 +41,6 @@ from cfo.forecast import model as fmodel
 MAX_HORIZON_DAYS = 365
 KPI_HORIZON_DAYS = MAX_HORIZON_DAYS
 FIXED_COST_CATEGORIES = tuple(feat.DEFAULT_DUE_DAYS)  # payroll, rent, tax, social_security, utilities
-INTERVAL_Z_80 = 1.2816  # one-sided z of a two-sided 80 % interval
 MODEL_NAME = "xgboost-liquidity"
 COMPANY_TEAM_NAME = "Company-wide (tax, social security)"
 
@@ -187,13 +186,9 @@ def forecast_model(tx: pd.DataFrame) -> tuple[fmodel.ForecastModel, datetime | N
         return _model_cache[key], datetime.fromtimestamp(mtime / 1e9, tz=timezone.utc)
 
 
-def _sigma_daily(model: fmodel.ForecastModel) -> float:
-    m = model.metrics
-    return float(m.get("holdout_rmse") or (m.get("train_mae", 0.0) * 1.25))
-
-
 def _forecast_frame(tx: pd.DataFrame, days: int) -> tuple[pd.DataFrame, fmodel.ForecastModel, datetime | None]:
     model, saved_at = forecast_model(tx)
+    model = model.with_levels_from(tx)  # the cached model is not changed: only the level of the bookings is current
     df = fmodel.liquidity_forecast(days, model=model, transactions=tx)
     return df, model, saved_at
 
@@ -216,13 +211,12 @@ def liquidity_forecast(repo: Repository, horizon_days: int, granularity: str) ->
     tx = _transactions(repo)
     df, model, saved_at = _forecast_frame(tx, horizon_days)
     buffer = safety_buffer(tx)
-    sigma = _sigma_daily(model)
 
     def point(day: pd.Timestamp) -> ForecastPoint:
         n = (day - pd.Timestamp(df.attrs["last_known_date"])).days
-        band = INTERVAL_Z_80 * sigma * math.sqrt(n)
+        lower, upper = model.band(n)  # offsets measured on the rolling folds, or the old sqrt formula (T063)
         bal = float(df.loc[day, "balance"])
-        return ForecastPoint(date=day.date(), balance=eur(bal), lower=eur(bal - band), upper=eur(bal + band))
+        return ForecastPoint(date=day.date(), balance=eur(bal), lower=eur(bal + lower), upper=eur(bal + upper))
 
     days = list(df.index)
     lowest_day = df["balance"].idxmin()

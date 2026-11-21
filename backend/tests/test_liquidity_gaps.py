@@ -290,21 +290,26 @@ def test_statement_base_case_has_no_gap_and_proposes_a_june_safe_investment(stat
     assert review.gaps == []
     (proposal,) = review.proposals
     assert proposal.action_type == liq.INVESTMENT and proposal.level == PolicyLevel.APPROVAL
-    assert Decimal("15000") <= proposal.amount <= Decimal("30000")
+    # T061: the model follows the current level (about 13k net a month, not the weak Jan-May 2025): ~64k surplus
+    assert Decimal("40000") <= proposal.amount <= Decimal("90000")
     june = review.forecast.loc["2026-06-01":"2026-06-30", "balance"].min()
     assert june - float(proposal.amount) >= float(review.buffer)
     assert "June 2026" in proposal.reason and "closed about 4 weeks" in proposal.reason
 
 
-def test_statement_oven_in_march_breaks_the_buffer_in_june(statement, statement_model):
-    oven = liq.Outflow(on=date(2026, 3, 15), amount=Decimal("30000"), label="oven")
+def test_statement_oven_in_may_breaks_the_buffer_in_june(statement, statement_model):
+    # T061: with the current revenue level a 30k oven in March no longer hurts (the old Jan-May replay made it
+    # break June); an oven that does is ~70k, and the last month in which it still leaves the buffer intact is May
+    oven = liq.Outflow(on=date(2026, 5, 15), amount=Decimal("70000"), label="oven")
     review = liq.review_liquidity([oven], model=statement_model, transactions=statement)
     june_gap = [g for g in review.gaps if g.start.month == 6 or g.lowest_date.month in (6, 7)]
-    assert june_gap, "30k oven should break the 17.7k buffer around the June shutdown"
+    assert june_gap, "70k oven should break the 17.7k buffer around the June shutdown"
     (proposal,) = review.proposals
     assert proposal.action_type == liq.CREDIT_LINE and proposal.level == PolicyLevel.APPROVAL
-    assert proposal.month == "2026-06" and Decimal("5000") <= proposal.amount <= Decimal("12000")
-    assert "oven 30,000 EUR on 2026-03-15" in proposal.reason and "closed about 4 weeks" in proposal.reason
+    # T068 / D-039: the default model is `components` (fixed costs exact, June trough = one month of fixed costs, base-case
+    # surplus 60k instead of 64k): the same credit line in the same month, 12k instead of 7k
+    assert proposal.month == "2026-06" and Decimal("9000") <= proposal.amount <= Decimal("15000")
+    assert "oven 70,000 EUR on 2026-05-15" in proposal.reason and "closed about 4 weeks" in proposal.reason
 
 
 def test_statement_oven_of_25k_only_just_touches_the_buffer(statement, statement_model):

@@ -42,6 +42,7 @@ class ScoutSettings(BaseSettings):
     slack_bot_token: str = ""
     slack_app_token: str = ""
     slack_user_map: str = ""
+    slack_sweep_seconds: int = 600  # how often to look for Slack members without an account (and ask them once)
     api_write_token: str = ""
     scout_demo: bool = False
     guardrails_url: str = ""  # NeMo Guardrails check service; empty = safety checks off (D-029)

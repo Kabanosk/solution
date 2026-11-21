@@ -166,6 +166,23 @@ class Toolbox:
                 return hits.pop()
         return None
 
+    def _on_slack(self, name: str | None) -> str | None:
+        """Slack is the source of truth: the person, found in HR or among the workspace's members, with a Slack id
+        (a member who never registered gets an account from their Slack profile now)."""
+        who = self._person(name)
+        if who is not None and (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+            return who
+        find = getattr(self.ctx.notifier, "slack_person", None)
+        if find is None:
+            return who
+        query = self.ctx.hr.full_name(who) if who is not None else (name or "")
+        try:
+            found = find(query, who) or (find(name or "", who) if who is not None else None)
+        except Exception:  # Slack unreachable: fall back to what HR knows
+            log.warning("Slack member lookup failed", exc_info=True)
+            found = None
+        return found or who
+
     def _allowed(self, target: str, resource: str) -> tuple[bool, str]:
         ok = self.ctx.audit.check(self.requester, self.role, target, resource, task_id=self.task.id)
         return ok, access_check(self.requester, self.role, target, resource)[1]
@@ -532,9 +549,10 @@ class Toolbox:
         text = (text or "").strip()
         if not person or not text:
             return {"error": "missing_arguments", "hint": "Call again with person and text."}
-        who = self._person(person)
+        who = self._on_slack(person)
         if who is None:
-            return {"error": "unknown_person", "person": person}
+            return {"error": "unknown_person", "person": person,
+                    "hint": "Nobody by that name in the company or in the Slack workspace."}
         if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
             return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
         body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
@@ -620,7 +638,7 @@ class Toolbox:
             targets = list(dict.fromkeys(re.findall(r"SC-\d+", raw.upper())))
         if not targets or not person:
             return {"error": "missing_arguments", "hint": "Call again with task_id (SC-…, several, or all) and person."}
-        who = self._person(person)
+        who = self._on_slack(person)
         if who is None:
             return {"error": "unknown_person", "person": person}
         handed, skipped = [], []

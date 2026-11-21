@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
-const RESERVED = new Set(["api", "admin", "healthz", "tasks", "inbox", "audit", "connections", "login", "logout", "register", "new", "auth", "scout-icon", "favicon"]);
+const RESERVED = new Set(["api", "admin", "healthz", "tasks", "inbox", "audit", "connections", "login", "logout", "register", "new", "auth", "scout-icon", "favicon", "join"]);
 export function validSlug(slug: string): boolean {
   return slug.length >= 3 && slug.length <= 63 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && !RESERVED.has(slug);
 }

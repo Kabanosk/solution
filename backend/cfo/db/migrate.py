@@ -25,6 +25,7 @@ AUTH_PATH = Path(__file__).with_name("auth.sql")
 SCOUT_UPGRADE_PATHS = (
     Path(__file__).with_name("scout_dm_replies.sql"),
     Path(__file__).with_name("scout_guardrails.sql"),
+    Path(__file__).with_name("scout_slack_members.sql"),
 )
 
 

@@ -56,14 +56,15 @@ def test_final_update_swaps_eyes_for_a_check_mark(conn_factory, db, fake_slack):
     assert len(fake_slack.named("reactions_remove")) == 1
 
 
-def test_ignores_bots_and_strangers(conn_factory, db, fake_slack):
+def test_ignores_bots_and_onboards_strangers(conn_factory, db, fake_slack):
     s, _, _ = ui(conn_factory, fake_slack)
     base = {"type": "message", "channel_type": "im", "channel": "D1", "ts": "1.0", "text": "x"}
     s.on_message({**base, "user": "U_GRA", "bot_id": "B1"})
-    s.on_message({**base, "user": "U_STRANGER"})
     s.on_message({**base, "user": "U_GRA", "subtype": "message_changed"})
     s.on_message({**base, "user": "U_GRA", "channel_type": "channel"})
     assert jobs(db) == [] and fake_slack.calls == []
+    s.on_message({**base, "user": "U_STRANGER"})  # Slack is the source of truth: asked to set up an account
+    assert jobs(db) == [] and "first and last name" in fake_slack.named("chat_postMessage")[0]["text"]
 
 
 def test_live_status_edits_last_8_lines_throttled(conn_factory, fake_slack):

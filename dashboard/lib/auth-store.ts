@@ -4,6 +4,8 @@ import { newToken, passwordHash, tokenHash, validSlug, verifyPassword, registere
 
 export type Session = { userId: string; organizationId: string; slug: string; organizationName: string; schema: string; name: string; email: string; employeeId: string; role: string; legacy: boolean };
 export type OrganizationDraft = { name: string; slug: string };
+type Join = { slug: string; token: string; firstName: string; lastName: string; email: string; password: string };
+export type Invite = { organization: { slug: string; name: string }; slackName: string | null };
 type Signup = OrganizationDraft & { email: string; ownerName: string; password: string };
 type Proof = { kind: "password"; password: string } | { kind: "google"; subject: string };
 type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
@@ -29,6 +31,71 @@ export class AuthStore {
     const rows = (await this.pool.query("SELECT slug,name FROM scout_auth.organizations WHERE lower(name)=lower($1) LIMIT 2", [query])).rows;
     if (rows.length > 1) throw new Error("More than one organization uses this name. Enter the organization URL.");
     return rows.length === 1 ? { slug: rows[0].slug as string, name: rows[0].name as string } : null;
+  }
+
+  /** A Slack join link: the organization it belongs to and the member's Slack name; null when unusable. */
+  async invite(slug: string, token: string): Promise<Invite | null> {
+    const org = await this.inviteOrganization(this.pool, slug);
+    if (!org || !token || token.length > 128) return null;
+    const row = (await this.pool.query(`SELECT slack_name FROM "${org.schema}".slack_members WHERE invite_token_hash=$1 AND status='invited' AND invited_at>now()-interval '30 days'`, [tokenHash(token)]).catch(() => ({ rows: [] }))).rows[0];
+    return row ? { organization: { slug: org.slug, name: org.name }, slackName: row.slack_name ?? null } : null;
+  }
+
+  private async inviteOrganization(db: Queryable, slug: string) {
+    if (!validSlug(slug)) return null;
+    const org = (await db.query("SELECT id,slug,name,schema_name AS schema,legacy FROM scout_auth.organizations WHERE slug=$1", [slug])).rows[0];
+    // The schema name is only ever interpolated after this registry check.
+    return org && registeredSchema(org.id, org.schema, org.legacy) ? org as { id: string; slug: string; name: string; schema: string; legacy: boolean } : null;
+  }
+
+  /** Accept a Slack join link: a login (new, or the existing one for that email), an employee profile linked to the
+   *  Slack user, and membership in the organization. One account can belong to many organizations. */
+  async join(input: Join) {
+    const first = input.firstName.trim(), last = input.lastName.trim(), email = input.email.trim().toLowerCase();
+    const name = `${first} ${last}`;
+    if (!first || !last || name.length > 100 || !EMAIL.test(email) || email.length > 254) throw new Error("Enter your first name, last name and a valid email.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const org = await this.inviteOrganization(client, input.slug);
+      const invite = org && input.token.length <= 128 ? (await client.query(`SELECT slack_user_id FROM "${org.schema}".slack_members WHERE invite_token_hash=$1 AND status='invited' AND invited_at>now()-interval '30 days' FOR UPDATE`, [tokenHash(input.token)])).rows[0] : undefined;
+      if (!org || !invite) throw new Error("This invite link is invalid or was already used. Message Scout on Slack for a new one.");
+      const existing = (await client.query("SELECT id,password_hash FROM scout_auth.users WHERE email=$1 FOR UPDATE", [email])).rows[0];
+      if (existing && !(await verifyPassword(input.password, existing.password_hash ?? ""))) throw new Error("Use your existing account password or a different email.");
+      const userId = existing?.id ?? randomUUID();
+      if (!existing) await client.query("INSERT INTO scout_auth.users(id,email,name,password_hash) VALUES($1,$2,$3,$4)", [userId, email, name, await passwordHash(input.password)]);
+      const member = (await client.query("SELECT employee_id FROM scout_auth.memberships WHERE organization_id=$1 AND user_id=$2", [org.id, userId])).rows[0];
+      const linked = (await client.query(`SELECT id FROM "${org.schema}".employees WHERE slack_user_id=$1 ORDER BY id LIMIT 1`, [invite.slack_user_id])).rows[0];
+      let employeeId: string = member?.employee_id ?? linked?.id;
+      if (employeeId) {
+        await client.query(`UPDATE "${org.schema}".employees SET name=$2, slack_user_id=COALESCE(slack_user_id,$3), slack_name=COALESCE(slack_name,$2) WHERE id=$1`, [employeeId, name, invite.slack_user_id]);
+      } else {
+        const base = name.toLowerCase().replaceAll("ł", "l").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") || `slack.${invite.slack_user_id.toLowerCase()}`;
+        employeeId = base;
+        for (let n = 2; (await client.query(`SELECT 1 FROM "${org.schema}".employees WHERE id=$1`, [employeeId])).rowCount; n++) employeeId = `${base}.${n}`;
+        await client.query(`INSERT INTO "${org.schema}".employees(id,name,role,slack_user_id,slack_name) VALUES($1,$2,'Staff',$3,$2)`, [employeeId, name, invite.slack_user_id]);
+      }
+      if (!member) await client.query("INSERT INTO scout_auth.memberships(organization_id,user_id,role,employee_id) VALUES($1,$2,'member',$3)", [org.id, userId, employeeId]);
+      await client.query(`UPDATE "${org.schema}".slack_members SET status='registered', employee_id=$2, registered_at=now(), invite_token_hash=NULL WHERE slack_user_id=$1`, [invite.slack_user_id, employeeId]);
+      const result = await this.issue(client, userId, org.slug);
+      await client.query("COMMIT");
+      return result!;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  /** Every organization this account belongs to (the workspace switcher). */
+  async organizations(userId: string) {
+    return (await this.pool.query("SELECT o.slug,o.name FROM scout_auth.memberships m JOIN scout_auth.organizations o ON o.id=m.organization_id WHERE m.user_id=$1 ORDER BY lower(o.name)", [userId])).rows as { slug: string; name: string }[];
+  }
+
+  /** Move a signed-in account to another organization it is a member of: a new session for that one. */
+  async switchOrganization(token: string | undefined, slug: string) {
+    if (!token || token.length > 128 || !validSlug(slug)) return null;
+    const row = (await this.pool.query("SELECT user_id FROM scout_auth.sessions WHERE token_hash=$1 AND expires_at>now()", [tokenHash(token)])).rows[0];
+    return row ? this.issue(this.pool, row.user_id, slug) : null;
   }
 
   async register(input: Signup) {

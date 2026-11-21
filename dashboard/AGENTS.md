@@ -1,5 +1,9 @@
 # AGENTS.md — collabothon-2026
 
+## Mandatory design baseline
+
+The mandatory frontend and design standard in `../AGENTS.md` applies to all work here. Always invoke `ui-ux-pro-max` for frontend/design work and match Scout's existing Linear-like UI. Additional skills and page-specific guidance may supplement, not override, that baseline; exceptions require the user's explicit approval. Preserve this requirement when regenerating or editing this file.
+
 ## Styling conventions
 
 - Use icons sparingly.

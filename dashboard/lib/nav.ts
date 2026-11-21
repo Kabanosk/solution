@@ -80,6 +80,7 @@ export function hashFromRoute(route: Route): string {
  *  #my-tasks and #loop-* are presets of the task list, #investigations / #agent-jobs open it, #llm opens chat. */
 export function routeFromHash(hash: string): Route {
   const raw = hash.replace(/^#/, "");
+  if (!raw) return { view: "chat" };
   const [path, query = ""] = raw.split("?", 2);
   if (path.startsWith("task/")) {
     const id = decodeURIComponent(path.slice(5));

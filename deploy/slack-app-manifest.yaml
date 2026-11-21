@@ -33,6 +33,8 @@ settings:
     bot_events:
       - message.im  # free-text DMs
       - app_mention
+      - message.channels  # continue only threads where Scout was explicitly mentioned
+      - message.groups  # same for private channels Scout belongs to
   interactivity:
     is_enabled: true  # Approve / Reject buttons; delivered over the socket, no request URL
   org_deploy_enabled: false

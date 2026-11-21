@@ -17,10 +17,11 @@ from collections.abc import Callable
 from typing import Any
 
 from scout import db as scout_db
+from scout import dm_replies
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
-from scout.jobs import JobQueue
+from scout.jobs import MAX_ATTEMPTS, JobQueue
 from scout.loops import chat, cost_control, invoicing, liquidity
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
@@ -52,6 +53,7 @@ HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "cost_check": cost_control.run,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,
     "dm": chat.run,
+    "dm_reply_notify": dm_replies.notify,
     "approval": _approval,
 }
 
@@ -72,6 +74,11 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
     p = job.payload
     if p.get("task_id"):
         return p["task_id"]
+    if job.kind == "dm_reply_notify":  # the chat that asked: a notification that could not be sent must be seen
+        with ctx.conn_factory() as conn:
+            row = conn.execute("SELECT r.task_id FROM dm_replies p JOIN dm_requests r ON r.id = p.request_id "
+                               "WHERE p.id = %s", (p.get("reply_id"),)).fetchone()
+        return row["task_id"] if row else None
     if job.kind == "bank_txn":
         t = ctx.recorder.by_key(f"txn:{p['txn']['id']}")
         return t.id if t else None
@@ -94,6 +101,8 @@ class Worker:
         if job is None:
             return False
         try:
+            if job.attempts > MAX_ATTEMPTS:
+                raise RuntimeError("Retry limit reached after an interrupted worker")
             result = HANDLERS[job.kind](self.ctx, job)
         except Exception as e:  # noqa: BLE001
             log.exception("job %s (%s) failed", job.id, job.kind)

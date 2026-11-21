@@ -185,3 +185,17 @@ export function mergeFollowups(turns: ChatTurn[], steps: { id: number; kind: str
   if (target < 0) return turns;
   return turns.map((turn, index) => index === target ? { ...turn, followups: [...(turn.followups ?? []), ...fresh] } : turn);
 }
+
+/** The followups on screen that Scout has not been told about yet, per task: a colleague's reply is sent to the
+ *  asker's Slack unless the open chat acknowledges having shown it. */
+export function unacknowledgedFollowups(turns: ChatTurn[], acknowledged: ReadonlySet<number>): { taskId: string; stepIds: number[] }[] {
+  const byTask = new Map<string, number[]>();
+  for (const turn of turns) {
+    if (!turn.taskId) continue;
+    for (const update of turn.followups ?? []) {
+      if (acknowledged.has(update.id)) continue;
+      byTask.set(turn.taskId, [...(byTask.get(turn.taskId) ?? []), update.id]);
+    }
+  }
+  return [...byTask].map(([taskId, stepIds]) => ({ taskId, stepIds: stepIds.slice(0, 50) }));
+}

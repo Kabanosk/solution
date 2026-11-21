@@ -12,6 +12,7 @@ from scout.models import Job
 
 BACKOFF_SECONDS = (5, 30, 120)
 MAX_ATTEMPTS = 3
+STALE_RUNNING_S = 180  # longer than dm_replies.LEASE_S, so the reply's own lease has expired by the retry
 
 
 class JobQueue:
@@ -35,9 +36,12 @@ class JobQueue:
         with self._cf() as conn:
             row = conn.execute(
                 "UPDATE agent_jobs SET status = 'running', attempts = attempts + 1, worker = %s, updated_at = now() "
-                "WHERE id = (SELECT id FROM agent_jobs WHERE status = 'queued' AND run_after <= now() "
+                "WHERE id = (SELECT id FROM agent_jobs WHERE (status = 'queued' AND run_after <= now()) "
+                # Recover a dead fallback worker; Worker escalates exhausted jobs without sending again.
+                "OR (status = 'running' AND kind = 'dm_reply_notify' "
+                "AND updated_at < now() - make_interval(secs => %s)) "
                 "ORDER BY run_after, id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
-                (worker_id,),
+                (worker_id, STALE_RUNNING_S),
             ).fetchone()
             conn.commit()
         return Job(**row) if row else None

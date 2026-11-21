@@ -143,6 +143,8 @@ A Google identity with an existing email account may reuse that account **only i
 
 ## Workspace setup (onboarding) server routes
 
+Setup is a separate, distraction-free screen: one step at a time, visible `Step N of 6` progress, Back/Next and optional skip. Sidebar, dashboard topbar and mobile navigation are not mounted until setup is finished or dismissed. The first unresolved step is resumed; OAuth returns focus email/Slack. Owners can use Connections row actions even without a prior onboarding record: `#setup?step=bank|invoicing|ksef|email|slack|network` opens the requested step directly. These links select UI only and grant no authorization.
+
 Registration (password or Google) inserts a pending `scout_auth.workspace_setup(organization_id)` row inside `createOrganization`'s transaction, after tenant provisioning, so a failed insert rolls the whole registration back. Column defaults (`status` pending, `revision` 0) come from the backend schema, which the backend task adds; this requires that additive migration before the dashboard is rolled out. Existing organizations get no row and are never auto-onboarded, and ordinary login is unchanged. Only **registration** redirects to `/<slug>#setup` (password `redirect` and the Google registration callback).
 
 Authenticated `/api/onboarding/**` routes proxy to `/v1/onboarding` with the member's session and exact-origin CSRF checks (`checkWriteRequest`); bodies are bounded (8 KiB) and rebuilt from allowlists, responses are private/no-store and re-shaped to the wire contract, and backend error bodies are never forwarded.

@@ -106,7 +106,10 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       assert.equal(await emptyPage.locator(`#${id}`).isEnabled(), true, `${id}: missing integrations can be added`);
       await emptyPage.locator(`#${id}`).click();
       await emptyPage.locator('#scout-onboarding').waitFor();
-      assert.match(emptyPage.url(), /#setup$/);
+      assert.match(emptyPage.url(), /#setup\?step=(bank|invoicing|ksef|email|slack|network)$/);
+      await emptyPage.locator('[data-onboarding-step]').first().waitFor();
+      assert.equal(await emptyPage.locator('[data-onboarding-step]').count(), 1);
+      assert.equal(await emptyPage.locator('#scout-sidebar, #scout-mobile-navigation').count(), 0);
     }
     await emptyPage.close();
     console.log('PASS existing empty workspace: all Connections setup actions work without a prior onboarding record');

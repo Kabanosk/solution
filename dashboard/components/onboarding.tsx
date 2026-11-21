@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  STEPS, buildNetworkAnswers, canEdit, completionAction, connectProvider, createHandoff, disconnectProvider, fetchSetup, handoffFiles,
+  STEPS, adjacentStep, buildNetworkAnswers, callbackStep, canEdit, completionAction, connectProvider, nextStepAction, resolveStep, stepProgress, createHandoff, disconnectProvider, fetchSetup, handoffFiles,
   OnboardingError, patchSetup, parseSlackChannelIds, saveSlackChannels, startOAuth, stepStatus, validNip, type NetworkDraft, type Provider,
 } from "@/lib/onboarding-client";
 import type { NetworkAnswers, Setup, SetupHandoff, SetupStep, SetupStepId, SetupUpdate } from "@/lib/onboarding-model";
@@ -24,39 +24,57 @@ const CALLBACK = /^(google|slack)-(connected|failed)$/;
 type Notice = { ok: boolean; text: string };
 type Run = (key: SetupStepId | "all", action: () => Promise<unknown>) => Promise<boolean>;
 
-export function Onboarding({ role, onContinue }: { role: string | undefined; onContinue: () => void }) {
+export function Onboarding({ role, onContinue, initialStep }: { role: string | undefined; onContinue: () => void; initialStep?: SetupStepId }) {
   const editable = canEdit(role);
   const [setup, setSetup] = useState<Setup | null>(null);
+  const [current, setCurrent] = useState<SetupStepId | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<SetupStepId | "all" | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const setupRef = useRef<Setup | null>(null);
+  const requestedRef = useRef<SetupStepId | undefined>(initialStep);
+  const movedRef = useRef(false);
   setupRef.current = setup;
 
   const load = useCallback(async () => {
     setLoadError(null);
-    try { setSetup(await fetchSetup(tenantFetch)); } catch (error) { setLoadError(reason(error)); }
+    try {
+      const next = await fetchSetup(tenantFetch);
+      setupRef.current = next; setSetup(next);
+      setCurrent(existing => existing ?? resolveStep(next, requestedRef.current));
+    } catch (error) { setLoadError(reason(error)); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  // The OAuth callback redirects here with ?setup=<provider>-connected|failed; show it once, the loaded state stays authoritative.
+  // The OAuth callback redirects here with ?setup=<provider>-connected|failed. It is read before the URL is cleaned so the
+  // wizard lands on that provider's step; show the outcome once, the loaded state stays authoritative.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const outcome = CALLBACK.exec(params.get("setup") ?? "");
+    const value = params.get("setup") ?? "";
+    const outcome = CALLBACK.exec(value);
     if (!outcome) return;
+    const target = callbackStep(value);
+    if (target) { requestedRef.current = target; if (setupRef.current) setCurrent(target); }
     const name = outcome[1] === "google" ? "Google" : "Slack";
     setNotice(outcome[2] === "connected" ? { ok: true, text: `${name} authorization completed. The status below is what Scout verified.` } : { ok: false, text: `${name} connection did not complete. Nothing was connected; you can try again.` });
     params.delete("setup");
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}${window.location.hash}`);
   }, []);
 
+  // A later route change (#setup?step=slack) moves the wizard; the first value is handled by load().
+  useEffect(() => {
+    if (!initialStep || initialStep === requestedRef.current) return;
+    requestedRef.current = initialStep;
+    if (setupRef.current?.steps.some(entry => entry.id === initialStep)) { movedRef.current = true; setCurrent(initialStep); }
+  }, [initialStep]);
+
   /** Runs one server mutation. A failure is shown and never applied locally; a 409 reloads the latest state. */
   const run: Run = async (key, action) => {
     setBusy(key); setNotice(null);
     try {
       const next = await action();
-      if (next && typeof next === "object") setSetup(next as Setup);
+      if (next && typeof next === "object") { setupRef.current = next as Setup; setSetup(next as Setup); }
       return true;
     } catch (error) {
       if (error instanceof OnboardingError && error.conflict) {
@@ -69,36 +87,67 @@ export function Onboarding({ role, onContinue }: { role: string | undefined; onC
   const patch = (update: Omit<SetupUpdate, "revision">) => patchSetup(tenantFetch, { revision: setupRef.current?.revision ?? 0, ...update });
   const leave = async (action: "skip" | "complete") => { if (await run("all", () => patch({ action }))) onContinue(); };
 
+  const active = setup ? setup.steps.find(entry => entry.id === (current ?? resolveStep(setup, requestedRef.current))) ?? setup.steps[0] : null;
+  const progress = active ? stepProgress(active.id) : null;
+  const previous = active ? adjacentStep(active.id, -1) : null;
+  const following = active ? adjacentStep(active.id, 1) : null;
+  const go = (id: SetupStepId) => { movedRef.current = true; setNotice(null); setCurrent(id); };
+  /** Proceeds past the current step: to the next one, or, after the last, saves completion (or dismissal) before leaving. */
+  const proceed = async () => {
+    if (following) go(following);
+    else if (setupRef.current) await leave(completionAction(setupRef.current));
+  };
+  const next = async () => {
+    if (!active) return;
+    if (!editable) { if (following) go(following); else onContinue(); return; }
+    // Unresolved optional steps are skipped explicitly (saved first) so Next never leaves them looking untouched.
+    if (nextStepAction(active) === "skip" && !(await run(active.id, () => patch({ action: "step", step: active.id, state: "skipped" })))) return;
+    await proceed();
+  };
+  const skipStep = async () => { if (active && await run(active.id, () => patch({ action: "step", step: active.id, state: "skipped" }))) await proceed(); };
+  const resolving = active !== null && editable && nextStepAction(active) === "skip";
+
   return <section id="scout-onboarding" aria-labelledby="scout-onboarding-title" className="mx-auto w-full max-w-2xl space-y-5 py-2 md:py-6">
     <div>
       <h1 id="scout-onboarding-title" className="text-2xl font-medium tracking-tight">Your workspace is ready</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Connect what Scout should work with. Everything is optional.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Connect what Scout should work with, one step at a time. Everything is optional.</p>
     </div>
     {!editable && <p id="scout-onboarding-readonly" role="note" className="rounded-lg border bg-muted/40 px-4 py-3 text-[13px]">Only workspace owners can change setup. You can see its progress here; ask an owner to connect or skip a step.</p>}
     {notice && <div id="scout-onboarding-notice" role={notice.ok ? "status" : "alert"} className={cn("flex items-start gap-2 rounded-lg border bg-card px-4 py-3 text-[13px]", !notice.ok && "border-danger-border text-danger")}>
       {notice.ok ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /> : <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />}<span className="min-w-0 break-words">{notice.text}</span>
     </div>}
 
-    {!setup && !loadError && <div id="scout-onboarding-loading" role="status" aria-label="Loading setup" className="divide-y overflow-hidden rounded-xl border bg-card">
-      {STEPS.map(entry => <div key={entry.id} className="flex items-center gap-3 px-4 py-4"><Skeleton className="size-8 rounded-lg" /><div className="flex-1 space-y-2"><Skeleton className="h-3.5 w-24" /><Skeleton className="h-3 w-3/4" /></div></div>)}
+    {!setup && !loadError && <div id="scout-onboarding-loading" role="status" aria-label="Loading setup" className="overflow-hidden rounded-xl border bg-card">
+      <div className="flex items-center gap-3 px-4 py-4"><Skeleton className="size-8 rounded-lg" /><div className="flex-1 space-y-2"><Skeleton className="h-3.5 w-24" /><Skeleton className="h-3 w-3/4" /></div></div>
     </div>}
     {loadError && !setup && <div id="scout-onboarding-error" role="alert" className="rounded-xl border border-danger-border bg-card px-4 py-6 text-center text-sm">
       <p className="text-danger">{loadError}</p>
       <Button id="scout-onboarding-retry" variant="outline" size="sm" className="mt-3 h-8" onClick={() => void load()}>Try again</Button>
     </div>}
 
-    {setup && <>
-      <ul id="scout-onboarding-steps" aria-label="Setup steps" className="divide-y overflow-hidden rounded-xl border bg-card">
-        {setup.steps.map(step => <StepRow key={step.id} step={step} network={setup.network} editable={editable} busy={busy} run={run} patch={patch} reload={load} />)}
-      </ul>
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <Button id="scout-onboarding-continue" className="h-10" disabled={busy !== null} onClick={() => editable ? void leave(completionAction(setup)) : onContinue()}>
-            {busy === "all" && <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />}Continue to Scout</Button>
-          {editable && <Button id="scout-onboarding-agent" variant="outline" className="h-10" disabled={busy !== null} onClick={() => setAgentOpen(true)}>Continue with your agent</Button>}
+    {setup && active && progress && <>
+      <div id="scout-onboarding-progress" className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3 text-xs">
+          <span id="scout-onboarding-progress-label" className="font-medium">{progress.label}</span>
+          <span className="min-w-0 truncate text-muted-foreground">{STEPS.find(entry => entry.id === active.id)?.title}</span>
         </div>
+        <div id="scout-onboarding-progressbar" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={progress.total} aria-valuenow={progress.number} aria-valuetext={`${progress.label}: ${STEPS.find(entry => entry.id === active.id)?.title}`} className="flex gap-1">
+          {STEPS.map((entry, index) => <span key={entry.id} className={cn("h-1 flex-1 rounded-full", index < progress.number ? "bg-primary" : "bg-muted")} />)}
+        </div>
+      </div>
+      <div id="scout-onboarding-steps" className="overflow-hidden rounded-xl border bg-card">
+        <StepRow key={active.id} step={active} network={setup.network} editable={editable} busy={busy} run={run} patch={patch} reload={load} onSkip={() => void skipStep()} focusHeading={movedRef.current} />
+      </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button id="scout-onboarding-back" variant="outline" className="h-10" disabled={busy !== null || previous === null} onClick={() => previous && go(previous)}>Back</Button>
+          <Button id="scout-onboarding-next" variant={resolving ? "outline" : "default"} className="h-10" disabled={busy !== null} onClick={() => void next()}>
+            {busy === "all" && <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />}{following ? "Next" : "Finish setup"}</Button>
+          {editable && <Button id="scout-onboarding-agent" variant="outline" className="h-10 sm:ml-auto" disabled={busy !== null} onClick={() => setAgentOpen(true)}>Continue with your agent</Button>}
+        </div>
+        {resolving && <p id="scout-onboarding-next-hint" className="text-xs leading-5 text-muted-foreground">{following ? "Next skips this step." : "Finishing skips this step."} You can set it up later from Connections.</p>}
         <p className="text-xs leading-5 text-muted-foreground">
-          {editable && <><Button id="scout-onboarding-skip" variant="link" className="h-auto p-0 text-xs" disabled={busy !== null} onClick={() => void leave("skip")}>Skip for now</Button> · </>}
+          {editable && <><Button id="scout-onboarding-skip" variant="link" className="h-auto p-0 text-xs" disabled={busy !== null} onClick={() => void leave("skip")}>Skip setup for now</Button> · </>}
           You can finish setup from Connections.</p>
       </div>
     </>}
@@ -106,10 +155,12 @@ export function Onboarding({ role, onContinue }: { role: string | undefined; onC
   </section>;
 }
 
-function StepRow({ step, network, editable, busy, run, patch, reload }: {
+function StepRow({ step, network, editable, busy, run, patch, reload, onSkip, focusHeading }: {
   step: SetupStep; network: NetworkAnswers | null; editable: boolean; busy: SetupStepId | "all" | null; run: Run;
-  patch: (update: Omit<SetupUpdate, "revision">) => Promise<Setup>; reload: () => Promise<void>;
+  patch: (update: Omit<SetupUpdate, "revision">) => Promise<Setup>; reload: () => Promise<void>; onSkip: () => void; focusHeading: boolean;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (focusHeading) heading.current?.focus(); }, [focusHeading]);
   const meta = STEPS.find(entry => entry.id === step.id)!;
   const Icon = ICONS[step.id];
   const status = stepStatus(step);
@@ -133,14 +184,14 @@ function StepRow({ step, network, editable, busy, run, patch, reload }: {
     return run(step.id, () => connectProvider(tenantFetch, meta.provider as Exclude<Provider, "google" | "slack">, step.id === "ksef" ? { nip: nip.trim() } : step.id === "bank" && apiKey.trim() ? { api_key: apiKey.trim() } : {}));
   };
   const primary = () => { if (step.id === "ksef" || step.id === "network") setForm(open => !open); else void connect(); };
-  const skip = (state: "skipped" | "not_started") => run(step.id, () => patch({ action: "step", step: step.id, state }));
+  const resume = () => run(step.id, () => patch({ action: "step", step: step.id, state: "not_started" }));
 
-  return <li id={`scout-onboarding-step-${step.id}`} data-onboarding-step={step.id} data-state={step.state} aria-labelledby={id("title")} className="min-w-0">
+  return <div id={`scout-onboarding-step-${step.id}`} data-onboarding-step={step.id} data-state={step.state} role="group" aria-labelledby={id("title")} className="min-w-0">
     <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3 px-4 py-4 sm:px-5">
       <span className="flex size-8 items-center justify-center rounded-lg border bg-background text-muted-foreground"><Icon className="size-4" aria-hidden="true" /></span>
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <h2 id={id("title")} className="text-[13px] leading-5 font-medium">{meta.title}</h2>
+          <h2 id={id("title")} ref={heading} tabIndex={-1} className="text-[13px] leading-5 font-medium outline-none">{meta.title}</h2>
           <span id={id("status")} data-onboarding-status={step.state} className={cn("inline-flex items-center gap-1.5 text-xs", status.tone === "danger" ? "text-danger" : status.tone === "warning" ? "text-warning" : "text-muted-foreground")}>
             {status.tone === "danger" ? <AlertCircle className="size-3.5" aria-hidden="true" /> : status.tone === "primary" ? <Check className="size-3.5 text-primary" aria-hidden="true" /> : <span className={cn("size-1.5 rounded-full", TONE[status.tone])} aria-hidden="true" />}
             {status.label}
@@ -153,12 +204,12 @@ function StepRow({ step, network, editable, busy, run, patch, reload }: {
         </dl>}
 
         {editable && <div className="flex flex-wrap items-center gap-2 pt-2">
-          {step.state === "skipped" ? <Button id={id("resume")} variant="outline" size="sm" className="h-8" disabled={disabled} onClick={() => void skip("not_started")}>Set up</Button> : <>
+          {step.state === "skipped" ? <Button id={id("resume")} variant="outline" size="sm" className="h-8" disabled={disabled} onClick={() => void resume()}>Set up</Button> : <>
             {step.state === "connecting" && <><Button id={id("refresh")} variant="outline" size="sm" className="h-8" disabled={disabled} onClick={() => void reload()}>Check status</Button>{meta.provider && <Button id={id("cancel")} variant="ghost" size="sm" className="h-8" disabled={disabled} onClick={() => void run(step.id, () => disconnectProvider(tenantFetch, meta.provider!))}>Cancel authorization</Button>}</>}
             {(!settled && !slackAuthorized && step.state !== "connecting") || step.id === "network" ? <Button id={id("action")} variant={settled ? "outline" : "default"} size="sm" className="h-8" disabled={disabled} aria-expanded={step.id === "ksef" || step.id === "network" ? form : undefined} onClick={primary}>
               {here && <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}{step.state === "failed" ? "Try again" : step.id === "network" && step.state !== "not_started" ? "Change answers" : meta.cta}</Button> : null}
             {(settled || slackAuthorized) && meta.provider && <Button id={id("disconnect")} variant="outline" size="sm" className="h-8" disabled={disabled} onClick={() => void run(step.id, () => disconnectProvider(tenantFetch, meta.provider!))}>Disconnect</Button>}
-            {step.state !== "connecting" && !settled && !slackAuthorized && <Button id={`scout-onboarding-skip-${step.id}`} variant="ghost" size="sm" className="h-8 text-muted-foreground" disabled={disabled} onClick={() => void skip("skipped")}>Skip<span className="sr-only"> {meta.title}</span></Button>}
+            {step.state !== "connecting" && !settled && !slackAuthorized && <Button id={`scout-onboarding-skip-${step.id}`} variant="ghost" size="sm" className="h-8 text-muted-foreground" disabled={disabled} onClick={onSkip}>Skip<span className="sr-only"> {meta.title}</span></Button>}
           </>}
         </div>}
 
@@ -191,7 +242,7 @@ function StepRow({ step, network, editable, busy, run, patch, reload }: {
         {editable && form && step.id === "network" && <NetworkForm initial={network} disabled={disabled} onSubmit={answers => run("network", () => patch({ action: "network", network: answers })).then(ok => { if (ok) setForm(false); })} />}
       </div>
     </div>
-  </li>;
+  </div>;
 }
 
 function SlackChannelsForm({ initial, disabled, onSubmit }: { initial: string; disabled: boolean; onSubmit: (channels: string[]) => Promise<boolean> }) {

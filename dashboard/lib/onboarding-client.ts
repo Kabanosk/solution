@@ -124,7 +124,31 @@ export function shouldOpenSetup(input: { hash: string; role: string | undefined;
 const SETTLED: SetupStepState[] = ["connected", "sandbox_connected", "skipped"];
 export const canComplete = (setup: Setup) => setup.steps.every(step => SETTLED.includes(step.state));
 export const completionAction = (setup: Setup): "complete" | "skip" => canComplete(setup) ? "complete" : "skip";
-export const validNip = (value: string) => /^\d{10}$/.test(value);
+
+// Sequential wizard: one step is shown at a time. These are pure so selection and navigation are testable without a browser.
+export const isSetupStepId = (value: unknown): value is SetupStepId => typeof value === "string" && (IDS as string[]).includes(value);
+const CONNECTED: SetupStepState[] = ["connected", "sandbox_connected"];
+const unsettled = (setup: Setup) => setup.steps.find(step => !SETTLED.includes(step.state))?.id;
+/** Resume point: the first step that is not connected, sandbox-connected or skipped; a fully settled setup shows the last step. */
+export const firstUnsettledStep = (setup: Setup): SetupStepId => unsettled(setup) ?? IDS[IDS.length - 1];
+/** An explicit, known and present step (route or OAuth return) wins, even when earlier steps are unsettled; otherwise resume. */
+export const resolveStep = (setup: Setup, requested?: SetupStepId | null): SetupStepId =>
+  requested && isSetupStepId(requested) && setup.steps.some(step => step.id === requested) ? requested : firstUnsettledStep(setup);
+/** The OAuth callback redirects with ?setup=<provider>-connected|failed; the provider decides which step to show again. */
+export const callbackStep = (value: string | null | undefined): SetupStepId | undefined => {
+  const provider = /^(google|slack)-(connected|failed)$/.exec(value ?? "")?.[1];
+  return provider === "google" ? "email" : provider === "slack" ? "slack" : undefined;
+};
+export const stepProgress = (id: SetupStepId) => ({ number: IDS.indexOf(id) + 1, total: IDS.length, label: `Step ${IDS.indexOf(id) + 1} of ${IDS.length}` });
+export const adjacentStep = (id: SetupStepId, delta: 1 | -1): SetupStepId | null => IDS[IDS.indexOf(id) + delta] ?? null;
+/** What Next does to the current step: move on, or first record an explicit skip. Saved or in-flight work is never overwritten by a skip. */
+export function nextStepAction(step: SetupStep): "advance" | "skip" {
+  if (SETTLED.includes(step.state) || step.state === "connecting") return "advance";
+  if (step.id === "network" && step.state === "needs_configuration") return "advance";
+  if (step.id === "slack" && step.display.authorized === true) return "advance";
+  return "skip";
+}
+export const validNip =(value: string) => /^\d{10}$/.test(value);
 
 export type NetworkDraft = { required: boolean; provider: string; protocol: string; administrator: string; systems: string; companyOnly: boolean };
 const SECRET = /private\s*key|BEGIN [A-Z ]*(KEY|CERTIFICATE)|pass(word|phrase)?\s*[:=]|secret\s*[:=]|token\s*[:=]|api[_ -]?key\s*[:=]|\.(ovpn|conf|pem|key)\b/i;

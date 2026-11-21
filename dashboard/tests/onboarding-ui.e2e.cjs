@@ -72,23 +72,43 @@ async function mockServer(page, initial, opts = {}) {
       await page.addInitScript(t => localStorage.setItem('scout-theme', t), theme);
       const server = await mockServer(page, initial, opts);
       await page.goto(base + (hash ? '/' + hash : '/'), { waitUntil: 'commit' });
+      if (hash.includes('#setup') || (!hash && ['pending', 'in_progress'].includes(initial.status))) await page.locator('[data-onboarding-step]').first().waitFor();
       return { page, server };
     };
     const stepBox = (page, id) => page.locator(`#scout-onboarding-step-${id}`);
     const status = (page, id) => stepBox(page, id).locator('[data-onboarding-status]').innerText();
+    const shown = page => page.locator('[data-onboarding-step]').evaluateAll(nodes => nodes.map(node => node.dataset.onboardingStep));
+    // Sequential wizard: only the current step is rendered. Moves with the real Next button (explicit skips in the mock server).
+    const advance = async (page, to) => { await page.locator('#scout-onboarding-next').click(); await page.locator(`#scout-onboarding-step-${to}`).waitFor(); };
+    const walkTo = async (page, id) => { for (let guard = 0; guard < 6; guard++) { const [now] = await shown(page); if (now === id) return; await advance(page, IDS[IDS.indexOf(now) + 1]); } assert.deepEqual(await shown(page), [id]); };
+    const settledFrom = (setup, ids, state = 'skipped') => { setup.steps = setup.steps.map(entry => ids.includes(entry.id) ? step(entry.id, state) : entry); return setup; };
 
-    // 1. A pending workspace opens setup on an ordinary load; contract order, exact CTAs, agent-neutral handoff button.
+    // 1. A pending workspace opens setup on an ordinary load, showing ONE step at a time: Step N of 6, contract order and exact CTAs.
     for (const theme of ['light', 'dark']) {
       const { page } = await open(fresh(), '', undefined, undefined, theme);
       await page.locator('#scout-onboarding').waitFor();
       assert.match(page.url(), /#setup$/);
       await page.getByRole('heading', { name: 'Your workspace is ready', exact: true }).waitFor();
-      assert.deepEqual(await page.locator('[data-onboarding-step]').evaluateAll(nodes => nodes.map(node => node.dataset.onboardingStep)), IDS);
-      const ctas = await page.locator('[id^="scout-onboarding-action-"]').allInnerTexts();
-      assert.deepEqual(ctas.map(text => text.trim()), ['Connect sandbox bank', 'Use built-in invoicing', 'Set up test environment', 'Continue with Google', 'Connect workspace', 'Answer a few questions']);
+      assert.deepEqual(await shown(page), ['bank'], 'only the first step is rendered');
+      assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), 'Step 1 of 6');
+      const bar = page.getByRole('progressbar', { name: 'Setup progress' });
+      assert.deepEqual(await bar.evaluate(node => [node.getAttribute('aria-valuenow'), node.getAttribute('aria-valuemax'), node.getAttribute('aria-valuetext')]), ['1', '6', 'Step 1 of 6: Bank']);
+      assert.equal(await page.locator('#scout-onboarding-back').isDisabled(), true, 'no Back on the first step');
+      assert.equal(await page.getByRole('button', { name: 'Next', exact: true }).count(), 1);
       await page.getByRole('button', { name: 'Continue with your agent', exact: true }).waitFor();
-      await page.getByRole('button', { name: 'Continue to Scout', exact: true }).waitFor();
       await page.getByText('You can finish setup from Connections.', { exact: false }).waitFor();
+      const ctas = [];
+      for (const [index, id] of IDS.entries()) {
+        assert.deepEqual(await shown(page), [id]);
+        assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), `Step ${index + 1} of 6`);
+        ctas.push((await page.locator(`#scout-onboarding-action-${id}`).innerText()).trim());
+        if (index < IDS.length - 1) await advance(page, IDS[index + 1]);
+      }
+      assert.deepEqual(ctas, ['Connect sandbox bank', 'Use built-in invoicing', 'Set up test environment', 'Continue with Google', 'Connect workspace', 'Answer a few questions']);
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).waitFor();
+      await page.locator('#scout-onboarding-back').click(); await page.locator('#scout-onboarding-step-slack').waitFor();
+      assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), 'Step 5 of 6', 'Back returns without saving');
+      await page.locator('#scout-onboarding-next').click(); await page.locator('#scout-onboarding-step-network').waitFor();
       // Semantic tokens only: no raw palette classes inside the setup UI.
       const raw = await page.locator('#scout-onboarding, #scout-onboarding *').evaluateAll(nodes => nodes.filter(node => /(^|\s)(bg|text|border|ring|outline|accent)-(red|green|blue|amber|emerald|teal|slate|gray|zinc|neutral|stone|yellow|orange|sky|indigo)-\d{2,3}/.test(node.getAttribute('class') || '') || /#[0-9a-f]{3,8}\b/i.test(node.getAttribute('style') || '')).length);
       assert.equal(raw, 0, 'no raw colours');
@@ -132,21 +152,28 @@ async function mockServer(page, initial, opts = {}) {
       fail = false; await page.locator('#scout-onboarding-retry').click();
       await page.locator('[data-onboarding-step]').first().waitFor(); await page.close(); }
 
-    // 4. Connect states are labelled truthfully; failures are never faked as success.
+    // 4. Connect states are labelled truthfully; the verified status is shown BEFORE Next (no auto-advance); failures never advance.
     { const { page, server } = await open(fresh(), '#setup', { failProvider: 'bunq' });
       await page.locator('#scout-onboarding-action-bank').click();
       await page.getByRole('alert').filter({ hasText: 'bunq sandbox is unreachable' }).waitFor();
       assert.equal(await status(page, 'bank'), 'Not started');
+      assert.deepEqual(await shown(page), ['bank'], 'a failed connect does not advance');
       server.failProvider = null;
       await page.locator('#scout-onboarding-action-bank').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Sandbox connected'));
       assert.equal(await status(page, 'bank'), 'Sandbox connected');
+      assert.deepEqual(await shown(page), ['bank'], 'a successful connect stays on the step so the status can be read');
       await stepBox(page, 'bank').getByText('Sandbox company', { exact: true }).waitFor();
-      await page.locator('#scout-onboarding-action-invoicing').click();
-      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-invoicing')?.textContent.trim() === 'Connected');
       await page.locator('#scout-onboarding-disconnect-bank').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Not started'));
       assert.ok(server.calls.some(call => call.method === 'DELETE' && call.path === '/api/onboarding/connect/bunq'));
+      await page.locator('#scout-onboarding-action-bank').click();
+      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Sandbox connected'));
+      await advance(page, 'invoicing');
+      assert.equal(server.calls.filter(call => call.method === 'PATCH').length, 0, 'Next on a connected step writes nothing');
+      await page.locator('#scout-onboarding-action-invoicing').click();
+      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-invoicing')?.textContent.trim() === 'Connected');
+      await advance(page, 'ksef');
       // KSeF: NIP is validated before any request; an unsupported test setup is a prerequisite, not "connected".
       await page.locator('#scout-onboarding-action-ksef').click();
       await page.locator('#scout-onboarding-ksef-nip').fill('123');
@@ -158,20 +185,44 @@ async function mockServer(page, initial, opts = {}) {
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-ksef')?.textContent.includes('Needs setup'));
       await stepBox(page, 'ksef').getByText('Test-environment authentication is not configured on this server.').waitFor();
       assert.deepEqual(server.calls.find(call => call.path.endsWith('/ksef')).body, { nip: '5252248481' });
+      // Step forms never leak into the next step, and returning starts from a clean form.
+      await page.locator('#scout-onboarding-ksef-nip').fill('999');
+      await advance(page, 'email'); await page.locator('#scout-onboarding-back').click(); await page.locator('#scout-onboarding-step-ksef').waitFor();
+      assert.equal(await page.locator('#scout-onboarding-ksef-nip').count(), 0, 'form state is reset when a step is re-entered');
       assert.deepEqual(page.errors, []); await page.close(); }
 
-    // 5. Per-step skip and resume persist through the server revision.
+    // 5. Per-step skip proceeds; skipped steps can be resumed through Back; resume lands on the first unsettled step.
     { const { page, server } = await open(fresh(), '#setup');
-      await page.locator('#scout-onboarding-skip-slack').click();
-      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.includes('Skipped'));
-      assert.deepEqual(server.calls.find(call => call.method === 'PATCH').body, { revision: 1, action: 'step', step: 'slack', state: 'skipped' });
-      await page.locator('#scout-onboarding-resume-slack').click();
-      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.includes('Not started'));
+      await page.locator('#scout-onboarding-skip-bank').click();
+      await page.locator('#scout-onboarding-step-invoicing').waitFor();
+      assert.deepEqual(server.calls.find(call => call.method === 'PATCH').body, { revision: 1, action: 'step', step: 'bank', state: 'skipped' });
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'scout-onboarding-title-invoicing', 'focus moves to the new step heading');
+      await page.locator('#scout-onboarding-back').click(); await page.locator('#scout-onboarding-step-bank').waitFor();
+      assert.equal(await status(page, 'bank'), 'Skipped');
+      await page.locator('#scout-onboarding-resume-bank').click();
+      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Not started'));
+      assert.deepEqual(await shown(page), ['bank'], 'Set up stays on the step');
       await page.reload({ waitUntil: 'commit' }); await page.locator('#scout-onboarding').waitFor();
-      assert.equal(await status(page, 'slack'), 'Not started'); await page.close(); }
+      await page.locator('#scout-onboarding-step-bank').waitFor(); await page.close(); }
+    { const { page } = await open(settledFrom(fresh('in_progress'), ['bank', 'invoicing', 'ksef']), '#setup');
+      await page.locator('#scout-onboarding-step-email').waitFor();
+      assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), 'Step 4 of 6', 'resumes at the first unsettled step'); await page.close(); }
+    // A failed save never advances; Next on an untouched optional step records an explicit skip first.
+    { const { page, server } = await open(fresh(), '#setup', { failPatch: true });
+      await page.locator('#scout-onboarding-next').click();
+      await page.getByRole('alert').filter({ hasText: 'Setup could not be saved' }).waitFor();
+      assert.deepEqual(await shown(page), ['bank']);
+      await page.locator('#scout-onboarding-skip-bank').click();
+      await page.getByRole('alert').filter({ hasText: 'Setup could not be saved' }).waitFor();
+      assert.deepEqual(await shown(page), ['bank']);
+      await page.getByText('Next skips this step.', { exact: false }).waitFor();
+      server.failPatch = false;
+      await page.locator('#scout-onboarding-next').click(); await page.locator('#scout-onboarding-step-invoicing').waitFor();
+      assert.deepEqual(server.calls.filter(call => call.method === 'PATCH').at(-1).body, { revision: 1, action: 'step', step: 'bank', state: 'skipped' });
+      await page.close(); }
 
     // 6. Google really starts OAuth: POST with no client-side proof/redirect, then navigate to the returned URL.
-    { const { page, server } = await open(fresh(), '#setup');
+    { const { page, server } = await open(settledFrom(fresh(), ['bank', 'invoicing', 'ksef']), '#setup');
       await page.route('**/__mock-oauth/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<h1 id="mock-consent">Mock consent</h1>' }));
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
       await page.locator('#mock-consent').waitFor();
@@ -179,22 +230,31 @@ async function mockServer(page, initial, opts = {}) {
       assert.deepEqual(server.calls.find(call => call.path.endsWith('/connect/google')).body, { label: 'INBOX' });
       await page.close(); }
     { const { page } = await open(fresh(), '#setup', { failProvider: 'google' });
+      await walkTo(page, 'email');
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: 'google is unavailable' }).waitFor();
-      assert.match(page.url(), /#setup$/); assert.equal(await status(page, 'email'), 'Not started'); await page.close(); }
+      assert.match(page.url(), /#setup$/); assert.equal(await status(page, 'email'), 'Not started'); assert.deepEqual(await shown(page), ['email']); await page.close(); }
     // Missing app credentials come back as a 200 Setup prerequisite: shown as such, no navigation, never "connected".
     { const { page } = await open(fresh(), '#setup', { missingCredentials: 'google' });
+      await walkTo(page, 'email');
       await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-email')?.textContent.includes('Needs setup'));
       await stepBox(page, 'email').getByText('Google mailbox credentials are not configured on this server.').waitFor();
       assert.match(page.url(), /#setup$/); await page.close(); }
-    // The callback redirect reports an outcome once and removes it from the URL; state still comes from the server.
+    // The callback redirect lands on the provider's step, reports an outcome once and removes it from the URL; state still comes from the server.
     { const { page } = await open(fresh('in_progress'), '?setup=google-failed#setup');
       await page.getByRole('alert').filter({ hasText: 'Google connection did not complete' }).waitFor();
+      await page.locator('#scout-onboarding-step-email').waitFor();
+      assert.deepEqual(await shown(page), ['email'], 'OAuth return lands on the email step although earlier steps are unsettled');
+      assert.equal(new URL(page.url()).searchParams.has('setup'), false); await page.close(); }
+    { const { page } = await open(fresh('in_progress'), '?setup=slack-connected#setup');
+      await page.getByText('Slack authorization completed.', { exact: false }).waitFor();
+      await page.locator('#scout-onboarding-step-slack').waitFor();
+      assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), 'Step 5 of 6');
       assert.equal(new URL(page.url()).searchParams.has('setup'), false); await page.close(); }
 
     // Slack OAuth is authorization only: the owner must select channels and Scout must verify them.
-    { const initial = fresh('in_progress'); initial.steps = initial.steps.map(s => s.id === 'slack' ? step('slack', 'needs_configuration', { provider: 'slack', display: { authorized: true, workspace: 'Test Slack' } }) : s);
+    { const initial = settledFrom(fresh('in_progress'), ['bank', 'invoicing', 'ksef', 'email']); initial.steps = initial.steps.map(s => s.id === 'slack' ? step('slack', 'needs_configuration', { provider: 'slack', display: { authorized: true, workspace: 'Test Slack' } }) : s);
       const { page, server } = await open(initial, '#setup');
       await page.locator('#scout-onboarding-slack-channels-form').waitFor();
       assert.equal(await status(page, 'slack'), 'Needs setup');
@@ -207,20 +267,21 @@ async function mockServer(page, initial, opts = {}) {
       await page.locator('#scout-onboarding-slack-channels-save').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.trim() === 'Connected');
       assert.deepEqual(server.calls.find(c => c.method === 'PUT').body, { channels: ['C0123456789', 'G0123456789'] });
+      assert.deepEqual(await shown(page), ['slack'], 'saving channels stays on the step');
       await page.locator('#scout-onboarding-slack-channels').fill('');
       await page.locator('#scout-onboarding-slack-channels-save').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.trim() === 'Needs setup');
       await page.locator('#scout-onboarding-disconnect-slack').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.trim() === 'Not started');
       assert.equal(await page.locator('#scout-onboarding-slack-channels-form').count(), 0); await page.close(); }
-    { const initial = fresh('in_progress'); initial.steps = initial.steps.map(s => s.id === 'email' ? step('email', 'connecting', { provider: 'google' }) : s);
+    { const initial = settledFrom(fresh('in_progress'), ['bank', 'invoicing', 'ksef']); initial.steps = initial.steps.map(s => s.id === 'email' ? step('email', 'connecting', { provider: 'google' }) : s);
       const { page, server } = await open(initial, '#setup');
       await page.locator('#scout-onboarding-cancel-email').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-email')?.textContent.trim() === 'Not started');
       assert.ok(server.calls.some(c => c.method === 'DELETE' && c.path.endsWith('/connect/google'))); await page.close(); }
 
     // 7. Company network: conditional questions, consent, no secrets, non-secret answers recorded.
-    { const { page, server } = await open(fresh(), '#setup');
+    { const { page, server } = await open(settledFrom(fresh('in_progress'), ['bank', 'invoicing', 'ksef', 'email', 'slack']), '#setup');
       await page.locator('#scout-onboarding-action-network').click();
       assert.equal(await page.locator('#scout-onboarding-network-provider').count(), 0, 'questions are conditional');
       await page.getByLabel('Yes', { exact: true }).check();
@@ -241,16 +302,17 @@ async function mockServer(page, initial, opts = {}) {
       assert.deepEqual(server.calls.find(call => call.method === 'PATCH').body, { revision: 1, action: 'network', network: { required: true, provider: 'WireGuard', protocol: 'UDP', administrator: 'IT team', systems: ['ERP', 'File server'], company_only: true } });
       await page.close(); }
 
-    // 8. Conflict: the latest state is reloaded and the user is told; nothing is silently discarded.
+    // 8. Conflict: the latest state is reloaded and the user is told; nothing is silently discarded and the wizard does not advance.
     { const { page, server } = await open(fresh(), '#setup', { conflictOnce: true });
       await page.locator('#scout-onboarding-skip-bank').click();
       await page.getByRole('alert').filter({ hasText: 'changed in another session' }).waitFor();
       assert.equal(await status(page, 'bank'), 'Not started');
+      assert.deepEqual(await shown(page), ['bank']);
       await page.locator('#scout-onboarding-skip-bank').click();
-      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Skipped'));
+      await page.locator('#scout-onboarding-step-invoicing').waitFor();
       assert.equal(server.calls.filter(call => call.method === 'PATCH').at(-1).body.revision, 6); await page.close(); }
 
-    // 9. Leaving: skip-all and continue persist first, then navigate; a failed save keeps the user in setup.
+    // 9. Leaving: skip-all and the final Finish persist first, then navigate; a failed save keeps the user in setup.
     { const { page, server } = await open(fresh(), '#setup', { failPatch: true });
       await page.locator('#scout-onboarding-skip').click();
       await page.getByRole('alert').filter({ hasText: 'Setup could not be saved' }).waitFor();
@@ -259,17 +321,35 @@ async function mockServer(page, initial, opts = {}) {
       await page.locator('#scout-onboarding-skip').click();
       await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
       assert.equal(server.setup.status, 'dismissed'); await page.close(); }
-    { const { page, server } = await open(fresh(), '#setup');
-      await page.locator('#scout-onboarding-continue').click();
+    { const { page, server } = await open(settledFrom(fresh(), ['bank', 'invoicing', 'ksef', 'email', 'slack']), '#setup', { failPatch: true });
+      await page.locator('#scout-onboarding-step-network').waitFor();
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
+      await page.getByRole('alert').filter({ hasText: 'Setup could not be saved' }).waitFor();
+      assert.equal(await page.locator('#scout-onboarding').count(), 1, 'a failed final save does not leave setup');
+      server.failPatch = false;
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
       await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
-      assert.equal(server.setup.status, 'dismissed', 'unfinished steps dismiss instead of completing');
+      assert.equal(server.setup.status, 'completed', 'skipping the last step then finishing completes truthfully');
+      assert.equal(server.setup.steps.find(entry => entry.id === 'network').state, 'skipped');
       await page.reload({ waitUntil: 'commit' }); await page.locator('#scout-chat-input').waitFor({ state: 'visible' }); await page.waitForTimeout(300);
-      assert.equal(await page.locator('#scout-onboarding').count(), 0, 'dismissal survives reload'); await page.close(); }
+      assert.equal(await page.locator('#scout-onboarding').count(), 0, 'completion survives reload'); await page.close(); }
+    { const initial = settledFrom(fresh(), ['bank', 'invoicing', 'ksef', 'email', 'slack']); initial.steps = initial.steps.map(s => s.id === 'network' ? step('network', 'needs_configuration') : s);
+      const { page, server } = await open(initial, '#setup');
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
+      await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
+      assert.equal(server.setup.status, 'dismissed', 'an unresolved prerequisite dismisses instead of completing');
+      assert.equal(server.setup.steps.find(entry => entry.id === 'network').state, 'needs_configuration', 'saved administrator-setup state is not overwritten');
+      await page.close(); }
     { const done = fresh(); done.steps = IDS.map(id => step(id, 'skipped'));
       const { page, server } = await open(done, '#setup');
-      await page.locator('#scout-onboarding-continue').click();
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
       await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
       assert.equal(server.setup.status, 'completed'); await page.close(); }
+    { const { page, server } = await open(fresh(), '#setup');
+      await walkTo(page, 'network');
+      await page.locator('#scout-onboarding-skip-network').click();
+      await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
+      assert.equal(server.setup.status, 'completed', 'skipping the final step proceeds out of setup'); await page.close(); }
 
     // 10. Reopen from Connections without a seventh row.
     { const { page } = await open(fresh('dismissed'), '#connections');
@@ -312,18 +392,24 @@ async function mockServer(page, initial, opts = {}) {
       await page.locator('#scout-onboarding-agent').click();
       await page.getByRole('alert').filter({ hasText: 'Handoff failed' }).waitFor(); await page.close(); }
 
-    // 12. Keyboard: the whole checklist is reachable and activated without a pointer; focus is visible.
+    // 12. Keyboard: the wizard is reachable and activated without a pointer; focus is visible and follows the step.
     { const { page, server } = await open(fresh(), '#setup');
       await page.locator('#scout-onboarding-action-bank').focus();
       assert.notEqual(await page.locator('#scout-onboarding-action-bank').evaluate(node => getComputedStyle(node).outlineStyle + getComputedStyle(node).boxShadow), 'none none');
       await page.keyboard.press('Tab'); // skip bank
       assert.equal(await page.evaluate(() => document.activeElement?.id), 'scout-onboarding-skip-bank');
       await page.keyboard.press('Enter');
-      await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-bank')?.textContent.includes('Skipped'));
+      await page.locator('#scout-onboarding-step-invoicing').waitFor();
       assert.equal(server.calls.filter(call => call.method === 'PATCH').length, 1);
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'scout-onboarding-title-invoicing');
+      await page.locator('#scout-onboarding-back').focus(); await page.keyboard.press('Enter');
+      await page.locator('#scout-onboarding-step-bank').waitFor();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'scout-onboarding-title-bank');
+      await page.locator('#scout-onboarding-next').focus(); await page.keyboard.press('Enter');
+      await page.locator('#scout-onboarding-step-invoicing').waitFor();
       await page.close(); }
 
-    // 13. Non-owners see progress read-only and cannot change or hand off anything.
+    // 13. Non-owners see progress read-only, can page through every step and cannot change or hand off anything.
     { const member = patient(await authenticatedFixture(browser));
       const slug = member.slug;
       await pool.query(`UPDATE scout_auth.memberships SET role='member' WHERE organization_id=(SELECT id FROM scout_auth.organizations WHERE slug=$1)`, [slug]);
@@ -331,15 +417,18 @@ async function mockServer(page, initial, opts = {}) {
       const server = await mockServer(page, { ...fresh(), steps: IDS.map(id => step(id, id === 'bank' ? 'sandbox_connected' : 'not_started')) });
       await page.goto(member.base + '/#setup', { waitUntil: 'commit' });
       await page.locator('#scout-onboarding-readonly').waitFor();
+      assert.deepEqual(await shown(page), ['invoicing'], 'resume skips the already connected bank');
+      await page.locator('#scout-onboarding-back').click(); await page.locator('#scout-onboarding-step-bank').waitFor();
       assert.equal(await status(page, 'bank'), 'Sandbox connected');
       assert.equal(await page.locator('#scout-onboarding [id^="scout-onboarding-action-"], #scout-onboarding [id^="scout-onboarding-skip"], #scout-onboarding-agent').count(), 0);
-      await page.locator('#scout-onboarding-continue').click();
+      await walkTo(page, 'network');
+      await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
       await page.locator('#scout-chat-input').waitFor({ state: 'visible' });
       assert.equal(server.calls.filter(call => call.method !== 'GET').length, 0, 'members never write');
       // And a member's ordinary load never auto-opens setup.
       await page.goto(member.base + '/', { waitUntil: 'commit' }); await page.locator('#scout-chat-input').waitFor({ state: 'visible' }); await page.waitForTimeout(300);
       assert.equal(await page.locator('#scout-onboarding').count(), 0); await page.close(); }
 
-    console.log('PASS onboarding UI (mocked /api/onboarding contract; no provider contacted): entry rules, six steps, truthful states, errors/409, skip/resume, Google start, network form, handoff, reopen, keyboard, read-only, responsive light/dark');
+    console.log('PASS onboarding UI (mocked /api/onboarding contract; no provider contacted): entry rules, sequential Step N of 6, truthful states, errors/409 never advance, skip/resume, Google start, OAuth return step, network form, handoff, reopen, keyboard, read-only, responsive light/dark');
   } finally { await pool.end(); await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

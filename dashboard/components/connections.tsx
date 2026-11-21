@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiHost, invoiceTotal, ksefSummary, parseKsefConfig } from "@/lib/ksef";
 import { fullTimestamp, money, type Connection } from "@/lib/scout-model";
 import { cn } from "@/lib/utils";
+import type { SetupStepId } from "@/lib/onboarding-model";
 
 const SOURCES: { id: string; kind: Connection["kind"]; title: string; description: string; icon: LucideIcon }[] = [
   { id: "bank", kind: "bank", title: "Bank", description: "Read-only bank transactions · bunq sandbox setup", icon: Landmark },
@@ -62,7 +63,7 @@ function ConnectionRow({ id, title, description, icon: Icon, connection, action,
 const POLL_MS = 1500;
 const MAX_ROWS = 8;
 
-function KsefConnection({ connection, onOpenSetup }: { connection: Connection | undefined; onOpenSetup?: () => void }) {
+function KsefConnection({ connection, onOpenSetup }: { connection: Connection | undefined; onOpenSetup?: (step?: SetupStepId) => void }) {
   const router = useRouter();
   const config = parseKsefConfig(connection?.config);
   const running = config.phase === "running";
@@ -74,7 +75,7 @@ function KsefConnection({ connection, onOpenSetup }: { connection: Connection | 
   const host = apiHost(config.api);
   const rows = config.invoices.slice(0, MAX_ROWS);
   return <ConnectionRow id="ksef" title="KSeF" description="National e-invoice system · test environment" icon={FileCheck2} connection={connection} attention={running}
-    action={<Button id="ksef-connect" variant="outline" size="sm" className="h-8 shadow-none" disabled={!onOpenSetup} onClick={onOpenSetup}>{onOpenSetup ? statusOf(connection) === "connected" ? "Manage" : "Set up KSeF" : "Owner setup required"}</Button>}>
+    action={<Button id="ksef-connect" variant="outline" size="sm" className="h-8 shadow-none" disabled={!onOpenSetup} onClick={() => onOpenSetup?.("ksef")}>{onOpenSetup ? statusOf(connection) === "connected" ? "Manage" : "Set up KSeF" : "Owner setup required"}</Button>}>
     <div className="min-w-0 space-y-3">
       {(config.nip || host) && <p id="ksef-target" className="break-words">{config.nip && <>NIP <span className="font-mono">{config.nip}</span></>}{config.nip && host && " · "}{host && <span className="font-mono">{host}</span>}</p>}
       {config.steps.length > 0 && <ol id="ksef-steps" aria-label="KSeF sync steps" className="space-y-2">
@@ -102,7 +103,7 @@ function KsefConnection({ connection, onOpenSetup }: { connection: Connection | 
   </ConnectionRow>;
 }
 
-export function Connections({ connections, onOpenSetup }: { connections: Connection[]; onOpenSetup?: () => void }) {
+export function Connections({ connections, onOpenSetup }: { connections: Connection[]; onOpenSetup?: (step?: SetupStepId) => void }) {
   const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -124,7 +125,7 @@ export function Connections({ connections, onOpenSetup }: { connections: Connect
       <p className="mt-1 text-sm text-muted-foreground">Manage the sources Scout can access. Permissions stay scoped to your workspace.</p></div>
     {onOpenSetup && <div id="scout-connections-setup" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 sm:px-5">
       <div className="min-w-0"><h2 className="text-[13px] font-medium">Workspace setup</h2><p className="text-xs leading-5 text-muted-foreground">Connect bank, invoicing, email, Slack and company network with a short, optional checklist.</p></div>
-      <Button id="scout-onboarding-reopen" variant="outline" size="sm" className="h-8 shrink-0 shadow-none" onClick={onOpenSetup}>Resume setup</Button>
+      <Button id="scout-onboarding-reopen" variant="outline" size="sm" className="h-8 shrink-0 shadow-none" onClick={() => onOpenSetup?.()}>Resume setup</Button>
     </div>}
     {toast && <div id="scout-connections-notice" role={toast.ok ? "status" : "alert"} className={cn("flex items-start gap-2 rounded-lg border bg-card px-4 py-3 text-[13px]", !toast.ok && "border-danger-border text-danger")}>
       {toast.ok ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /> : <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />}{toast.text}
@@ -139,7 +140,7 @@ export function Connections({ connections, onOpenSetup }: { connections: Connect
         const missing = strings(connection?.config.missing_scopes);
         const details = kind === "chat" && (granted.length > 0 || missing.length > 0);
         const row = <ConnectionRow key={id} id={id} title={title} description={description} icon={icon} connection={connection}
-          action={<Button id={kind === "mail" ? "scout-connect-google" : `scout-connect-${id}`} disabled={!onOpenSetup} onClick={onOpenSetup} variant="outline" size="sm" className="h-8 shadow-none">{!onOpenSetup ? "Owner setup required" : statusOf(connection) === "connected" ? "Manage" : kind === "files" ? "Set up access" : "Connect"}</Button>}>
+          action={<Button id={kind === "mail" ? "scout-connect-google" : `scout-connect-${id}`} disabled={!onOpenSetup} onClick={() => onOpenSetup?.(id === "mail" ? "email" : id === "laptops" ? "network" : id as SetupStepId)} variant="outline" size="sm" className="h-8 shadow-none">{!onOpenSetup ? "Owner setup required" : statusOf(connection) === "connected" ? "Manage" : kind === "files" ? "Set up access" : "Connect"}</Button>}>
           {kind === "mail" ? <details id="scout-google-admin" className="min-w-0">
             <summary className="cursor-pointer font-medium text-foreground">Google Workspace (admin)</summary>
             <ol className="mt-3 list-decimal space-y-2 pl-4 [overflow-wrap:anywhere]">

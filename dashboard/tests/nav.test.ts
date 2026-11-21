@@ -43,6 +43,12 @@ test("hash routing, legacy hashes and g-shortcuts", () => {
   assert.deepEqual(GO_SHORTCUTS.i, { view: "tasks", filter: { scope: "inbox" } });
 });
 
+test("setup links select only a known step without creating sidebar items", () => {
+  assert.deepEqual(routeFromHash("#setup?step=email"), { view: "setup", setupStep: "email" });
+  assert.equal(hashFromRoute({ view: "setup", setupStep: "slack" }), "#setup?step=slack");
+  assert.deepEqual(routeFromHash("#setup?step=unknown"), { view: "setup" });
+});
+
 test("the active sidebar item follows the task-list filter", () => {
   assert.equal(activeItem({ view: "overview" })?.id, "overview");
   assert.equal(activeItem({ view: "tasks", filter: {} })?.id, "tasks");

@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { cookies, headers } from "next/headers";
 import { AuthStore, type Session } from "./auth-store";
+export { legalLinks } from "./legal-links";
 
 export const SESSION_COOKIE = "scout_session";
 export const OAUTH_COOKIE = "scout_oauth";
@@ -17,10 +18,6 @@ export function appOrigin() {
   const url = new URL(configured);
   if (url.origin !== configured || (url.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))) throw new Error("Invalid SCOUT_APP_ORIGIN");
   return url.origin;
-}
-export function legalLinks() {
-  const published = (value: string | undefined) => { try { return value && new URL(value).protocol === "https:" ? value : undefined; } catch { return undefined; } };
-  return { privacy: published(process.env.SCOUT_PRIVACY_URL), terms: published(process.env.SCOUT_TERMS_URL) };
 }
 export function cookieOptions(maxAge = 43200) {
   return { httpOnly: true, secure: new URL(appOrigin()).protocol === "https:", sameSite: "lax" as const, path: "/", maxAge };

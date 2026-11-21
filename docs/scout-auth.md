@@ -71,7 +71,7 @@ Next.js (`dashboard/.env.local` for local development; server Secret for product
 | `SCOUT_TRUSTED_CLIENT_IP_HEADER` | Production-only required trusted header, e.g. `x-forwarded-for` with ingress replacement enforced |
 | `SCOUT_GOOGLE_CLIENT_ID` | Google **sign-in** web client ID, server-only |
 | `SCOUT_GOOGLE_CLIENT_SECRET` | Google **sign-in** client secret, server-only |
-| `SCOUT_PRIVACY_URL`, `SCOUT_TERMS_URL` | Real published HTTPS legal URLs; empty until supplied by the legal team |
+| `SCOUT_PRIVACY_URL`, `SCOUT_TERMS_URL` | Optional HTTPS overrides; when unset the login links to public `/privacy` and `/terms` pages. Update the policy before adding Gmail access. |
 
 Do not prefix credentials with `NEXT_PUBLIC_`. `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `API_WRITE_TOKEN`, `CFO_API_TOKEN` and `DASHBOARD_PREVIEW` no longer authorize dashboard access. Google login settings are separate from legacy mailbox connector `GOOGLE_*` settings.
 
@@ -117,9 +117,9 @@ Use a **separate Scout Google Cloud project**, not an existing project's shared 
    - For the isolated verification server only: `http://127.0.0.1:3017/api/auth/google/callback`
 7. Download the client JSON directly into a new private directory. Save the canonical copy outside the git worktree with directory mode 0700 and file mode 0600. Never print the secret or commit it. Place its ID/secret in the protected local environment file and in OpenShift Secret `scout-login` using file inputs, not command-line secret literals. Update only those keys after inspecting any existing Secret; do not overwrite unrelated values.
 
-On 2026-11-21 the separate project **Scout** (`scout-515404`) and web client **Scout** were created under the selected personal Gmail account. Credentials were stored outside the repository with 0700/0600 permissions and installed into the existing cluster namespace as Secret `scout-login`. The console remains External / Testing: Publish app is disabled until accurate public legal URLs are supplied. No substitute legal pages, optional app logo or brand-verification request was published. The basic-identity exception above is used; no test users were added. The Google button uses Google's official G artwork served locally.
+On 2026-11-21 the separate project **Scout** (`scout-515404`) and web client **Scout** were created under the selected personal Gmail account. Credentials were stored outside the repository with 0700/0600 permissions and installed into the existing cluster namespace as Secret `scout-login`. After the public HTTPS `/privacy` and `/terms` pages were deployed and registered in Branding, the External app was moved from Testing to **In production** on 2026-11-21. Google Auth Platform's Verification Center reports that no sensitive or restricted data-access scopes are requested, so data-access verification is not required for this identity-only client; it also warns that unverified branding elements are not shown to users. No Gmail permission, optional app logo, or brand-verification approval was added. The Google button uses Google's official G artwork served locally.
 
-The production dashboard host above was confirmed using the existing cluster Route on 2026-11-21. Creating the Secret did not deploy the application or migrate the live database.
+The production dashboard Route above served both legal pages to unauthenticated clients after binary build `cfo-dashboard-32`; the dashboard deployment updated to the new image and reported one ready replica on 2026-11-21. This dashboard-only release did not run database migrations, enroll an owner, or enable mailbox onboarding. Google OAuth publication is **not** Gmail access: `gmail.readonly` would require a separate, tenant-safe consent flow, restricted-scope verification and, for server-side storage or transmission of Gmail data, a security assessment.
 
 ### Existing-member login and explicit linking
 

@@ -200,6 +200,12 @@ def test_bot_output_entities_and_flows(maps):
         "IBAN PL61109010140000071219812874",
         "Card 4111 1111 1111 1111 exp 12/28",
         "Details: https://collector.invalid/steal?x=1",
+        "https://example.com.evil.invalid/report",  # allowed domain as a prefix of the real host
+        "https://example.com@evil.invalid/report",  # allowed domain as userinfo
+        "https://notexample.com/x",
+        "https://localhost.evil.invalid/",
+        "https://evil.invalid/example.com",
+        "http://svc.cluster.local.evil.invalid/x",
     ],
 )
 def test_bot_output_regex_blocks_leaks(maps, text):
@@ -212,6 +218,7 @@ def test_bot_output_regex_blocks_leaks(maps, text):
         "Marek Nowak approved invoice FV/2026/11/033 for 3 420 PLN; the runway is 4.2 months.",
         "Cash on 2026-11-21 is 125 400.00 PLN, forecast for January is 98 000 PLN.",
         "See http://mcp-hr.cfo-agent-uwur.svc.cluster.local:8003/mcp for the tool list.",
+        "Docs: https://www.example.com/docs, (https://example.com) and https://a.b.example.com:8443/x?y=1#z",
     ],
 )
 def test_bot_output_regex_lets_normal_replies_through(maps, text):
@@ -248,10 +255,10 @@ def check_prompts():
     return module
 
 
-def test_twenty_reference_prompts_cover_all_configs(check_prompts):
+def test_reference_prompts_cover_all_configs(check_prompts):
     prompts = check_prompts.PROMPTS
-    assert len(prompts) == 20
-    assert len({p[0] for p in prompts}) == 20
+    assert len(prompts) >= 20
+    assert len({p[0] for p in prompts}) == len(prompts)
     assert {p[1] for p in prompts} == {"user-input", "tool-result", "bot-output"}
     for pid, config_id, expected, messages, _why in prompts:
         assert expected in {"success", "blocked"}
@@ -259,3 +266,33 @@ def test_twenty_reference_prompts_cover_all_configs(check_prompts):
     blocked = [p for p in prompts if p[2] == "blocked"]
     passed = [p for p in prompts if p[2] == "success"]
     assert len(blocked) >= 12 and len(passed) >= 4  # normal finance questions must pass too
+    texts = " ".join(m["content"] for p in prompts for m in p[3])
+    assert "example.com.evil" in texts and "example.com@evil" in texts  # allow-list bypass attempts
+
+
+def test_check_script_requires_activated_rails_in_every_response(check_prompts):
+    assert check_prompts.has_activated_rails({"guardrails_data": {"log": {"activated_rails": []}}})
+    assert check_prompts.has_activated_rails({"guardrails_data": {"log": {"activated_rails": ["x"]}}})
+    for bad in ({}, {"status": "success"}, {"guardrails_data": {}}, {"guardrails_data": {"log": {}}},
+                {"guardrails_data": {"log": {"activated_rails": None}}}):
+        assert not check_prompts.has_activated_rails(bad)
+
+
+def test_check_script_has_no_way_to_skip_tls_verification():
+    source = (GUARD / "check_prompts.py").read_text()
+    assert "CERT_NONE" not in source and "check_hostname = False" not in source and "--insecure" not in source
+    assert "https://" in source and "only sent over https" in source
+
+
+def test_docs_do_not_disable_tls_verification():
+    text = (REPO / "docs" / "guardrails.md").read_text()
+    assert not re.search(r"curl\s[^\n]*\s-k\b|curl\s+-[a-zA-Z]*k|--insecure|verify\s*=\s*False", text)
+    assert "--cacert" in text and "service-ca.crt" in text and "default-ingress-cert" in text
+
+
+def test_every_config_quiets_the_server_log(rendered, maps):
+    """The server logs action parameters (the checked text) at INFO; config.py raises the level (review T051)."""
+    for name in ("guard-user-input", "guard-tool-result", "guard-bot-output"):
+        code = maps[name]["config.py"]
+        compile(code, name, "exec")
+        assert "logging.WARNING" in code and "getLogger()" in code

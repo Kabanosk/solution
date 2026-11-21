@@ -17,7 +17,9 @@ rails:
         patterns:
           - "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]{4}){3,7}(?:\\s?[A-Z0-9]{1,4})?\\b"
           - "\\b(?:\\d[ -]?){13,19}\\b"
-          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|example\\.com|localhost)\\b)[^\\s)]+"
+          # A URL is fine only if its host is an allowed domain or a subdomain of one, and the host ends right there
+          # (/ : ? # whitespace ) or end of text). "example.com.evil.net" and "example.com@evil.net" are blocked.
+          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|example\\.com|localhost)(?=[/:?#\\s)]|$))[^\\s)]+"
   output:
     flows:
       - detect sensitive data on output

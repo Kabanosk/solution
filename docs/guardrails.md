@@ -9,7 +9,7 @@ stays intact (Red Hat's documented pattern for tool calling, D-029). NeMo only a
 |---|---|---|---|---|
 | `user-input` (default) | what an employee or the CEO typed | `user` | `regex check input`, then `self check input` (Granite as judge) | one short call |
 | `tool-result` | text returned by tools: invoice PDFs, e-mail, chat history, MCP results | `tool` | `check tool result` (regex only, custom flow) | none |
-| `bot-output` | the reply Scout is about to send | `assistant` | `detect sensitive data on output` (Presidio: IBAN_CODE, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD), `regex check output` (raw IBANs, card numbers, URLs outside the allow-list) | none |
+| `bot-output` | the reply Scout is about to send | `assistant` | `detect sensitive data on output` (Presidio: IBAN_CODE, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD), `regex check output` (raw IBANs, card numbers, URLs whose host is not an allowed domain: `svc.cluster.local`, `example.com`, `localhost`, each with its subdomains) | none |
 
 What they are for, and what they are not:
 
@@ -69,16 +69,32 @@ env:
     valueFrom: {secretKeyRef: {name: scout-guardrails-client, key: token}}
 ```
 
-The server log contains the text of every checked message (INFO lines of the regex and Presidio actions). Treat
-`oc logs deploy/scout-guardrails` as sensitive and do not ship it elsewhere.
+### Logs
+
+The stock NeMo server logs the full text of every checked message at INFO (action parameters and results of the
+regex, Presidio and dispatcher steps), which would put replies with IBANs, e-mail addresses or salaries into pod logs
+and any log collector. The image has no setting for this (the level is `logging.basicConfig(level=INFO)` in the
+server code), so every config ships `configs/quiet_logs.py` as `config.py`: the server imports it when it loads the
+config and it sets the root and `nemoguardrails` loggers to WARNING. Only uvicorn's access lines remain (method, path,
+status, no content). Verify after every change of the CR or the images:
+
+```sh
+oc logs deploy/scout-guardrails -c nemo-guardrails --tail=200 | grep -c "<a word you just sent>"    # expect 0
+```
+
+If a later image ignores `config.py`, the log holds message text again: then restrict who may read pod logs in the
+project (`pods/log` get, admins only) and do not forward them.
 
 ## Call it (curl)
 
 ```sh
-HOST=$(oc get route scout-guardrails -o jsonpath='{.spec.host}')     # laptop; in a pod use the Service URL
+# Laptop: the Route, verified against the cluster ingress CA. In a pod: the Service URL and
+# --cacert /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt (OpenShift service CA).
+HOST=$(oc get route scout-guardrails -o jsonpath='{.spec.host}')
+oc get configmap default-ingress-cert -n openshift-config-managed -o jsonpath='{.data.ca-bundle\.crt}' > ingress-ca.crt
 TOKEN=$(oc get secret scout-guardrails-client -o jsonpath='{.data.token}' | base64 -d)
 
-curl -sk -X POST https://$HOST/v1/guardrail/checks \
+curl -s --cacert ingress-ca.crt -X POST https://$HOST/v1/guardrail/checks \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"model": "check", "guardrails": {"config_id": "user-input"},
        "messages": [{"role": "user", "content": "What is Anna Kowalska'"'"'s salary?"}]}'
@@ -98,15 +114,17 @@ Response (shortened):
 that blocked (empty list when nothing did): log it. Send `tool` text as
 `{"role": "tool", "tool_call_id": "call_1", "content": "..."}` and the reply as a single `assistant` message.
 
-## Check script (20 prompts)
+## Check script (23 prompts)
 
-`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result` and 5
-`bot-output` prompts and prints status and `activated_rails` per prompt. Exit code 1 when any verdict differs:
+`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result` and 8
+`bot-output` prompts (the last ones try to smuggle a URL past the allow-list) and prints status and `activated_rails`
+per prompt. Exit code 1 when any verdict differs or when `guardrails_data.log.activated_rails` is missing from any
+response. It always verifies the TLS certificate before it sends the token (no switch to skip that):
 
 ```sh
 export GUARDRAILS_URL=https://$(oc get route scout-guardrails -o jsonpath='{.spec.host}')
 export GUARDRAILS_TOKEN=$(oc get secret scout-guardrails-client -o jsonpath='{.data.token}' | base64 -d)
-python3 deploy/openshift/guardrails/check_prompts.py --insecure            # --repeat 5 for judge stability
+python3 deploy/openshift/guardrails/check_prompts.py --ca ingress-ca.crt   # --repeat 5 for judge stability
 ```
 
 Run it after every policy change.
@@ -118,6 +136,9 @@ Everything is in `deploy/openshift/guardrails/configs/<config>/`:
 - Judge prompt: `configs/user-input/prompts.yml`. Keep the last lines `Respond only with 'yes' or 'no'.` / `Answer:`
   and `max_tokens: 3`; a small model needs the few-shot examples, remove them and it blocks ordinary payment
   requests. Add a failing prompt to `check_prompts.py` first, then tune.
+- URL allow-list: the host must be an allowed domain or a subdomain of it and end right there (`/ : ? #`, whitespace,
+  `)` or end of text), so `example.com.evil.net` and `example.com@evil.net` are blocked. Add domains to the
+  alternation in `configs/bot-output/config.yaml` and a bypass sample to the test.
 - Regex lists: `config.yaml` under `rails.config.regex_detection.<input|output>.patterns` (YAML needs `\\` for
   one backslash; `case_insensitive: true`). `backend/tests/test_guardrails_config.py` holds attack and clean-text
   samples for every list.

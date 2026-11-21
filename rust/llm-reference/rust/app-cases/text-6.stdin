@@ -1,0 +1,1 @@
+{"op": "text", "tools": [{"name": "get_balance", "description": "Read cash caf\u00e9 \ud83d\ude00", "parameters": {"type": "object", "properties": {"day": {"type": "string"}, "factor": {"type": "number", "default": 1e-06}}}}], "content": "[]"}

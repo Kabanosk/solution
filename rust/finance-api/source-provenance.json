@@ -1,0 +1,33 @@
+{
+  "sources": {
+    "backend/cfo/api/services.py": "50feac9ed318fed87c997296675f1146aa68f6ad3f6c78a9c9d0c373bfb5ed18",
+    "backend/cfo/api/schemas.py": "0fb3414008e7964b5e75724ee87a075e5a329706f31442f99946462830acf864",
+    "backend/cfo/analysis/cost_metrics.py": "6dcd45983a3b18120a41438a6e3dafaf4da898e73b6351311dc2cb2be2be7657",
+    "backend/cfo/domain.py": "5dc2baf3eddb49f7e148ea1328047b217158c8f09a1a3c722120e2c05a04e3a8",
+    "backend/cfo/db/repo.py": "9fee7fdb867a040e4762d2c4baf9844ff90d44476770945fd5fa2daf6e422cf5",
+    "backend/cfo/forecast/features.py": "6018220d6ffedf04dbb91c3f62f416b2d5e0a56d34776e246b9b49787e59cdad",
+    "backend/cfo/forecast/model.py": "5a5fd2a43f3aa1e79b96a0e6c1fae205c062311fd80cf797c1d77255d241cd81",
+    "backend/cfo/tenancy.py": "b867ab0c6284cbe78e5a52924d1754f0e0b08ba26b9d411784d8177fadfcc85d"
+  },
+  "native": {
+    "rust/finance-api/src/lib.rs": "a7625894f9ff4fc27bfe4e61b867b8453f2fd48dc2db6759b86096af8e370df7",
+    "rust/finance-api/src/cost_metrics.rs": "87d45153a00b96844da89102ec5e62192b825f00e3433a0cb24c7ea8d8efd2bc",
+    "rust/finance-api/src/decimal.rs": "33a8c8448b4b016200652fdbfbcc49e87c7273ba8da02260c85419bdb1644b3e"
+  },
+  "reference_scripts": [
+    "../finance-api-reference/characterize.py",
+    "../finance-api-reference/cost-metrics.py"
+  ],
+  "proof": {
+    "direct_handler_cases": 30,
+    "pure_cost_metric_cases": 295,
+    "rust_anything_separate_api_gate": false,
+    "reused_gated_units": [
+      "forecast",
+      "forecast-model",
+      "forecast-training"
+    ]
+  },
+  "database": "dedicated local scout_migration; distinct finance fixture schema",
+  "model_fixture": "forecast-model/fixtures/components.json; fixed mtime 2026-11-01T08:00:00Z"
+}

@@ -1,0 +1,7 @@
+{
+  "backend/cfo/forecast/model.py": "5a5fd2a43f3aa1e79b96a0e6c1fae205c062311fd80cf797c1d77255d241cd81",
+  "rust/forecast-model-reference/contract/reference_model.py": "a23c2e631b731356952503773b03884633c86395f04d10edbcf3ca89b91efdb6",
+  "backend/cfo/forecast/features.py": "6018220d6ffedf04dbb91c3f62f416b2d5e0a56d34776e246b9b49787e59cdad",
+  "backend/cfo/forecast/schedule.py": "543d3f031f74dc7099d069437f17979790c953362e4695b0fd0336e19ecbea40",
+  "backend/cfo/forecast/band.py": "70f7bd1abf9cf5edb7fb4f171ca6394184041dfded5b1e4d76d32f7e39fa1e0b"
+}

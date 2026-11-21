@@ -1,0 +1,10 @@
+{
+  "original_handler_cases": {"passed": 30, "total": 30, "field_order_compared": true},
+  "original_cost_metric_cases": {"passed": 295, "total": 295},
+  "isolated_postgres_test": {"passed": true, "covers": ["no-data", "range defaults/errors", "native model cold-start", "tenant artifact namespace", "save/load", "concurrent cache"]},
+  "cargo_test": true,
+  "cargo_fmt": true,
+  "cargo_clippy_all_targets_deny_warnings": true,
+  "independent_rust_anything_api_gate": false,
+  "root_authenticated_http_integration": "pending"
+}

@@ -1,0 +1,168 @@
+{
+  "shutdown_days": [
+    [
+      2,
+      20
+    ],
+    [
+      2,
+      21
+    ],
+    [
+      2,
+      22
+    ],
+    [
+      2,
+      23
+    ],
+    [
+      2,
+      24
+    ],
+    [
+      2,
+      25
+    ],
+    [
+      2,
+      26
+    ],
+    [
+      2,
+      27
+    ]
+  ],
+  "due_days": {
+    "payroll": [
+      28
+    ],
+    "rent": [
+      1
+    ],
+    "tax": [
+      10
+    ],
+    "social_security": [
+      27
+    ],
+    "utilities": [
+      10
+    ]
+  },
+  "trained_until": "2025-04-30",
+  "params": {
+    "n_estimators": 8,
+    "max_depth": 2,
+    "learning_rate": 0.1,
+    "min_child_weight": 20,
+    "subsample": 0.9904,
+    "reg_lambda": 3.2495,
+    "random_state": 0,
+    "n_jobs": 1,
+    "tree_method": "hist",
+    "colsample_bytree": 0.7761,
+    "reg_alpha": 0.02,
+    "gamma": 0.1091,
+    "objective": "reg:squarederror"
+  },
+  "metrics": {
+    "train_mae": 8.024340325398807,
+    "train_days": 105.0
+  },
+  "excluded_categories": [
+    "partner_investment"
+  ],
+  "feature_columns": [
+    "weekday",
+    "is_weekend",
+    "day_of_month",
+    "days_to_month_end",
+    "is_month_start",
+    "is_month_end",
+    "is_public_holiday",
+    "shutdown_flag"
+  ],
+  "feature_set": "components",
+  "level_values": {
+    "recent_revenue_28d": 119.97857142857143,
+    "recent_revenue_90d": 116.73444444444445,
+    "recent_variable_cost_28d": 16.055,
+    "recent_variable_cost_90d": 15.72011111111111
+  },
+  "baseline_mean": 98.27820122017891,
+  "band": {
+    "p": 0.7,
+    "lower": 1.1,
+    "upper": 2.2,
+    "horizon_measured": 90
+  },
+  "schedule": {
+    "categories": {
+      "payroll": {
+        "period": 1,
+        "profiles": {
+          "0": [
+            [
+              28,
+              -2000.0
+            ]
+          ]
+        },
+        "latest": [
+          [
+            28,
+            -2000.0
+          ]
+        ]
+      },
+      "rent": {
+        "period": 1,
+        "profiles": {
+          "0": [
+            [
+              1,
+              -1000.0
+            ]
+          ]
+        },
+        "latest": [
+          [
+            1,
+            -1000.0
+          ]
+        ]
+      },
+      "tax": {
+        "period": 3,
+        "profiles": {
+          "0": [
+            [
+              10,
+              -1105.0
+            ]
+          ],
+          "1": [
+            [
+              10,
+              -2030.0
+            ]
+          ],
+          "2": [
+            [
+              10,
+              -880.0
+            ]
+          ]
+        },
+        "latest": [
+          [
+            10,
+            -1105.0
+          ]
+        ]
+      }
+    },
+    "as_of": "2025-04-30"
+  }
+}

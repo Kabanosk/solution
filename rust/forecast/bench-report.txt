@@ -1,0 +1,4 @@
+rust-anything bench rust/forecast (2026-11-21)
+evaluate: 1102cases; original2298156ns/call; Rust47095ns/call; speedup48.80x (bridge included).
+Verdict: Ship it: every function is faster in Rust, call included.
+Local characterization-adapter microbenchmark only, not whole-application performance.

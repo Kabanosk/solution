@@ -1,0 +1,1 @@
+{"profile": "scout", "repo": "A=first\nDATABASE_URL=${A:-default}-$A-${MISSING:-fallback}"}

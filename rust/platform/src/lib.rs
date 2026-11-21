@@ -174,6 +174,7 @@ pub fn legacy_connectors_enabled(tenant: Option<&Tenant>, configured_organizatio
 #[derive(Clone)]
 pub struct Database {
     url: String,
+    connect_timeout: Duration,
 }
 impl fmt::Debug for Database {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -182,11 +183,18 @@ impl fmt::Debug for Database {
 }
 impl Database {
     pub fn new(url: impl Into<String>) -> Self {
-        Self { url: url.into() }
+        Self {
+            url: url.into(),
+            connect_timeout: Duration::from_secs(5),
+        }
+    }
+    pub fn with_connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
+        self
     }
     async fn connect(&self, schema: Option<&str>) -> Result<Client, PlatformError> {
         let mut config = Config::from_str(&self.url)?;
-        config.connect_timeout(Duration::from_secs(5));
+        config.connect_timeout(self.connect_timeout);
         if let Some(schema) = schema {
             config.options(format!("-csearch_path={schema}"));
         }

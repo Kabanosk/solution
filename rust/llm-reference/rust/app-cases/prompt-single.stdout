@@ -1,0 +1,1 @@
+[{"content":"Answer with only one JSON object: the arguments of the function `get_balance` (Read cash café 😀). Its JSON schema: {\"type\": \"object\", \"properties\": {\"day\": {\"type\": \"string\"}, \"factor\": {\"type\": \"number\", \"default\": 1e-06}}}","role":"system"},{"content":"Cash café 😀?","role":"user"}]

@@ -1,0 +1,18 @@
+{
+  "source_files": [
+    {
+      "path": "backend/cfo/llm.py",
+      "sha256": "f44a22892406eb4b14d25818bc7a8beabb64d5f652088e59dff5320b048fd449"
+    },
+    {
+      "path": "backend/cfo/usage/recorder.py",
+      "sha256": "b9d64c9e00c4d2497449ecadb4817e91a7e2718ac4ddf3408739b34a36d29b29"
+    },
+    {
+      "path": "backend/cfo/usage/store.py",
+      "sha256": "4e4e508260605a4bd2edaa0c38f6018474dd5906441304520dbd8504006ff25d"
+    }
+  ],
+  "openai_sdk": "3.57.0",
+  "proof": "actual source client + local scripted HTTP provider; semantic JSON request comparison, exact response strings and usage counts"
+}

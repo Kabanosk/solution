@@ -1,0 +1,29 @@
+[
+  {
+    "case": 345,
+    "op": "daily_cash",
+    "difference": [
+      "/rows/31/0/$f64",
+      "c08c59ae147ae147",
+      "c08c59ae147ae148"
+    ]
+  },
+  {
+    "case": 346,
+    "op": "daily_features",
+    "difference": [
+      "/rows/31/0/$f64",
+      "c08c59ae147ae147",
+      "c08c59ae147ae148"
+    ]
+  },
+  {
+    "case": 371,
+    "op": "schedule_total",
+    "difference": [
+      "/values/0/$f64",
+      "0000000000000000",
+      "8000000000000000"
+    ]
+  }
+]

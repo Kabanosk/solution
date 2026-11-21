@@ -1,0 +1,32 @@
+{
+  "implementation": {
+    "bridge": "forecast-model/src/port/native.rs",
+    "production_crate": "forecast-model-native",
+    "shared_source": true
+  },
+  "hashes": {
+    "forecast/src/port/native.rs": "e36d33acaacda1241e67222a59c90140b8b2d246287ac6e7bc57bd4f7271d4f5",
+    "forecast-model/src/port/native.rs": "e74b3a70c4a598b235636b3b5dbacf183618a3dda6c9b388b57bcc508d8b9995",
+    "forecast-model/sort-cases.json": "b6331c9f71a799490acce903c15708cb79096808b67be88a1d89e552736517d8",
+    "forecast-model/fixtures/calendar.json": "fe55cff51655f8447c9123a0a95381f308b069b1a92c4a5d9330cdfaaf812efb",
+    "forecast-model/fixtures/level.json": "e84e694c7689f7d188a7ff5638a2d0914c340a21155b2f6ab592e7bd5bbc20fe",
+    "forecast-model/fixtures/level_baseline.json": "9bd3357d1a668b8f099c37e555228b201a3d1c853fc8bd0a17b7f2483450a1a3",
+    "forecast-model/fixtures/components.json": "e8b163fb3c87b2bd11a248d5430bc9cd246412034475abc04255eeda4d134782"
+  },
+  "reference_provenance": "../forecast-model-reference/provenance.json",
+  "numpy_sort_source": {
+    "repository": "https://github.com/intel/x86-simd-sort",
+    "commit": "fa944efbea1a33426b3f8a9a21e23794ab8aa300",
+    "files": [
+      "src/xss-network-keyvaluesort.hpp",
+      "src/xss-reg-networks.hpp"
+    ],
+    "license": "BSD-3-Clause",
+    "path": "THIRD-PARTY-NOTICES"
+  },
+  "xgboost": {
+    "crate": "xgb 3.4.1",
+    "library": "libxgboost 3.4.1",
+    "python_runtime_required": false
+  }
+}

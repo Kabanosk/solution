@@ -1,0 +1,4 @@
+[project]
+name = "scout-settings-reference"
+version = "0.0.0"
+description = "Original runtime settings characterization"

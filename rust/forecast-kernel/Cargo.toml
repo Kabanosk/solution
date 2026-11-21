@@ -1,0 +1,19 @@
+[package]
+name = "scout-forecast-kernel"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[lib]
+path = "../forecast/src/port/native.rs"
+
+[dependencies]
+chrono = "0.4"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

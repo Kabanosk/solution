@@ -1,0 +1,1 @@
+{"op": "wire", "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "c1", "name": "get_balance", "arguments": {"day": "\u00e9\ud83d\ude00", "value": 1e-06}}]}}

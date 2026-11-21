@@ -1,0 +1,24 @@
+{
+  "implementation": {
+    "bridge": "forecast-training/src/port/native.rs",
+    "production_crate": "forecast-training-native",
+    "shared_source": true
+  },
+  "hashes": {
+    "forecast/src/port/native.rs": "e36d33acaacda1241e67222a59c90140b8b2d246287ac6e7bc57bd4f7271d4f5",
+    "forecast-model/src/port/native.rs": "e74b3a70c4a598b235636b3b5dbacf183618a3dda6c9b388b57bcc508d8b9995",
+    "forecast-training/src/port/native.rs": "e9463a3e5bb4fa04bad1dddc88be94c7940071088fefe58ef2ed50320276122f",
+    "forecast-training/src/port/native/band.rs": "62aa6bea35a4f067ff4d3643d20e37a6eb3e73c0cc2acd82315f13b27019ea81"
+  },
+  "reference_provenance": "../forecast-training-reference/provenance.json",
+  "floating_tolerance": 0,
+  "empty_learner": {
+    "producer": "XGBoost 3.4.1 XGBRegressor(n_estimators=0)",
+    "trees": 0,
+    "contains_tenant_data": false,
+    "purpose": "retain automatic intercept instead of xgb wrapper explicit base_score default"
+  },
+  "external_transport_open": [
+    "MLflow artifact resolution/logging"
+  ]
+}

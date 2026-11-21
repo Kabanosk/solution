@@ -1,0 +1,6 @@
+{
+  "id": "393697ce-63be-53b5-8e69-4506aa53b7d7",
+  "schema": "tenant_393697ce63be53b58e694506aa53b7d7",
+  "model_path": "/tmp/scout-finance-api-fixture/model.json",
+  "url": "postgresql://scout_migration:scout_migration@127.0.0.1:55433/scout_migration"
+}

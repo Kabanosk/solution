@@ -1,0 +1,1 @@
+{"profile": "scout", "repo": "DATABASE_URL=repo", "cwd": "DATABASE_URL=cwd", "env": {"DATABASE_URL": ""}}

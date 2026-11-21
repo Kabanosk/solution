@@ -1,0 +1,96 @@
+{
+  "shutdown_days": [
+    [
+      2,
+      20
+    ],
+    [
+      2,
+      21
+    ],
+    [
+      2,
+      22
+    ],
+    [
+      2,
+      23
+    ],
+    [
+      2,
+      24
+    ],
+    [
+      2,
+      25
+    ],
+    [
+      2,
+      26
+    ],
+    [
+      2,
+      27
+    ]
+  ],
+  "due_days": {
+    "payroll": [
+      28
+    ],
+    "rent": [
+      1
+    ],
+    "tax": [
+      10
+    ],
+    "social_security": [
+      27
+    ],
+    "utilities": [
+      10
+    ]
+  },
+  "trained_until": "2025-04-30",
+  "params": {
+    "n_estimators": 8,
+    "max_depth": 2,
+    "learning_rate": 0.1,
+    "min_child_weight": 3,
+    "subsample": 1.0,
+    "reg_lambda": 1.0,
+    "random_state": 0,
+    "n_jobs": 1,
+    "tree_method": "hist"
+  },
+  "metrics": {
+    "train_mae": 154.00797851053872,
+    "train_days": 120.0
+  },
+  "excluded_categories": [
+    "partner_investment"
+  ],
+  "feature_columns": [
+    "weekday",
+    "is_weekend",
+    "month",
+    "quarter",
+    "day_of_month",
+    "day_of_year",
+    "week_of_year",
+    "days_to_month_end",
+    "is_month_start",
+    "is_month_end",
+    "is_public_holiday",
+    "shutdown_flag",
+    "payroll_due",
+    "rent_due",
+    "tax_due",
+    "social_security_due",
+    "utilities_due"
+  ],
+  "feature_set": "calendar",
+  "level_values": {},
+  "baseline_mean": 0.0,
+  "band": null,
+  "schedule": null
+}

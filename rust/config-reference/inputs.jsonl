@@ -1,0 +1,299 @@
+{"name": "cfo-defaults", "stdin": "{\"profile\": \"cfo\"}"}
+{"name": "cfo-database_url-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"DATABASE_URL\": \"\"}}"}
+{"name": "cfo-database_url-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"DATABASE_URL\": \" value \"}}"}
+{"name": "cfo-database_url-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"DATABASE_URL\": \"é😀\"}}"}
+{"name": "cfo-llm_base_url-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_BASE_URL\": \"\"}}"}
+{"name": "cfo-llm_base_url-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_BASE_URL\": \" value \"}}"}
+{"name": "cfo-llm_base_url-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_BASE_URL\": \"é😀\"}}"}
+{"name": "cfo-llm_model-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_MODEL\": \"\"}}"}
+{"name": "cfo-llm_model-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_MODEL\": \" value \"}}"}
+{"name": "cfo-llm_model-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_MODEL\": \"é😀\"}}"}
+{"name": "cfo-llm_api_key-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_API_KEY\": \"\"}}"}
+{"name": "cfo-llm_api_key-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_API_KEY\": \" value \"}}"}
+{"name": "cfo-llm_api_key-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_API_KEY\": \"é😀\"}}"}
+{"name": "cfo-llm_verify_tls-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_VERIFY_TLS\": \"\"}}"}
+{"name": "cfo-llm_verify_tls-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_VERIFY_TLS\": \" value \"}}"}
+{"name": "cfo-llm_verify_tls-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"LLM_VERIFY_TLS\": \"é😀\"}}"}
+{"name": "cfo-slack_bot_token-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_BOT_TOKEN\": \"\"}}"}
+{"name": "cfo-slack_bot_token-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_BOT_TOKEN\": \" value \"}}"}
+{"name": "cfo-slack_bot_token-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_BOT_TOKEN\": \"é😀\"}}"}
+{"name": "cfo-slack_app_token-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_APP_TOKEN\": \"\"}}"}
+{"name": "cfo-slack_app_token-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_APP_TOKEN\": \" value \"}}"}
+{"name": "cfo-slack_app_token-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_APP_TOKEN\": \"é😀\"}}"}
+{"name": "cfo-slack_user_map-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_USER_MAP\": \"\"}}"}
+{"name": "cfo-slack_user_map-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_USER_MAP\": \" value \"}}"}
+{"name": "cfo-slack_user_map-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SLACK_USER_MAP\": \"é😀\"}}"}
+{"name": "cfo-workstations_root-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"WORKSTATIONS_ROOT\": \"\"}}"}
+{"name": "cfo-workstations_root-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"WORKSTATIONS_ROOT\": \"./a//b/\"}}"}
+{"name": "cfo-workstations_root-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"WORKSTATIONS_ROOT\": \"a/../b\"}}"}
+{"name": "cfo-workstations_root-3", "stdin": "{\"profile\": \"cfo\", \"env\": {\"WORKSTATIONS_ROOT\": \"/tmp//a/\"}}"}
+{"name": "cfo-sim_speed-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"0\"}}"}
+{"name": "cfo-sim_speed-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"-2.5\"}}"}
+{"name": "cfo-sim_speed-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"1e3\"}}"}
+{"name": "cfo-sim_speed-3", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"NaN\"}}"}
+{"name": "cfo-sim_speed-4", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"Infinity\"}}"}
+{"name": "cfo-sim_speed-5", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"-inf\"}}"}
+{"name": "cfo-sim_speed-6", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \" 2.5 \"}}"}
+{"name": "cfo-sim_speed-7", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"1__2\"}}"}
+{"name": "cfo-sim_speed-8", "stdin": "{\"profile\": \"cfo\", \"env\": {\"SIM_SPEED\": \"no\"}}"}
+{"name": "cfo-forecast_model_uri-0", "stdin": "{\"profile\": \"cfo\", \"env\": {\"FORECAST_MODEL_URI\": \"\"}}"}
+{"name": "cfo-forecast_model_uri-1", "stdin": "{\"profile\": \"cfo\", \"env\": {\"FORECAST_MODEL_URI\": \" value \"}}"}
+{"name": "cfo-forecast_model_uri-2", "stdin": "{\"profile\": \"cfo\", \"env\": {\"FORECAST_MODEL_URI\": \"é😀\"}}"}
+{"name": "cfo-dotenv-0", "stdin": "{\"profile\": \"cfo\", \"repo\": \"SLACK_BOT_TOKEN=repo\\nDATABASE_URL=repo\"}"}
+{"name": "cfo-dotenv-1", "stdin": "{\"profile\": \"cfo\", \"repo\": \"export DATABASE_URL=\\\"url\\\\nsecond\\\" # comment\"}"}
+{"name": "cfo-dotenv-2", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL= #comment\"}"}
+{"name": "cfo-dotenv-3", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=#comment\"}"}
+{"name": "cfo-dotenv-4", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL='one\\\\ntwo'\"}"}
+{"name": "cfo-dotenv-5", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=\\\"one\\ntwo\\\"\"}"}
+{"name": "cfo-dotenv-6", "stdin": "{\"profile\": \"cfo\", \"repo\": \"A=first\\nDATABASE_URL=${A:-default}-$A-${MISSING:-fallback}\"}"}
+{"name": "cfo-dotenv-7", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=one # comment\\nDATABASE_URL=two\"}"}
+{"name": "cfo-dotenv-8", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=\\\"one\\\" more\\nDATABASE_URL=two\"}"}
+{"name": "cfo-dotenv-9", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=repo\\nDATABASE_URL\"}"}
+{"name": "cfo-dotenv-10", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=one\\r\\nSLACK_BOT_TOKEN=two\"}"}
+{"name": "cfo-dotenv-11", "stdin": "{\"profile\": \"cfo\", \"repo\": \"database_url=lower\\nDATABASE_URL=upper\"}"}
+{"name": "cfo-dotenv-12", "stdin": "{\"profile\": \"cfo\", \"repo\": \"'DATABASE_URL'=quoted\"}"}
+{"name": "cfo-dotenv-13", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=\\\"one\\\\t\\\\a\\\\v\\\\\\\\\\\\\\\"\\\"\"}"}
+{"name": "cfo-precedence", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=repo\\nCE0=x\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"env\"}}"}
+{"name": "cfo-emptyprecedence", "stdin": "{\"profile\": \"cfo\", \"repo\": \"DATABASE_URL=repo\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"\"}}"}
+{"name": "cfo-expansionenv", "stdin": "{\"profile\": \"cfo\", \"repo\": \"A=repo\\nDATABASE_URL=${A}-${OTHER:-default}\", \"env\": {\"A\": \"env\", \"OTHER\": \"outside\"}}"}
+{"name": "api-defaults", "stdin": "{\"profile\": \"api\"}"}
+{"name": "api-cors_origins-0", "stdin": "{\"profile\": \"api\", \"env\": {\"CORS_ORIGINS\": \"\"}}"}
+{"name": "api-cors_origins-1", "stdin": "{\"profile\": \"api\", \"env\": {\"CORS_ORIGINS\": \" value \"}}"}
+{"name": "api-cors_origins-2", "stdin": "{\"profile\": \"api\", \"env\": {\"CORS_ORIGINS\": \"é😀\"}}"}
+{"name": "api-api_write_token-0", "stdin": "{\"profile\": \"api\", \"env\": {\"API_WRITE_TOKEN\": \"\"}}"}
+{"name": "api-api_write_token-1", "stdin": "{\"profile\": \"api\", \"env\": {\"API_WRITE_TOKEN\": \" value \"}}"}
+{"name": "api-api_write_token-2", "stdin": "{\"profile\": \"api\", \"env\": {\"API_WRITE_TOKEN\": \"é😀\"}}"}
+{"name": "api-ceo_id-0", "stdin": "{\"profile\": \"api\", \"env\": {\"CEO_ID\": \"\"}}"}
+{"name": "api-ceo_id-1", "stdin": "{\"profile\": \"api\", \"env\": {\"CEO_ID\": \" value \"}}"}
+{"name": "api-ceo_id-2", "stdin": "{\"profile\": \"api\", \"env\": {\"CEO_ID\": \"é😀\"}}"}
+{"name": "api-safety_buffer_eur-0", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"0\"}}"}
+{"name": "api-safety_buffer_eur-1", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"-1\"}}"}
+{"name": "api-safety_buffer_eur-2", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"1.00\"}}"}
+{"name": "api-safety_buffer_eur-3", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"0.0000001\"}}"}
+{"name": "api-safety_buffer_eur-4", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"1e8\"}}"}
+{"name": "api-safety_buffer_eur-5", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"-0.00\"}}"}
+{"name": "api-safety_buffer_eur-6", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"1_000.20\"}}"}
+{"name": "api-safety_buffer_eur-7", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"NaN\"}}"}
+{"name": "api-safety_buffer_eur-8", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"Infinity\"}}"}
+{"name": "api-safety_buffer_eur-9", "stdin": "{\"profile\": \"api\", \"env\": {\"SAFETY_BUFFER_EUR\": \"bad\"}}"}
+{"name": "api-dotenv-0", "stdin": "{\"profile\": \"api\", \"repo\": \"SLACK_BOT_TOKEN=repo\\nDATABASE_URL=repo\"}"}
+{"name": "api-dotenv-1", "stdin": "{\"profile\": \"api\", \"repo\": \"export DATABASE_URL=\\\"url\\\\nsecond\\\" # comment\"}"}
+{"name": "api-dotenv-2", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL= #comment\"}"}
+{"name": "api-dotenv-3", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=#comment\"}"}
+{"name": "api-dotenv-4", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL='one\\\\ntwo'\"}"}
+{"name": "api-dotenv-5", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=\\\"one\\ntwo\\\"\"}"}
+{"name": "api-dotenv-6", "stdin": "{\"profile\": \"api\", \"repo\": \"A=first\\nDATABASE_URL=${A:-default}-$A-${MISSING:-fallback}\"}"}
+{"name": "api-dotenv-7", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=one # comment\\nDATABASE_URL=two\"}"}
+{"name": "api-dotenv-8", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=\\\"one\\\" more\\nDATABASE_URL=two\"}"}
+{"name": "api-dotenv-9", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=repo\\nDATABASE_URL\"}"}
+{"name": "api-dotenv-10", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=one\\r\\nSLACK_BOT_TOKEN=two\"}"}
+{"name": "api-dotenv-11", "stdin": "{\"profile\": \"api\", \"repo\": \"database_url=lower\\nDATABASE_URL=upper\"}"}
+{"name": "api-dotenv-12", "stdin": "{\"profile\": \"api\", \"repo\": \"'DATABASE_URL'=quoted\"}"}
+{"name": "api-dotenv-13", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=\\\"one\\\\t\\\\a\\\\v\\\\\\\\\\\\\\\"\\\"\"}"}
+{"name": "api-precedence", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=repo\\nCE0=x\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"env\"}}"}
+{"name": "api-emptyprecedence", "stdin": "{\"profile\": \"api\", \"repo\": \"DATABASE_URL=repo\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"\"}}"}
+{"name": "api-expansionenv", "stdin": "{\"profile\": \"api\", \"repo\": \"A=repo\\nDATABASE_URL=${A}-${OTHER:-default}\", \"env\": {\"A\": \"env\", \"OTHER\": \"outside\"}}"}
+{"name": "scout-defaults", "stdin": "{\"profile\": \"scout\"}"}
+{"name": "scout-database_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATABASE_URL\": \"\"}}"}
+{"name": "scout-database_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATABASE_URL\": \" value \"}}"}
+{"name": "scout-database_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATABASE_URL\": \"é😀\"}}"}
+{"name": "scout-scout_workers-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"0\"}}"}
+{"name": "scout-scout_workers-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"-3\"}}"}
+{"name": "scout-scout_workers-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"1_000\"}}"}
+{"name": "scout-scout_workers-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"2.0\"}}"}
+{"name": "scout-scout_workers-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"+004\"}}"}
+{"name": "scout-scout_workers-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"1e2\"}}"}
+{"name": "scout-scout_workers-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"garbage\"}}"}
+{"name": "scout-scout_workers-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \" 3 \"}}"}
+{"name": "scout-scout_workers-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"1__2\"}}"}
+{"name": "scout-scout_workers-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_WORKERS\": \"1.\"}}"}
+{"name": "scout-strategy_operating_surplus_target-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"0\"}}"}
+{"name": "scout-strategy_operating_surplus_target-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"-1\"}}"}
+{"name": "scout-strategy_operating_surplus_target-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"1.00\"}}"}
+{"name": "scout-strategy_operating_surplus_target-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"0.0000001\"}}"}
+{"name": "scout-strategy_operating_surplus_target-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"1e8\"}}"}
+{"name": "scout-strategy_operating_surplus_target-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"-0.00\"}}"}
+{"name": "scout-strategy_operating_surplus_target-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"1_000.20\"}}"}
+{"name": "scout-strategy_operating_surplus_target-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"NaN\"}}"}
+{"name": "scout-strategy_operating_surplus_target-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"Infinity\"}}"}
+{"name": "scout-strategy_operating_surplus_target-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OPERATING_SURPLUS_TARGET\": \"bad\"}}"}
+{"name": "scout-strategy_owner_income_target-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"0\"}}"}
+{"name": "scout-strategy_owner_income_target-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"-1\"}}"}
+{"name": "scout-strategy_owner_income_target-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"1.00\"}}"}
+{"name": "scout-strategy_owner_income_target-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"0.0000001\"}}"}
+{"name": "scout-strategy_owner_income_target-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"1e8\"}}"}
+{"name": "scout-strategy_owner_income_target-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"-0.00\"}}"}
+{"name": "scout-strategy_owner_income_target-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"1_000.20\"}}"}
+{"name": "scout-strategy_owner_income_target-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"NaN\"}}"}
+{"name": "scout-strategy_owner_income_target-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"Infinity\"}}"}
+{"name": "scout-strategy_owner_income_target-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_OWNER_INCOME_TARGET\": \"bad\"}}"}
+{"name": "scout-strategy_currency-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_CURRENCY\": \"\"}}"}
+{"name": "scout-strategy_currency-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_CURRENCY\": \" value \"}}"}
+{"name": "scout-strategy_currency-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_CURRENCY\": \"é😀\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"0\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"-1\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"1.00\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"0.0000001\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"1e8\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"-0.00\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"1_000.20\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"NaN\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"Infinity\"}}"}
+{"name": "scout-strategy_monthly_revenue_target-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"STRATEGY_MONTHLY_REVENUE_TARGET\": \"bad\"}}"}
+{"name": "scout-reminder_after_hours-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"0\"}}"}
+{"name": "scout-reminder_after_hours-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"-2.5\"}}"}
+{"name": "scout-reminder_after_hours-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"1e3\"}}"}
+{"name": "scout-reminder_after_hours-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"NaN\"}}"}
+{"name": "scout-reminder_after_hours-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"Infinity\"}}"}
+{"name": "scout-reminder_after_hours-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"-inf\"}}"}
+{"name": "scout-reminder_after_hours-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \" 2.5 \"}}"}
+{"name": "scout-reminder_after_hours-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"1__2\"}}"}
+{"name": "scout-reminder_after_hours-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"REMINDER_AFTER_HOURS\": \"no\"}}"}
+{"name": "scout-chat_lookback_days-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"0\"}}"}
+{"name": "scout-chat_lookback_days-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"-3\"}}"}
+{"name": "scout-chat_lookback_days-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"1_000\"}}"}
+{"name": "scout-chat_lookback_days-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"2.0\"}}"}
+{"name": "scout-chat_lookback_days-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"+004\"}}"}
+{"name": "scout-chat_lookback_days-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"1e2\"}}"}
+{"name": "scout-chat_lookback_days-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"garbage\"}}"}
+{"name": "scout-chat_lookback_days-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \" 3 \"}}"}
+{"name": "scout-chat_lookback_days-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"1__2\"}}"}
+{"name": "scout-chat_lookback_days-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_LOOKBACK_DAYS\": \"1.\"}}"}
+{"name": "scout-chat_channels-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"[\\\"#finance\\\",\\\" ops \\\"]\"}}"}
+{"name": "scout-chat_channels-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"finance, ops\"}}"}
+{"name": "scout-chat_channels-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"\\\"#finance, ##ops, \\\"\"}}"}
+{"name": "scout-chat_channels-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"[]\"}}"}
+{"name": "scout-chat_channels-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"[1]\"}}"}
+{"name": "scout-chat_channels-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"CHAT_CHANNELS\": \"null\"}}"}
+{"name": "scout-bank_api_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_API_URL\": \"\"}}"}
+{"name": "scout-bank_api_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_API_URL\": \" value \"}}"}
+{"name": "scout-bank_api_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_API_URL\": \"é😀\"}}"}
+{"name": "scout-bank_poll_seconds-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"0\"}}"}
+{"name": "scout-bank_poll_seconds-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"-2.5\"}}"}
+{"name": "scout-bank_poll_seconds-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"1e3\"}}"}
+{"name": "scout-bank_poll_seconds-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"NaN\"}}"}
+{"name": "scout-bank_poll_seconds-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"Infinity\"}}"}
+{"name": "scout-bank_poll_seconds-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"-inf\"}}"}
+{"name": "scout-bank_poll_seconds-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \" 2.5 \"}}"}
+{"name": "scout-bank_poll_seconds-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"1__2\"}}"}
+{"name": "scout-bank_poll_seconds-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"BANK_POLL_SECONDS\": \"no\"}}"}
+{"name": "scout-mail_poll_seconds-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"0\"}}"}
+{"name": "scout-mail_poll_seconds-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"-2.5\"}}"}
+{"name": "scout-mail_poll_seconds-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"1e3\"}}"}
+{"name": "scout-mail_poll_seconds-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"NaN\"}}"}
+{"name": "scout-mail_poll_seconds-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"Infinity\"}}"}
+{"name": "scout-mail_poll_seconds-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"-inf\"}}"}
+{"name": "scout-mail_poll_seconds-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \" 2.5 \"}}"}
+{"name": "scout-mail_poll_seconds-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"1__2\"}}"}
+{"name": "scout-mail_poll_seconds-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"MAIL_POLL_SECONDS\": \"no\"}}"}
+{"name": "scout-google_client_id-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_ID\": \"\"}}"}
+{"name": "scout-google_client_id-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_ID\": \" value \"}}"}
+{"name": "scout-google_client_id-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_ID\": \"é😀\"}}"}
+{"name": "scout-google_client_secret-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_SECRET\": \"\"}}"}
+{"name": "scout-google_client_secret-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_SECRET\": \" value \"}}"}
+{"name": "scout-google_client_secret-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_CLIENT_SECRET\": \"é😀\"}}"}
+{"name": "scout-google_redirect_uri-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_REDIRECT_URI\": \"\"}}"}
+{"name": "scout-google_redirect_uri-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_REDIRECT_URI\": \" value \"}}"}
+{"name": "scout-google_redirect_uri-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_REDIRECT_URI\": \"é😀\"}}"}
+{"name": "scout-google_mail_label-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_MAIL_LABEL\": \"\"}}"}
+{"name": "scout-google_mail_label-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_MAIL_LABEL\": \" value \"}}"}
+{"name": "scout-google_mail_label-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GOOGLE_MAIL_LABEL\": \"é😀\"}}"}
+{"name": "scout-connections_key-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"CONNECTIONS_KEY\": \"\"}}"}
+{"name": "scout-connections_key-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"CONNECTIONS_KEY\": \" value \"}}"}
+{"name": "scout-connections_key-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"CONNECTIONS_KEY\": \"é😀\"}}"}
+{"name": "scout-oauth_state_secret-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"OAUTH_STATE_SECRET\": \"\"}}"}
+{"name": "scout-oauth_state_secret-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"OAUTH_STATE_SECRET\": \" value \"}}"}
+{"name": "scout-oauth_state_secret-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"OAUTH_STATE_SECRET\": \"é😀\"}}"}
+{"name": "scout-scout_app_origin-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_APP_ORIGIN\": \"\"}}"}
+{"name": "scout-scout_app_origin-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_APP_ORIGIN\": \" value \"}}"}
+{"name": "scout-scout_app_origin-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_APP_ORIGIN\": \"é😀\"}}"}
+{"name": "scout-slack_client_id-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_ID\": \"\"}}"}
+{"name": "scout-slack_client_id-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_ID\": \" value \"}}"}
+{"name": "scout-slack_client_id-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_ID\": \"é😀\"}}"}
+{"name": "scout-slack_client_secret-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_SECRET\": \"\"}}"}
+{"name": "scout-slack_client_secret-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_SECRET\": \" value \"}}"}
+{"name": "scout-slack_client_secret-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_CLIENT_SECRET\": \"é😀\"}}"}
+{"name": "scout-dashboard_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"DASHBOARD_URL\": \"\"}}"}
+{"name": "scout-dashboard_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"DASHBOARD_URL\": \" value \"}}"}
+{"name": "scout-dashboard_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"DASHBOARD_URL\": \"é😀\"}}"}
+{"name": "scout-scout_icon_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_ICON_URL\": \"\"}}"}
+{"name": "scout-scout_icon_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_ICON_URL\": \" value \"}}"}
+{"name": "scout-scout_icon_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_ICON_URL\": \"é😀\"}}"}
+{"name": "scout-ceo_id-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"CEO_ID\": \"\"}}"}
+{"name": "scout-ceo_id-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"CEO_ID\": \" value \"}}"}
+{"name": "scout-ceo_id-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"CEO_ID\": \"é😀\"}}"}
+{"name": "scout-document_owner_id-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"DOCUMENT_OWNER_ID\": \"\"}}"}
+{"name": "scout-document_owner_id-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"DOCUMENT_OWNER_ID\": \" value \"}}"}
+{"name": "scout-document_owner_id-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"DOCUMENT_OWNER_ID\": \"é😀\"}}"}
+{"name": "scout-workstations_root-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"WORKSTATIONS_ROOT\": \"\"}}"}
+{"name": "scout-workstations_root-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"WORKSTATIONS_ROOT\": \" value \"}}"}
+{"name": "scout-workstations_root-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"WORKSTATIONS_ROOT\": \"é😀\"}}"}
+{"name": "scout-data_dir-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATA_DIR\": \"\"}}"}
+{"name": "scout-data_dir-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATA_DIR\": \" value \"}}"}
+{"name": "scout-data_dir-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"DATA_DIR\": \"é😀\"}}"}
+{"name": "scout-slack_bot_token-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_BOT_TOKEN\": \"\"}}"}
+{"name": "scout-slack_bot_token-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_BOT_TOKEN\": \" value \"}}"}
+{"name": "scout-slack_bot_token-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_BOT_TOKEN\": \"é😀\"}}"}
+{"name": "scout-slack_app_token-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_APP_TOKEN\": \"\"}}"}
+{"name": "scout-slack_app_token-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_APP_TOKEN\": \" value \"}}"}
+{"name": "scout-slack_app_token-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_APP_TOKEN\": \"é😀\"}}"}
+{"name": "scout-slack_user_map-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_USER_MAP\": \"\"}}"}
+{"name": "scout-slack_user_map-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_USER_MAP\": \" value \"}}"}
+{"name": "scout-slack_user_map-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_USER_MAP\": \"é😀\"}}"}
+{"name": "scout-slack_sweep_seconds-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"0\"}}"}
+{"name": "scout-slack_sweep_seconds-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"-3\"}}"}
+{"name": "scout-slack_sweep_seconds-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"1_000\"}}"}
+{"name": "scout-slack_sweep_seconds-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"2.0\"}}"}
+{"name": "scout-slack_sweep_seconds-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"+004\"}}"}
+{"name": "scout-slack_sweep_seconds-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"1e2\"}}"}
+{"name": "scout-slack_sweep_seconds-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"garbage\"}}"}
+{"name": "scout-slack_sweep_seconds-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \" 3 \"}}"}
+{"name": "scout-slack_sweep_seconds-8", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"1__2\"}}"}
+{"name": "scout-slack_sweep_seconds-9", "stdin": "{\"profile\": \"scout\", \"env\": {\"SLACK_SWEEP_SECONDS\": \"1.\"}}"}
+{"name": "scout-api_write_token-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"API_WRITE_TOKEN\": \"\"}}"}
+{"name": "scout-api_write_token-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"API_WRITE_TOKEN\": \" value \"}}"}
+{"name": "scout-api_write_token-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"API_WRITE_TOKEN\": \"é😀\"}}"}
+{"name": "scout-scout_demo-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"true\"}}"}
+{"name": "scout-scout_demo-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"FALSE\"}}"}
+{"name": "scout-scout_demo-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"1\"}}"}
+{"name": "scout-scout_demo-3", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"yes\"}}"}
+{"name": "scout-scout_demo-4", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"ON\"}}"}
+{"name": "scout-scout_demo-5", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"false\"}}"}
+{"name": "scout-scout_demo-6", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \" 1 \"}}"}
+{"name": "scout-scout_demo-7", "stdin": "{\"profile\": \"scout\", \"env\": {\"SCOUT_DEMO\": \"2\"}}"}
+{"name": "scout-guardrails_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_URL\": \"\"}}"}
+{"name": "scout-guardrails_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_URL\": \" value \"}}"}
+{"name": "scout-guardrails_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_URL\": \"é😀\"}}"}
+{"name": "scout-guardrails_token-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_TOKEN\": \"\"}}"}
+{"name": "scout-guardrails_token-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_TOKEN\": \" value \"}}"}
+{"name": "scout-guardrails_token-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_TOKEN\": \"é😀\"}}"}
+{"name": "scout-guardrails_ca-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_CA\": \"\"}}"}
+{"name": "scout-guardrails_ca-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_CA\": \" value \"}}"}
+{"name": "scout-guardrails_ca-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"GUARDRAILS_CA\": \"é😀\"}}"}
+{"name": "scout-compliance_contact-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"COMPLIANCE_CONTACT\": \"\"}}"}
+{"name": "scout-compliance_contact-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"COMPLIANCE_CONTACT\": \" value \"}}"}
+{"name": "scout-compliance_contact-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"COMPLIANCE_CONTACT\": \"é😀\"}}"}
+{"name": "scout-ksef_api_url-0", "stdin": "{\"profile\": \"scout\", \"env\": {\"KSEF_API_URL\": \"\"}}"}
+{"name": "scout-ksef_api_url-1", "stdin": "{\"profile\": \"scout\", \"env\": {\"KSEF_API_URL\": \" value \"}}"}
+{"name": "scout-ksef_api_url-2", "stdin": "{\"profile\": \"scout\", \"env\": {\"KSEF_API_URL\": \"é😀\"}}"}
+{"name": "scout-dotenv-0", "stdin": "{\"profile\": \"scout\", \"repo\": \"SLACK_BOT_TOKEN=repo\\nDATABASE_URL=repo\"}"}
+{"name": "scout-dotenv-1", "stdin": "{\"profile\": \"scout\", \"repo\": \"export DATABASE_URL=\\\"url\\\\nsecond\\\" # comment\"}"}
+{"name": "scout-dotenv-2", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL= #comment\"}"}
+{"name": "scout-dotenv-3", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=#comment\"}"}
+{"name": "scout-dotenv-4", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL='one\\\\ntwo'\"}"}
+{"name": "scout-dotenv-5", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=\\\"one\\ntwo\\\"\"}"}
+{"name": "scout-dotenv-6", "stdin": "{\"profile\": \"scout\", \"repo\": \"A=first\\nDATABASE_URL=${A:-default}-$A-${MISSING:-fallback}\"}"}
+{"name": "scout-dotenv-7", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=one # comment\\nDATABASE_URL=two\"}"}
+{"name": "scout-dotenv-8", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=\\\"one\\\" more\\nDATABASE_URL=two\"}"}
+{"name": "scout-dotenv-9", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=repo\\nDATABASE_URL\"}"}
+{"name": "scout-dotenv-10", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=one\\r\\nSLACK_BOT_TOKEN=two\"}"}
+{"name": "scout-dotenv-11", "stdin": "{\"profile\": \"scout\", \"repo\": \"database_url=lower\\nDATABASE_URL=upper\"}"}
+{"name": "scout-dotenv-12", "stdin": "{\"profile\": \"scout\", \"repo\": \"'DATABASE_URL'=quoted\"}"}
+{"name": "scout-dotenv-13", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=\\\"one\\\\t\\\\a\\\\v\\\\\\\\\\\\\\\"\\\"\"}"}
+{"name": "scout-precedence", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=repo\\nCE0=x\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"env\"}}"}
+{"name": "scout-emptyprecedence", "stdin": "{\"profile\": \"scout\", \"repo\": \"DATABASE_URL=repo\", \"cwd\": \"DATABASE_URL=cwd\", \"env\": {\"DATABASE_URL\": \"\"}}"}
+{"name": "scout-expansionenv", "stdin": "{\"profile\": \"scout\", \"repo\": \"A=repo\\nDATABASE_URL=${A}-${OTHER:-default}\", \"env\": {\"A\": \"env\", \"OTHER\": \"outside\"}}"}
+{"name": "tenant-False-False", "stdin": "{\"profile\": \"scout\", \"tenant\": {\"id\": \"f194c2e2-1d9f-43b0-ad14-102132435465\", \"slug\": \"test\", \"schema_name\": \"tenant_f194c2e21d9f43b0ad14102132435465\", \"employee_id\": \"employee\", \"role\": \"owner\", \"legacy\": false}, \"env\": {\"SLACK_BOT_TOKEN\": \"fake-test\", \"SCOUT_DEMO\": \"true\", \"STRATEGY_OWNER_INCOME_TARGET\": \"25.00\", \"SCOUT_LEGACY_CONNECTORS_ORGANIZATION\": \"\"}}"}
+{"name": "tenant-False-True", "stdin": "{\"profile\": \"scout\", \"tenant\": {\"id\": \"f194c2e2-1d9f-43b0-ad14-102132435465\", \"slug\": \"test\", \"schema_name\": \"tenant_f194c2e21d9f43b0ad14102132435465\", \"employee_id\": \"employee\", \"role\": \"owner\", \"legacy\": false}, \"env\": {\"SLACK_BOT_TOKEN\": \"fake-test\", \"SCOUT_DEMO\": \"true\", \"STRATEGY_OWNER_INCOME_TARGET\": \"25.00\", \"SCOUT_LEGACY_CONNECTORS_ORGANIZATION\": \"f194c2e2-1d9f-43b0-ad14-102132435465\"}}"}
+{"name": "tenant-True-False", "stdin": "{\"profile\": \"scout\", \"tenant\": {\"id\": \"00000000-0000-4000-8000-000000000001\", \"slug\": \"pizzeria-amalfi\", \"schema_name\": \"public\", \"employee_id\": \"ceo\", \"role\": \"owner\", \"legacy\": true}, \"env\": {\"SLACK_BOT_TOKEN\": \"fake-test\", \"SCOUT_DEMO\": \"true\", \"STRATEGY_OWNER_INCOME_TARGET\": \"25.00\", \"SCOUT_LEGACY_CONNECTORS_ORGANIZATION\": \"\"}}"}
+{"name": "tenant-True-True", "stdin": "{\"profile\": \"scout\", \"tenant\": {\"id\": \"00000000-0000-4000-8000-000000000001\", \"slug\": \"pizzeria-amalfi\", \"schema_name\": \"public\", \"employee_id\": \"ceo\", \"role\": \"owner\", \"legacy\": true}, \"env\": {\"SLACK_BOT_TOKEN\": \"fake-test\", \"SCOUT_DEMO\": \"true\", \"STRATEGY_OWNER_INCOME_TARGET\": \"25.00\", \"SCOUT_LEGACY_CONNECTORS_ORGANIZATION\": \"00000000-0000-4000-8000-000000000001\"}}"}

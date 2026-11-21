@@ -1,0 +1,1 @@
+{"database_url":"postgresql://cfo:cfo@localhost:5433/cfo","forecast_model_uri":"","llm_api_key":"EMPTY","llm_base_url":"http://localhost:8000/v1","llm_model":"llama-3.2-3b","llm_verify_tls":"true","sim_speed":1.0,"slack_app_token":"","slack_bot_token":"","slack_user_map":"","workstations_root":"a/../b"}

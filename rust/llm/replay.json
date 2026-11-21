@@ -1,0 +1,11 @@
+{
+  "build": [
+    "/home/pawel/hackatons/collabothon2026/solution/rust/llm-reference/native.sh"
+  ],
+  "passed": 141,
+  "total": 141,
+  "skipped": 0,
+  "failures": [],
+  "fallback": null,
+  "report": "/home/pawel/hackatons/collabothon2026/solution/rust/llm-reference/rust/app-cases/replay-report.md"
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "rust-anything/app-cases@1",
+  "name": "driver",
+  "run": [
+    "python3",
+    "driver.py"
+  ],
+  "timeout_secs": 30
+}

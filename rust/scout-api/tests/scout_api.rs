@@ -78,6 +78,8 @@ async fn scout_routes_preserve_scope_money_filters_approval_and_strategy() -> Te
         assert_eq!(staff_api.strategy_review_on("2026-11-21").await.err().ok_or("staff strategy accepted")?.status,403);
         let raw=conn.query_one("SELECT 1.2300::numeric(14,4) AS amount,'top-secret'::bytea AS ciphertext,NULL::text AS empty,'2026-11-01'::date AS day,'2026-11-01T10:00:00.123456Z'::timestamptz AS ts",&[]).await?;
         assert_eq!(row_json(&raw)?,json!({"amount":"1.2300","empty":null,"day":"2026-11-01","ts":"2026-11-01T10:00:00.123456+00:00"}));
+        let nullable=conn.query_one("SELECT NULL::bytea AS binary_null",&[]).await?;
+        assert_eq!(row_json(&nullable)?,json!({"binary_null":null}),"source skips actual bytes and retains NULL");
         Ok(())
     }.await;
     admin

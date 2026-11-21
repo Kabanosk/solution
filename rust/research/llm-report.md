@@ -1,0 +1,11 @@
+# Native LLM protocol and usage
+
+`scout-llm` implements the source OpenAI-compatible chat interface in asynchronous Rust. It preserves message/tool encoding, greedy JSON-in-text fallback, persistent tool/parameter adaptation, max_tokens→max_completion_tokens fallback, server token counts, heuristic token estimates, usage context merge and best-effort scoped recording. TLS settings accept system trust, explicitly disabled verification or a PEM CA bundle. Retry behavior follows the actual installed OpenAI SDK3.57.0: two retries, server Retry-After control and x-should-retry.
+
+**141/141** rust-anything application cases pass against the unchanged Python client/helpers. The shared test harness hosts only a local scripted provider. The native executable makes real HTTP calls; its requests, Authorization header, responses, token records and remembered adaptation state are compared with the original. Request JSON objects are compared after canonical key ordering; strings embedded in prompts/tool arguments remain exact. Logs, wall-clock timestamps and measured latency are outside this deterministic journal. They are not silently replaced with business data.
+
+Coverage includes 100 deterministic float-format stress cases, Python ASCII/UTF-16 JSON escaping, function arguments, invalid tool-name shapes, single/multiple-tool text prompts, usage estimates, TLS parsing, real tool rejection, persistent temperature/token adaptation, the pinned SDK's designated-message-only error handling, server retries, explicit nonretry and usage-count coercion. Two Rust regressions protect float/escape semantics and invalid tool names. Native formatting/clippy checks pass.
+
+The database usage sink captures an immutable tenant, uses the original3-second connect timeout and30-second cooldown, writes the existing llm_usage schema and links only unattributed decisions. The HTTP corpus uses an in-memory sink; database sink/circuit-breaker integration is a separate check, not claimed by141-case coverage. No deployment or real provider account was contacted.
+
+This plain library uses rust-anything app record/replay instead of an ABI bridge unit gate. Python is used by the development test harness, not by the Rust client at runtime. Integration into worker loop orchestration and MLflow spans remains separate work.

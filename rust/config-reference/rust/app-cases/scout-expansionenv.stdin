@@ -1,0 +1,1 @@
+{"profile": "scout", "repo": "A=repo\nDATABASE_URL=${A}-${OTHER:-default}", "env": {"A": "env", "OTHER": "outside"}}

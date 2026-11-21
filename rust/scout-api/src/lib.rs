@@ -90,7 +90,12 @@ pub fn row_json(row: &Row) -> Result<Value> {
     let mut object = Map::new();
     for (index, column) in row.columns().iter().enumerate() {
         let value = match *column.type_() {
-            Type::BYTEA => continue,
+            Type::BYTEA => {
+                if row.try_get::<_, Option<Vec<u8>>>(index)?.is_some() {
+                    continue;
+                }
+                Value::Null
+            }
             Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => {
                 json!(row.try_get::<_, Option<String>>(index)?)
             }

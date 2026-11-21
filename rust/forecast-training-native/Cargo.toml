@@ -1,0 +1,16 @@
+[package]
+name = "scout-forecast-training-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[lib]
+path = "../forecast-training/src/port/native.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+chrono = { version = "0.4", features = ["serde"] }
+scout-forecast-kernel = { path = "../forecast-kernel" }
+scout-forecast-model-native = { path = "../forecast-model-native" }
+xgb = { version = "=3.4.1", default-features = false, features = ["runtime_load"] }

@@ -1,0 +1,1 @@
+{"op": "chat", "calls": [{"messages": [{"role": "user", "content": "Cash caf\u00e9 \ud83d\ude00?"}]}], "responses": [{"status": 500, "headers": {"x-should-retry": "false"}, "json": {"error": {"message": "offline"}}}]}

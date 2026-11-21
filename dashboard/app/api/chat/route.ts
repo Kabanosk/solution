@@ -1,11 +1,7 @@
 import { configuredStrategyProvider, SERVER_PROVIDER_KEY } from "@/lib/strategy-store";
-import { currentSession, sessionToken } from "@/lib/auth";
+import { currentSession } from "@/lib/auth";
 import { CHAT_MODELS, ChatInputError, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatEvent } from "@/lib/chat-model";
 import { apiFetch, checkWriteRequest } from "@/lib/scout-api";
-import { externalChat, ExternalChatError } from "@/lib/external-chat";
-import { researchJobMarket } from "@/lib/market-research";
-import { openExternalContext, sealExternalContext, ExternalContextError, type ExternalContextBinding } from "@/lib/external-context";
-import type { PublicConversation } from "@/lib/external-conversation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,11 +27,14 @@ export async function POST(request: Request) {
   catch (error) { return Response.json({ error: error instanceof ChatInputError ? error.message : "Invalid chat request." }, { status: 400, headers: privateHeaders }); }
   const abort = new AbortController();
   const signal = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(input.external ? 180000 : 120000)]);
+  // An external model (e.g. OpenAI GPT) runs Scout's own agent loop with the same tools as Granite. The provider
+  // credentials go to the Scout API for this request only; the API fixes the provider's base URL.
+  let external: { provider: string; model: string; api_key: string } | undefined;
   if (input.external) {
     let config = input.external;
-    const session = await currentSession(), token = await sessionToken();
-    if (!session || !token) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
     if (config.apiKey === SERVER_PROVIDER_KEY) {
+      const session = await currentSession();
+      if (!session) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
       if (session.role !== "owner") return Response.json({ error: "Workspace owner access required." }, { status: 403, headers: privateHeaders });
       try {
         const saved = await configuredStrategyProvider(session.organizationId);
@@ -43,49 +42,16 @@ export async function POST(request: Request) {
         config = saved;
       } catch { return Response.json({ error: "The workspace provider is unavailable." }, { status: 503, headers: privateHeaders }); }
     }
-    const binding: ExternalContextBinding | undefined = input.conversationId ? {
-      sessionToken: token, organizationId: session.organizationId, conversationId: input.conversationId,
-      provider: config.provider, model: config.model, apiKey: config.apiKey,
-    } : undefined;
-    let context: PublicConversation | undefined;
-    if (input.externalContext) {
-      try { context = openExternalContext(input.externalContext, binding!); }
-      catch (error) { return Response.json({ error: error instanceof ExternalContextError ? error.message : "Could not restore external chat context. Start a new chat." }, { status: 400, headers: privateHeaders }); }
-    }
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const send = (event: ChatEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-        try {
-          for await (const event of externalChat(config, input.messages, signal, {
-            context,
-            ...(binding ? { sealContext: (state: PublicConversation) => sealExternalContext(state, binding) } : {}),
-            research: query => researchJobMarket(config, query, signal),
-            hiring: intent => apiFetch("/v1/chat/hiring", {
-              method: "POST", signal, headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-              body: JSON.stringify({ ...intent, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
-            }),
-            forecast: intent => apiFetch("/v1/chat/forecast", {
-              method: "POST", signal, headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-              body: JSON.stringify({ ...intent, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
-            }),
-          })) { if (!signal.aborted) send(event); }
-        } catch (error) {
-          if (!signal.aborted) send({ type: "error", message: error instanceof ExternalChatError ? error.message : "The forecast could not finish. Try again." });
-        } finally { try { controller.close(); } catch { /* Client stopped the response. */ } }
-      },
-      cancel() { abort.abort(); },
-    });
-    return new Response(stream, { headers: { ...privateHeaders, "Content-Type": "application/x-ndjson; charset=utf-8", "X-Accel-Buffering": "no" } });
+    external = { provider: config.provider, model: config.model, api_key: config.apiKey };
   }
   let upstream: Response;
   try {
     upstream = await apiFetch("/v1/chat", {
       method: "POST", redirect: "error", signal,
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ messages: input.messages, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
+      body: JSON.stringify({ messages: input.messages, ...(input.conversationId ? { conversation_id: input.conversationId } : {}), ...(external ? { external } : {}) }),
     });
-    if (!upstream.ok || !upstream.body) { await upstream.body?.cancel(); return Response.json({ error: "Scout could not answer. Try again in a moment." }, { status: 502, headers: privateHeaders }); }
+    if (!upstream.ok || !upstream.body) { await upstream.body?.cancel(); return Response.json({ error: external ? "Scout could not answer with the external model. Check the provider, model and API key." : "Scout could not answer. Try again in a moment." }, { status: 502, headers: privateHeaders }); }
   } catch {
     return Response.json({ error: signal.aborted ? "Scout took too long to respond. Try again." : "Could not connect to Scout. Try again in a moment." }, { status: signal.aborted ? 504 : 502, headers: privateHeaders });
   }

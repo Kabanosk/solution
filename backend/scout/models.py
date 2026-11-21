@@ -89,7 +89,7 @@ class AuditEntry(BaseModel):
     action: str
     target: str
     resource: str
-    decision: Literal["ALLOW", "DENY"]
+    decision: Literal["ALLOW", "DENY", "MASK", "BLOCK"]
     policy: str | None = None
     reason: str | None = None
 

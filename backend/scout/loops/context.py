@@ -159,6 +159,7 @@ class JobContext:
     hr: HR
     clock: Any = field(default=lambda: datetime.now(timezone.utc))
     checkpointer: Any = None  # LangGraph saver for approvals (Postgres in the worker, in-memory in tests)
+    guard: Any = None  # scout.guardrails.HttpGuardrails (or a fake); None or disabled: every check passes
     forecaster: Any = None  # (ctx, outflows) -> LiquidityReview; default: cfo.forecast.liquidity on the company data
 
     def now(self) -> datetime:

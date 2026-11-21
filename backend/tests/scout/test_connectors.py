@@ -86,7 +86,7 @@ def test_folder_mail_search_finds_pdf_attachment(tmp_path):
     assert hit.attachments == ["CWM-4471.pdf"]
     assert mail.attachment(hit.id, "CWM-4471.pdf").startswith(b"%PDF")
     new, cur = mail.changes({})
-    assert len(new) == 1 and mail.changes(cur)[0] == []
+    assert len(new) == 2 and mail.changes(cur)[0] == []  # CWM-4471 and the poisoned AS-77666
 
 
 def test_mail_unavailable_is_a_step_not_a_crash():

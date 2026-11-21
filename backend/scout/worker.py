@@ -18,6 +18,8 @@ from typing import Any
 
 from scout import db as scout_db
 from scout import dm_replies
+from scout import guardrails
+from cfo.observability import span
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
@@ -44,7 +46,7 @@ def _ksef_connect(ctx: JobContext, job: Job) -> Any:
     from scout import ksef_sync
     from scout.connectors.ksef import KsefClient
 
-    return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url)
+    return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url, ctx=ctx)
 
 
 HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
@@ -112,7 +114,8 @@ class Worker:
         try:
             if job.attempts > MAX_ATTEMPTS:
                 raise RuntimeError("Retry limit reached after an interrupted worker")
-            result = HANDLERS[job.kind](self.ctx, job)
+            with span(f"scout.{job.kind}", inputs={"job": job.id, "kind": job.kind}):  # one trace per job
+                result = HANDLERS[job.kind](self.ctx, job)
         except Exception as e:  # noqa: BLE001
             log.exception("job %s (%s) failed", job.id, job.kind)
             final = self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}")
@@ -180,8 +183,11 @@ class Worker:
 def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     """Everything wired from the environment. Returns the worker and the Slack socket handler (or None)."""
     from cfo.llm import get_llm
+    from cfo.observability import init_tracing
 
     from cfo.tenancy import bind_tenant, worker_tenant
+
+    init_tracing()  # MLflow traces of Scout's LLM calls and guardrail checks; a no-op without MLFLOW_TRACKING_URI
     s = settings or get_scout_settings()
     tenant = worker_tenant(s.database_url)
     with bind_tenant(tenant):
@@ -190,6 +196,7 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
 
 def _build(s: ScoutSettings) -> tuple[Worker, Any]:
     from cfo.llm import get_llm
+    from cfo.observability import traced_llm
     from scout.config import tenant_settings
     s = tenant_settings(s)
     cf = scout_db.factory(s.database_url)
@@ -213,13 +220,15 @@ def _build(s: ScoutSettings) -> tuple[Worker, Any]:
         if s.slack_app_token:
             socket_handler = SocketModeHandler(app, s.slack_app_token)
     connectors = registry.build(cf, s, slack_client, audit)
-    ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=get_llm(),
-                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names),
+    ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=traced_llm(get_llm()),
+                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names), guard=guardrails.from_settings(s),
                      checkpointer=scout_db.postgres_checkpointer(s.database_url))
     try:
         ctx.hr.link_slack(user_map, names)
     except Exception:  # noqa: BLE001 - the dashboard keeps the HR names; Scout itself works either way
         log.warning("could not write the Slack names to HR", exc_info=True)
+    if ctx.guard.enabled:  # the first check after a NeMo restart is slow: warm it up without blocking the start
+        threading.Thread(target=ctx.guard.warm_up, name="guardrails-warmup", daemon=True).start()
     bank = BankWatcher(cf, connectors, jobs)
     mail = MailWatcher(cf, connectors, jobs, recorder)
 

@@ -29,7 +29,7 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 | LLM usage sampler | `python -m cfo.usage` | Deployment `usage-sampler` (vLLM `/metrics` → Postgres, T032) | ✅ |
 | Dashboard (Next.js) | `dashboard/` | Deployment + Route `dashboard`, own build (`deploy/openshift/dashboard/`), Basic login | ✅ |
 | LLM (vLLM, Granite 4.0 H Tiny) | n/a | InferenceService `modelcar-granite-4-0-h-tiny` in project `my-first-model` (L4, one GPU); args in §8 | ✅ |
-| NeMo Guardrails proxy | n/a | in front of vLLM, same `LLM_BASE_URL` switch | ⏳ T050–T052 (Wojtek) |
+| NeMo Guardrails (check-only sidecar) | n/a | `NemoGuardrails` CR `scout-guardrails`, svc `scout-guardrails:443` (TLS, bearer token), 3 configs, `deploy/openshift/guardrails/`, [`docs/guardrails.md`](docs/guardrails.md) | ✅ T051; Scout client ⏳ T052 |
 | MLflow | optional (`MLFLOW_TRACKING_URI`) | Deployment + svc `mlflow:5000` (`deploy/openshift/mlflow/`); Route has no auth, prefer `oc port-forward svc/mlflow 5000:5000` | ✅ |
 
 Everything on the cluster carries `app.kubernetes.io/part-of=cfo`. Base manifests: `deploy/` (`oc apply -k deploy/`).
@@ -133,7 +133,7 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | Var | Default | Cluster value |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://cfo:cfo@localhost:5433/cfo` | `postgresql://cfo:<pw>@postgres:5432/cfo` |
-| `LLM_BASE_URL` | `http://localhost:8000/v1` | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1` (or the NeMo proxy later) |
+| `LLM_BASE_URL` | `http://localhost:8000/v1` | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`  |
 | `LLM_MODEL` | `llama-3.2-3b` | `modelcar-granite-4-0-h-tiny` |
 | `LLM_API_KEY` | `EMPTY` | Secret if the endpoint needs a token |
 | `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` | empty | Secret (`xoxb-…` / `xapp-…`), see `docs/slack-setup.md` |
@@ -162,7 +162,7 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | API server URL (`oc login --server`) | `oc whoami --show-server` |
 | vLLM endpoint (`LLM_BASE_URL`) | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1` (in-cluster only) |
 | Served model name (`LLM_MODEL`) | `modelcar-granite-4-0-h-tiny` |
-| NeMo Guardrails proxy URL | not deployed yet (T051) |
+| NeMo Guardrails URL | `https://scout-guardrails.<project>.svc.cluster.local` (CA: service-ca.crt; token: Secret `scout-guardrails-client`, key `token`) |
 | API / dashboard Routes | `oc get route api dashboard` (hosts are not written here: the repo is public) |
 
 ## 7. Gotchas

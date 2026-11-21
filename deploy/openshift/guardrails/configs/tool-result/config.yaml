@@ -1,0 +1,20 @@
+# Config `tool-result`: text that comes back from tools (invoice PDFs, e-mails, chat history, MCP results) before
+# the model reads it. No LLM: regex only, so it adds ~0.1 s per check and cannot itself be talked around.
+# Regex catches known phrasing, not paraphrases: it is detection and telemetry, access control stays in code.
+rails:
+  config:
+    regex_detection:
+      input:
+        case_insensitive: true
+        patterns:
+          - "\\b(ignore|disregard|forget|override)\\b.{0,30}\\b(previous|prior|above|earlier|all|your|system)\\b.{0,30}\\b(instructions?|rules?|prompts?|guidelines?|polic(y|ies))\\b"
+          - "\\bzignoruj\\b.{0,30}\\b(instrukcj\\w*|polece\\w*|zasad\\w*)\\b"
+          - "\\b(system|assistant)\\s+prompt\\b"
+          - "\\byou are now\\b|\\bfrom now on,? you\\b|\\bnew instructions?\\b"
+          - "<\\|?(system|start_of_role|end_of_role|im_start|im_end)\\|?>"
+          - "\\b(record_decision|attach_invoice|send_message|post_message)\\b"
+          - "!\\[[^\\]]*\\]\\(\\s*https?://"
+          - "\\[[^\\]]*\\]\\(\\s*https?://[^)]*[?&](data|q|d)="
+  tool_input:
+    flows:
+      - check tool result

@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import re
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -30,6 +31,7 @@ from scout.tasks import TaskRecorder
 
 log = logging.getLogger(__name__)
 
+SLACK_ID = re.compile(r"^[UW][A-Z0-9_]{2,}$")  # a raw Slack user id (COMPLIANCE_CONTACT)
 APPROVE, REJECT = "scout_approve", "scout_reject"
 MAX_TEXT = 2900
 MAX_FILE = 10 * 1024 * 1024
@@ -106,7 +108,7 @@ class SlackUI:
         return blocks
 
     def _channel_for(self, employee_id: str) -> str | None:
-        slack_id = self._slack.get(employee_id)
+        slack_id = self._slack.get(employee_id) or (employee_id if SLACK_ID.match(employee_id) else None)
         if not slack_id:
             return None
         if slack_id not in self._dm_channels:

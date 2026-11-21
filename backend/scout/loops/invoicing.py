@@ -10,13 +10,16 @@ yet) and `reply` (a person or a mail answered, maybe with a PDF).
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from scout import guardrails
 from scout.documents import document_text
 from scout.llm_tasks import classify_chat, classify_reply, explain, extract_invoice
+from scout.loops import liquidity
 from scout.loops.context import JobContext, eur, invoice_number_in
 from scout.models import BankTxn, InvoiceDoc, Job, Task
 
@@ -66,6 +69,8 @@ class Match:
         self.name = ""
         self.text = ""
         self.mismatch: InvoiceDoc | None = None
+        self.flagged: dict[str, Any] | None = None  # the first document the safety check flagged (never read)
+        self.flagged_all: list[dict[str, Any]] = []  # every flagged candidate, the first one included
 
 
 def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | None, day: date) -> Match:
@@ -73,6 +78,15 @@ def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | No
     for data, name, ev in cands[:MAX_CANDIDATES]:
         text = document_text(data, name)
         if not text:
+            continue
+        if number and number.casefold() not in text.casefold():
+            continue
+        v = guardrails.screen_document(ctx, task.id, text, f"{ev.get('kind', 'document')} {name}")
+        if v.blocked:  # the model never sees it; the CEO decides (see `hold_flagged`)
+            entry = {"name": name, "evidence": ev, "rails": v.rails, "data": data,
+                     "from": ev.get("from") or ev.get("location") or ""}
+            m.flagged_all.append(entry)
+            m.flagged = m.flagged or entry
             continue
         doc = _doc_from_text(ctx, text, number=number, supplier=task.counterparty or "", fallback_day=day,
                              source=ev["ref"])
@@ -85,17 +99,100 @@ def _match(ctx: JobContext, task: Task, cands: list[Candidate], number: str | No
     return m
 
 
+def _alert_flagged(ctx: JobContext, task: Task, m: Match) -> None:
+    """Every flagged candidate reaches the owner, once per document: the first one is on the approval card when no
+    candidate matched (`hold_flagged`); the others, and all of them when another candidate matched and was filed,
+    get the suspicious-content DM."""
+    for f in m.flagged_all[(0 if m.doc else 1):]:
+        ev = f["evidence"]
+        key = f"doc:{ev.get('ref') or f['name']}:{hashlib.sha256(f['data']).hexdigest()[:16]}"
+        guardrails.alert_outside(ctx, key, f"{f['name']}" + (f" ({f['from']})" if f.get("from") else ""),
+                                 f["rails"], task.id)
+
+
+def _keep_document(ctx: JobContext, task: Task, name: str, data: bytes) -> int:
+    """The original flagged document, kept in Postgres so that an approved invoice has a retrievable attachment."""
+    with ctx.conn_factory() as conn:
+        row = conn.execute("INSERT INTO flagged_documents (task_id, name, sha256, content) VALUES (%s, %s, %s, %s) "
+                           "RETURNING id", (task.id, name, hashlib.sha256(data).hexdigest(), data)).fetchone()
+        conn.commit()
+    return row["id"]
+
+
+def _approval_pending(ctx: JobContext, task: Task) -> bool:
+    with ctx.conn_factory() as conn:
+        return conn.execute("SELECT 1 FROM approvals WHERE task_id = %s AND status = 'pending'",
+                            (task.id,)).fetchone() is not None
+
+
+def hold_flagged(ctx: JobContext, task: Task, flagged: dict[str, Any], number: str | None, day: date,
+                 doc: InvoiceDoc | None = None) -> bool:
+    """A document the safety check flagged is never filed on its own: it goes to the CEO's approval card with a
+    `Suspicious content` badge and the rail. The model never read the text, so nothing was extracted: Approve
+    attaches the ORIGINAL document (its reference goes on the task as evidence) and files the invoice with the
+    number and amount of the payment, marked unverified. KSeF documents are filed with their own fields."""
+    ev = {**(flagged.get("evidence") or {})}
+    ev.setdefault("name", flagged["name"])
+    ev.setdefault("kind", "document")
+    ev.setdefault("ref", flagged["name"])
+    ev["flagged_rails"] = flagged["rails"]
+    if flagged.get("data"):  # keep the original: a Slack PDF has no other place to be fetched from
+        ev["document_id"] = _keep_document(ctx, task, flagged["name"], flagged["data"])
+        ev["sha256"] = hashlib.sha256(flagged["data"]).hexdigest()
+    unverified = doc is None
+    doc = doc or InvoiceDoc(number=number or f"FLAGGED-{task.id}", supplier=(task.counterparty or "unknown")[:200],
+                            issue_date=day, total=abs(task.amount), source=ev["ref"])
+    where = flagged["name"] + (f" ({flagged['from']})" if flagged.get("from") else "")
+    ctx.recorder.step(task.id, "flagged", f"Suspicious content in {where}: not read by the model, not filed "
+                                          f"(rail: {flagged['rails']})", source="guardrails",
+                      detail={"rails": flagged["rails"], "document": flagged["name"]})
+    summary = (f"file {where} as invoice {doc.number} for {eur(doc.total)}"
+               + (", with values taken from the payment" if unverified else ""))
+    ctx.recorder.step(task.id, "proposed", f"Proposed to {summary} after approval", source="guardrails",
+                      detail={"summary": summary[0].upper() + summary[1:],
+                              "flagged_invoice": {"doc": doc.model_dump(mode="json"), "evidence": ev,
+                                                  "rails": flagged["rails"], "unverified": unverified}})
+    question = (f"*Suspicious content*: {where}, for the {eur(task.amount)} payment to {task.counterparty} "
+                f"({task.id}), was flagged by the safety check (rail: {flagged['rails']}). I did not read it "
+                f"and did not file it. Approve to {summary} (the document is attached as evidence, its content "
+                "unverified), or Reject to leave the payment without an invoice.")
+    liquidity._ask_approval(ctx, task, question)  # the same card, buttons and graph as the liquidity approvals
+    return True
+
+
+def decide_flagged(ctx: JobContext, task: Task, proposal: dict[str, Any], approved: bool, who: str) -> None:
+    """The CEO answered the card of a flagged invoice (called by `liquidity._after_answer`)."""
+    info = proposal["flagged_invoice"]
+    if not approved:
+        ctx.recorder.step(task.id, "rejected", f"{who} rejected the flagged document", source="approval")
+        outcome = f"Closed · {who} rejected the flagged document; the payment stays without an invoice"
+        ctx.recorder.step(task.id, "resolved", outcome)
+        ctx.recorder.set_status(task.id, "cancelled", outcome=outcome, resolved_via="approval")
+        return
+    ctx.recorder.step(task.id, "approved", f"{who} approved filing the flagged document", source="approval")
+    doc, unverified = InvoiceDoc(**info["doc"]), bool(info.get("unverified"))
+    evidence = {"source": "approval", **info["evidence"]}  # the original document: name, ref, where it came from
+    ctx.audit.record(task.owner_id or "agent", "file_flagged_invoice", "invoicing",
+                     f"{doc.number} -> {task.transaction_id}: original {evidence.get('ref')}; "
+                     + ("values taken from the payment, unverified" if unverified else "values from the document"),
+                     task_id=task.id, requester=task.owner_id, role="ceo", policy="guardrails: flagged document")
+    if _file(ctx, task, doc, via="approval", evidence=evidence, who=who, unverified=unverified) is not True:
+        ctx.recorder.set_status(task.id, "escalated", owner_id=ctx.settings.ceo_id)
+
+
 def _file(ctx: JobContext, task: Task, doc: InvoiceDoc, *, via: str, evidence: dict[str, Any], who: str | None = None,
-          text_excerpt: str = "") -> bool | str:
+          text_excerpt: str = "", unverified: bool = False) -> bool | str:
     """File `doc` for the task's payment and close the task. True when filed, else the error code."""
     ok, res = ctx.connectors.invoicing.file(doc, task.transaction_id, task_id=task.id)
     if not ok:
         ctx.recorder.step(task.id, "note", f"Could not file {doc.number}: {res.replace('_', ' ')}", source="invoicing_pg")
         return res
     ctx.recorder.step(task.id, "acted", f"Filed invoice {doc.number} in the invoicing system", source="invoicing_pg",
-                      detail={"invoice_id": res, "lines": len(doc.lines), "text_excerpt": text_excerpt[:1500]},
+                      detail={"invoice_id": res, "lines": len(doc.lines), "text_excerpt": text_excerpt[:1500],
+                              **({"unverified": True} if unverified else {})},
                       evidence=evidence)
-    outcome = f"Resolved · {eur(doc.total)} filed as {doc.number}"
+    outcome = (f"Resolved · {eur(doc.total)} filed as {doc.number}"
+               + (" (values taken from the payment, the document was not read: unverified)" if unverified else ""))
     ctx.recorder.step(task.id, "resolved", outcome + (f" (sent by {who})" if who else ""), source=evidence.get("source"))
     ctx.recorder.set_status(task.id, "done", outcome=outcome, resolved_via=via, level="AUTO")
     return True
@@ -175,6 +272,12 @@ def _rung_ksef(ctx: JobContext, task: Task, number: str | None) -> tuple[bool, I
                                                       f"the number {number}", source="ksef")
             mismatch = mismatch or inv
             continue
+        v = guardrails.screen_document(ctx, task.id, guardrails.ksef_text(doc), f"KSeF {ksef_number}")  # all of it
+        if v.blocked:
+            flagged = {"name": f"KSeF {ksef_number}", "rails": v.rails, "from": inv.supplier,
+                       "evidence": {"name": f"KSeF {ksef_number}", "kind": "invoice", "ref": f"ksef:{ksef_number}",
+                                    "source": "ksef"}}
+            return hold_flagged(ctx, task, flagged, number, inv.issue_date, doc=inv), None
         filed = _file(ctx, task, inv, via="invoicing",
                       evidence={"name": f"KSeF {ksef_number}", "kind": "invoice", "ref": f"ksef:{ksef_number}",
                                 "source": "ksef"})
@@ -200,6 +303,9 @@ def _rung_files(ctx: JobContext, task: Task, number: str | None, day: date) -> t
              else "no receipt")
     ctx.recorder.step(task.id, "checked_files", f"Checked {ctx.hr.name(owner)}'s company folders: {found}",
                       source=f"workstation:{owner}", result_count=len(files))
+    _alert_flagged(ctx, task, m)
+    if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, day):
+        return True, None
     if m.doc and _file_match(ctx, task, m, "files"):
         ctx.notifier.dm(owner, f"FYI: I took {m.name} from your company folder and filed it for the "
                                f"{eur(task.amount)} payment to {task.counterparty} ({task.id}). I only read company "
@@ -228,6 +334,9 @@ def _rung_email(ctx: JobContext, task: Task, number: str | None, day: date) -> t
     found = (f"found {m.name}" if m.doc else "found a different amount" if m.mismatch else "no receipt")
     ctx.recorder.step(task.id, "checked_email", f"Checked company email: {found}", source=f"mail:{mail.name}",
                       result_count=len(hits))
+    _alert_flagged(ctx, task, m)
+    if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, day):
+        return True, None
     if m.doc and _file_match(ctx, task, m, "email"):
         return True, None
     return False, m.mismatch
@@ -424,6 +533,12 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
         return task
     who_id = p.get("from_id")
     who = "Company email" if who_id == "email" else ctx.hr.name(who_id)
+    if _approval_pending(ctx, task):  # a flagged document waits for the owner: nothing new changes that
+        ctx.recorder.step(task.id, "note", f"Ignored a reply from {who} while the owner decides on a flagged document",
+                          source="guardrails")
+        ctx.audit.record("agent", "flagged_pending", f"task:{task.id}", f"reply from {who_id} ignored", "DENY",
+                         task_id=task.id, requester=who_id, policy="guardrails: approval pending")
+        return ctx.recorder.get(task.id)
     via = "email" if who_id == "email" else "slack_dm"
     files = p.get("files") or []
     number = invoice_number_in(task.title) or invoice_number_in(p.get("text") or "")
@@ -442,6 +557,9 @@ def on_reply(ctx: JobContext, job: Job) -> Task:
                    "source": "slack:dm" if via == "slack_dm" else "mail"}) for f in pdfs]
         m = _match(ctx, task, cands, number, ctx.now().date())
         mismatch = m.mismatch
+        _alert_flagged(ctx, task, m)
+        if not m.doc and m.flagged and hold_flagged(ctx, task, m.flagged, number, ctx.now().date()):
+            return ctx.recorder.get(task.id)
         if m.doc and _file_match(ctx, task, m, via, who=None if via == "email" else who):
             if via == "slack_dm":
                 t = ctx.recorder.get(task.id)

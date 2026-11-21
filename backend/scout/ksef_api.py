@@ -24,7 +24,8 @@ router = APIRouter(prefix="/v1")
 def ksef_connect(conn: Conn, _: WriteAuth) -> dict[str, Any]:
     """Starts a `ksef_connect` worker job; progress shows in `GET /v1/connections` (row `ksef`, `config.phase`,
     `config.steps`). 409 while a run is in progress."""
-    if not ksef_sync.start(conn):
+    if not ksef_sync.start(conn, commit=False):  # committed below with the job and the audit row, or not at all
+        conn.rollback()
         raise ApiError(409, "already_running", "A KSeF sync is already running.")
     job = conn.execute("INSERT INTO agent_jobs (kind, payload, dedupe_key) VALUES ('ksef_connect', '{}', %s) "
                        "ON CONFLICT (dedupe_key) DO NOTHING RETURNING id",

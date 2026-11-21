@@ -125,14 +125,28 @@ class Progress:
         self.save(**config)
 
 
-def start(conn: Any) -> bool:
-    """Mark a run as started; False when one is already running (the API answers 409)."""
+def start(conn: Any, *, commit: bool = True) -> bool:
+    """Mark a run as started; False when one is already running (the API answers 409). With `commit=False` the caller
+    commits the mark together with the job that runs it, so a crash in between strands no `running` mark."""
     ensure_row(conn)
     row = conn.execute(
         "UPDATE connections SET config = config || %s WHERE id = %s AND coalesce(config->>'phase', 'idle') <> 'running' "
         "RETURNING id", (Jsonb({"phase": "running", "steps": []}), CONNECTION_ID)).fetchone()
-    conn.commit()
+    if commit:
+        conn.commit()
     return row is not None
+
+
+def abandon(conn_factory: ConnFactory, reason: str) -> None:
+    """The worker running the sync stopped for good (it died on the last attempt): end the run in `error`, so the
+    dashboard shows why and the next click can start a new one."""
+    step = {"at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "text": f"Failed: {reason}", "ok": False}
+    with conn_factory() as conn:
+        conn.execute(
+            "UPDATE connections SET config = jsonb_set(config || '{\"phase\": \"error\"}', '{steps}', "
+            "coalesce(config->'steps', '[]'::jsonb) || %s), status = 'error', last_error = %s "
+            "WHERE id = %s AND config->>'phase' = 'running'", (Jsonb([step]), reason[:500], CONNECTION_ID))
+        conn.commit()
 
 
 def _candidates(repo: Repository, already: set[str]) -> tuple[list[Any], list[Invoice]]:

@@ -128,6 +128,67 @@ def test_pool_runs_in_threads_and_stops(conn_factory, db, tmp_path):
     assert n == 2 and not th.is_alive()
 
 
+def test_worker_renews_the_lease_of_a_long_job(conn_factory, db, tmp_path, monkeypatch):
+    """While a handler runs, its lease is renewed: nobody else claims the job, and it ends `done`."""
+    import time
+
+    from scout.jobs import LEASE_SECONDS
+
+    ctx = make_world(conn_factory, tmp_path)
+    seen = {}
+
+    def slow(c, job):  # noqa: ANN001
+        with conn_factory() as conn:
+            conn.execute("UPDATE agent_jobs SET updated_at = now() - make_interval(secs => %s) WHERE id = %s",
+                         (LEASE_SECONDS + 5, job.id))
+            conn.commit()
+        time.sleep(0.3)
+        seen["thief"] = JobQueue(conn_factory).claim("thief")
+
+    monkeypatch.setattr(worker_mod, "HEARTBEAT_SECONDS", 0.05)
+    monkeypatch.setitem(worker_mod.HANDLERS, "cost_check", slow)
+    ctx.jobs.enqueue("cost_check", {}, "cost:x")
+    assert Worker(ctx, 1).run_one()
+    assert seen["thief"] is None
+    assert db.execute("SELECT status, attempts FROM agent_jobs").fetchone() == {"status": "done", "attempts": 1}
+
+
+def test_worker_records_a_job_whose_worker_died_on_the_last_attempt(conn_factory, db, tmp_path):
+    """The pod died on the last attempt: the job ends failed and its task escalated, like any final failure."""
+    from scout.jobs import LEASE_SECONDS, MAX_ATTEMPTS
+
+    ctx = make_world(conn_factory, tmp_path)
+    txn = pay(ctx, "nowhere")
+    task = ctx.recorder.open(f"txn:{txn.id}", "invoicing", "x")
+    ctx.jobs.enqueue("bank_txn", {"txn": txn.model_dump(mode="json")}, "txn:x")
+    ctx.jobs.claim("dead-pod")
+    db.execute("UPDATE agent_jobs SET attempts = %s, updated_at = now() - make_interval(secs => %s)",
+               (MAX_ATTEMPTS, LEASE_SECONDS + 5))
+    db.commit()
+    assert Worker(ctx, 1).run_one() is False  # nothing to run, but the dead job was recorded
+    assert db.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "failed"
+    assert ctx.recorder.get(task.id).status == "escalated"
+    assert ctx.recorder.steps(task.id)[-1].kind == "error"
+
+
+def test_worker_reclaims_a_job_stranded_by_a_restart(conn_factory, db, tmp_path):
+    from scout.jobs import LEASE_SECONDS
+
+    ctx = make_world(conn_factory, tmp_path)
+    ran = []
+    worker_mod.HANDLERS["cost_check"], old = (lambda c, job: ran.append(job.attempts)), worker_mod.HANDLERS["cost_check"]
+    try:
+        ctx.jobs.enqueue("cost_check", {}, "cost:y")
+        assert ctx.jobs.claim("dead-pod")
+        assert Worker(ctx, 1).run_one() is False  # inside the lease
+        db.execute("UPDATE agent_jobs SET updated_at = now() - make_interval(secs => %s)", (LEASE_SECONDS + 5,))
+        db.commit()
+        assert Worker(ctx, 1).run_one() is True
+    finally:
+        worker_mod.HANDLERS["cost_check"] = old
+    assert ran == [2] and db.execute("SELECT status FROM agent_jobs").fetchone()["status"] == "done"
+
+
 def test_parse_user_map():
     assert parse_user_map("vincenzo=U1, grazyna=U2,bad") == {"vincenzo": "U1", "grazyna": "U2"}
 

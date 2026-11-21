@@ -183,6 +183,43 @@ def test_connect_failure_ends_in_error_with_reason(company):
     assert "Nieprawidłowy podpis" in row["last_error"] and row["config"]["steps"][-1]["ok"] is False
 
 
+def test_sync_whose_worker_died_on_the_last_attempt_can_be_started_again(company):
+    """The pod died mid-sync on the last attempt: the worker ends the run in error and the next click starts one."""
+    from types import SimpleNamespace
+
+    from scout.jobs import LEASE_SECONDS, MAX_ATTEMPTS, JobQueue
+    from scout.tasks import TaskRecorder
+    from scout.worker import Worker
+
+    with company() as conn:
+        assert ksef_sync.start(conn)
+    q = JobQueue(company)
+    q.enqueue("ksef_connect", {}, "ksef_connect:1")
+    assert q.claim("dead-pod")
+    with company() as conn:
+        conn.execute("UPDATE agent_jobs SET attempts = %s, updated_at = now() - make_interval(secs => %s)",
+                     (MAX_ATTEMPTS, LEASE_SECONDS + 5))
+        conn.commit()
+        assert not ksef_sync.start(conn)  # still marked running: a click would get 409
+    ctx = SimpleNamespace(jobs=q, conn_factory=company, recorder=TaskRecorder(company), notifier=None,
+                          settings=SimpleNamespace(ceo_id="vincenzo"))
+    assert Worker(ctx, 1).run_one() is False
+    row = _row(company)
+    assert row["config"]["phase"] == "error" and row["status"] == "error"
+    assert row["config"]["steps"][-1]["ok"] is False and "worker" in row["config"]["steps"][-1]["text"]
+    with company() as conn:
+        assert ksef_sync.start(conn)
+
+
+def test_start_commits_only_when_asked(company):
+    """The API marks the run and queues its job in one transaction: a rollback leaves no stranded `running`."""
+    with company() as conn:
+        assert ksef_sync.start(conn, commit=False)
+        conn.rollback()
+    with company() as conn:
+        assert ksef_sync.start(conn)
+
+
 def test_api_connection_mutation_cannot_enqueue_jobs(company, monkeypatch):
     from cfo.api.app import create_app
     from scout import api as scout_api

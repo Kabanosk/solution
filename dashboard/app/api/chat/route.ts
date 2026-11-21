@@ -1,3 +1,4 @@
+import { configuredStrategyProvider, SERVER_PROVIDER_KEY } from "@/lib/strategy-store";
 import { currentSession, sessionToken } from "@/lib/auth";
 import { CHAT_MODELS, ChatInputError, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatEvent } from "@/lib/chat-model";
 import { apiFetch, checkWriteRequest } from "@/lib/scout-api";
@@ -11,8 +12,13 @@ export const runtime = "nodejs";
 const privateHeaders = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: Request) {
-  if (!await currentSession()) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
-  return Response.json({ models: CHAT_MODELS }, { headers: privateHeaders });
+  const session = await currentSession();
+  if (!session) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+  let provider = null;
+  if (session.role === "owner") {
+    try { provider = await configuredStrategyProvider(session.organizationId); } catch { /* Chat remains usable if strategy storage is unavailable. */ }
+  }
+  return Response.json({ models: CHAT_MODELS, external: provider ? { provider: provider.provider, model: provider.model, apiKey: SERVER_PROVIDER_KEY } : null }, { headers: privateHeaders });
 }
 
 // Scout chat: proxies to the Scout API's POST /v1/chat (which runs Scout's tools) with the server-only write token,
@@ -26,9 +32,17 @@ export async function POST(request: Request) {
   const abort = new AbortController();
   const signal = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(input.external ? 180000 : 120000)]);
   if (input.external) {
-    const config = input.external;
+    let config = input.external;
     const session = await currentSession(), token = await sessionToken();
     if (!session || !token) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+    if (config.apiKey === SERVER_PROVIDER_KEY) {
+      if (session.role !== "owner") return Response.json({ error: "Workspace owner access required." }, { status: 403, headers: privateHeaders });
+      try {
+        const saved = await configuredStrategyProvider(session.organizationId);
+        if (!saved) throw new Error();
+        config = saved;
+      } catch { return Response.json({ error: "The workspace provider is unavailable." }, { status: 503, headers: privateHeaders }); }
+    }
     const binding: ExternalContextBinding | undefined = input.conversationId ? {
       sessionToken: token, organizationId: session.organizationId, conversationId: input.conversationId,
       provider: config.provider, model: config.model, apiKey: config.apiKey,

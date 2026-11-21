@@ -112,7 +112,7 @@ class MailWatcher:
 
 
 class Scheduler:
-    """Daily cost check and weekly liquidity review at 07:00 Frankfurt time. Reminders need nothing: they are jobs
+    """Daily cost checks and weekly liquidity review at 07:00 Frankfurt time. Reminders need nothing: they are jobs
     with a future `run_after`."""
 
     def __init__(self, jobs: JobQueue, hour: int = 7):
@@ -124,6 +124,7 @@ class Scheduler:
         if local.hour >= self._hour:
             if self._jobs.enqueue("cost_check", {}, f"cost:{local.date()}"):
                 out.append("cost_check")
+            # Strategy news is scheduled every 24 hours by the dashboard pod.
             if local.weekday() == 0:
                 year, week, _ = local.isocalendar()
                 if self._jobs.enqueue("liquidity_review", {}, f"liq:{year}-W{week:02d}"):

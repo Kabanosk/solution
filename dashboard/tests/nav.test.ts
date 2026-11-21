@@ -6,17 +6,17 @@ test("sidebar sections, order and hrefs: Overview first, one task list, no separ
   assert.deepEqual(NAV.map(section => section.section), ["primary", "Loops", "Workspace"]);
   assert.deepEqual(NAV.map(section => section.items.map(item => item.label)), [
     ["Overview", "Scout chat", "Tasks", "Transactions"],
-    ["Invoicing", "Cost control", "Liquidity", "Chat"],
+    ["Invoicing", "Cost control", "Liquidity", "Strategy", "Chat"],
     ["Connections", "Audit log", "Access policies", "LLM usage"],
   ]);
   assert.deepEqual(NAV_ITEMS.map(item => item.href), [
     "/#overview", "/#chat", "/#tasks", "/#transactions",
-    "/#tasks?loop=invoicing", "/#tasks?loop=cost_control", "/#tasks?loop=liquidity", "/#tasks?loop=chat",
+    "/#tasks?loop=invoicing", "/#tasks?loop=cost_control", "/#tasks?loop=liquidity", "/#tasks?loop=strategy", "/#tasks?loop=chat",
     "/#connections", "/#audit", "/#policies", "/#llm-usage",
   ]);
   assert.deepEqual(NAV_ITEMS.filter(item => item.demoOnly).map(item => item.id), []);
   assert.deepEqual(routeFromHash("#demo"), { view: "demo" });
-  assert.deepEqual(NAV[1].items.map(item => item.loop), ["invoicing", "cost_control", "liquidity", "chat"]);
+  assert.deepEqual(NAV[1].items.map(item => item.loop), ["invoicing", "cost_control", "liquidity", "strategy", "chat"]);
   assert.equal(NAV[0].collapsible, false);
   assert.ok(NAV.slice(1).every(section => section.collapsible));
   assert.equal(new Set(NAV_ITEMS.map(item => item.id)).size, NAV_ITEMS.length);

@@ -159,6 +159,9 @@ def _tell_requester(ctx: JobContext, task_id: str, by: str) -> None:
     or, without one, they get a DM. The approver already sees it on the approval message."""
     task = ctx.recorder.get(task_id)
     steps = ctx.recorder.steps(task_id)
+    verdict = "approved" if task.status == "done" else "rejected"
+    _chat_followup(ctx, task_id, f"Update on {task.id}: {ctx.hr.name(by)} {verdict} it. {task.outcome}")
+    steps = ctx.recorder.steps(task_id)
     first = steps[0].detail if steps else {}
     status_ref, requester = (first or {}).get("status_ref"), task.requested_by
     lines = "\n".join(f"• {s.text}" for s in steps[1:][-6:])
@@ -219,9 +222,26 @@ def _propose(ctx: JobContext, task: Task, p: Any) -> None:
     _ask_approval(ctx, task, question)
 
 
+def _chat_followup(ctx: JobContext, task_id: str, text: str) -> None:
+    """A what-if started from a chat reports back into that chat: a `followup` step on the chat's task, which the
+    dashboard chat shows as a new message from Scout."""
+    steps = ctx.recorder.steps(task_id)
+    chat_task = (steps[0].detail or {}).get("chat_task") if steps else None
+    if chat_task:
+        ctx.recorder.step(chat_task, "followup", text, source="scout", detail={"task": task_id})
+
+
 def _status_done(ctx: JobContext, p: dict[str, Any], task_id: str) -> Task:
-    """Replace the requester's "Working on it…" message with where the what-if ended."""
+    """Replace the requester's "Working on it…" message with where the what-if ended (and tell the chat)."""
     task = ctx.recorder.get(task_id)
+    steps = ctx.recorder.steps(task_id)
+    if task.status == "waiting":
+        proposed = next((s.text for s in reversed(steps) if s.kind == "proposed"), "")
+        forecast = next((s.text for s in steps if s.kind == "forecast"), "")
+        _chat_followup(ctx, task_id, f"{task.title} ({task.id}): {forecast}. {proposed}; I asked "
+                                     f"{ctx.hr.name(task.owner_id)} for approval and will tell you the answer here.")
+    else:
+        _chat_followup(ctx, task_id, f"{task.title} ({task.id}): {task.outcome or steps[-1].text}")
     if p.get("status_ref"):
         steps = ctx.recorder.steps(task_id)
         lines = "\n".join(f"• {s.text}" for s in steps[1:][-6:])
@@ -245,7 +265,7 @@ def on_what_if(ctx: JobContext, job: Job) -> Task:
         ctx.notifier.track(task.id, p["status_ref"])
     ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(p.get('from_id'))} asked: what if we buy {what} for "
                                            f"{eur(amount) if amount else '?'} in {month:%B}", source="slack:dm",
-                      detail={"status_ref": p.get("status_ref")} if p.get("status_ref") else None)
+                      detail={k: p[k] for k in ("status_ref", "chat_task") if p.get(k)} or None)
     if amount is None:
         outcome = "Closed · I need the price to run the forecast"
         ctx.recorder.step(task.id, "resolved", outcome)

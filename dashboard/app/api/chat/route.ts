@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     upstream = await apiFetch("/v1/chat", {
       method: "POST", redirect: "error", signal,
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ messages: input.messages }),
+      body: JSON.stringify({ messages: input.messages, ...(input.conversationId ? { conversation_id: input.conversationId } : {}) }),
     });
     if (!upstream.ok || !upstream.body) { await upstream.body?.cancel(); return Response.json({ error: "Scout could not answer. Try again in a moment." }, { status: 502, headers: privateHeaders }); }
   } catch {

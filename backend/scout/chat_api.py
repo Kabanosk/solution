@@ -5,7 +5,8 @@ write token stands for the dashboard owner). Streams NDJSON so the page can show
     {"type": "step", "text": "Looked at missing invoices(days=30): 1 result(s)"}
     {"type": "file", "name": "invoices-2026-11-21.csv", "mime": "text/csv", "data_b64": "...", "sent_to_slack": true}
     {"type": "delta", "text": "<the answer>"}
-    {"type": "done", "truncated": false, "task_id": "SC-123"}
+    {"type": "done", "truncated": false, "task_id": "SC-123", "followups": false}
+        (followups: something started in this turn reports back later as a `followup` step on the task)
     {"type": "error", "message": "..."}
 
 Each conversation turn is a `chat` task with its step log and audit trail, like any other Scout task.
@@ -48,6 +49,8 @@ class Turn(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[Turn] = Field(min_length=1, max_length=64)
+    # One dashboard conversation = one chat task; every question is a step on it. Absent: a task per question.
+    conversation_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
 
 
 def build_context(settings: ScoutSettings) -> JobContext:
@@ -118,18 +121,23 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
     asker = by or settings.ceo_id
     question = turns[-1]["content"]
     preview = question if len(question) <= 60 else question[:57] + "…"
-    task = ctx.recorder.open(f"web:{secrets.token_hex(8)}", "chat", f"{ctx.hr.name(asker)} (dashboard): “{preview}”",
-                             requested_by=asker, owner_id=asker)
-    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked in the dashboard chat", source="dashboard")
+    key = f"web:{body.conversation_id}" if body.conversation_id else f"web:{secrets.token_hex(8)}"
+    task = ctx.recorder.open(key, "chat", f"Dashboard chat: “{preview}”", requested_by=asker, owner_id=asker)
+    if task.status != "in_progress":
+        ctx.recorder.set_status(task.id, "in_progress")
+    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     files: list[dict[str, Any]] = []
+    awaiting: list[bool] = []  # a what-if started in this turn: its result arrives later as a `followup` step
 
     def on_step(t: Any, step: Any) -> None:
         if t.id != task.id:
             return
         if step.kind == "looked_up":
             events.put({"type": "step", "text": step.text})
+            if (step.detail or {}).get("tool") == "start_what_if" and "started" in step.text.lower():
+                awaiting.append(True)
         elif step.kind == "sent_file" and step.detail:
             files.append({"type": "file", **{k: step.detail.get(k) for k in ("name", "mime", "data_b64",
                                                                               "sent_to_slack")}})
@@ -151,7 +159,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
             for f in files:  # sent before the answer that mentions them
                 events.put(f)
             events.put({"type": "delta", "text": reply})
-            events.put({"type": "done", "truncated": False, "task_id": task.id})
+            events.put({"type": "done", "truncated": False, "task_id": task.id, "followups": bool(awaiting)})
         except Exception as e:  # noqa: BLE001
             log.exception("dashboard chat failed")
             ctx.recorder.step(task.id, "error", f"Something went wrong: {type(e).__name__}")

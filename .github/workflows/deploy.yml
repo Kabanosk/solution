@@ -1,0 +1,112 @@
+# Push to main -> build and roll out only what changed on the OpenShift project.
+#   backend/**, Containerfile, deploy/cfo-entrypoint.sh  -> build cfo-backend from this commit; the image triggers
+#                                                            roll out api, scout-worker, bank-mock, mcp-*, usage-sampler
+#   dashboard/**                                          -> binary build cfo-dashboard (allowlisted archive), then pin
+#                                                            the Deployment to the new image digest
+# Manifests (deploy/openshift/**) are never applied automatically: run this workflow by hand with
+# "manifests" (it applies deploy/openshift/app and deploy/openshift/dashboard, never the seed job).
+# Freeze before a live demo:  gh workflow disable deploy.yml   (enable again: gh workflow enable deploy.yml)
+# Secrets: OPENSHIFT_SERVER, OPENSHIFT_TOKEN (service account github-deployer, see deploy/openshift/ci/README.md).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "What to deploy: any of backend,dashboard,manifests (comma separated) or all"
+        default: all
+
+concurrency:
+  group: deploy-openshift
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NAMESPACE: cfo-agent-uwur
+  OC_URL: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-4.18/openshift-client-linux.tar.gz
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide what changed
+        id: what
+        env:
+          BEFORE: ${{ github.event.before }}
+          TARGETS: ${{ github.event.inputs.targets }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          backend=false; dashboard=false; manifests=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            case ",$TARGETS," in *,all,*) backend=true; dashboard=true; manifests=true;; esac
+            case ",$TARGETS," in *,backend,*) backend=true;; esac
+            case ",$TARGETS," in *,dashboard,*) dashboard=true;; esac
+            case ",$TARGETS," in *,manifests,*) manifests=true;; esac
+          else
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+               || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              files=$(git diff --name-only HEAD~1 HEAD)
+            else
+              files=$(git diff --name-only "$BEFORE" HEAD)
+            fi
+            echo "$files"
+            echo "$files" | grep -qE '^(backend/|Containerfile$|deploy/cfo-entrypoint\.sh$)' && backend=true
+            echo "$files" | grep -qE '^dashboard/' && dashboard=true
+            echo "$files" | grep -qE '^deploy/openshift/' && echo "::notice::Manifests changed. They are not applied automatically: run this workflow by hand with targets=manifests."
+          fi
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "dashboard=$dashboard" >> "$GITHUB_OUTPUT"
+          echo "manifests=$manifests" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend dashboard=$dashboard manifests=$manifests" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install oc and log in
+        if: steps.what.outputs.backend == 'true' || steps.what.outputs.dashboard == 'true' || steps.what.outputs.manifests == 'true'
+        env:
+          OC_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OC_SA_JWT: ${{ secrets.OPENSHIFT_TOKEN }}
+        run: |
+          curl -fsSL "$OC_URL" | sudo tar -xz -C /usr/local/bin oc
+          oc version --client
+          oc login --server "$OC_SERVER" --token "$OC_SA_JWT" > /dev/null
+          oc project "$NAMESPACE"
+
+      - name: Apply manifests (manual runs only)
+        if: steps.what.outputs.manifests == 'true'
+        run: |
+          oc apply -k deploy/openshift/app
+          oc apply -k deploy/openshift/dashboard
+
+      - name: Backend - build this commit
+        if: steps.what.outputs.backend == 'true'
+        run: oc start-build cfo-backend --commit="$GITHUB_SHA" --wait --follow
+
+      - name: Backend - wait for the rollouts
+        if: steps.what.outputs.backend == 'true'
+        run: |
+          for d in api scout-worker; do oc rollout status "deploy/$d" --timeout=600s; done
+          oc get pods -l app.kubernetes.io/part-of=cfo -o wide | head -30
+
+      - name: Dashboard - build and roll out
+        if: steps.what.outputs.dashboard == 'true'
+        run: |
+          python3 dashboard/scripts/package-source.py /tmp/cfo-dashboard-source.tar.gz
+          oc start-build cfo-dashboard --from-archive=/tmp/cfo-dashboard-source.tar.gz --wait --follow
+          ref=$(oc get istag cfo-dashboard:latest -o jsonpath='{.image.dockerImageReference}')
+          oc set image deployment/dashboard dashboard="$ref"
+          oc rollout status deployment/dashboard --timeout=300s
+
+      - name: Smoke check
+        if: steps.what.outputs.backend == 'true' || steps.what.outputs.dashboard == 'true'
+        run: |
+          host=$(oc get route api -o jsonpath='{.spec.host}' 2>/dev/null || true)
+          if [ -n "$host" ]; then curl -fsS --max-time 20 "https://$host/healthz"; echo; fi
+          echo "Deployed $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

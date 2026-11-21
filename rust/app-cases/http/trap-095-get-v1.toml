@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/stra%C3%9Fe?kind=cloud_per_order"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

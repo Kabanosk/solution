@@ -1,0 +1,10 @@
+[request]
+method = "POST"
+path = "/v1/sim:step"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

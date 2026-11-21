@@ -1,0 +1,13 @@
+[request]
+method = "GET"
+path = "/v1/tasks?status=waiting&owner=fixture-owner&q=héllo&limit=20"
+
+[request.headers]
+Authorization = "Bearer scout_rust_migration_local_test_session_0123456789"
+X-Scout-Organization = "rust-migration-fixture"
+
+[response]
+status = 400
+
+[response.headers]
+content-type = "text/plain; charset=utf-8"

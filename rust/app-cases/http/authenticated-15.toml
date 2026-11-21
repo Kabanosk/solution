@@ -1,0 +1,13 @@
+[request]
+method = "GET"
+path = "/v1/connections/google/start"
+
+[request.headers]
+Authorization = "Bearer scout_rust_migration_local_test_session_0123456789"
+X-Scout-Organization = "rust-migration-fixture"
+
+[response]
+status = 403
+
+[response.headers]
+content-type = "application/json"

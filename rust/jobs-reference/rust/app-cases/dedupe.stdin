@@ -1,0 +1,1 @@
+{"operations": [{"op": "enqueue", "kind": "dm", "key": "once", "payload": {"text": "h\u00e9llo \ud83d\ude00"}}, {"op": "enqueue", "kind": "dm", "key": "once", "payload": {}}, {"op": "claim"}, {"op": "done", "id": 1, "attempt": 1, "task_id": "task-1"}, {"op": "claim"}]}

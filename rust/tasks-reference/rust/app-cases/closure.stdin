@@ -1,0 +1,1 @@
+{"operations": [{"op": "open", "key": "close", "fields": {"amount": "-123.45", "owner_id": "ceo", "status": "waiting"}}, {"op": "update", "id": "SC-100", "fields": {"status": "done", "outcome": "Filed", "resolved_via": "files"}}, {"op": "update", "id": "SC-100", "fields": {"status": "waiting"}}, {"op": "find_open", "owner": "ceo"}]}

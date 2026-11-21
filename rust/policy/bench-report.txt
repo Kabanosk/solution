@@ -1,0 +1,4 @@
+rust-anything bench rust/policy (2026-11-21)
+evaluate: 1615 cases; original 19945 ns/call; Rust 9851 ns/call; speedup 2.02x
+Crossing included. Verdict: Ship it: every function is faster in Rust, call included.
+Local adapter microbenchmark only; no whole-application performance claim.

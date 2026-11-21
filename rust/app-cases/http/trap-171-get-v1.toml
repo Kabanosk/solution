@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/rules?limit=9007199254740993"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

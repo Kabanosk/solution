@@ -1,0 +1,31 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/pawel/hackatons/collabothon2026/solution/backend",
+  "unit": "scout/dashboard_help.py",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "scout-help",
+  "exports": [
+    {
+      "name": "dashboard_help",
+      "file": "scout/dashboard_help.py",
+      "line": 76,
+      "params": [
+        {
+          "name": "topic",
+          "ts_type": "string",
+          "optional": true,
+          "rest": false,
+          "default": "\"getting_started\""
+        }
+      ],
+      "returns": "Record<string, unknown>",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

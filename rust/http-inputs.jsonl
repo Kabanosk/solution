@@ -1,0 +1,35 @@
+{"name": "boundary-00", "method": "GET", "path": "/healthz"}
+{"name": "boundary-01", "method": "GET", "path": "/"}
+{"name": "boundary-02", "method": "GET", "path": "/docs"}
+{"name": "boundary-03", "method": "GET", "path": "/openapi.json"}
+{"name": "boundary-04", "method": "GET", "path": "/v1/tasks"}
+{"name": "boundary-05", "method": "GET", "path": "/v1/approvals"}
+{"name": "boundary-06", "method": "GET", "path": "/v1/audit"}
+{"name": "boundary-07", "method": "GET", "path": "/v1/connections"}
+{"name": "boundary-08", "method": "GET", "path": "/v1/onboarding"}
+{"name": "boundary-09", "method": "GET", "path": "/v1/dashboard/kpis"}
+{"name": "boundary-10", "method": "GET", "path": "/v1/forecast"}
+{"name": "boundary-11", "method": "GET", "path": "/missing"}
+{"name": "health-method-GET", "method": "GET", "path": "/healthz", "headers": {"Origin": "https://dashboard.example.invalid", "Access-Control-Request-Method": "GET"}}
+{"name": "health-method-HEAD", "method": "HEAD", "path": "/healthz", "headers": {"Origin": "https://dashboard.example.invalid", "Access-Control-Request-Method": "GET"}}
+{"name": "health-method-POST", "method": "POST", "path": "/healthz", "headers": {"Origin": "https://dashboard.example.invalid", "Access-Control-Request-Method": "GET"}}
+{"name": "health-method-OPTIONS", "method": "OPTIONS", "path": "/healthz", "headers": {"Origin": "https://dashboard.example.invalid", "Access-Control-Request-Method": "GET"}}
+{"name": "authenticated-00", "method": "GET", "path": "/v1/tasks", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-01", "method": "GET", "path": "/v1/tasks?status=waiting&owner=fixture-owner&q=héllo&limit=20", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-02", "method": "GET", "path": "/v1/tasks?loop=strategy", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-03", "method": "GET", "path": "/v1/tasks/SC-100", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-04", "method": "GET", "path": "/v1/tasks/SC-101", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-05", "method": "GET", "path": "/v1/tasks/missing", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-06", "method": "GET", "path": "/v1/tasks?limit=0", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-07", "method": "GET", "path": "/v1/approvals", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-08", "method": "GET", "path": "/v1/approvals?status=approved", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-09", "method": "GET", "path": "/v1/audit", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-10", "method": "GET", "path": "/v1/audit?task_id=SC-100&decision=allow", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-11", "method": "GET", "path": "/v1/audit?limit=501", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-12", "method": "GET", "path": "/v1/transactions/booking-1/invoice", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-13", "method": "GET", "path": "/v1/transactions/missing/invoice", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-14", "method": "GET", "path": "/v1/connections", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-15", "method": "GET", "path": "/v1/connections/google/start", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-16", "method": "GET", "path": "/v1/demo/play/files", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-17", "method": "GET", "path": "/missing", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}
+{"name": "authenticated-not-found-approval", "method": "POST", "path": "/v1/approvals/missing:approve", "headers": {"Authorization": "Bearer scout_rust_migration_local_test_session_0123456789", "X-Scout-Organization": "rust-migration-fixture"}}

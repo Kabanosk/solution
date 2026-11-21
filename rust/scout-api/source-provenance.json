@@ -1,0 +1,6 @@
+{
+  "backend/scout/api.py": "04c8b5bf0ce9c42421c32c6f14a6d659fd4f4473715a085fdc9787b53f304648",
+  "backend/scout/schema.sql": "317a312060913787d8d9f368b22d5ad4630f15dec6ddcfe1d4333e5304e4d739",
+  "backend/cfo/db/schema.sql": "d1829548fae154768d29e1695d30204f4891c8679ac721323801822663c67ff9",
+  "rust/scout-api-reference/characterize.py": "b5456d37139e4be57963b4c28ac33f9c9fc1eb68497a7798bd204011e2cae930"
+}

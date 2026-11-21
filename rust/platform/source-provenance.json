@@ -1,0 +1,6 @@
+{
+  "backend/cfo/tenancy.py": "b867ab0c6284cbe78e5a52924d1754f0e0b08ba26b9d411784d8177fadfcc85d",
+  "backend/cfo/api/auth.py": "1c1d1c14bbc76d144de5c1d9ca8d5235ba73a3e684842ac5673bc695bfa366a1",
+  "backend/cfo/db/auth.sql": "7953c2347eaa492962b5461137dc5f8a8a019078e1aba848f4d4e8b4d543f96a",
+  "rust/platform-reference/characterize.py": "12dbff14a032117e1b4d12eee5c75eebc0a62c54d1a22e26f3bb103a2b6834ab"
+}

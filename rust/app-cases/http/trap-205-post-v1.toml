@@ -1,0 +1,14 @@
+[request]
+method = "POST"
+path = "/v1/sim:start"
+body = '{"zebra":1,"apple":2,"10":3,"2":4,"é":5,"Apple":6}'
+
+[request.headers]
+Content-Type = "application/json"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

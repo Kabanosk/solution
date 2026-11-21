@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/llm/usage?from=2026-11-20T00:00:00Z&to=2026-11-22T00:00:00Z&group_by=%F0%9F%91%A8%E2%80%8D%F0%9F%91%A9%E2%80%8D%F0%9F%91%A7%20family"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

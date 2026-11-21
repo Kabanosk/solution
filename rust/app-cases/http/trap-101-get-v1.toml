@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/cost-metrics?kind=%E6%97%A5%E6%9C%AC%E8%AA%9E"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

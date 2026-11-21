@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/llm/stra%C3%9Fe?from=2026-11-20T00:00:00Z&to=2026-11-22T00:00:00Z&group_by=day"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

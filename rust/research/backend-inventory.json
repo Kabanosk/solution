@@ -1,0 +1,8509 @@
+{
+  "schema": "scout/rust-backend-inventory@1",
+  "generated_on": "2026-11-21",
+  "source_commit": "9abf4dbbde2162637c98a452dfba3ff749c251cf",
+  "scope": "Python production modules only; no imports or application execution; route inventory statically resolves literal APIRouter prefixes, not middleware restrictions or FastAPI generated docs routes",
+  "summary": {
+    "modules": 123,
+    "source_lines": 22256,
+    "declared_routes": 40,
+    "api_routes": 36,
+    "bank_mock_routes": 4
+  },
+  "dependencies": [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "psycopg[binary]>=3.2",
+    "openai>=1.40",
+    "slack-bolt>=1.20",
+    "mcp>=1.12,<2",
+    "fastapi>=0.165.0",
+    "uvicorn[standard]>=0.54.0",
+    "pandas>=2.2",
+    "langgraph>=1.2.24",
+    "langgraph-checkpoint-postgres>=3.2.1",
+    "pypdf>=7.1.1",
+    "xgboost>=3.4.1",
+    "scikit-learn>=1.9.1",
+    "httpx>=0.28.1",
+    "google-api-python-client>=2.202.0",
+    "google-auth>=2.62.2",
+    "google-auth-oauthlib>=1.5.0",
+    "cryptography>=50.0.2",
+    "signxml>=4.0"
+  ],
+  "optional_dependencies": {
+    "mlflow": [
+      "mlflow>=3"
+    ],
+    "tuning": [
+      "optuna>=4",
+      "matplotlib>=3.8"
+    ]
+  },
+  "entry_commands": [
+    "api",
+    "worker",
+    "bank-mock",
+    "mcp company-db",
+    "mcp workstations",
+    "mcp hr",
+    "seed",
+    "migrate",
+    "generate",
+    "load",
+    "python -m cfo.forecast.train",
+    "python -m cfo.forecast.tune",
+    "python -m cfo.forecast.evaluate",
+    "python -m cfo.forecast.compare",
+    "python -m cfo.usage"
+  ],
+  "sql_assets": [
+    "backend/cfo/db/auth.sql",
+    "backend/cfo/db/schema.sql",
+    "backend/cfo/db/scout_dm_replies.sql",
+    "backend/cfo/db/scout_guardrails.sql",
+    "backend/cfo/db/scout_slack_members.sql",
+    "backend/cfo/db/scout_strategy.sql",
+    "backend/scout/schema.sql",
+    "db/init.sql"
+  ],
+  "modules": [
+    {
+      "module": "cfo.__init__",
+      "file": "backend/cfo/__init__.py",
+      "lines": 8,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.analysis.__init__",
+      "file": "backend/cfo/analysis/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.analysis.cost_metrics",
+      "file": "backend/cfo/analysis/cost_metrics.py",
+      "lines": 309,
+      "imports": [
+        "__future__",
+        "cfo.api.schemas",
+        "cfo.domain",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "PairSpec",
+          "kind": "class",
+          "line": 40,
+          "public": true
+        },
+        {
+          "name": "Driver",
+          "kind": "class",
+          "line": 62,
+          "public": true
+        },
+        {
+          "name": "CostAnomaly",
+          "kind": "class",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "Point",
+          "kind": "class",
+          "line": 93,
+          "public": true
+        },
+        {
+          "name": "Series",
+          "kind": "class",
+          "line": 105,
+          "public": true
+        },
+        {
+          "name": "change_pct",
+          "kind": "function",
+          "line": 114,
+          "public": true
+        },
+        {
+          "name": "_decimal",
+          "kind": "function",
+          "line": 120,
+          "public": false
+        },
+        {
+          "name": "_invoice_index",
+          "kind": "function",
+          "line": 129,
+          "public": false
+        },
+        {
+          "name": "line_items",
+          "kind": "function",
+          "line": 137,
+          "public": true
+        },
+        {
+          "name": "_drivers",
+          "kind": "function",
+          "line": 165,
+          "public": false
+        },
+        {
+          "name": "_money",
+          "kind": "function",
+          "line": 173,
+          "public": false
+        },
+        {
+          "name": "_p1",
+          "kind": "function",
+          "line": 177,
+          "public": false
+        },
+        {
+          "name": "_explain",
+          "kind": "function",
+          "line": 181,
+          "public": false
+        },
+        {
+          "name": "_assess",
+          "kind": "function",
+          "line": 204,
+          "public": false
+        },
+        {
+          "name": "_consecutive",
+          "kind": "function",
+          "line": 235,
+          "public": false
+        },
+        {
+          "name": "_by_kind",
+          "kind": "function",
+          "line": 240,
+          "public": false
+        },
+        {
+          "name": "monthly_series",
+          "kind": "function",
+          "line": 248,
+          "public": true
+        },
+        {
+          "name": "detect_anomalies",
+          "kind": "function",
+          "line": 274,
+          "public": true
+        },
+        {
+          "name": "to_api_series",
+          "kind": "function",
+          "line": 285,
+          "public": true
+        },
+        {
+          "name": "load_series",
+          "kind": "function",
+          "line": 304,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.__init__",
+      "file": "backend/cfo/api/__init__.py",
+      "lines": 9,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.app",
+      "file": "backend/cfo/api/app.py",
+      "lines": 103,
+      "imports": [
+        "__future__",
+        "cfo.api.auth",
+        "cfo.api.errors",
+        "cfo.api.routers",
+        "cfo.api.schemas",
+        "cfo.api.settings",
+        "collections.abc",
+        "contextlib",
+        "fastapi",
+        "fastapi.middleware.cors",
+        "fastapi.responses",
+        "scout.api",
+        "scout.chat_api",
+        "scout.documents_api",
+        "scout.ksef_api",
+        "scout.onboarding.api"
+      ],
+      "definitions": [
+        {
+          "name": "lifespan",
+          "kind": "async_function",
+          "line": 52,
+          "public": true
+        },
+        {
+          "name": "create_app",
+          "kind": "function",
+          "line": 58,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.auth",
+      "file": "backend/cfo/api/auth.py",
+      "lines": 93,
+      "imports": [
+        "__future__",
+        "cfo.api.errors",
+        "cfo.config",
+        "cfo.tenancy",
+        "hashlib",
+        "psycopg",
+        "psycopg.rows",
+        "re",
+        "starlette.concurrency",
+        "starlette.responses"
+      ],
+      "definitions": [
+        {
+          "name": "database_url",
+          "kind": "function",
+          "line": 16,
+          "public": true
+        },
+        {
+          "name": "verify_session",
+          "kind": "function",
+          "line": 21,
+          "public": true
+        },
+        {
+          "name": "OrganizationAuthMiddleware",
+          "kind": "class",
+          "line": 39,
+          "public": true
+        },
+        {
+          "name": "require_write_token",
+          "kind": "function",
+          "line": 86,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.deps",
+      "file": "backend/cfo/api/deps.py",
+      "lines": 24,
+      "imports": [
+        "__future__",
+        "cfo.db.repo",
+        "collections.abc",
+        "fastapi",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "mark_stub",
+          "kind": "function",
+          "line": 16,
+          "public": true
+        },
+        {
+          "name": "get_repo",
+          "kind": "function",
+          "line": 21,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.errors",
+      "file": "backend/cfo/api/errors.py",
+      "lines": 130,
+      "imports": [
+        "__future__",
+        "cfo.api.settings",
+        "collections.abc",
+        "fastapi",
+        "fastapi.exceptions",
+        "fastapi.responses",
+        "logging",
+        "psycopg",
+        "pydantic",
+        "starlette.exceptions",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ErrorDetail",
+          "kind": "class",
+          "line": 25,
+          "public": true
+        },
+        {
+          "name": "ErrorBody",
+          "kind": "class",
+          "line": 31,
+          "public": true
+        },
+        {
+          "name": "ErrorResponse",
+          "kind": "class",
+          "line": 37,
+          "public": true
+        },
+        {
+          "name": "ApiError",
+          "kind": "class",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "not_found",
+          "kind": "function",
+          "line": 52,
+          "public": true
+        },
+        {
+          "name": "conflict",
+          "kind": "function",
+          "line": 56,
+          "public": true
+        },
+        {
+          "name": "_envelope",
+          "kind": "function",
+          "line": 76,
+          "public": false
+        },
+        {
+          "name": "cors_headers",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "install_error_handlers",
+          "kind": "function",
+          "line": 101,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.export_openapi",
+      "file": "backend/cfo/api/export_openapi.py",
+      "lines": 24,
+      "imports": [
+        "__future__",
+        "cfo.api.app",
+        "json",
+        "pathlib",
+        "sys"
+      ],
+      "definitions": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 12,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.api.routers.__init__",
+      "file": "backend/cfo/api/routers/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.routers.cost_metrics",
+      "file": "backend/cfo/api/routers/cost_metrics.py",
+      "lines": 23,
+      "imports": [
+        "cfo.api",
+        "cfo.api.deps",
+        "cfo.api.errors",
+        "cfo.api.schemas",
+        "cfo.db.repo",
+        "cfo.domain",
+        "fastapi",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "get_cost_metrics",
+          "kind": "function",
+          "line": 17,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.routers.costs",
+      "file": "backend/cfo/api/routers/costs.py",
+      "lines": 28,
+      "imports": [
+        "cfo.api",
+        "cfo.api.deps",
+        "cfo.api.errors",
+        "cfo.api.schemas",
+        "cfo.db.repo",
+        "datetime",
+        "fastapi",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "get_costs_by_team",
+          "kind": "function",
+          "line": 17,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.routers.forecast",
+      "file": "backend/cfo/api/routers/forecast.py",
+      "lines": 26,
+      "imports": [
+        "cfo.api",
+        "cfo.api.deps",
+        "cfo.api.errors",
+        "cfo.api.schemas",
+        "cfo.db.repo",
+        "fastapi",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "get_liquidity_forecast",
+          "kind": "function",
+          "line": 16,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.routers.kpis",
+      "file": "backend/cfo/api/routers/kpis.py",
+      "lines": 15,
+      "imports": [
+        "cfo.api",
+        "cfo.api.deps",
+        "cfo.api.schemas",
+        "cfo.db.repo",
+        "fastapi"
+      ],
+      "definitions": [
+        {
+          "name": "get_kpis",
+          "kind": "function",
+          "line": 12,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.routers.llm_usage",
+      "file": "backend/cfo/api/routers/llm_usage.py",
+      "lines": 69,
+      "imports": [
+        "__future__",
+        "cfo.api.deps",
+        "cfo.api.errors",
+        "cfo.api.schemas_usage",
+        "cfo.db.repo",
+        "cfo.domain",
+        "cfo.usage",
+        "cfo.usage.settings",
+        "collections.abc",
+        "datetime",
+        "fastapi",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "get_clock",
+          "kind": "function",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "get_usage_config",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "_utc",
+          "kind": "function",
+          "line": 33,
+          "public": false
+        },
+        {
+          "name": "get_llm_usage",
+          "kind": "function",
+          "line": 39,
+          "public": true
+        },
+        {
+          "name": "get_llm_usage_live",
+          "kind": "function",
+          "line": 60,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.schemas",
+      "file": "backend/cfo/api/schemas.py",
+      "lines": 204,
+      "imports": [
+        "__future__",
+        "cfo.domain",
+        "datetime",
+        "decimal",
+        "pydantic",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Money",
+          "kind": "class",
+          "line": 28,
+          "public": true
+        },
+        {
+          "name": "eur",
+          "kind": "function",
+          "line": 34,
+          "public": true
+        },
+        {
+          "name": "pct",
+          "kind": "function",
+          "line": 40,
+          "public": true
+        },
+        {
+          "name": "Page",
+          "kind": "class",
+          "line": 45,
+          "public": true
+        },
+        {
+          "name": "Collection",
+          "kind": "class",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "ForecastPoint",
+          "kind": "class",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "ForecastGap",
+          "kind": "class",
+          "line": 72,
+          "public": true
+        },
+        {
+          "name": "ForecastModelInfo",
+          "kind": "class",
+          "line": 82,
+          "public": true
+        },
+        {
+          "name": "LiquidityForecast",
+          "kind": "class",
+          "line": 89,
+          "public": true
+        },
+        {
+          "name": "UndocumentedPayments",
+          "kind": "class",
+          "line": 108,
+          "public": true
+        },
+        {
+          "name": "ForecastSummary",
+          "kind": "class",
+          "line": 113,
+          "public": true
+        },
+        {
+          "name": "Kpis",
+          "kind": "class",
+          "line": 123,
+          "public": true
+        },
+        {
+          "name": "MonthlyCost",
+          "kind": "class",
+          "line": 140,
+          "public": true
+        },
+        {
+          "name": "TeamCosts",
+          "kind": "class",
+          "line": 145,
+          "public": true
+        },
+        {
+          "name": "CostsByTeam",
+          "kind": "class",
+          "line": 156,
+          "public": true
+        },
+        {
+          "name": "AnomalyDriver",
+          "kind": "class",
+          "line": 169,
+          "public": true
+        },
+        {
+          "name": "Anomaly",
+          "kind": "class",
+          "line": 175,
+          "public": true
+        },
+        {
+          "name": "CostMetricPoint",
+          "kind": "class",
+          "line": 180,
+          "public": true
+        },
+        {
+          "name": "CostMetricSeries",
+          "kind": "class",
+          "line": 191,
+          "public": true
+        },
+        {
+          "name": "Health",
+          "kind": "class",
+          "line": 202,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.schemas_usage",
+      "file": "backend/cfo/api/schemas_usage.py",
+      "lines": 139,
+      "imports": [
+        "__future__",
+        "datetime",
+        "pydantic",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "CostAmount",
+          "kind": "class",
+          "line": 14,
+          "public": true
+        },
+        {
+          "name": "UsageBucket",
+          "kind": "class",
+          "line": 20,
+          "public": true
+        },
+        {
+          "name": "ActionCost",
+          "kind": "class",
+          "line": 37,
+          "public": true
+        },
+        {
+          "name": "PerEvent",
+          "kind": "class",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "ClusterUsage",
+          "kind": "class",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "HostedComparison",
+          "kind": "class",
+          "line": 76,
+          "public": true
+        },
+        {
+          "name": "UsageMethods",
+          "kind": "class",
+          "line": 87,
+          "public": true
+        },
+        {
+          "name": "UsageAssumptions",
+          "kind": "class",
+          "line": 93,
+          "public": true
+        },
+        {
+          "name": "LlmUsageReport",
+          "kind": "class",
+          "line": 106,
+          "public": true
+        },
+        {
+          "name": "LlmUsageLive",
+          "kind": "class",
+          "line": 125,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.services",
+      "file": "backend/cfo/api/services.py",
+      "lines": 385,
+      "imports": [
+        "__future__",
+        "cfo.analysis.cost_metrics",
+        "cfo.api.errors",
+        "cfo.api.schemas",
+        "cfo.api.settings",
+        "cfo.config",
+        "cfo.db.repo",
+        "cfo.forecast",
+        "cfo.tenancy",
+        "datetime",
+        "decimal",
+        "logging",
+        "math",
+        "os",
+        "pandas",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_utc",
+          "kind": "function",
+          "line": 48,
+          "public": false
+        },
+        {
+          "name": "_dec",
+          "kind": "function",
+          "line": 52,
+          "public": false
+        },
+        {
+          "name": "_transactions",
+          "kind": "function",
+          "line": 56,
+          "public": false
+        },
+        {
+          "name": "safety_buffer",
+          "kind": "function",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "reset_forecast_cache",
+          "kind": "function",
+          "line": 94,
+          "public": true
+        },
+        {
+          "name": "_within",
+          "kind": "function",
+          "line": 101,
+          "public": false
+        },
+        {
+          "name": "_mlflow_model",
+          "kind": "function",
+          "line": 121,
+          "public": false
+        },
+        {
+          "name": "forecast_model",
+          "kind": "function",
+          "line": 164,
+          "public": true
+        },
+        {
+          "name": "_forecast_frame",
+          "kind": "function",
+          "line": 189,
+          "public": false
+        },
+        {
+          "name": "_gaps",
+          "kind": "function",
+          "line": 196,
+          "public": false
+        },
+        {
+          "name": "liquidity_forecast",
+          "kind": "function",
+          "line": 210,
+          "public": true
+        },
+        {
+          "name": "forecast_summary",
+          "kind": "function",
+          "line": 246,
+          "public": true
+        },
+        {
+          "name": "_count_if_table",
+          "kind": "function",
+          "line": 265,
+          "public": false
+        },
+        {
+          "name": "kpis",
+          "kind": "function",
+          "line": 272,
+          "public": true
+        },
+        {
+          "name": "_month_starts",
+          "kind": "function",
+          "line": 313,
+          "public": false
+        },
+        {
+          "name": "_validate_range",
+          "kind": "function",
+          "line": 326,
+          "public": false
+        },
+        {
+          "name": "costs_by_team",
+          "kind": "function",
+          "line": 335,
+          "public": true
+        },
+        {
+          "name": "cost_metric_series",
+          "kind": "function",
+          "line": 384,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.api.settings",
+      "file": "backend/cfo/api/settings.py",
+      "lines": 57,
+      "imports": [
+        "cfo.config",
+        "decimal",
+        "functools",
+        "pydantic",
+        "pydantic_settings"
+      ],
+      "definitions": [
+        {
+          "name": "ApiSettings",
+          "kind": "class",
+          "line": 15,
+          "public": true
+        },
+        {
+          "name": "get_api_settings",
+          "kind": "function",
+          "line": 56,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.config",
+      "file": "backend/cfo/config.py",
+      "lines": 43,
+      "imports": [
+        "functools",
+        "pathlib",
+        "pydantic",
+        "pydantic_settings"
+      ],
+      "definitions": [
+        {
+          "name": "Settings",
+          "kind": "class",
+          "line": 12,
+          "public": true
+        },
+        {
+          "name": "get_settings",
+          "kind": "function",
+          "line": 42,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.__init__",
+      "file": "backend/cfo/data/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.generate",
+      "file": "backend/cfo/data/generate.py",
+      "lines": 279,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.data",
+        "cfo.data.invoices",
+        "cfo.data.metrics",
+        "cfo.data.pdf",
+        "cfo.data.source",
+        "cfo.domain",
+        "csv",
+        "decimal",
+        "io",
+        "json",
+        "math",
+        "os",
+        "pathlib",
+        "pydantic",
+        "random",
+        "shutil",
+        "tempfile",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_dump",
+          "kind": "function",
+          "line": 46,
+          "public": false
+        },
+        {
+          "name": "_write_json",
+          "kind": "function",
+          "line": 54,
+          "public": false
+        },
+        {
+          "name": "_write_jsonl",
+          "kind": "function",
+          "line": 59,
+          "public": false
+        },
+        {
+          "name": "_write_bytes",
+          "kind": "function",
+          "line": 65,
+          "public": false
+        },
+        {
+          "name": "_budget",
+          "kind": "function",
+          "line": 70,
+          "public": false
+        },
+        {
+          "name": "_team_budgets",
+          "kind": "function",
+          "line": 74,
+          "public": false
+        },
+        {
+          "name": "_focus_csv",
+          "kind": "function",
+          "line": 86,
+          "public": false
+        },
+        {
+          "name": "_simple_pdf",
+          "kind": "function",
+          "line": 94,
+          "public": false
+        },
+        {
+          "name": "_distractors",
+          "kind": "function",
+          "line": 99,
+          "public": false
+        },
+        {
+          "name": "_previous_files",
+          "kind": "function",
+          "line": 122,
+          "public": false
+        },
+        {
+          "name": "generate",
+          "kind": "function",
+          "line": 141,
+          "public": true
+        },
+        {
+          "name": "_generate",
+          "kind": "function",
+          "line": 165,
+          "public": false
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 266,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.data.invoices",
+      "file": "backend/cfo/data/invoices.py",
+      "lines": 166,
+      "imports": [
+        "__future__",
+        "cfo.data.pdf",
+        "cfo.domain",
+        "datetime",
+        "decimal",
+        "email.message",
+        "email.utils",
+        "random"
+      ],
+      "definitions": [
+        {
+          "name": "_q",
+          "kind": "function",
+          "line": 76,
+          "public": false
+        },
+        {
+          "name": "supplier_of",
+          "kind": "function",
+          "line": 80,
+          "public": true
+        },
+        {
+          "name": "invoice_id",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "build_invoice",
+          "kind": "function",
+          "line": 88,
+          "public": true
+        },
+        {
+          "name": "invoice_pdf",
+          "kind": "function",
+          "line": 120,
+          "public": true
+        },
+        {
+          "name": "invoice_text",
+          "kind": "function",
+          "line": 146,
+          "public": true
+        },
+        {
+          "name": "invoice_eml",
+          "kind": "function",
+          "line": 154,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.load",
+      "file": "backend/cfo/data/load.py",
+      "lines": 116,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.config",
+        "cfo.data.people",
+        "cfo.db.migrate",
+        "cfo.db.repo",
+        "cfo.domain",
+        "json",
+        "pathlib"
+      ],
+      "definitions": [
+        {
+          "name": "reset",
+          "kind": "function",
+          "line": 25,
+          "public": true
+        },
+        {
+          "name": "_jsonl",
+          "kind": "function",
+          "line": 31,
+          "public": false
+        },
+        {
+          "name": "_in_manager_order",
+          "kind": "function",
+          "line": 35,
+          "public": false
+        },
+        {
+          "name": "seed",
+          "kind": "function",
+          "line": 48,
+          "public": true
+        },
+        {
+          "name": "load",
+          "kind": "function",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "_seed",
+          "kind": "function",
+          "line": 63,
+          "public": false
+        },
+        {
+          "name": "ingest_transaction",
+          "kind": "function",
+          "line": 83,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 103,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.data.metrics",
+      "file": "backend/cfo/data/metrics.py",
+      "lines": 163,
+      "imports": [
+        "__future__",
+        "calendar",
+        "cfo.domain",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "random"
+      ],
+      "definitions": [
+        {
+          "name": "_q",
+          "kind": "function",
+          "line": 37,
+          "public": false
+        },
+        {
+          "name": "month_start",
+          "kind": "function",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "MonthData",
+          "kind": "class",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "_rng",
+          "kind": "function",
+          "line": 59,
+          "public": false
+        },
+        {
+          "name": "_cloud_lines",
+          "kind": "function",
+          "line": 63,
+          "public": false
+        },
+        {
+          "name": "build_months",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "equipment_invoice",
+          "kind": "function",
+          "line": 150,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.pdf",
+      "file": "backend/cfo/data/pdf.py",
+      "lines": 42,
+      "imports": [
+        "__future__"
+      ],
+      "definitions": [
+        {
+          "name": "_escape",
+          "kind": "function",
+          "line": 12,
+          "public": false
+        },
+        {
+          "name": "render_pdf",
+          "kind": "function",
+          "line": 17,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.people",
+      "file": "backend/cfo/data/people.py",
+      "lines": 65,
+      "imports": [
+        "__future__",
+        "cfo.domain",
+        "csv",
+        "datetime",
+        "decimal",
+        "io"
+      ],
+      "definitions": [
+        {
+          "name": "make_teams",
+          "kind": "function",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "hr_csv",
+          "kind": "function",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "parse_hr_csv",
+          "kind": "function",
+          "line": 56,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.data.source",
+      "file": "backend/cfo/data/source.py",
+      "lines": 110,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.domain",
+        "csv",
+        "datetime",
+        "decimal",
+        "os",
+        "pathlib",
+        "re"
+      ],
+      "definitions": [
+        {
+          "name": "SourceNotFound",
+          "kind": "class",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "find_source_csv",
+          "kind": "function",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "_category",
+          "kind": "function",
+          "line": 59,
+          "public": false
+        },
+        {
+          "name": "_day",
+          "kind": "function",
+          "line": 75,
+          "public": false
+        },
+        {
+          "name": "load_bank_csv",
+          "kind": "function",
+          "line": 79,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.db.__init__",
+      "file": "backend/cfo/db/__init__.py",
+      "lines": 0,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.db.migrate",
+      "file": "backend/cfo/db/migrate.py",
+      "lines": 171,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.config",
+        "cfo.tenancy",
+        "langgraph.checkpoint.postgres",
+        "pathlib",
+        "psycopg",
+        "sys",
+        "uuid"
+      ],
+      "definitions": [
+        {
+          "name": "apply_schema",
+          "kind": "function",
+          "line": 33,
+          "public": true
+        },
+        {
+          "name": "_application_ddl",
+          "kind": "function",
+          "line": 42,
+          "public": false
+        },
+        {
+          "name": "_upgrade_scout_schemas",
+          "kind": "function",
+          "line": 55,
+          "public": false
+        },
+        {
+          "name": "migrate_auth",
+          "kind": "function",
+          "line": 81,
+          "public": true
+        },
+        {
+          "name": "provision",
+          "kind": "function",
+          "line": 116,
+          "public": true
+        },
+        {
+          "name": "enroll_legacy_owner",
+          "kind": "function",
+          "line": 122,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 145,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.db.repo",
+      "file": "backend/cfo/db/repo.py",
+      "lines": 230,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.domain",
+        "cfo.tenancy",
+        "collections.abc",
+        "contextlib",
+        "datetime",
+        "psycopg",
+        "psycopg.rows",
+        "psycopg.types.json",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_insert",
+          "kind": "function",
+          "line": 34,
+          "public": false
+        },
+        {
+          "name": "Repository",
+          "kind": "class",
+          "line": 47,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.domain",
+      "file": "backend/cfo/domain.py",
+      "lines": 203,
+      "imports": [
+        "__future__",
+        "datetime",
+        "decimal",
+        "enum",
+        "pydantic",
+        "typing",
+        "uuid"
+      ],
+      "definitions": [
+        {
+          "name": "new_id",
+          "kind": "function",
+          "line": 19,
+          "public": true
+        },
+        {
+          "name": "utcnow",
+          "kind": "function",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "PolicyLevel",
+          "kind": "class",
+          "line": 28,
+          "public": true
+        },
+        {
+          "name": "DecisionStatus",
+          "kind": "class",
+          "line": 36,
+          "public": true
+        },
+        {
+          "name": "ApprovalStatus",
+          "kind": "class",
+          "line": 43,
+          "public": true
+        },
+        {
+          "name": "CostMetricKind",
+          "kind": "class",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "EventKind",
+          "kind": "class",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "Transaction",
+          "kind": "class",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "InvoiceLine",
+          "kind": "class",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "Invoice",
+          "kind": "class",
+          "line": 92,
+          "public": true
+        },
+        {
+          "name": "Vacation",
+          "kind": "class",
+          "line": 109,
+          "public": true
+        },
+        {
+          "name": "Employee",
+          "kind": "class",
+          "line": 117,
+          "public": true
+        },
+        {
+          "name": "Team",
+          "kind": "class",
+          "line": 130,
+          "public": true
+        },
+        {
+          "name": "CostMetric",
+          "kind": "class",
+          "line": 137,
+          "public": true
+        },
+        {
+          "name": "Event",
+          "kind": "class",
+          "line": 154,
+          "public": true
+        },
+        {
+          "name": "Decision",
+          "kind": "class",
+          "line": 163,
+          "public": true
+        },
+        {
+          "name": "ApprovalRequest",
+          "kind": "class",
+          "line": 179,
+          "public": true
+        },
+        {
+          "name": "Rule",
+          "kind": "class",
+          "line": 192,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.__init__",
+      "file": "backend/cfo/forecast/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.band",
+      "file": "backend/cfo/forecast/band.py",
+      "lines": 97,
+      "imports": [
+        "__future__",
+        "math",
+        "numpy",
+        "pandas",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "legacy_offsets",
+          "kind": "function",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "_growth",
+          "kind": "function",
+          "line": 49,
+          "public": false
+        },
+        {
+          "name": "offsets",
+          "kind": "function",
+          "line": 56,
+          "public": true
+        },
+        {
+          "name": "fit_band",
+          "kind": "function",
+          "line": 65,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.compare",
+      "file": "backend/cfo/forecast/compare.py",
+      "lines": 277,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.forecast",
+        "collections.abc",
+        "json",
+        "math",
+        "pandas",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_trainer",
+          "kind": "function",
+          "line": 46,
+          "public": false
+        },
+        {
+          "name": "_per_origin",
+          "kind": "function",
+          "line": 51,
+          "public": false
+        },
+        {
+          "name": "compare",
+          "kind": "function",
+          "line": 63,
+          "public": true
+        },
+        {
+          "name": "_clean",
+          "kind": "function",
+          "line": 83,
+          "public": false
+        },
+        {
+          "name": "december_check",
+          "kind": "function",
+          "line": 96,
+          "public": true
+        },
+        {
+          "name": "monthly_forecast",
+          "kind": "function",
+          "line": 104,
+          "public": true
+        },
+        {
+          "name": "_jan_may",
+          "kind": "function",
+          "line": 114,
+          "public": false
+        },
+        {
+          "name": "_june_is_lowest",
+          "kind": "function",
+          "line": 119,
+          "public": false
+        },
+        {
+          "name": "evaluate_bar",
+          "kind": "function",
+          "line": 123,
+          "public": true
+        },
+        {
+          "name": "_profile",
+          "kind": "function",
+          "line": 159,
+          "public": false
+        },
+        {
+          "name": "assess",
+          "kind": "function",
+          "line": 167,
+          "public": true
+        },
+        {
+          "name": "_table",
+          "kind": "function",
+          "line": 212,
+          "public": false
+        },
+        {
+          "name": "_verdict_table",
+          "kind": "function",
+          "line": 233,
+          "public": false
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 258,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.forecast.evaluate",
+      "file": "backend/cfo/forecast/evaluate.py",
+      "lines": 205,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.data.source",
+        "cfo.forecast",
+        "collections.abc",
+        "json",
+        "math",
+        "pandas",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "default_trainer",
+          "kind": "function",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "_default_origins",
+          "kind": "function",
+          "line": 63,
+          "public": false
+        },
+        {
+          "name": "rolling_origin",
+          "kind": "function",
+          "line": 74,
+          "public": true
+        },
+        {
+          "name": "_monthly_net_mape",
+          "kind": "function",
+          "line": 138,
+          "public": false
+        },
+        {
+          "name": "score",
+          "kind": "function",
+          "line": 151,
+          "public": true
+        },
+        {
+          "name": "evaluate",
+          "kind": "function",
+          "line": 171,
+          "public": true
+        },
+        {
+          "name": "load_statement",
+          "kind": "function",
+          "line": 177,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 188,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.forecast.features",
+      "file": "backend/cfo/forecast/features.py",
+      "lines": 423,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.tenancy",
+        "collections.abc",
+        "datetime",
+        "pandas",
+        "psycopg",
+        "psycopg.rows",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "level_baseline",
+          "kind": "function",
+          "line": 77,
+          "public": true
+        },
+        {
+          "name": "applied_baseline",
+          "kind": "function",
+          "line": 85,
+          "public": true
+        },
+        {
+          "name": "has_schedule",
+          "kind": "function",
+          "line": 91,
+          "public": true
+        },
+        {
+          "name": "feature_set_columns",
+          "kind": "function",
+          "line": 96,
+          "public": true
+        },
+        {
+          "name": "needs_levels",
+          "kind": "function",
+          "line": 103,
+          "public": true
+        },
+        {
+          "name": "_query",
+          "kind": "function",
+          "line": 109,
+          "public": false
+        },
+        {
+          "name": "fetch_transactions",
+          "kind": "function",
+          "line": 122,
+          "public": true
+        },
+        {
+          "name": "fetch_invoices",
+          "kind": "function",
+          "line": 132,
+          "public": true
+        },
+        {
+          "name": "_easter",
+          "kind": "function",
+          "line": 144,
+          "public": false
+        },
+        {
+          "name": "public_holidays",
+          "kind": "function",
+          "line": 158,
+          "public": true
+        },
+        {
+          "name": "infer_due_days",
+          "kind": "function",
+          "line": 167,
+          "public": true
+        },
+        {
+          "name": "infer_shutdown_days",
+          "kind": "function",
+          "line": 182,
+          "public": true
+        },
+        {
+          "name": "closed_days",
+          "kind": "function",
+          "line": 207,
+          "public": true
+        },
+        {
+          "name": "calendar_features",
+          "kind": "function",
+          "line": 231,
+          "public": true
+        },
+        {
+          "name": "recent_levels",
+          "kind": "function",
+          "line": 267,
+          "public": true
+        },
+        {
+          "name": "daily_cash_flow",
+          "kind": "function",
+          "line": 312,
+          "public": true
+        },
+        {
+          "name": "daily_features",
+          "kind": "function",
+          "line": 346,
+          "public": true
+        },
+        {
+          "name": "load_daily_features",
+          "kind": "function",
+          "line": 371,
+          "public": true
+        },
+        {
+          "name": "monthly_cost_by_team",
+          "kind": "function",
+          "line": 377,
+          "public": true
+        },
+        {
+          "name": "load_monthly_cost_by_team",
+          "kind": "function",
+          "line": 418,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.folds",
+      "file": "backend/cfo/forecast/folds.py",
+      "lines": 37,
+      "imports": [
+        "__future__",
+        "pandas"
+      ],
+      "definitions": [
+        {
+          "name": "weekly_origins",
+          "kind": "function",
+          "line": 18,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.liquidity",
+      "file": "backend/cfo/forecast/liquidity.py",
+      "lines": 529,
+      "imports": [
+        "__future__",
+        "cfo.domain",
+        "cfo.forecast",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "pandas",
+        "psycopg",
+        "pydantic",
+        "scout.policy",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Outflow",
+          "kind": "class",
+          "line": 86,
+          "public": true
+        },
+        {
+          "name": "LiquidityGap",
+          "kind": "class",
+          "line": 101,
+          "public": true
+        },
+        {
+          "name": "Surplus",
+          "kind": "class",
+          "line": 117,
+          "public": true
+        },
+        {
+          "name": "LiquidityProposal",
+          "kind": "class",
+          "line": 130,
+          "public": true
+        },
+        {
+          "name": "Evidence",
+          "kind": "class",
+          "line": 165,
+          "public": true
+        },
+        {
+          "name": "LiquidityReview",
+          "kind": "class",
+          "line": 173,
+          "public": true
+        },
+        {
+          "name": "_dec",
+          "kind": "function",
+          "line": 181,
+          "public": false
+        },
+        {
+          "name": "_eur",
+          "kind": "function",
+          "line": 185,
+          "public": false
+        },
+        {
+          "name": "_round_up",
+          "kind": "function",
+          "line": 189,
+          "public": false
+        },
+        {
+          "name": "_round_down",
+          "kind": "function",
+          "line": 193,
+          "public": false
+        },
+        {
+          "name": "_month_label",
+          "kind": "function",
+          "line": 197,
+          "public": false
+        },
+        {
+          "name": "fixed_costs_monthly",
+          "kind": "function",
+          "line": 201,
+          "public": true
+        },
+        {
+          "name": "default_buffer",
+          "kind": "function",
+          "line": 210,
+          "public": true
+        },
+        {
+          "name": "_normalize_outflows",
+          "kind": "function",
+          "line": 215,
+          "public": false
+        },
+        {
+          "name": "forecast_with",
+          "kind": "function",
+          "line": 234,
+          "public": true
+        },
+        {
+          "name": "detect_gaps",
+          "kind": "function",
+          "line": 280,
+          "public": true
+        },
+        {
+          "name": "_resolve_buffer",
+          "kind": "function",
+          "line": 303,
+          "public": false
+        },
+        {
+          "name": "_driver_phrase",
+          "kind": "function",
+          "line": 314,
+          "public": false
+        },
+        {
+          "name": "_typical_monthly_revenue",
+          "kind": "function",
+          "line": 320,
+          "public": false
+        },
+        {
+          "name": "_month_facts",
+          "kind": "function",
+          "line": 328,
+          "public": false
+        },
+        {
+          "name": "_driver_month",
+          "kind": "function",
+          "line": 365,
+          "public": false
+        },
+        {
+          "name": "_outflow_sentence",
+          "kind": "function",
+          "line": 378,
+          "public": false
+        },
+        {
+          "name": "propose_credit_line",
+          "kind": "function",
+          "line": 387,
+          "public": true
+        },
+        {
+          "name": "find_surplus",
+          "kind": "function",
+          "line": 426,
+          "public": true
+        },
+        {
+          "name": "propose_investment",
+          "kind": "function",
+          "line": 465,
+          "public": true
+        },
+        {
+          "name": "review_liquidity",
+          "kind": "function",
+          "line": 494,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.model",
+      "file": "backend/cfo/forecast/model.py",
+      "lines": 780,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.forecast",
+        "cfo.tenancy",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "importlib",
+        "json",
+        "logging",
+        "mlflow.entities",
+        "numpy",
+        "os",
+        "pandas",
+        "pathlib",
+        "psycopg",
+        "re",
+        "tempfile",
+        "typing",
+        "xgboost"
+      ],
+      "definitions": [
+        {
+          "name": "default_model_path",
+          "kind": "function",
+          "line": 111,
+          "public": true
+        },
+        {
+          "name": "_meta_path",
+          "kind": "function",
+          "line": 120,
+          "public": false
+        },
+        {
+          "name": "ForecastModel",
+          "kind": "class",
+          "line": 126,
+          "public": true
+        },
+        {
+          "name": "_training_table",
+          "kind": "function",
+          "line": 329,
+          "public": false
+        },
+        {
+          "name": "backtest_split",
+          "kind": "function",
+          "line": 351,
+          "public": true
+        },
+        {
+          "name": "_schedule_categories",
+          "kind": "function",
+          "line": 386,
+          "public": false
+        },
+        {
+          "name": "_offset",
+          "kind": "function",
+          "line": 392,
+          "public": false
+        },
+        {
+          "name": "_fit_with_curves",
+          "kind": "function",
+          "line": 397,
+          "public": false
+        },
+        {
+          "name": "_backtest",
+          "kind": "function",
+          "line": 413,
+          "public": false
+        },
+        {
+          "name": "_open_training_days",
+          "kind": "function",
+          "line": 456,
+          "public": false
+        },
+        {
+          "name": "_usable_table",
+          "kind": "function",
+          "line": 460,
+          "public": false
+        },
+        {
+          "name": "train",
+          "kind": "function",
+          "line": 483,
+          "public": true
+        },
+        {
+          "name": "_measure_band",
+          "kind": "function",
+          "line": 552,
+          "public": false
+        },
+        {
+          "name": "train_from_db",
+          "kind": "function",
+          "line": 570,
+          "public": true
+        },
+        {
+          "name": "MlflowModelRef",
+          "kind": "class",
+          "line": 576,
+          "public": true
+        },
+        {
+          "name": "_mlflow",
+          "kind": "function",
+          "line": 584,
+          "public": false
+        },
+        {
+          "name": "mlflow_experiment_id",
+          "kind": "function",
+          "line": 593,
+          "public": true
+        },
+        {
+          "name": "resolve_mlflow_model",
+          "kind": "function",
+          "line": 608,
+          "public": true
+        },
+        {
+          "name": "log_curves",
+          "kind": "function",
+          "line": 629,
+          "public": true
+        },
+        {
+          "name": "log_to_mlflow_if_configured",
+          "kind": "function",
+          "line": 642,
+          "public": true
+        },
+        {
+          "name": "get_model",
+          "kind": "function",
+          "line": 700,
+          "public": true
+        },
+        {
+          "name": "partner_tranche_schedule",
+          "kind": "function",
+          "line": 712,
+          "public": true
+        },
+        {
+          "name": "_as_series",
+          "kind": "function",
+          "line": 727,
+          "public": false
+        },
+        {
+          "name": "last_known_balance",
+          "kind": "function",
+          "line": 736,
+          "public": true
+        },
+        {
+          "name": "liquidity_forecast",
+          "kind": "function",
+          "line": 741,
+          "public": true
+        },
+        {
+          "name": "lowest_balance",
+          "kind": "function",
+          "line": 777,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.schedule",
+      "file": "backend/cfo/forecast/schedule.py",
+      "lines": 166,
+      "imports": [
+        "__future__",
+        "cfo.forecast.features",
+        "collections.abc",
+        "pandas",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_position",
+          "kind": "function",
+          "line": 49,
+          "public": false
+        },
+        {
+          "name": "_profiles",
+          "kind": "function",
+          "line": 53,
+          "public": false
+        },
+        {
+          "name": "_same",
+          "kind": "function",
+          "line": 64,
+          "public": false
+        },
+        {
+          "name": "_period",
+          "kind": "function",
+          "line": 71,
+          "public": false
+        },
+        {
+          "name": "_complete_months",
+          "kind": "function",
+          "line": 80,
+          "public": false
+        },
+        {
+          "name": "_apply_posted",
+          "kind": "function",
+          "line": 88,
+          "public": false
+        },
+        {
+          "name": "infer",
+          "kind": "function",
+          "line": 105,
+          "public": true
+        },
+        {
+          "name": "amounts",
+          "kind": "function",
+          "line": 145,
+          "public": true
+        },
+        {
+          "name": "total",
+          "kind": "function",
+          "line": 162,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.forecast.train",
+      "file": "backend/cfo/forecast/train.py",
+      "lines": 134,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.forecast",
+        "collections.abc",
+        "json",
+        "logging",
+        "os",
+        "sys",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_champion_version",
+          "kind": "function",
+          "line": 31,
+          "public": false
+        },
+        {
+          "name": "_money",
+          "kind": "function",
+          "line": 43,
+          "public": false
+        },
+        {
+          "name": "_message",
+          "kind": "function",
+          "line": 47,
+          "public": false
+        },
+        {
+          "name": "_min_gain_arg",
+          "kind": "function",
+          "line": 63,
+          "public": false
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 70,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.forecast.tune",
+      "file": "backend/cfo/forecast/tune.py",
+      "lines": 1007,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.config",
+        "cfo.forecast",
+        "collections.abc",
+        "contextlib",
+        "dataclasses",
+        "datetime",
+        "json",
+        "logging",
+        "math",
+        "matplotlib",
+        "matplotlib.pyplot",
+        "mlflow",
+        "mlflow.entities",
+        "optuna",
+        "optuna.distributions",
+        "optuna.trial",
+        "os",
+        "pandas",
+        "pathlib",
+        "psycopg",
+        "re",
+        "sys",
+        "tempfile",
+        "time",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "_is_finite",
+          "kind": "function",
+          "line": 82,
+          "public": false
+        },
+        {
+          "name": "finite",
+          "kind": "function",
+          "line": 89,
+          "public": true
+        },
+        {
+          "name": "objective_value",
+          "kind": "function",
+          "line": 104,
+          "public": true
+        },
+        {
+          "name": "rank_key",
+          "kind": "function",
+          "line": 113,
+          "public": true
+        },
+        {
+          "name": "constrained_value",
+          "kind": "function",
+          "line": 118,
+          "public": true
+        },
+        {
+          "name": "redact_uri",
+          "kind": "function",
+          "line": 130,
+          "public": true
+        },
+        {
+          "name": "_check_min_gain",
+          "kind": "function",
+          "line": 144,
+          "public": false
+        },
+        {
+          "name": "is_better",
+          "kind": "function",
+          "line": 150,
+          "public": true
+        },
+        {
+          "name": "per_origin_errors",
+          "kind": "function",
+          "line": 159,
+          "public": true
+        },
+        {
+          "name": "error_without_first_origin",
+          "kind": "function",
+          "line": 173,
+          "public": true
+        },
+        {
+          "name": "baseline_params",
+          "kind": "function",
+          "line": 182,
+          "public": true
+        },
+        {
+          "name": "config_trainer",
+          "kind": "function",
+          "line": 188,
+          "public": true
+        },
+        {
+          "name": "score_config",
+          "kind": "function",
+          "line": 198,
+          "public": true
+        },
+        {
+          "name": "space",
+          "kind": "function",
+          "line": 205,
+          "public": true
+        },
+        {
+          "name": "suggest",
+          "kind": "function",
+          "line": 226,
+          "public": true
+        },
+        {
+          "name": "param_importance",
+          "kind": "function",
+          "line": 241,
+          "public": true
+        },
+        {
+          "name": "TuningResult",
+          "kind": "class",
+          "line": 262,
+          "public": true
+        },
+        {
+          "name": "_tracking",
+          "kind": "function",
+          "line": 362,
+          "public": false
+        },
+        {
+          "name": "_ensure_experiment",
+          "kind": "function",
+          "line": 389,
+          "public": false
+        },
+        {
+          "name": "_Tracker",
+          "kind": "class",
+          "line": 399,
+          "public": false
+        },
+        {
+          "name": "_holdout_curves",
+          "kind": "function",
+          "line": 501,
+          "public": false
+        },
+        {
+          "name": "_trials_frame",
+          "kind": "function",
+          "line": 511,
+          "public": false
+        },
+        {
+          "name": "_per_origin_frame",
+          "kind": "function",
+          "line": 520,
+          "public": false
+        },
+        {
+          "name": "_log_history_plot",
+          "kind": "function",
+          "line": 528,
+          "public": false
+        },
+        {
+          "name": "search",
+          "kind": "function",
+          "line": 559,
+          "public": true
+        },
+        {
+          "name": "RobustResult",
+          "kind": "class",
+          "line": 666,
+          "public": true
+        },
+        {
+          "name": "robust_search",
+          "kind": "function",
+          "line": 690,
+          "public": true
+        },
+        {
+          "name": "Promotion",
+          "kind": "class",
+          "line": 714,
+          "public": true
+        },
+        {
+          "name": "PromotionError",
+          "kind": "class",
+          "line": 730,
+          "public": true
+        },
+        {
+          "name": "promote",
+          "kind": "function",
+          "line": 738,
+          "public": true
+        },
+        {
+          "name": "_vname",
+          "kind": "function",
+          "line": 799,
+          "public": false
+        },
+        {
+          "name": "_champion_version",
+          "kind": "function",
+          "line": 803,
+          "public": false
+        },
+        {
+          "name": "_decide_champion",
+          "kind": "function",
+          "line": 819,
+          "public": false
+        },
+        {
+          "name": "load_transactions",
+          "kind": "function",
+          "line": 849,
+          "public": true
+        },
+        {
+          "name": "refuses_csv_promotion",
+          "kind": "function",
+          "line": 872,
+          "public": true
+        },
+        {
+          "name": "_table",
+          "kind": "function",
+          "line": 883,
+          "public": false
+        },
+        {
+          "name": "_min_gain_arg",
+          "kind": "function",
+          "line": 929,
+          "public": false
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 936,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.llm",
+      "file": "backend/cfo/llm.py",
+      "lines": 297,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.usage",
+        "collections.abc",
+        "httpx",
+        "json",
+        "logging",
+        "openai",
+        "pydantic",
+        "re",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_tools_rejected",
+          "kind": "function",
+          "line": 24,
+          "public": false
+        },
+        {
+          "name": "_rejected_param",
+          "kind": "function",
+          "line": 29,
+          "public": false
+        },
+        {
+          "name": "_calls_from_text",
+          "kind": "function",
+          "line": 37,
+          "public": false
+        },
+        {
+          "name": "ToolSpec",
+          "kind": "class",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "ToolCall",
+          "kind": "class",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "Message",
+          "kind": "class",
+          "line": 71,
+          "public": true
+        },
+        {
+          "name": "TokenUsage",
+          "kind": "class",
+          "line": 78,
+          "public": true
+        },
+        {
+          "name": "LLMResponse",
+          "kind": "class",
+          "line": 85,
+          "public": true
+        },
+        {
+          "name": "LLM",
+          "kind": "class",
+          "line": 96,
+          "public": true
+        },
+        {
+          "name": "tls_verify_setting",
+          "kind": "function",
+          "line": 107,
+          "public": true
+        },
+        {
+          "name": "OpenAICompatLLM",
+          "kind": "class",
+          "line": 119,
+          "public": true
+        },
+        {
+          "name": "FakeLLM",
+          "kind": "class",
+          "line": 254,
+          "public": true
+        },
+        {
+          "name": "get_llm",
+          "kind": "function",
+          "line": 294,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.mcp_servers.__init__",
+      "file": "backend/cfo/mcp_servers/__init__.py",
+      "lines": 7,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.mcp_servers.__main__",
+      "file": "backend/cfo/mcp_servers/__main__.py",
+      "lines": 45,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.config",
+        "cfo.mcp_servers",
+        "cfo.tenancy",
+        "collections.abc",
+        "mcp.server.fastmcp"
+      ],
+      "definitions": [
+        {
+          "name": "_factories",
+          "kind": "function",
+          "line": 19,
+          "public": false
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 25,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.mcp_servers.common",
+      "file": "backend/cfo/mcp_servers/common.py",
+      "lines": 37,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.db.repo",
+        "datetime",
+        "scout.db",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "make_repo_factory",
+          "kind": "function",
+          "line": 13,
+          "public": true
+        },
+        {
+          "name": "to_data",
+          "kind": "function",
+          "line": 27,
+          "public": true
+        },
+        {
+          "name": "parse_date",
+          "kind": "function",
+          "line": 34,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.mcp_servers.company_db",
+      "file": "backend/cfo/mcp_servers/company_db.py",
+      "lines": 215,
+      "imports": [
+        "__future__",
+        "cfo.db.repo",
+        "cfo.domain",
+        "cfo.mcp_servers.common",
+        "collections.abc",
+        "datetime",
+        "decimal",
+        "mcp.server.fastmcp",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "CompanyDbTools",
+          "kind": "class",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "_pct",
+          "kind": "function",
+          "line": 196,
+          "public": false
+        },
+        {
+          "name": "build_server",
+          "kind": "function",
+          "line": 200,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.mcp_servers.hr",
+      "file": "backend/cfo/mcp_servers/hr.py",
+      "lines": 100,
+      "imports": [
+        "__future__",
+        "cfo.db.repo",
+        "cfo.domain",
+        "cfo.mcp_servers.common",
+        "collections.abc",
+        "datetime",
+        "mcp.server.fastmcp",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "HrTools",
+          "kind": "class",
+          "line": 18,
+          "public": true
+        },
+        {
+          "name": "build_server",
+          "kind": "function",
+          "line": 87,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.mcp_servers.workstations",
+      "file": "backend/cfo/mcp_servers/workstations.py",
+      "lines": 292,
+      "imports": [
+        "__future__",
+        "base64",
+        "cfo.config",
+        "cfo.mcp_servers.common",
+        "collections.abc",
+        "email",
+        "email.parser",
+        "mcp.server.fastmcp",
+        "pathlib",
+        "re",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "AccessDenied",
+          "kind": "class",
+          "line": 34,
+          "public": true
+        },
+        {
+          "name": "AccessLogger",
+          "kind": "class",
+          "line": 38,
+          "public": true
+        },
+        {
+          "name": "DbAccessLog",
+          "kind": "class",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "WorkstationTools",
+          "kind": "class",
+          "line": 64,
+          "public": true
+        },
+        {
+          "name": "build_server",
+          "kind": "function",
+          "line": 276,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.observability",
+      "file": "backend/cfo/observability.py",
+      "lines": 269,
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "contextlib",
+        "dataclasses",
+        "functools",
+        "importlib",
+        "json",
+        "langgraph.errors",
+        "logging",
+        "os",
+        "threading",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "TracingSettings",
+          "kind": "class",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "enabled",
+          "kind": "function",
+          "line": 60,
+          "public": true
+        },
+        {
+          "name": "init_tracing",
+          "kind": "function",
+          "line": 64,
+          "public": true
+        },
+        {
+          "name": "reset_tracing",
+          "kind": "function",
+          "line": 100,
+          "public": true
+        },
+        {
+          "name": "_warn",
+          "kind": "function",
+          "line": 113,
+          "public": false
+        },
+        {
+          "name": "_jsonable",
+          "kind": "function",
+          "line": 120,
+          "public": false
+        },
+        {
+          "name": "_clip",
+          "kind": "function",
+          "line": 124,
+          "public": false
+        },
+        {
+          "name": "Span",
+          "kind": "class",
+          "line": 138,
+          "public": true
+        },
+        {
+          "name": "span",
+          "kind": "function",
+          "line": 166,
+          "public": true
+        },
+        {
+          "name": "set_trace_tags",
+          "kind": "function",
+          "line": 209,
+          "public": true
+        },
+        {
+          "name": "_graph_control_flow",
+          "kind": "function",
+          "line": 220,
+          "public": false
+        },
+        {
+          "name": "traced_node",
+          "kind": "function",
+          "line": 229,
+          "public": true
+        },
+        {
+          "name": "_TracedLLM",
+          "kind": "class",
+          "line": 246,
+          "public": false
+        },
+        {
+          "name": "traced_llm",
+          "kind": "function",
+          "line": 267,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.tenancy",
+      "file": "backend/cfo/tenancy.py",
+      "lines": 103,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "contextlib",
+        "contextvars",
+        "dataclasses",
+        "os",
+        "psycopg",
+        "psycopg.rows",
+        "re",
+        "typing",
+        "uuid"
+      ],
+      "definitions": [
+        {
+          "name": "Tenant",
+          "kind": "class",
+          "line": 20,
+          "public": true
+        },
+        {
+          "name": "current_tenant",
+          "kind": "function",
+          "line": 43,
+          "public": true
+        },
+        {
+          "name": "bind_tenant",
+          "kind": "function",
+          "line": 51,
+          "public": true
+        },
+        {
+          "name": "scoped_schema",
+          "kind": "function",
+          "line": 59,
+          "public": true
+        },
+        {
+          "name": "connect",
+          "kind": "function",
+          "line": 73,
+          "public": true
+        },
+        {
+          "name": "legacy_connectors_enabled",
+          "kind": "function",
+          "line": 81,
+          "public": true
+        },
+        {
+          "name": "worker_tenant",
+          "kind": "function",
+          "line": 87,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.__init__",
+      "file": "backend/cfo/usage/__init__.py",
+      "lines": 13,
+      "imports": [
+        "cfo.usage.recorder"
+      ],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.__main__",
+      "file": "backend/cfo/usage/__main__.py",
+      "lines": 46,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.config",
+        "cfo.tenancy",
+        "cfo.usage",
+        "cfo.usage.settings",
+        "logging",
+        "psycopg",
+        "scout.db",
+        "sys"
+      ],
+      "definitions": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 16,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "cfo.usage.cost",
+      "file": "backend/cfo/usage/cost.py",
+      "lines": 42,
+      "imports": [
+        "__future__",
+        "cfo.usage.settings",
+        "decimal"
+      ],
+      "definitions": [
+        {
+          "name": "hourly_rate",
+          "kind": "function",
+          "line": 21,
+          "public": true
+        },
+        {
+          "name": "busy_cost",
+          "kind": "function",
+          "line": 25,
+          "public": true
+        },
+        {
+          "name": "token_share",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "amortized_cost",
+          "kind": "function",
+          "line": 36,
+          "public": true
+        },
+        {
+          "name": "hosted_cost_eur",
+          "kind": "function",
+          "line": 40,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.recorder",
+      "file": "backend/cfo/usage/recorder.py",
+      "lines": 198,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.domain",
+        "cfo.tenancy",
+        "cfo.usage",
+        "cfo.usage.settings",
+        "collections.abc",
+        "contextlib",
+        "contextvars",
+        "dataclasses",
+        "datetime",
+        "json",
+        "logging",
+        "math",
+        "psycopg",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "usage_context",
+          "kind": "function",
+          "line": 39,
+          "public": true
+        },
+        {
+          "name": "current_context",
+          "kind": "function",
+          "line": 52,
+          "public": true
+        },
+        {
+          "name": "UsageRecord",
+          "kind": "class",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "UsageSink",
+          "kind": "class",
+          "line": 71,
+          "public": true
+        },
+        {
+          "name": "estimate_tokens",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "_message_text",
+          "kind": "function",
+          "line": 79,
+          "public": false
+        },
+        {
+          "name": "_response_text",
+          "kind": "function",
+          "line": 90,
+          "public": false
+        },
+        {
+          "name": "DbSink",
+          "kind": "class",
+          "line": 97,
+          "public": true
+        },
+        {
+          "name": "set_sink",
+          "kind": "function",
+          "line": 148,
+          "public": true
+        },
+        {
+          "name": "_active_sink",
+          "kind": "function",
+          "line": 154,
+          "public": false
+        },
+        {
+          "name": "record_call",
+          "kind": "function",
+          "line": 167,
+          "public": true
+        },
+        {
+          "name": "link_decision",
+          "kind": "function",
+          "line": 190,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.report",
+      "file": "backend/cfo/usage/report.py",
+      "lines": 304,
+      "imports": [
+        "__future__",
+        "cfo.usage",
+        "cfo.usage.settings",
+        "cfo.usage.vllm_metrics",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "math",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "money",
+          "kind": "function",
+          "line": 21,
+          "public": true
+        },
+        {
+          "name": "_num",
+          "kind": "function",
+          "line": 26,
+          "public": false
+        },
+        {
+          "name": "_round",
+          "kind": "function",
+          "line": 30,
+          "public": false
+        },
+        {
+          "name": "ClusterDelta",
+          "kind": "class",
+          "line": 38,
+          "public": true
+        },
+        {
+          "name": "cluster_delta",
+          "kind": "function",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "_bucket",
+          "kind": "function",
+          "line": 97,
+          "public": false
+        },
+        {
+          "name": "_hours",
+          "kind": "function",
+          "line": 118,
+          "public": false
+        },
+        {
+          "name": "build_usage_report",
+          "kind": "function",
+          "line": 122,
+          "public": true
+        },
+        {
+          "name": "build_live",
+          "kind": "function",
+          "line": 268,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.sampler",
+      "file": "backend/cfo/usage/sampler.py",
+      "lines": 122,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.domain",
+        "cfo.tenancy",
+        "cfo.usage",
+        "cfo.usage.settings",
+        "cfo.usage.vllm_metrics",
+        "collections.abc",
+        "datetime",
+        "logging",
+        "pathlib",
+        "psycopg",
+        "scout.db",
+        "ssl",
+        "threading",
+        "typing",
+        "urllib.request"
+      ],
+      "definitions": [
+        {
+          "name": "_ssl_context",
+          "kind": "function",
+          "line": 33,
+          "public": false
+        },
+        {
+          "name": "make_fetch",
+          "kind": "function",
+          "line": 47,
+          "public": true
+        },
+        {
+          "name": "sample_once",
+          "kind": "function",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "start_background",
+          "kind": "function",
+          "line": 100,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.settings",
+      "file": "backend/cfo/usage/settings.py",
+      "lines": 88,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "decimal",
+        "functools",
+        "json",
+        "pydantic",
+        "pydantic_settings",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "HostedPrice",
+          "kind": "class",
+          "line": 28,
+          "public": true
+        },
+        {
+          "name": "UsageSettings",
+          "kind": "class",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "get_usage_settings",
+          "kind": "function",
+          "line": 87,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.store",
+      "file": "backend/cfo/usage/store.py",
+      "lines": 146,
+      "imports": [
+        "__future__",
+        "cfo.usage.recorder",
+        "cfo.usage.vllm_metrics",
+        "datetime",
+        "psycopg.types.json",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "insert_usage",
+          "kind": "function",
+          "line": 26,
+          "public": true
+        },
+        {
+          "name": "link_decision",
+          "kind": "function",
+          "line": 35,
+          "public": true
+        },
+        {
+          "name": "insert_sample",
+          "kind": "function",
+          "line": 40,
+          "public": true
+        },
+        {
+          "name": "usage_groups",
+          "kind": "function",
+          "line": 54,
+          "public": true
+        },
+        {
+          "name": "usage_total",
+          "kind": "function",
+          "line": 71,
+          "public": true
+        },
+        {
+          "name": "_has_decisions",
+          "kind": "function",
+          "line": 88,
+          "public": false
+        },
+        {
+          "name": "usage_by_action",
+          "kind": "function",
+          "line": 93,
+          "public": true
+        },
+        {
+          "name": "decisions_per_action",
+          "kind": "function",
+          "line": 111,
+          "public": true
+        },
+        {
+          "name": "first_data_ts",
+          "kind": "function",
+          "line": 121,
+          "public": true
+        },
+        {
+          "name": "samples_between",
+          "kind": "function",
+          "line": 128,
+          "public": true
+        },
+        {
+          "name": "latest_samples",
+          "kind": "function",
+          "line": 139,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "cfo.usage.vllm_metrics",
+      "file": "backend/cfo/usage/vllm_metrics.py",
+      "lines": 208,
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "math",
+        "re"
+      ],
+      "definitions": [
+        {
+          "name": "Sample",
+          "kind": "class",
+          "line": 26,
+          "public": true
+        },
+        {
+          "name": "parse_prometheus_text",
+          "kind": "function",
+          "line": 32,
+          "public": true
+        },
+        {
+          "name": "VllmSnapshot",
+          "kind": "class",
+          "line": 54,
+          "public": true
+        },
+        {
+          "name": "_le",
+          "kind": "function",
+          "line": 88,
+          "public": false
+        },
+        {
+          "name": "snapshots_from_text",
+          "kind": "function",
+          "line": 92,
+          "public": true
+        },
+        {
+          "name": "counter_increase",
+          "kind": "function",
+          "line": 162,
+          "public": true
+        },
+        {
+          "name": "counter_increase_series",
+          "kind": "function",
+          "line": 172,
+          "public": true
+        },
+        {
+          "name": "bucket_increase",
+          "kind": "function",
+          "line": 183,
+          "public": true
+        },
+        {
+          "name": "histogram_quantile",
+          "kind": "function",
+          "line": 189,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.__init__",
+      "file": "backend/scout/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.api",
+      "file": "backend/scout/api.py",
+      "lines": 393,
+      "imports": [
+        "__future__",
+        "base64",
+        "cfo.api.auth",
+        "cfo.api.errors",
+        "cfo.tenancy",
+        "collections.abc",
+        "datetime",
+        "fastapi",
+        "fastapi.responses",
+        "hashlib",
+        "hmac",
+        "httpx",
+        "json",
+        "psycopg",
+        "psycopg.types.json",
+        "scout",
+        "scout.config",
+        "scout.connectors.crypto",
+        "scout.demo_data",
+        "secrets",
+        "time",
+        "typing",
+        "urllib.parse",
+        "zoneinfo"
+      ],
+      "definitions": [
+        {
+          "name": "get_conn",
+          "kind": "function",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "_jsonable",
+          "kind": "function",
+          "line": 54,
+          "public": false
+        },
+        {
+          "name": "_strategy_exec",
+          "kind": "function",
+          "line": 68,
+          "public": false
+        },
+        {
+          "name": "strategy_review",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "list_tasks",
+          "kind": "function",
+          "line": 91,
+          "public": true
+        },
+        {
+          "name": "task_stream",
+          "kind": "function",
+          "line": 110,
+          "public": true
+        },
+        {
+          "name": "get_task",
+          "kind": "function",
+          "line": 134,
+          "public": true
+        },
+        {
+          "name": "list_approvals",
+          "kind": "function",
+          "line": 150,
+          "public": true
+        },
+        {
+          "name": "_answer",
+          "kind": "function",
+          "line": 156,
+          "public": false
+        },
+        {
+          "name": "approve",
+          "kind": "function",
+          "line": 174,
+          "public": true
+        },
+        {
+          "name": "reject",
+          "kind": "function",
+          "line": 179,
+          "public": true
+        },
+        {
+          "name": "audit",
+          "kind": "function",
+          "line": 185,
+          "public": true
+        },
+        {
+          "name": "transaction_invoice",
+          "kind": "function",
+          "line": 202,
+          "public": true
+        },
+        {
+          "name": "slack_scopes",
+          "kind": "function",
+          "line": 239,
+          "public": true
+        },
+        {
+          "name": "connections",
+          "kind": "function",
+          "line": 255,
+          "public": true
+        },
+        {
+          "name": "enable",
+          "kind": "function",
+          "line": 274,
+          "public": true
+        },
+        {
+          "name": "disable",
+          "kind": "function",
+          "line": 279,
+          "public": true
+        },
+        {
+          "name": "_set_enabled",
+          "kind": "function",
+          "line": 283,
+          "public": false
+        },
+        {
+          "name": "_sign",
+          "kind": "function",
+          "line": 294,
+          "public": false
+        },
+        {
+          "name": "make_state",
+          "kind": "function",
+          "line": 298,
+          "public": true
+        },
+        {
+          "name": "check_state",
+          "kind": "function",
+          "line": 303,
+          "public": true
+        },
+        {
+          "name": "_need_oauth",
+          "kind": "function",
+          "line": 313,
+          "public": false
+        },
+        {
+          "name": "google_start",
+          "kind": "function",
+          "line": 323,
+          "public": true
+        },
+        {
+          "name": "exchange_code",
+          "kind": "function",
+          "line": 331,
+          "public": true
+        },
+        {
+          "name": "_email_of",
+          "kind": "function",
+          "line": 340,
+          "public": false
+        },
+        {
+          "name": "google_callback",
+          "kind": "function",
+          "line": 350,
+          "public": true
+        },
+        {
+          "name": "play",
+          "kind": "function",
+          "line": 380,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.audit",
+      "file": "backend/scout/audit.py",
+      "lines": 229,
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "dataclasses",
+        "decimal",
+        "re",
+        "scout.db",
+        "typing",
+        "unicodedata"
+      ],
+      "definitions": [
+        {
+          "name": "check",
+          "kind": "function",
+          "line": 20,
+          "public": true
+        },
+        {
+          "name": "salary_sql",
+          "kind": "function",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "is_salary_row",
+          "kind": "function",
+          "line": 62,
+          "public": true
+        },
+        {
+          "name": "_tokens",
+          "kind": "function",
+          "line": 69,
+          "public": false
+        },
+        {
+          "name": "_names_in",
+          "kind": "function",
+          "line": 75,
+          "public": false
+        },
+        {
+          "name": "payee_of",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "reports_of",
+          "kind": "function",
+          "line": 97,
+          "public": true
+        },
+        {
+          "name": "can_see_salary",
+          "kind": "function",
+          "line": 114,
+          "public": true
+        },
+        {
+          "name": "SalaryView",
+          "kind": "class",
+          "line": 131,
+          "public": true
+        },
+        {
+          "name": "_month",
+          "kind": "function",
+          "line": 137,
+          "public": false
+        },
+        {
+          "name": "filter_salary_rows",
+          "kind": "function",
+          "line": 142,
+          "public": true
+        },
+        {
+          "name": "can_see_task",
+          "kind": "function",
+          "line": 185,
+          "public": true
+        },
+        {
+          "name": "Audit",
+          "kind": "class",
+          "line": 193,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.chat_api",
+      "file": "backend/scout/chat_api.py",
+      "lines": 409,
+      "imports": [
+        "__future__",
+        "cfo.api.auth",
+        "cfo.api.errors",
+        "cfo.llm",
+        "cfo.observability",
+        "cfo.tenancy",
+        "collections.abc",
+        "contextvars",
+        "fastapi",
+        "fastapi.responses",
+        "json",
+        "logging",
+        "pydantic",
+        "queue",
+        "scout",
+        "scout.api",
+        "scout.audit",
+        "scout.config",
+        "scout.connectors",
+        "scout.forecast_bridge",
+        "scout.hiring_bridge",
+        "scout.jobs",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.slack_runtime",
+        "scout.slack_ui",
+        "scout.tasks",
+        "scout.worker",
+        "secrets",
+        "slack_sdk",
+        "threading",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Turn",
+          "kind": "class",
+          "line": 53,
+          "public": true
+        },
+        {
+          "name": "ExternalModel",
+          "kind": "class",
+          "line": 66,
+          "public": true
+        },
+        {
+          "name": "ChatRequest",
+          "kind": "class",
+          "line": 79,
+          "public": true
+        },
+        {
+          "name": "build_context",
+          "kind": "function",
+          "line": 87,
+          "public": true
+        },
+        {
+          "name": "_names",
+          "kind": "function",
+          "line": 148,
+          "public": false
+        },
+        {
+          "name": "get_context_factory",
+          "kind": "function",
+          "line": 160,
+          "public": true
+        },
+        {
+          "name": "_line",
+          "kind": "function",
+          "line": 165,
+          "public": false
+        },
+        {
+          "name": "chat_endpoint",
+          "kind": "function",
+          "line": 170,
+          "public": true
+        },
+        {
+          "name": "forecast_endpoint",
+          "kind": "function",
+          "line": 275,
+          "public": true
+        },
+        {
+          "name": "hiring_endpoint",
+          "kind": "function",
+          "line": 344,
+          "public": true
+        },
+        {
+          "name": "AckRequest",
+          "kind": "class",
+          "line": 400,
+          "public": true
+        },
+        {
+          "name": "ack_followups",
+          "kind": "function",
+          "line": 406,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.config",
+      "file": "backend/scout/config.py",
+      "lines": 87,
+      "imports": [
+        "__future__",
+        "cfo.config",
+        "cfo.tenancy",
+        "decimal",
+        "functools",
+        "pydantic",
+        "pydantic_settings"
+      ],
+      "definitions": [
+        {
+          "name": "ScoutSettings",
+          "kind": "class",
+          "line": 14,
+          "public": true
+        },
+        {
+          "name": "tenant_settings",
+          "kind": "function",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "get_scout_settings",
+          "kind": "function",
+          "line": 86,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.__init__",
+      "file": "backend/scout/connectors/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.bank",
+      "file": "backend/scout/connectors/bank.py",
+      "lines": 65,
+      "imports": [
+        "__future__",
+        "cfo.tenancy",
+        "datetime",
+        "decimal",
+        "httpx",
+        "scout.mock_bank.store",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "BankConnector",
+          "kind": "class",
+          "line": 14,
+          "public": true
+        },
+        {
+          "name": "from_revolut",
+          "kind": "function",
+          "line": 20,
+          "public": true
+        },
+        {
+          "name": "RevolutMockBank",
+          "kind": "class",
+          "line": 37,
+          "public": true
+        },
+        {
+          "name": "StoredDemoBank",
+          "kind": "class",
+          "line": 51,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.bunq",
+      "file": "backend/scout/connectors/bunq.py",
+      "lines": 330,
+      "imports": [
+        "__future__",
+        "base64",
+        "binascii",
+        "cryptography.exceptions",
+        "cryptography.hazmat.primitives",
+        "cryptography.hazmat.primitives.asymmetric",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "httpx",
+        "json",
+        "logging",
+        "scout.models",
+        "scout.onboarding",
+        "scout.onboarding.http",
+        "typing",
+        "uuid"
+      ],
+      "definitions": [
+        {
+          "name": "BunqError",
+          "kind": "class",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "_Trust",
+          "kind": "class",
+          "line": 60,
+          "public": false
+        },
+        {
+          "name": "_load_trust",
+          "kind": "function",
+          "line": 66,
+          "public": false
+        },
+        {
+          "name": "_pick",
+          "kind": "function",
+          "line": 78,
+          "public": false
+        },
+        {
+          "name": "_sign",
+          "kind": "function",
+          "line": 85,
+          "public": false
+        },
+        {
+          "name": "_canonical_header",
+          "kind": "function",
+          "line": 89,
+          "public": false
+        },
+        {
+          "name": "_response_head",
+          "kind": "function",
+          "line": 93,
+          "public": false
+        },
+        {
+          "name": "_verify_response",
+          "kind": "function",
+          "line": 100,
+          "public": false
+        },
+        {
+          "name": "_user_id",
+          "kind": "function",
+          "line": 117,
+          "public": false
+        },
+        {
+          "name": "BunqSandboxClient",
+          "kind": "class",
+          "line": 130,
+          "public": true
+        },
+        {
+          "name": "_when",
+          "kind": "function",
+          "line": 265,
+          "public": false
+        },
+        {
+          "name": "to_txn",
+          "kind": "function",
+          "line": 275,
+          "public": true
+        },
+        {
+          "name": "BunqSandboxBank",
+          "kind": "class",
+          "line": 288,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.chat",
+      "file": "backend/scout/connectors/chat.py",
+      "lines": 109,
+      "imports": [
+        "__future__",
+        "datetime",
+        "decimal",
+        "re",
+        "scout.audit",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ChatConnector",
+          "kind": "class",
+          "line": 18,
+          "public": true
+        },
+        {
+          "name": "amounts_in",
+          "kind": "function",
+          "line": 25,
+          "public": true
+        },
+        {
+          "name": "_supplier_words",
+          "kind": "function",
+          "line": 44,
+          "public": false
+        },
+        {
+          "name": "matches",
+          "kind": "function",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "SlackChat",
+          "kind": "class",
+          "line": 59,
+          "public": true
+        },
+        {
+          "name": "NoChat",
+          "kind": "class",
+          "line": 105,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.crypto",
+      "file": "backend/scout/connectors/crypto.py",
+      "lines": 29,
+      "imports": [
+        "base64",
+        "cryptography.fernet",
+        "hashlib",
+        "hmac"
+      ],
+      "definitions": [
+        {
+          "name": "seal",
+          "kind": "function",
+          "line": 10,
+          "public": true
+        },
+        {
+          "name": "open_",
+          "kind": "function",
+          "line": 14,
+          "public": true
+        },
+        {
+          "name": "new_key",
+          "kind": "function",
+          "line": 18,
+          "public": true
+        },
+        {
+          "name": "derive_key",
+          "kind": "function",
+          "line": 22,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.files",
+      "file": "backend/scout/connectors/files.py",
+      "lines": 70,
+      "imports": [
+        "__future__",
+        "base64",
+        "cfo.mcp_servers.workstations",
+        "pathlib",
+        "scout.audit",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "FilesConnector",
+          "kind": "class",
+          "line": 13,
+          "public": true
+        },
+        {
+          "name": "_AuditLog",
+          "kind": "class",
+          "line": 21,
+          "public": false
+        },
+        {
+          "name": "WorkstationFiles",
+          "kind": "class",
+          "line": 39,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.invoicing",
+      "file": "backend/scout/connectors/invoicing.py",
+      "lines": 91,
+      "imports": [
+        "__future__",
+        "cfo.db.repo",
+        "cfo.domain",
+        "datetime",
+        "decimal",
+        "scout.audit",
+        "scout.db",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "InvoicingConnector",
+          "kind": "class",
+          "line": 16,
+          "public": true
+        },
+        {
+          "name": "PostgresInvoicing",
+          "kind": "class",
+          "line": 25,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.ksef",
+      "file": "backend/scout/connectors/ksef.py",
+      "lines": 379,
+      "imports": [
+        "__future__",
+        "base64",
+        "collections.abc",
+        "cryptography",
+        "cryptography.hazmat.primitives",
+        "cryptography.hazmat.primitives.asymmetric",
+        "cryptography.hazmat.primitives.ciphers",
+        "cryptography.x509.oid",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "httpx",
+        "lxml",
+        "os",
+        "random",
+        "signxml",
+        "signxml.xades",
+        "time",
+        "typing",
+        "xml.sax.saxutils"
+      ],
+      "definitions": [
+        {
+          "name": "KsefError",
+          "kind": "class",
+          "line": 48,
+          "public": true
+        },
+        {
+          "name": "random_nip",
+          "kind": "function",
+          "line": 52,
+          "public": true
+        },
+        {
+          "name": "valid_nip",
+          "kind": "function",
+          "line": 63,
+          "public": true
+        },
+        {
+          "name": "seal_certificate",
+          "kind": "function",
+          "line": 71,
+          "public": true
+        },
+        {
+          "name": "sign_auth_request",
+          "kind": "function",
+          "line": 87,
+          "public": true
+        },
+        {
+          "name": "_sha_b64",
+          "kind": "function",
+          "line": 104,
+          "public": false
+        },
+        {
+          "name": "_money",
+          "kind": "function",
+          "line": 108,
+          "public": false
+        },
+        {
+          "name": "Party",
+          "kind": "class",
+          "line": 114,
+          "public": true
+        },
+        {
+          "name": "Line",
+          "kind": "class",
+          "line": 122,
+          "public": true
+        },
+        {
+          "name": "fa3_xml",
+          "kind": "function",
+          "line": 129,
+          "public": true
+        },
+        {
+          "name": "_vat",
+          "kind": "function",
+          "line": 176,
+          "public": false
+        },
+        {
+          "name": "_exact_net",
+          "kind": "function",
+          "line": 180,
+          "public": false
+        },
+        {
+          "name": "lines_for_gross",
+          "kind": "function",
+          "line": 189,
+          "public": true
+        },
+        {
+          "name": "parse_fa3",
+          "kind": "function",
+          "line": 206,
+          "public": true
+        },
+        {
+          "name": "KsefClient",
+          "kind": "class",
+          "line": 238,
+          "public": true
+        },
+        {
+          "name": "KsefLookup",
+          "kind": "class",
+          "line": 350,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.mail",
+      "file": "backend/scout/connectors/mail.py",
+      "lines": 370,
+      "imports": [
+        "__future__",
+        "base64",
+        "datetime",
+        "email",
+        "email.parser",
+        "email.utils",
+        "functools",
+        "google.auth.exceptions",
+        "google.oauth2",
+        "google.oauth2.credentials",
+        "google_auth_httplib2",
+        "googleapiclient.discovery",
+        "googleapiclient.errors",
+        "httplib2",
+        "logging",
+        "pathlib",
+        "scout.audit",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_notify_mail_error",
+          "kind": "function",
+          "line": 24,
+          "public": false
+        },
+        {
+          "name": "_strict_credentials",
+          "kind": "function",
+          "line": 32,
+          "public": false
+        },
+        {
+          "name": "MailLabelMissing",
+          "kind": "class",
+          "line": 51,
+          "public": true
+        },
+        {
+          "name": "MailConnector",
+          "kind": "class",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "UnavailableMail",
+          "kind": "class",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "_aware",
+          "kind": "function",
+          "line": 87,
+          "public": false
+        },
+        {
+          "name": "_matches",
+          "kind": "function",
+          "line": 91,
+          "public": false
+        },
+        {
+          "name": "FolderMail",
+          "kind": "class",
+          "line": 96,
+          "public": true
+        },
+        {
+          "name": "_guard_mail_read",
+          "kind": "function",
+          "line": 150,
+          "public": false
+        },
+        {
+          "name": "GmailMail",
+          "kind": "class",
+          "line": 169,
+          "public": true
+        },
+        {
+          "name": "_is_pdf",
+          "kind": "function",
+          "line": 310,
+          "public": false
+        },
+        {
+          "name": "invoice_mails",
+          "kind": "function",
+          "line": 314,
+          "public": true
+        },
+        {
+          "name": "WorkspaceMail",
+          "kind": "class",
+          "line": 334,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.connectors.registry",
+      "file": "backend/scout/connectors/registry.py",
+      "lines": 238,
+      "imports": [
+        "__future__",
+        "cfo.tenancy",
+        "dataclasses",
+        "json",
+        "logging",
+        "pathlib",
+        "scout.audit",
+        "scout.config",
+        "scout.connectors.bank",
+        "scout.connectors.bunq",
+        "scout.connectors.chat",
+        "scout.connectors.crypto",
+        "scout.connectors.files",
+        "scout.connectors.invoicing",
+        "scout.connectors.ksef",
+        "scout.connectors.mail",
+        "scout.db",
+        "scout.ksef_sync",
+        "scout.onboarding.catalog",
+        "scout.onboarding.state",
+        "slack_sdk",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Connectors",
+          "kind": "class",
+          "line": 32,
+          "public": true
+        },
+        {
+          "name": "UnavailableBank",
+          "kind": "class",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "UnavailableFiles",
+          "kind": "class",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "_path",
+          "kind": "function",
+          "line": 59,
+          "public": false
+        },
+        {
+          "name": "_rows",
+          "kind": "function",
+          "line": 63,
+          "public": false
+        },
+        {
+          "name": "build_mail",
+          "kind": "function",
+          "line": 72,
+          "public": true
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 91,
+          "public": true
+        },
+        {
+          "name": "_authorized_rows",
+          "kind": "function",
+          "line": 119,
+          "public": false
+        },
+        {
+          "name": "build_bank",
+          "kind": "function",
+          "line": 128,
+          "public": true
+        },
+        {
+          "name": "build_tenant",
+          "kind": "function",
+          "line": 162,
+          "public": true
+        },
+        {
+          "name": "build_ksef",
+          "kind": "function",
+          "line": 230,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.dashboard_help",
+      "file": "backend/scout/dashboard_help.py",
+      "lines": 80,
+      "imports": [
+        "__future__",
+        "copy",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "dashboard_help",
+          "kind": "function",
+          "line": 76,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.db",
+      "file": "backend/scout/db.py",
+      "lines": 55,
+      "imports": [
+        "__future__",
+        "cfo.db.migrate",
+        "cfo.tenancy",
+        "collections.abc",
+        "langgraph.checkpoint.postgres",
+        "pathlib",
+        "psycopg",
+        "psycopg.rows",
+        "scout.config"
+      ],
+      "definitions": [
+        {
+          "name": "connect",
+          "kind": "function",
+          "line": 18,
+          "public": true
+        },
+        {
+          "name": "factory",
+          "kind": "function",
+          "line": 27,
+          "public": true
+        },
+        {
+          "name": "apply_schema",
+          "kind": "function",
+          "line": 39,
+          "public": true
+        },
+        {
+          "name": "notify",
+          "kind": "function",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "postgres_checkpointer",
+          "kind": "function",
+          "line": 50,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.demo",
+      "file": "backend/scout/demo.py",
+      "lines": 140,
+      "imports": [
+        "__future__",
+        "argparse",
+        "cfo.data.people",
+        "cfo.tenancy",
+        "datetime",
+        "httpx",
+        "pathlib",
+        "scout",
+        "scout.config",
+        "scout.demo_data",
+        "scout.seed",
+        "slack_sdk",
+        "sys"
+      ],
+      "definitions": [
+        {
+          "name": "seed_slack",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "play",
+          "kind": "function",
+          "line": 49,
+          "public": true
+        },
+        {
+          "name": "guard_client",
+          "kind": "function",
+          "line": 58,
+          "public": true
+        },
+        {
+          "name": "db_factory",
+          "kind": "function",
+          "line": 64,
+          "public": true
+        },
+        {
+          "name": "organization_id",
+          "kind": "function",
+          "line": 73,
+          "public": true
+        },
+        {
+          "name": "data_dir",
+          "kind": "function",
+          "line": 80,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "scout.demo_data",
+      "file": "backend/scout/demo_data.py",
+      "lines": 64,
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "decimal"
+      ],
+      "definitions": [
+        {
+          "name": "Scenario",
+          "kind": "class",
+          "line": 11,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.demo_guard",
+      "file": "backend/scout/demo_guard.py",
+      "lines": 326,
+      "imports": [
+        "__future__",
+        "cfo.data.people",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "functools",
+        "logging",
+        "scout",
+        "scout.demo_data",
+        "scout.documents",
+        "scout.guardrails",
+        "scout.seed",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "poisoned_invoice_text",
+          "kind": "function",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "clean_invoice_text",
+          "kind": "function",
+          "line": 56,
+          "public": true
+        },
+        {
+          "name": "Probe",
+          "kind": "class",
+          "line": 68,
+          "public": true
+        },
+        {
+          "name": "GuardScenario",
+          "kind": "class",
+          "line": 90,
+          "public": true
+        },
+        {
+          "name": "_ui",
+          "kind": "function",
+          "line": 103,
+          "public": false
+        },
+        {
+          "name": "scenario",
+          "kind": "function",
+          "line": 216,
+          "public": true
+        },
+        {
+          "name": "Result",
+          "kind": "class",
+          "line": 225,
+          "public": true
+        },
+        {
+          "name": "_shape",
+          "kind": "function",
+          "line": 234,
+          "public": false
+        },
+        {
+          "name": "_judge",
+          "kind": "function",
+          "line": 238,
+          "public": false
+        },
+        {
+          "name": "preflight",
+          "kind": "function",
+          "line": 253,
+          "public": true
+        },
+        {
+          "name": "exit_code",
+          "kind": "function",
+          "line": 276,
+          "public": true
+        },
+        {
+          "name": "_want",
+          "kind": "function",
+          "line": 280,
+          "public": false
+        },
+        {
+          "name": "format_results",
+          "kind": "function",
+          "line": 284,
+          "public": true
+        },
+        {
+          "name": "reset",
+          "kind": "function",
+          "line": 300,
+          "public": true
+        },
+        {
+          "name": "switch_on",
+          "kind": "function",
+          "line": 315,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.dm_replies",
+      "file": "backend/scout/dm_replies.py",
+      "lines": 146,
+      "imports": [
+        "__future__",
+        "datetime",
+        "logging",
+        "scout.db",
+        "scout.loops.context",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_clip",
+          "kind": "function",
+          "line": 30,
+          "public": false
+        },
+        {
+          "name": "register",
+          "kind": "function",
+          "line": 35,
+          "public": true
+        },
+        {
+          "name": "pending_count",
+          "kind": "function",
+          "line": 44,
+          "public": true
+        },
+        {
+          "name": "_wording",
+          "kind": "function",
+          "line": 52,
+          "public": false
+        },
+        {
+          "name": "intercept",
+          "kind": "function",
+          "line": 57,
+          "public": true
+        },
+        {
+          "name": "acknowledge",
+          "kind": "function",
+          "line": 102,
+          "public": true
+        },
+        {
+          "name": "notify",
+          "kind": "function",
+          "line": 115,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.documents",
+      "file": "backend/scout/documents.py",
+      "lines": 43,
+      "imports": [
+        "__future__",
+        "base64",
+        "io",
+        "pypdf",
+        "re",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "pdf_text",
+          "kind": "function",
+          "line": 14,
+          "public": true
+        },
+        {
+          "name": "_binary_text",
+          "kind": "function",
+          "line": 27,
+          "public": false
+        },
+        {
+          "name": "document_text",
+          "kind": "function",
+          "line": 36,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.documents_api",
+      "file": "backend/scout/documents_api.py",
+      "lines": 53,
+      "imports": [
+        "__future__",
+        "cfo.api.auth",
+        "cfo.api.errors",
+        "cfo.api.settings",
+        "fastapi",
+        "fastapi.responses",
+        "scout.api",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "_owner_token",
+          "kind": "function",
+          "line": 23,
+          "public": false
+        },
+        {
+          "name": "_audit",
+          "kind": "function",
+          "line": 29,
+          "public": false
+        },
+        {
+          "name": "flagged_document",
+          "kind": "function",
+          "line": 37,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.forecast_bridge",
+      "file": "backend/scout/forecast_bridge.py",
+      "lines": 221,
+      "imports": [
+        "__future__",
+        "calendar",
+        "cfo.forecast",
+        "cfo.forecast.liquidity",
+        "cfo.llm",
+        "cfo.usage.recorder",
+        "collections.abc",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "json",
+        "pydantic",
+        "re",
+        "scout",
+        "scout.loops.context",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ForecastIntent",
+          "kind": "class",
+          "line": 28,
+          "public": true
+        },
+        {
+          "name": "ForecastRequest",
+          "kind": "class",
+          "line": 56,
+          "public": true
+        },
+        {
+          "name": "ForecastBridgeError",
+          "kind": "class",
+          "line": 77,
+          "public": true
+        },
+        {
+          "name": "_empty_arguments",
+          "kind": "function",
+          "line": 81,
+          "public": false
+        },
+        {
+          "name": "_scenario_date",
+          "kind": "function",
+          "line": 100,
+          "public": false
+        },
+        {
+          "name": "task_key",
+          "kind": "function",
+          "line": 107,
+          "public": true
+        },
+        {
+          "name": "_review",
+          "kind": "function",
+          "line": 115,
+          "public": false
+        },
+        {
+          "name": "_money",
+          "kind": "function",
+          "line": 149,
+          "public": false
+        },
+        {
+          "name": "_report",
+          "kind": "function",
+          "line": 153,
+          "public": false
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 171,
+          "public": true
+        },
+        {
+          "name": "_enqueue",
+          "kind": "function",
+          "line": 180,
+          "public": false
+        },
+        {
+          "name": "complete",
+          "kind": "function",
+          "line": 210,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.guardrails",
+      "file": "backend/scout/guardrails.py",
+      "lines": 650,
+      "imports": [
+        "__future__",
+        "cfo.observability",
+        "cfo.tenancy",
+        "dataclasses",
+        "hashlib",
+        "httpx",
+        "json",
+        "logging",
+        "os",
+        "psycopg",
+        "re",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "blocked_reply",
+          "kind": "function",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "Verdict",
+          "kind": "class",
+          "line": 73,
+          "public": true
+        },
+        {
+          "name": "_rail_names",
+          "kind": "function",
+          "line": 92,
+          "public": false
+        },
+        {
+          "name": "HttpGuardrails",
+          "kind": "class",
+          "line": 119,
+          "public": true
+        },
+        {
+          "name": "from_settings",
+          "kind": "function",
+          "line": 201,
+          "public": true
+        },
+        {
+          "name": "_organization_id",
+          "kind": "function",
+          "line": 217,
+          "public": false
+        },
+        {
+          "name": "_table",
+          "kind": "function",
+          "line": 224,
+          "public": false
+        },
+        {
+          "name": "clear_switch_cache",
+          "kind": "function",
+          "line": 228,
+          "public": true
+        },
+        {
+          "name": "switched_on",
+          "kind": "function",
+          "line": 236,
+          "public": true
+        },
+        {
+          "name": "_read_switch",
+          "kind": "function",
+          "line": 251,
+          "public": false
+        },
+        {
+          "name": "set_switch",
+          "kind": "function",
+          "line": 265,
+          "public": true
+        },
+        {
+          "name": "active",
+          "kind": "function",
+          "line": 286,
+          "public": true
+        },
+        {
+          "name": "_digest",
+          "kind": "function",
+          "line": 293,
+          "public": false
+        },
+        {
+          "name": "_messages",
+          "kind": "function",
+          "line": 297,
+          "public": false
+        },
+        {
+          "name": "_chunks",
+          "kind": "function",
+          "line": 307,
+          "public": false
+        },
+        {
+          "name": "check",
+          "kind": "function",
+          "line": 315,
+          "public": true
+        },
+        {
+          "name": "_audit_block",
+          "kind": "function",
+          "line": 351,
+          "public": false
+        },
+        {
+          "name": "_audit",
+          "kind": "function",
+          "line": 361,
+          "public": false
+        },
+        {
+          "name": "screen_human",
+          "kind": "function",
+          "line": 369,
+          "public": true
+        },
+        {
+          "name": "_strike",
+          "kind": "function",
+          "line": 386,
+          "public": false
+        },
+        {
+          "name": "_compliance_target",
+          "kind": "function",
+          "line": 406,
+          "public": false
+        },
+        {
+          "name": "_report",
+          "kind": "function",
+          "line": 417,
+          "public": false
+        },
+        {
+          "name": "_sha",
+          "kind": "function",
+          "line": 456,
+          "public": false
+        },
+        {
+          "name": "_outside_items",
+          "kind": "function",
+          "line": 460,
+          "public": false
+        },
+        {
+          "name": "alert_outside",
+          "kind": "function",
+          "line": 479,
+          "public": true
+        },
+        {
+          "name": "_notify_ceo_once",
+          "kind": "function",
+          "line": 483,
+          "public": false
+        },
+        {
+          "name": "_alert_outside",
+          "kind": "function",
+          "line": 502,
+          "public": false
+        },
+        {
+          "name": "screen_tool",
+          "kind": "function",
+          "line": 519,
+          "public": true
+        },
+        {
+          "name": "screen_document",
+          "kind": "function",
+          "line": 530,
+          "public": true
+        },
+        {
+          "name": "_luhn",
+          "kind": "function",
+          "line": 544,
+          "public": false
+        },
+        {
+          "name": "_mask_card",
+          "kind": "function",
+          "line": 554,
+          "public": false
+        },
+        {
+          "name": "mask_sensitive",
+          "kind": "function",
+          "line": 559,
+          "public": true
+        },
+        {
+          "name": "screen_output",
+          "kind": "function",
+          "line": 573,
+          "public": true
+        },
+        {
+          "name": "ksef_text",
+          "kind": "function",
+          "line": 602,
+          "public": true
+        },
+        {
+          "name": "_batches",
+          "kind": "function",
+          "line": 610,
+          "public": false
+        },
+        {
+          "name": "screen_history",
+          "kind": "function",
+          "line": 624,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.hiring_bridge",
+      "file": "backend/scout/hiring_bridge.py",
+      "lines": 306,
+      "imports": [
+        "__future__",
+        "calendar",
+        "cfo.forecast",
+        "cfo.forecast.liquidity",
+        "cfo.llm",
+        "cfo.usage.recorder",
+        "collections.abc",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "ipaddress",
+        "json",
+        "pydantic",
+        "re",
+        "scout",
+        "scout.forecast_bridge",
+        "scout.loops.context",
+        "scout.models",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "PublicSource",
+          "kind": "class",
+          "line": 31,
+          "public": true
+        },
+        {
+          "name": "MarketResearch",
+          "kind": "class",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "HiringIntent",
+          "kind": "class",
+          "line": 80,
+          "public": true
+        },
+        {
+          "name": "HiringRequest",
+          "kind": "class",
+          "line": 115,
+          "public": true
+        },
+        {
+          "name": "HiringBridgeError",
+          "kind": "class",
+          "line": 135,
+          "public": true
+        },
+        {
+          "name": "_key",
+          "kind": "function",
+          "line": 139,
+          "public": false
+        },
+        {
+          "name": "payroll_outflows",
+          "kind": "function",
+          "line": 149,
+          "public": true
+        },
+        {
+          "name": "_review",
+          "kind": "function",
+          "line": 161,
+          "public": false
+        },
+        {
+          "name": "_report",
+          "kind": "function",
+          "line": 184,
+          "public": false
+        },
+        {
+          "name": "_dispatch",
+          "kind": "function",
+          "line": 222,
+          "public": false
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 250,
+          "public": true
+        },
+        {
+          "name": "complete",
+          "kind": "function",
+          "line": 293,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.jobs",
+      "file": "backend/scout/jobs.py",
+      "lines": 124,
+      "imports": [
+        "__future__",
+        "datetime",
+        "psycopg.types.json",
+        "scout.db",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "lease_seconds",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "JobQueue",
+          "kind": "class",
+          "line": 33,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.ksef_api",
+      "file": "backend/scout/ksef_api.py",
+      "lines": 65,
+      "imports": [
+        "__future__",
+        "cfo.api.errors",
+        "fastapi",
+        "httpx",
+        "psycopg.types.json",
+        "scout",
+        "scout.api",
+        "scout.connectors.ksef",
+        "scout.demo_data",
+        "secrets",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ksef_connect",
+          "kind": "function",
+          "line": 26,
+          "public": true
+        },
+        {
+          "name": "play_ksef",
+          "kind": "function",
+          "line": 46,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.ksef_sync",
+      "file": "backend/scout/ksef_sync.py",
+      "lines": 433,
+      "imports": [
+        "__future__",
+        "cfo.data.invoices",
+        "cfo.db.repo",
+        "cfo.domain",
+        "collections.abc",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "logging",
+        "psycopg.types.json",
+        "random",
+        "re",
+        "scout",
+        "scout.audit",
+        "scout.connectors.ksef",
+        "scout.db",
+        "scout.demo_data",
+        "scout.loops",
+        "scout.models",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ensure_row",
+          "kind": "function",
+          "line": 59,
+          "public": true
+        },
+        {
+          "name": "supplier_nip",
+          "kind": "function",
+          "line": 68,
+          "public": true
+        },
+        {
+          "name": "_supplier_party",
+          "kind": "function",
+          "line": 73,
+          "public": false
+        },
+        {
+          "name": "invoice_xml",
+          "kind": "function",
+          "line": 82,
+          "public": true
+        },
+        {
+          "name": "new_payables",
+          "kind": "function",
+          "line": 95,
+          "public": true
+        },
+        {
+          "name": "Progress",
+          "kind": "class",
+          "line": 107,
+          "public": true
+        },
+        {
+          "name": "start",
+          "kind": "function",
+          "line": 128,
+          "public": true
+        },
+        {
+          "name": "abandon",
+          "kind": "function",
+          "line": 141,
+          "public": true
+        },
+        {
+          "name": "_candidates",
+          "kind": "function",
+          "line": 155,
+          "public": false
+        },
+        {
+          "name": "_tokens",
+          "kind": "function",
+          "line": 179,
+          "public": false
+        },
+        {
+          "name": "known_sellers",
+          "kind": "function",
+          "line": 183,
+          "public": true
+        },
+        {
+          "name": "trusted_seller",
+          "kind": "function",
+          "line": 188,
+          "public": true
+        },
+        {
+          "name": "invoice_row_id",
+          "kind": "function",
+          "line": 194,
+          "public": true
+        },
+        {
+          "name": "_import",
+          "kind": "function",
+          "line": 198,
+          "public": false
+        },
+        {
+          "name": "_screen",
+          "kind": "function",
+          "line": 246,
+          "public": false
+        },
+        {
+          "name": "_safe_screen",
+          "kind": "function",
+          "line": 282,
+          "public": false
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 290,
+          "public": true
+        },
+        {
+          "name": "demo_nip",
+          "kind": "function",
+          "line": 407,
+          "public": true
+        },
+        {
+          "name": "issue_demo_invoice",
+          "kind": "function",
+          "line": 412,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.llm_tasks",
+      "file": "backend/scout/llm_tasks.py",
+      "lines": 363,
+      "imports": [
+        "__future__",
+        "cfo.domain",
+        "cfo.llm",
+        "cfo.tenancy",
+        "cfo.usage.recorder",
+        "datetime",
+        "decimal",
+        "json",
+        "logging",
+        "pydantic",
+        "re",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ExtractedInvoice",
+          "kind": "class",
+          "line": 70,
+          "public": true
+        },
+        {
+          "name": "parse_amount",
+          "kind": "function",
+          "line": 81,
+          "public": true
+        },
+        {
+          "name": "parse_money",
+          "kind": "function",
+          "line": 97,
+          "public": true
+        },
+        {
+          "name": "_parse_amount",
+          "kind": "function",
+          "line": 122,
+          "public": false
+        },
+        {
+          "name": "_args_from",
+          "kind": "function",
+          "line": 156,
+          "public": false
+        },
+        {
+          "name": "extract_invoice",
+          "kind": "function",
+          "line": 171,
+          "public": true
+        },
+        {
+          "name": "alternative_queries",
+          "kind": "function",
+          "line": 215,
+          "public": true
+        },
+        {
+          "name": "explain",
+          "kind": "function",
+          "line": 237,
+          "public": true
+        },
+        {
+          "name": "ChatVerdict",
+          "kind": "class",
+          "line": 312,
+          "public": true
+        },
+        {
+          "name": "_call",
+          "kind": "function",
+          "line": 319,
+          "public": false
+        },
+        {
+          "name": "classify_chat",
+          "kind": "function",
+          "line": 329,
+          "public": true
+        },
+        {
+          "name": "classify_reply",
+          "kind": "function",
+          "line": 343,
+          "public": true
+        },
+        {
+          "name": "route_dm",
+          "kind": "function",
+          "line": 354,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.login_links",
+      "file": "backend/scout/login_links.py",
+      "lines": 52,
+      "imports": [
+        "__future__",
+        "hashlib",
+        "logging",
+        "psycopg",
+        "secrets"
+      ],
+      "definitions": [
+        {
+          "name": "organization",
+          "kind": "function",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "create",
+          "kind": "function",
+          "line": 32,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.__init__",
+      "file": "backend/scout/loops/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.chat",
+      "file": "backend/scout/loops/chat.py",
+      "lines": 511,
+      "imports": [
+        "__future__",
+        "cfo.db.repo",
+        "cfo.llm",
+        "cfo.tenancy",
+        "cfo.usage.recorder",
+        "collections.abc",
+        "json",
+        "logging",
+        "re",
+        "scout",
+        "scout.audit",
+        "scout.llm_tasks",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.loops.toolbox",
+        "scout.models",
+        "scout.policy",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_reply_target",
+          "kind": "function",
+          "line": 40,
+          "public": false
+        },
+        {
+          "name": "_thread_key",
+          "kind": "function",
+          "line": 62,
+          "public": false
+        },
+        {
+          "name": "_history",
+          "kind": "function",
+          "line": 70,
+          "public": false
+        },
+        {
+          "name": "_system",
+          "kind": "function",
+          "line": 83,
+          "public": false
+        },
+        {
+          "name": "tokens",
+          "kind": "function",
+          "line": 108,
+          "public": true
+        },
+        {
+          "name": "_size",
+          "kind": "function",
+          "line": 113,
+          "public": false
+        },
+        {
+          "name": "compact",
+          "kind": "function",
+          "line": 117,
+          "public": true
+        },
+        {
+          "name": "_shrink_tool_results",
+          "kind": "function",
+          "line": 152,
+          "public": false
+        },
+        {
+          "name": "ensure_files",
+          "kind": "function",
+          "line": 177,
+          "public": true
+        },
+        {
+          "name": "_succeeded",
+          "kind": "function",
+          "line": 209,
+          "public": false
+        },
+        {
+          "name": "check_claims",
+          "kind": "function",
+          "line": 217,
+          "public": true
+        },
+        {
+          "name": "answer",
+          "kind": "function",
+          "line": 235,
+          "public": true
+        },
+        {
+          "name": "slack_markdown",
+          "kind": "function",
+          "line": 291,
+          "public": true
+        },
+        {
+          "name": "_finish",
+          "kind": "function",
+          "line": 297,
+          "public": false
+        },
+        {
+          "name": "_request_files",
+          "kind": "function",
+          "line": 313,
+          "public": false
+        },
+        {
+          "name": "typed_answer",
+          "kind": "function",
+          "line": 351,
+          "public": true
+        },
+        {
+          "name": "_typed_approval",
+          "kind": "function",
+          "line": 360,
+          "public": false
+        },
+        {
+          "name": "on_dm",
+          "kind": "function",
+          "line": 384,
+          "public": true
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 507,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.context",
+      "file": "backend/scout/loops/context.py",
+      "lines": 180,
+      "imports": [
+        "__future__",
+        "cfo.llm",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "decimal",
+        "re",
+        "scout.audit",
+        "scout.config",
+        "scout.connectors.registry",
+        "scout.db",
+        "scout.jobs",
+        "scout.slack_directory",
+        "scout.tasks",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Button",
+          "kind": "class",
+          "line": 27,
+          "public": true
+        },
+        {
+          "name": "Notifier",
+          "kind": "class",
+          "line": 33,
+          "public": true
+        },
+        {
+          "name": "LogNotifier",
+          "kind": "class",
+          "line": 48,
+          "public": true
+        },
+        {
+          "name": "HR",
+          "kind": "class",
+          "line": 73,
+          "public": true
+        },
+        {
+          "name": "JobContext",
+          "kind": "class",
+          "line": 155,
+          "public": true
+        },
+        {
+          "name": "eur",
+          "kind": "function",
+          "line": 174,
+          "public": true
+        },
+        {
+          "name": "invoice_number_in",
+          "kind": "function",
+          "line": 178,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.cost_control",
+      "file": "backend/scout/loops/cost_control.py",
+      "lines": 70,
+      "imports": [
+        "__future__",
+        "cfo.analysis.cost_metrics",
+        "cfo.data.people",
+        "cfo.db.repo",
+        "decimal",
+        "scout.loops.context",
+        "scout.models"
+      ],
+      "definitions": [
+        {
+          "name": "_pct",
+          "kind": "function",
+          "line": 20,
+          "public": false
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 24,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.invoicing",
+      "file": "backend/scout/loops/invoicing.py",
+      "lines": 607,
+      "imports": [
+        "__future__",
+        "base64",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "logging",
+        "scout",
+        "scout.documents",
+        "scout.ksef_sync",
+        "scout.llm_tasks",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_kind_of",
+          "kind": "function",
+          "line": 35,
+          "public": false
+        },
+        {
+          "name": "_safe",
+          "kind": "function",
+          "line": 39,
+          "public": false
+        },
+        {
+          "name": "_doc_from_text",
+          "kind": "function",
+          "line": 49,
+          "public": false
+        },
+        {
+          "name": "Match",
+          "kind": "class",
+          "line": 63,
+          "public": true
+        },
+        {
+          "name": "_match",
+          "kind": "function",
+          "line": 76,
+          "public": false
+        },
+        {
+          "name": "_alert_flagged",
+          "kind": "function",
+          "line": 102,
+          "public": false
+        },
+        {
+          "name": "_keep_document",
+          "kind": "function",
+          "line": 113,
+          "public": false
+        },
+        {
+          "name": "_approval_pending",
+          "kind": "function",
+          "line": 122,
+          "public": false
+        },
+        {
+          "name": "hold_flagged",
+          "kind": "function",
+          "line": 128,
+          "public": true
+        },
+        {
+          "name": "decide_flagged",
+          "kind": "function",
+          "line": 163,
+          "public": true
+        },
+        {
+          "name": "_file",
+          "kind": "function",
+          "line": 183,
+          "public": false
+        },
+        {
+          "name": "_file_match",
+          "kind": "function",
+          "line": 201,
+          "public": false
+        },
+        {
+          "name": "_rung_system",
+          "kind": "function",
+          "line": 209,
+          "public": false
+        },
+        {
+          "name": "_rung_ksef",
+          "kind": "function",
+          "line": 236,
+          "public": false
+        },
+        {
+          "name": "_rung_files",
+          "kind": "function",
+          "line": 290,
+          "public": false
+        },
+        {
+          "name": "_rung_email",
+          "kind": "function",
+          "line": 318,
+          "public": false
+        },
+        {
+          "name": "_rung_chat",
+          "kind": "function",
+          "line": 346,
+          "public": false
+        },
+        {
+          "name": "_employee_of_slack",
+          "kind": "function",
+          "line": 390,
+          "public": false
+        },
+        {
+          "name": "_question",
+          "kind": "function",
+          "line": 396,
+          "public": false
+        },
+        {
+          "name": "_ask",
+          "kind": "function",
+          "line": 408,
+          "public": false
+        },
+        {
+          "name": "hand_over",
+          "kind": "function",
+          "line": 426,
+          "public": true
+        },
+        {
+          "name": "_schedule_reminder",
+          "kind": "function",
+          "line": 454,
+          "public": false
+        },
+        {
+          "name": "on_bank_txn",
+          "kind": "function",
+          "line": 461,
+          "public": true
+        },
+        {
+          "name": "on_reminder",
+          "kind": "function",
+          "line": 491,
+          "public": true
+        },
+        {
+          "name": "on_reply",
+          "kind": "function",
+          "line": 529,
+          "public": true
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 606,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.liquidity",
+      "file": "backend/scout/loops/liquidity.py",
+      "lines": 429,
+      "imports": [
+        "__future__",
+        "calendar",
+        "cfo.forecast.liquidity",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "langgraph.checkpoint.memory",
+        "langgraph.graph",
+        "langgraph.types",
+        "logging",
+        "re",
+        "scout",
+        "scout.llm_tasks",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.models",
+        "secrets",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "State",
+          "kind": "class",
+          "line": 31,
+          "public": true
+        },
+        {
+          "name": "_default_forecaster",
+          "kind": "function",
+          "line": 38,
+          "public": false
+        },
+        {
+          "name": "parse_month",
+          "kind": "function",
+          "line": 50,
+          "public": true
+        },
+        {
+          "name": "parse_eur",
+          "kind": "function",
+          "line": 72,
+          "public": true
+        },
+        {
+          "name": "direction_of",
+          "kind": "function",
+          "line": 82,
+          "public": true
+        },
+        {
+          "name": "money",
+          "kind": "function",
+          "line": 92,
+          "public": true
+        },
+        {
+          "name": "_lowest",
+          "kind": "function",
+          "line": 98,
+          "public": false
+        },
+        {
+          "name": "_graph",
+          "kind": "function",
+          "line": 107,
+          "public": false
+        },
+        {
+          "name": "_config",
+          "kind": "function",
+          "line": 129,
+          "public": false
+        },
+        {
+          "name": "_get_approval",
+          "kind": "function",
+          "line": 133,
+          "public": false
+        },
+        {
+          "name": "_send_card",
+          "kind": "function",
+          "line": 139,
+          "public": false
+        },
+        {
+          "name": "reassign",
+          "kind": "function",
+          "line": 149,
+          "public": true
+        },
+        {
+          "name": "_ask_approval",
+          "kind": "function",
+          "line": 179,
+          "public": false
+        },
+        {
+          "name": "_after_answer",
+          "kind": "function",
+          "line": 195,
+          "public": false
+        },
+        {
+          "name": "_tell_requester",
+          "kind": "function",
+          "line": 221,
+          "public": false
+        },
+        {
+          "name": "resume",
+          "kind": "function",
+          "line": 239,
+          "public": true
+        },
+        {
+          "name": "_review_steps",
+          "kind": "function",
+          "line": 264,
+          "public": false
+        },
+        {
+          "name": "_propose",
+          "kind": "function",
+          "line": 289,
+          "public": false
+        },
+        {
+          "name": "_chat_followup",
+          "kind": "function",
+          "line": 299,
+          "public": false
+        },
+        {
+          "name": "_status_done",
+          "kind": "function",
+          "line": 311,
+          "public": false
+        },
+        {
+          "name": "on_what_if",
+          "kind": "function",
+          "line": 332,
+          "public": true
+        },
+        {
+          "name": "on_review",
+          "kind": "function",
+          "line": 385,
+          "public": true
+        },
+        {
+          "name": "on_chat_scenario",
+          "kind": "function",
+          "line": 403,
+          "public": true
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 428,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.strategy",
+      "file": "backend/scout/loops/strategy.py",
+      "lines": 82,
+      "imports": [
+        "datetime",
+        "decimal",
+        "scout.loops.context",
+        "scout.models",
+        "scout.strategy",
+        "zoneinfo"
+      ],
+      "definitions": [
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 11,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.loops.toolbox",
+      "file": "backend/scout/loops/toolbox.py",
+      "lines": 874,
+      "imports": [
+        "__future__",
+        "base64",
+        "cfo.data.invoices",
+        "cfo.domain",
+        "cfo.llm",
+        "cfo.tenancy",
+        "csv",
+        "datetime",
+        "decimal",
+        "io",
+        "json",
+        "logging",
+        "psycopg",
+        "re",
+        "scout",
+        "scout.audit",
+        "scout.connectors.mail",
+        "scout.dashboard_help",
+        "scout.documents",
+        "scout.llm_tasks",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.models",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_p",
+          "kind": "function",
+          "line": 43,
+          "public": false
+        },
+        {
+          "name": "_num",
+          "kind": "function",
+          "line": 107,
+          "public": false
+        },
+        {
+          "name": "repair_args",
+          "kind": "function",
+          "line": 116,
+          "public": true
+        },
+        {
+          "name": "_rows",
+          "kind": "function",
+          "line": 137,
+          "public": false
+        },
+        {
+          "name": "Toolbox",
+          "kind": "class",
+          "line": 141,
+          "public": true
+        },
+        {
+          "name": "summarize",
+          "kind": "function",
+          "line": 857,
+          "public": true
+        },
+        {
+          "name": "dumps",
+          "kind": "function",
+          "line": 873,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.mock_bank.__init__",
+      "file": "backend/scout/mock_bank/__init__.py",
+      "lines": 1,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.mock_bank.__main__",
+      "file": "backend/scout/mock_bank/__main__.py",
+      "lines": 6,
+      "imports": [
+        "os",
+        "uvicorn"
+      ],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.mock_bank.app",
+      "file": "backend/scout/mock_bank/app.py",
+      "lines": 92,
+      "imports": [
+        "__future__",
+        "cfo.api.auth",
+        "cfo.api.errors",
+        "cfo.tenancy",
+        "datetime",
+        "decimal",
+        "fastapi",
+        "pydantic",
+        "scout",
+        "scout.mock_bank.store",
+        "scout.models",
+        "starlette.responses"
+      ],
+      "definitions": [
+        {
+          "name": "revolut_shape",
+          "kind": "function",
+          "line": 22,
+          "public": true
+        },
+        {
+          "name": "NewPayment",
+          "kind": "class",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "create_app",
+          "kind": "function",
+          "line": 50,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.mock_bank.store",
+      "file": "backend/scout/mock_bank/store.py",
+      "lines": 85,
+      "imports": [
+        "__future__",
+        "datetime",
+        "decimal",
+        "hashlib",
+        "scout.db",
+        "scout.models"
+      ],
+      "definitions": [
+        {
+          "name": "week_shift",
+          "kind": "function",
+          "line": 15,
+          "public": true
+        },
+        {
+          "name": "_row_to_txn",
+          "kind": "function",
+          "line": 25,
+          "public": false
+        },
+        {
+          "name": "BankStore",
+          "kind": "class",
+          "line": 32,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.models",
+      "file": "backend/scout/models.py",
+      "lines": 143,
+      "imports": [
+        "__future__",
+        "datetime",
+        "decimal",
+        "pydantic",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Task",
+          "kind": "class",
+          "line": 17,
+          "public": true
+        },
+        {
+          "name": "Step",
+          "kind": "class",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "Job",
+          "kind": "class",
+          "line": 58,
+          "public": true
+        },
+        {
+          "name": "Approval",
+          "kind": "class",
+          "line": 70,
+          "public": true
+        },
+        {
+          "name": "AuditEntry",
+          "kind": "class",
+          "line": 82,
+          "public": true
+        },
+        {
+          "name": "BankTxn",
+          "kind": "class",
+          "line": 97,
+          "public": true
+        },
+        {
+          "name": "MailHit",
+          "kind": "class",
+          "line": 113,
+          "public": true
+        },
+        {
+          "name": "ChatHit",
+          "kind": "class",
+          "line": 124,
+          "public": true
+        },
+        {
+          "name": "InvoiceDoc",
+          "kind": "class",
+          "line": 133,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.__init__",
+      "file": "backend/scout/onboarding/__init__.py",
+      "lines": 0,
+      "imports": [],
+      "definitions": [],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.api",
+      "file": "backend/scout/onboarding/api.py",
+      "lines": 113,
+      "imports": [
+        "__future__",
+        "cfo.api.errors",
+        "cfo.tenancy",
+        "fastapi",
+        "hashlib",
+        "pydantic",
+        "scout.api",
+        "scout.onboarding",
+        "scout.onboarding.catalog",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_no_store",
+          "kind": "function",
+          "line": 30,
+          "public": false
+        },
+        {
+          "name": "member",
+          "kind": "function",
+          "line": 35,
+          "public": true
+        },
+        {
+          "name": "owner",
+          "kind": "function",
+          "line": 39,
+          "public": true
+        },
+        {
+          "name": "get_setup",
+          "kind": "function",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "patch_setup",
+          "kind": "function",
+          "line": 60,
+          "public": true
+        },
+        {
+          "name": "connect",
+          "kind": "function",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "SlackChannels",
+          "kind": "class",
+          "line": 83,
+          "public": true
+        },
+        {
+          "name": "slack_channels",
+          "kind": "function",
+          "line": 89,
+          "public": true
+        },
+        {
+          "name": "disconnect",
+          "kind": "function",
+          "line": 96,
+          "public": true
+        },
+        {
+          "name": "callback",
+          "kind": "function",
+          "line": 103,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.catalog",
+      "file": "backend/scout/onboarding/catalog.py",
+      "lines": 144,
+      "imports": [
+        "__future__",
+        "pydantic",
+        "re",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "app_origin",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "expected_redirect",
+          "kind": "function",
+          "line": 42,
+          "public": true
+        },
+        {
+          "name": "clean_text",
+          "kind": "function",
+          "line": 51,
+          "public": true
+        },
+        {
+          "name": "StrictModel",
+          "kind": "class",
+          "line": 62,
+          "public": true
+        },
+        {
+          "name": "NetworkAnswers",
+          "kind": "class",
+          "line": 66,
+          "public": true
+        },
+        {
+          "name": "SetupUpdate",
+          "kind": "class",
+          "line": 90,
+          "public": true
+        },
+        {
+          "name": "Empty",
+          "kind": "class",
+          "line": 110,
+          "public": true
+        },
+        {
+          "name": "BunqConnect",
+          "kind": "class",
+          "line": 114,
+          "public": true
+        },
+        {
+          "name": "KsefConnect",
+          "kind": "class",
+          "line": 124,
+          "public": true
+        },
+        {
+          "name": "OAuthStart",
+          "kind": "class",
+          "line": 128,
+          "public": true
+        },
+        {
+          "name": "OAuthCallback",
+          "kind": "class",
+          "line": 139,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.gmail_oauth",
+      "file": "backend/scout/onboarding/gmail_oauth.py",
+      "lines": 118,
+      "imports": [
+        "__future__",
+        "base64",
+        "hashlib",
+        "httpx",
+        "scout.onboarding",
+        "secrets",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "MailAuthError",
+          "kind": "class",
+          "line": 20,
+          "public": true
+        },
+        {
+          "name": "new_pkce",
+          "kind": "function",
+          "line": 29,
+          "public": true
+        },
+        {
+          "name": "authorize_url",
+          "kind": "function",
+          "line": 35,
+          "public": true
+        },
+        {
+          "name": "_token_call",
+          "kind": "function",
+          "line": 42,
+          "public": false
+        },
+        {
+          "name": "_scopes",
+          "kind": "function",
+          "line": 61,
+          "public": false
+        },
+        {
+          "name": "exchange_code",
+          "kind": "function",
+          "line": 65,
+          "public": true
+        },
+        {
+          "name": "refresh_access_token",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "read_mailbox",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "revoke",
+          "kind": "function",
+          "line": 112,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.http",
+      "file": "backend/scout/onboarding/http.py",
+      "lines": 29,
+      "imports": [
+        "__future__",
+        "httpx",
+        "scout.connectors.ksef"
+      ],
+      "definitions": [
+        {
+          "name": "client",
+          "kind": "function",
+          "line": 26,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.oauth",
+      "file": "backend/scout/onboarding/oauth.py",
+      "lines": 53,
+      "imports": [
+        "__future__",
+        "hashlib",
+        "scout.config",
+        "scout.connectors.crypto",
+        "secrets",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "sha",
+          "kind": "function",
+          "line": 16,
+          "public": true
+        },
+        {
+          "name": "_verifier_key",
+          "kind": "function",
+          "line": 20,
+          "public": false
+        },
+        {
+          "name": "issue",
+          "kind": "function",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "consume",
+          "kind": "function",
+          "line": 38,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.service",
+      "file": "backend/scout/onboarding/service.py",
+      "lines": 449,
+      "imports": [
+        "__future__",
+        "cfo.api.errors",
+        "cfo.tenancy",
+        "dataclasses",
+        "datetime",
+        "httpx",
+        "json",
+        "logging",
+        "psycopg.types.json",
+        "scout.config",
+        "scout.connectors.bunq",
+        "scout.connectors.crypto",
+        "scout.connectors.ksef",
+        "scout.onboarding",
+        "scout.onboarding.catalog",
+        "scout.slack_runtime",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "Actor",
+          "kind": "class",
+          "line": 26,
+          "public": true
+        },
+        {
+          "name": "seal_secret",
+          "kind": "function",
+          "line": 32,
+          "public": true
+        },
+        {
+          "name": "open_secret",
+          "kind": "function",
+          "line": 36,
+          "public": true
+        },
+        {
+          "name": "upsert_connection",
+          "kind": "function",
+          "line": 47,
+          "public": true
+        },
+        {
+          "name": "has_credential",
+          "kind": "function",
+          "line": 67,
+          "public": true
+        },
+        {
+          "name": "audit",
+          "kind": "function",
+          "line": 74,
+          "public": true
+        },
+        {
+          "name": "fail",
+          "kind": "function",
+          "line": 79,
+          "public": true
+        },
+        {
+          "name": "needs_configuration",
+          "kind": "function",
+          "line": 84,
+          "public": true
+        },
+        {
+          "name": "connect_builtin",
+          "kind": "function",
+          "line": 90,
+          "public": true
+        },
+        {
+          "name": "connect_bunq",
+          "kind": "function",
+          "line": 103,
+          "public": true
+        },
+        {
+          "name": "revoke_bunq",
+          "kind": "function",
+          "line": 129,
+          "public": true
+        },
+        {
+          "name": "_monotonic",
+          "kind": "function",
+          "line": 143,
+          "public": false
+        },
+        {
+          "name": "_ksef_deadline",
+          "kind": "function",
+          "line": 148,
+          "public": false
+        },
+        {
+          "name": "connect_ksef",
+          "kind": "function",
+          "line": 167,
+          "public": true
+        },
+        {
+          "name": "_start_oauth",
+          "kind": "function",
+          "line": 200,
+          "public": false
+        },
+        {
+          "name": "connect_google",
+          "kind": "function",
+          "line": 216,
+          "public": true
+        },
+        {
+          "name": "callback_google",
+          "kind": "function",
+          "line": 238,
+          "public": true
+        },
+        {
+          "name": "revoke_google",
+          "kind": "function",
+          "line": 272,
+          "public": true
+        },
+        {
+          "name": "connect_slack",
+          "kind": "function",
+          "line": 292,
+          "public": true
+        },
+        {
+          "name": "callback_slack",
+          "kind": "function",
+          "line": 300,
+          "public": true
+        },
+        {
+          "name": "set_slack_channels",
+          "kind": "function",
+          "line": 382,
+          "public": true
+        },
+        {
+          "name": "revoke_slack",
+          "kind": "function",
+          "line": 407,
+          "public": true
+        },
+        {
+          "name": "disconnect",
+          "kind": "function",
+          "line": 422,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.slack_oauth",
+      "file": "backend/scout/onboarding/slack_oauth.py",
+      "lines": 161,
+      "imports": [
+        "__future__",
+        "httpx",
+        "scout.onboarding",
+        "typing",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "SlackAuthError",
+          "kind": "class",
+          "line": 24,
+          "public": true
+        },
+        {
+          "name": "authorize_url",
+          "kind": "function",
+          "line": 33,
+          "public": true
+        },
+        {
+          "name": "_post",
+          "kind": "function",
+          "line": 39,
+          "public": false
+        },
+        {
+          "name": "install",
+          "kind": "function",
+          "line": 58,
+          "public": true
+        },
+        {
+          "name": "_pages",
+          "kind": "function",
+          "line": 90,
+          "public": false
+        },
+        {
+          "name": "auto_join",
+          "kind": "function",
+          "line": 106,
+          "public": true
+        },
+        {
+          "name": "check_channel",
+          "kind": "function",
+          "line": 135,
+          "public": true
+        },
+        {
+          "name": "revoke",
+          "kind": "function",
+          "line": 154,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.onboarding.state",
+      "file": "backend/scout/onboarding/state.py",
+      "lines": 231,
+      "imports": [
+        "__future__",
+        "cfo.api.errors",
+        "cfo.tenancy",
+        "psycopg.types.json",
+        "scout.config",
+        "scout.onboarding.catalog",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "missing_config",
+          "kind": "function",
+          "line": 30,
+          "public": true
+        },
+        {
+          "name": "fetch",
+          "kind": "function",
+          "line": 48,
+          "public": true
+        },
+        {
+          "name": "_managed_connections",
+          "kind": "function",
+          "line": 54,
+          "public": false
+        },
+        {
+          "name": "record",
+          "kind": "function",
+          "line": 61,
+          "public": true
+        },
+        {
+          "name": "_derive",
+          "kind": "function",
+          "line": 81,
+          "public": false
+        },
+        {
+          "name": "_connected",
+          "kind": "function",
+          "line": 125,
+          "public": false
+        },
+        {
+          "name": "_derive_network",
+          "kind": "function",
+          "line": 146,
+          "public": false
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 162,
+          "public": true
+        },
+        {
+          "name": "update",
+          "kind": "function",
+          "line": 184,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.policy",
+      "file": "backend/scout/policy.py",
+      "lines": 249,
+      "imports": [
+        "__future__",
+        "cfo.domain",
+        "cfo.llm",
+        "cfo.usage.recorder",
+        "collections",
+        "collections.abc",
+        "decimal",
+        "json",
+        "pydantic",
+        "re",
+        "statistics"
+      ],
+      "definitions": [
+        {
+          "name": "_norm",
+          "kind": "function",
+          "line": 41,
+          "public": false
+        },
+        {
+          "name": "PolicyAction",
+          "kind": "class",
+          "line": 46,
+          "public": true
+        },
+        {
+          "name": "PolicyContext",
+          "kind": "class",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "PolicyDecision",
+          "kind": "class",
+          "line": 63,
+          "public": true
+        },
+        {
+          "name": "_eur",
+          "kind": "function",
+          "line": 68,
+          "public": false
+        },
+        {
+          "name": "_matching_rule",
+          "kind": "function",
+          "line": 72,
+          "public": false
+        },
+        {
+          "name": "classify",
+          "kind": "function",
+          "line": 91,
+          "public": true
+        },
+        {
+          "name": "context_from_transactions",
+          "kind": "function",
+          "line": 153,
+          "public": true
+        },
+        {
+          "name": "parse_rule",
+          "kind": "function",
+          "line": 197,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.seed",
+      "file": "backend/scout/seed.py",
+      "lines": 229,
+      "imports": [
+        "__future__",
+        "argparse",
+        "calendar",
+        "cfo.data",
+        "cfo.data.invoices",
+        "cfo.data.metrics",
+        "cfo.data.source",
+        "cfo.db.repo",
+        "cfo.domain",
+        "datetime",
+        "decimal",
+        "pathlib",
+        "psycopg.types.json",
+        "random",
+        "scout",
+        "scout.config",
+        "scout.demo_data",
+        "scout.mock_bank.store",
+        "shutil",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_remap_month",
+          "kind": "function",
+          "line": 59,
+          "public": false
+        },
+        {
+          "name": "_budget",
+          "kind": "function",
+          "line": 65,
+          "public": false
+        },
+        {
+          "name": "_shift_invoice",
+          "kind": "function",
+          "line": 69,
+          "public": false
+        },
+        {
+          "name": "_people",
+          "kind": "function",
+          "line": 76,
+          "public": false
+        },
+        {
+          "name": "_pdf",
+          "kind": "function",
+          "line": 89,
+          "public": false
+        },
+        {
+          "name": "poisoned_invoice",
+          "kind": "function",
+          "line": 100,
+          "public": true
+        },
+        {
+          "name": "plant_demo_evidence",
+          "kind": "function",
+          "line": 110,
+          "public": true
+        },
+        {
+          "name": "seed",
+          "kind": "function",
+          "line": 144,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 209,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    },
+    {
+      "module": "scout.slack_directory",
+      "file": "backend/scout/slack_directory.py",
+      "lines": 231,
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "hashlib",
+        "logging",
+        "re",
+        "secrets",
+        "typing",
+        "unicodedata"
+      ],
+      "definitions": [
+        {
+          "name": "_ensure",
+          "kind": "function",
+          "line": 48,
+          "public": false
+        },
+        {
+          "name": "parse_name",
+          "kind": "function",
+          "line": 69,
+          "public": true
+        },
+        {
+          "name": "profile_name",
+          "kind": "function",
+          "line": 82,
+          "public": true
+        },
+        {
+          "name": "is_human",
+          "kind": "function",
+          "line": 88,
+          "public": true
+        },
+        {
+          "name": "members",
+          "kind": "function",
+          "line": 93,
+          "public": true
+        },
+        {
+          "name": "match",
+          "kind": "function",
+          "line": 106,
+          "public": true
+        },
+        {
+          "name": "employee_of",
+          "kind": "function",
+          "line": 133,
+          "public": true
+        },
+        {
+          "name": "_slug",
+          "kind": "function",
+          "line": 140,
+          "public": false
+        },
+        {
+          "name": "provision",
+          "kind": "function",
+          "line": 145,
+          "public": true
+        },
+        {
+          "name": "link",
+          "kind": "function",
+          "line": 170,
+          "public": true
+        },
+        {
+          "name": "status",
+          "kind": "function",
+          "line": 186,
+          "public": true
+        },
+        {
+          "name": "claim_invite",
+          "kind": "function",
+          "line": 193,
+          "public": true
+        },
+        {
+          "name": "new_invite_token",
+          "kind": "function",
+          "line": 203,
+          "public": true
+        },
+        {
+          "name": "claim_connected",
+          "kind": "function",
+          "line": 216,
+          "public": true
+        },
+        {
+          "name": "registered_ids",
+          "kind": "function",
+          "line": 227,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.slack_runtime",
+      "file": "backend/scout/slack_runtime.py",
+      "lines": 462,
+      "imports": [
+        "__future__",
+        "cfo.tenancy",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "hashlib",
+        "logging",
+        "psycopg",
+        "psycopg.rows",
+        "scout",
+        "scout.config",
+        "scout.connectors.crypto",
+        "scout.worker",
+        "slack_bolt",
+        "slack_bolt.authorization",
+        "slack_sdk",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "ActiveInstallation",
+          "kind": "class",
+          "line": 30,
+          "public": true
+        },
+        {
+          "name": "select_installation",
+          "kind": "function",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "dispatch",
+          "kind": "function",
+          "line": 55,
+          "public": true
+        },
+        {
+          "name": "_row",
+          "kind": "function",
+          "line": 69,
+          "public": false
+        },
+        {
+          "name": "installation_current",
+          "kind": "function",
+          "line": 83,
+          "public": true
+        },
+        {
+          "name": "GuardedSlackClient",
+          "kind": "class",
+          "line": 101,
+          "public": true
+        },
+        {
+          "name": "load_installations",
+          "kind": "function",
+          "line": 114,
+          "public": true
+        },
+        {
+          "name": "team_owner",
+          "kind": "function",
+          "line": 169,
+          "public": true
+        },
+        {
+          "name": "join_organization",
+          "kind": "function",
+          "line": 197,
+          "public": true
+        },
+        {
+          "name": "authorize",
+          "kind": "function",
+          "line": 238,
+          "public": true
+        },
+        {
+          "name": "SlackSupervisor",
+          "kind": "class",
+          "line": 252,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.slack_ui",
+      "file": "backend/scout/slack_ui.py",
+      "lines": 515,
+      "imports": [
+        "__future__",
+        "base64",
+        "collections.abc",
+        "httpx",
+        "logging",
+        "re",
+        "scout",
+        "scout.audit",
+        "scout.jobs",
+        "scout.loops.context",
+        "scout.models",
+        "scout.tasks",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_escape",
+          "kind": "function",
+          "line": 46,
+          "public": false
+        },
+        {
+          "name": "slack_names",
+          "kind": "function",
+          "line": 50,
+          "public": true
+        },
+        {
+          "name": "_split",
+          "kind": "function",
+          "line": 67,
+          "public": false
+        },
+        {
+          "name": "SlackUI",
+          "kind": "class",
+          "line": 72,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.strategy",
+      "file": "backend/scout/strategy.py",
+      "lines": 157,
+      "imports": [
+        "__future__",
+        "datetime",
+        "decimal",
+        "email.utils",
+        "httpx",
+        "re",
+        "statistics",
+        "urllib.parse",
+        "xml.etree"
+      ],
+      "definitions": [
+        {
+          "name": "clean",
+          "kind": "function",
+          "line": 31,
+          "public": true
+        },
+        {
+          "name": "parse_feed",
+          "kind": "function",
+          "line": 35,
+          "public": true
+        },
+        {
+          "name": "fetch_news",
+          "kind": "function",
+          "line": 78,
+          "public": true
+        },
+        {
+          "name": "month_after",
+          "kind": "function",
+          "line": 106,
+          "public": true
+        },
+        {
+          "name": "growth_scenarios",
+          "kind": "function",
+          "line": 111,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.tasks",
+      "file": "backend/scout/tasks.py",
+      "lines": 144,
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "logging",
+        "psycopg.types.json",
+        "scout.db",
+        "scout.models",
+        "threading",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "TaskRecorder",
+          "kind": "class",
+          "line": 24,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.watchers",
+      "file": "backend/scout/watchers.py",
+      "lines": 132,
+      "imports": [
+        "__future__",
+        "base64",
+        "cfo.data.source",
+        "datetime",
+        "logging",
+        "psycopg.types.json",
+        "scout.connectors.registry",
+        "scout.db",
+        "scout.jobs",
+        "scout.loops.context",
+        "scout.tasks",
+        "typing",
+        "zoneinfo"
+      ],
+      "definitions": [
+        {
+          "name": "_cursor",
+          "kind": "function",
+          "line": 28,
+          "public": false
+        },
+        {
+          "name": "_save",
+          "kind": "function",
+          "line": 34,
+          "public": false
+        },
+        {
+          "name": "BankWatcher",
+          "kind": "class",
+          "line": 41,
+          "public": true
+        },
+        {
+          "name": "MailWatcher",
+          "kind": "class",
+          "line": 78,
+          "public": true
+        },
+        {
+          "name": "Scheduler",
+          "kind": "class",
+          "line": 114,
+          "public": true
+        }
+      ],
+      "entrypoint": false
+    },
+    {
+      "module": "scout.worker",
+      "file": "backend/scout/worker.py",
+      "lines": 411,
+      "imports": [
+        "__future__",
+        "cfo.llm",
+        "cfo.observability",
+        "cfo.tenancy",
+        "collections.abc",
+        "logging",
+        "psycopg",
+        "scout",
+        "scout.audit",
+        "scout.config",
+        "scout.connectors",
+        "scout.connectors.ksef",
+        "scout.jobs",
+        "scout.loops",
+        "scout.loops.context",
+        "scout.models",
+        "scout.slack_runtime",
+        "scout.slack_ui",
+        "scout.tasks",
+        "scout.watchers",
+        "signal",
+        "slack_bolt",
+        "slack_bolt.adapter.socket_mode",
+        "socket",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "definitions": [
+        {
+          "name": "_approval",
+          "kind": "function",
+          "line": 38,
+          "public": false
+        },
+        {
+          "name": "_ksef_connect",
+          "kind": "function",
+          "line": 46,
+          "public": false
+        },
+        {
+          "name": "_ksef_abandon",
+          "kind": "function",
+          "line": 53,
+          "public": false
+        },
+        {
+          "name": "parse_user_map",
+          "kind": "function",
+          "line": 75,
+          "public": true
+        },
+        {
+          "name": "tenant_user_map",
+          "kind": "function",
+          "line": 85,
+          "public": true
+        },
+        {
+          "name": "organization_of",
+          "kind": "function",
+          "line": 115,
+          "public": true
+        },
+        {
+          "name": "_task_of",
+          "kind": "function",
+          "line": 131,
+          "public": false
+        },
+        {
+          "name": "Worker",
+          "kind": "class",
+          "line": 155,
+          "public": true
+        },
+        {
+          "name": "build",
+          "kind": "function",
+          "line": 276,
+          "public": true
+        },
+        {
+          "name": "_build",
+          "kind": "function",
+          "line": 288,
+          "public": false
+        },
+        {
+          "name": "should_run_primary",
+          "kind": "function",
+          "line": 360,
+          "public": true
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 365,
+          "public": true
+        }
+      ],
+      "entrypoint": true
+    }
+  ],
+  "routes": [
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/healthz",
+      "handler": "cfo.api.app.healthz",
+      "file": "backend/cfo/api/app.py",
+      "line": 80,
+      "default_status": 200,
+      "parameters": "",
+      "response_annotation": "Health"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/",
+      "handler": "cfo.api.app.index",
+      "file": "backend/cfo/api/app.py",
+      "line": 84,
+      "default_status": 200,
+      "parameters": "",
+      "response_annotation": "RedirectResponse"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/cost-metrics",
+      "handler": "cfo.api.routers.cost_metrics.get_cost_metrics",
+      "file": "backend/cfo/api/routers/cost_metrics.py",
+      "line": 17,
+      "default_status": 200,
+      "parameters": "kind: Annotated[CostMetricKind | None, Query(description='Only this pair.')]=None, repo: Repository=Depends(get_repo)",
+      "response_annotation": "Collection[CostMetricSeries]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/costs/by-team",
+      "handler": "cfo.api.routers.costs.get_costs_by_team",
+      "file": "backend/cfo/api/routers/costs.py",
+      "line": 17,
+      "default_status": 200,
+      "parameters": "from_: Annotated[date | None, Query(alias='from', description='First day, ISO date. Default: first day of the first month with bookings.')]=None, to: Annotated[date | None, Query(description='Last day, ISO date. Default: last booking day.')]=None, repo: Repository=Depends(get_repo)",
+      "response_annotation": "CostsByTeam"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/forecast/liquidity",
+      "handler": "cfo.api.routers.forecast.get_liquidity_forecast",
+      "file": "backend/cfo/api/routers/forecast.py",
+      "line": 16,
+      "default_status": 200,
+      "parameters": "horizon_days: Annotated[int, Query(ge=7, le=services.MAX_HORIZON_DAYS, description='Days ahead. 90 for the dashboard chart, 365 to see the June dip.')]=90, granularity: Annotated[Literal['day', 'week'], Query(description='Spacing of `points`.')]='week', repo: Repository=Depends(get_repo)",
+      "response_annotation": "LiquidityForecast"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/kpis",
+      "handler": "cfo.api.routers.kpis.get_kpis",
+      "file": "backend/cfo/api/routers/kpis.py",
+      "line": 12,
+      "default_status": 200,
+      "parameters": "repo: Repository=Depends(get_repo)",
+      "response_annotation": "Kpis"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/llm/usage",
+      "handler": "cfo.api.routers.llm_usage.get_llm_usage",
+      "file": "backend/cfo/api/routers/llm_usage.py",
+      "line": 39,
+      "default_status": 200,
+      "parameters": "from_: Annotated[datetime | None, Query(alias='from', description='Start (inclusive), ISO 8601. Default: 7 days before `to`.')]=None, to: Annotated[datetime | None, Query(description='End (exclusive), ISO 8601. Default: now.')]=None, group_by: Annotated[Literal['day', 'hour', 'event_type', 'purpose'], Query(description='Bucket size or dimension.')]='day', repo: Repository=Depends(get_repo), clock: Callable[[], datetime]=Depends(get_clock), settings: UsageSettings=Depends(get_usage_config)",
+      "response_annotation": "dict"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/llm/usage/live",
+      "handler": "cfo.api.routers.llm_usage.get_llm_usage_live",
+      "file": "backend/cfo/api/routers/llm_usage.py",
+      "line": 60,
+      "default_status": 200,
+      "parameters": "repo: Repository=Depends(get_repo), clock: Callable[[], datetime]=Depends(get_clock), settings: UsageSettings=Depends(get_usage_config)",
+      "response_annotation": "dict"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/strategy/review",
+      "handler": "scout.api.strategy_review",
+      "file": "backend/scout/api.py",
+      "line": 75,
+      "default_status": 200,
+      "parameters": "conn: Conn, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/tasks",
+      "handler": "scout.api.list_tasks",
+      "file": "backend/scout/api.py",
+      "line": 91,
+      "default_status": 200,
+      "parameters": "conn: Conn, status: str | None=None, loop: str | None=None, owner: str | None=None, q: str | None=None, limit: Annotated[int, Query(ge=1, le=200)]=50",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/tasks/stream",
+      "handler": "scout.api.task_stream",
+      "file": "backend/scout/api.py",
+      "line": 110,
+      "default_status": 200,
+      "parameters": "settings: Settings",
+      "response_annotation": "StreamingResponse"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/tasks/{task_id}",
+      "handler": "scout.api.get_task",
+      "file": "backend/scout/api.py",
+      "line": 134,
+      "default_status": 200,
+      "parameters": "task_id: str, conn: Conn",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/approvals",
+      "handler": "scout.api.list_approvals",
+      "file": "backend/scout/api.py",
+      "line": 150,
+      "default_status": 200,
+      "parameters": "conn: Conn, status: str='pending'",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/approvals/{approval_id}:approve",
+      "handler": "scout.api.approve",
+      "file": "backend/scout/api.py",
+      "line": 174,
+      "default_status": 200,
+      "parameters": "approval_id: str, conn: Conn, by: WriteAuth, settings: Settings",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/approvals/{approval_id}:reject",
+      "handler": "scout.api.reject",
+      "file": "backend/scout/api.py",
+      "line": 179,
+      "default_status": 200,
+      "parameters": "approval_id: str, conn: Conn, by: WriteAuth, settings: Settings",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/audit",
+      "handler": "scout.api.audit",
+      "file": "backend/scout/api.py",
+      "line": 185,
+      "default_status": 200,
+      "parameters": "conn: Conn, task_id: str | None=None, decision: str | None=None, limit: Annotated[int, Query(ge=1, le=500)]=100",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/transactions/{transaction_id}/invoice",
+      "handler": "scout.api.transaction_invoice",
+      "file": "backend/scout/api.py",
+      "line": 202,
+      "default_status": 200,
+      "parameters": "transaction_id: str, conn: Conn",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/connections",
+      "handler": "scout.api.connections",
+      "file": "backend/scout/api.py",
+      "line": 255,
+      "default_status": 200,
+      "parameters": "conn: Conn, settings: Settings",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/connections/{connection_id}:enable",
+      "handler": "scout.api.enable",
+      "file": "backend/scout/api.py",
+      "line": 274,
+      "default_status": 200,
+      "parameters": "connection_id: str, conn: Conn, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/connections/{connection_id}:disable",
+      "handler": "scout.api.disable",
+      "file": "backend/scout/api.py",
+      "line": 279,
+      "default_status": 200,
+      "parameters": "connection_id: str, conn: Conn, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/connections/google/start",
+      "handler": "scout.api.google_start",
+      "file": "backend/scout/api.py",
+      "line": 323,
+      "default_status": 200,
+      "parameters": "settings: Settings, _: WriteAuth",
+      "response_annotation": "dict[str, str]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/connections/google/callback",
+      "handler": "scout.api.google_callback",
+      "file": "backend/scout/api.py",
+      "line": 350,
+      "default_status": 200,
+      "parameters": "conn: Conn, settings: Settings, code: str='', state: str='', error: str=''",
+      "response_annotation": "RedirectResponse"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/demo/play/{scenario}",
+      "handler": "scout.api.play",
+      "file": "backend/scout/api.py",
+      "line": 380,
+      "default_status": 200,
+      "parameters": "scenario: str, settings: Settings, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/chat",
+      "handler": "scout.chat_api.chat_endpoint",
+      "file": "backend/scout/chat_api.py",
+      "line": 170,
+      "default_status": 200,
+      "parameters": "body: ChatRequest, by: Annotated[str | None, Depends(require_write_token)], settings: Annotated[ScoutSettings, Depends(get_scout_settings)], make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]",
+      "response_annotation": "StreamingResponse"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/chat/forecast",
+      "handler": "scout.chat_api.forecast_endpoint",
+      "file": "backend/scout/chat_api.py",
+      "line": 275,
+      "default_status": 200,
+      "parameters": "body: ForecastRequest, by: Annotated[str | None, Depends(require_write_token)], settings: Annotated[ScoutSettings, Depends(get_scout_settings)], make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]",
+      "response_annotation": "StreamingResponse"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/chat/hiring",
+      "handler": "scout.chat_api.hiring_endpoint",
+      "file": "backend/scout/chat_api.py",
+      "line": 344,
+      "default_status": 200,
+      "parameters": "body: HiringRequest, by: Annotated[str | None, Depends(require_write_token)], settings: Annotated[ScoutSettings, Depends(get_scout_settings)], make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]",
+      "response_annotation": "StreamingResponse"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/chat/followups/ack",
+      "handler": "scout.chat_api.ack_followups",
+      "file": "backend/scout/chat_api.py",
+      "line": 406,
+      "default_status": 200,
+      "parameters": "body: AckRequest, conn: Conn, by: WriteAuth, settings: Annotated[ScoutSettings, Depends(get_scout_settings)]",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/documents/{document_id}",
+      "handler": "scout.documents_api.flagged_document",
+      "file": "backend/scout/documents_api.py",
+      "line": 37,
+      "default_status": 200,
+      "parameters": "document_id: int, conn: Conn, who: Annotated[str, Depends(_owner_token)]",
+      "response_annotation": "Response"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/connections/ksef:connect",
+      "handler": "scout.ksef_api.ksef_connect",
+      "file": "backend/scout/ksef_api.py",
+      "line": 26,
+      "default_status": 202,
+      "parameters": "conn: Conn, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/demo/play/ksef",
+      "handler": "scout.ksef_api.play_ksef",
+      "file": "backend/scout/ksef_api.py",
+      "line": 46,
+      "default_status": 200,
+      "parameters": "settings: Settings, _: WriteAuth",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "bank-mock",
+      "method": "GET",
+      "path": "/api/1.0/accounts",
+      "handler": "scout.mock_bank.app.accounts",
+      "file": "backend/scout/mock_bank/app.py",
+      "line": 71,
+      "default_status": 200,
+      "parameters": "",
+      "response_annotation": "list[dict]"
+    },
+    {
+      "service": "bank-mock",
+      "method": "GET",
+      "path": "/api/1.0/transactions",
+      "handler": "scout.mock_bank.app.transactions",
+      "file": "backend/scout/mock_bank/app.py",
+      "line": 76,
+      "default_status": 200,
+      "parameters": "from_: datetime | None=Query(None, alias='from'), to: datetime | None=None, count: int=Query(1000, le=1000)",
+      "response_annotation": "list[dict]"
+    },
+    {
+      "service": "bank-mock",
+      "method": "POST",
+      "path": "/mock/transactions",
+      "handler": "scout.mock_bank.app.post",
+      "file": "backend/scout/mock_bank/app.py",
+      "line": 81,
+      "default_status": 201,
+      "parameters": "body: NewPayment",
+      "response_annotation": "dict"
+    },
+    {
+      "service": "bank-mock",
+      "method": "GET",
+      "path": "/healthz",
+      "handler": "scout.mock_bank.app.healthz",
+      "file": "backend/scout/mock_bank/app.py",
+      "line": 86,
+      "default_status": 200,
+      "parameters": "",
+      "response_annotation": "dict"
+    },
+    {
+      "service": "api",
+      "method": "GET",
+      "path": "/v1/onboarding",
+      "handler": "scout.onboarding.api.get_setup",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 55,
+      "default_status": 200,
+      "parameters": "conn: Conn, settings: Settings, tenant: Reader",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "PATCH",
+      "path": "/v1/onboarding",
+      "handler": "scout.onboarding.api.patch_setup",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 60,
+      "default_status": 200,
+      "parameters": "body: SetupUpdate, conn: Conn, settings: Settings, actor: Owner",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/onboarding/connect/{provider}",
+      "handler": "scout.onboarding.api.connect",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 67,
+      "default_status": 200,
+      "parameters": "provider: Provider, body: dict[str, Any], conn: Conn, settings: Settings, actor: Owner",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "PUT",
+      "path": "/v1/onboarding/slack/channels",
+      "handler": "scout.onboarding.api.slack_channels",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 89,
+      "default_status": 200,
+      "parameters": "body: SlackChannels, conn: Conn, settings: Settings, actor: Owner",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "DELETE",
+      "path": "/v1/onboarding/connect/{provider}",
+      "handler": "scout.onboarding.api.disconnect",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 96,
+      "default_status": 200,
+      "parameters": "provider: Provider, conn: Conn, settings: Settings, actor: Owner",
+      "response_annotation": "dict[str, Any]"
+    },
+    {
+      "service": "api",
+      "method": "POST",
+      "path": "/v1/onboarding/callback/{provider}",
+      "handler": "scout.onboarding.api.callback",
+      "file": "backend/scout/onboarding/api.py",
+      "line": 103,
+      "default_status": 200,
+      "parameters": "provider: OAuthProvider, body: OAuthCallback, conn: Conn, settings: Settings, actor: Owner",
+      "response_annotation": "dict[str, Any]"
+    }
+  ]
+}

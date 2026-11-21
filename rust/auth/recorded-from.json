@@ -1,0 +1,23 @@
+{
+  "unit": "bindings.ts",
+  "files": 1,
+  "fingerprint": "90bd1d49ff2a4bf3",
+  "coverage": {
+    "lines": 88,
+    "reached": 88,
+    "files": [
+      {
+        "file": "bindings.ts",
+        "lines": 56,
+        "reached": 56,
+        "missed": ""
+      },
+      {
+        "file": "original.ts",
+        "lines": 32,
+        "reached": 32,
+        "missed": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,801 @@
+{"fn":"checkValidSlug","args":["a😀b😀c"],"ok":false}
+{"fn":"checkValidSlug","args":["straße"],"ok":false}
+{"fn":"checkValidSlug","args":["asrc/a/b.ts"],"ok":false}
+{"fn":"checkValidSlug","args":["abca😀b😀c"],"ok":false}
+{"fn":"checkValidSlug","args":["line1\nline2ünïcödé"],"ok":false}
+{"fn":"checkValidSlug","args":["  padded  ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkValidSlug","args":["tab\tseparated"],"ok":false}
+{"fn":"checkValidSlug","args":["Hello Worldkey_name-1"],"ok":false}
+{"fn":"checkValidSlug","args":["Hello World"],"ok":false}
+{"fn":"checkValidSlug","args":["a"],"ok":false}
+{"fn":"checkValidSlug","args":["Hello Worldé"],"ok":false}
+{"fn":"checkValidSlug","args":[""],"ok":false}
+{"fn":"checkValidSlug","args":["a:b:c"],"ok":false}
+{"fn":"checkValidSlug","args":["helloHELLO"],"ok":false}
+{"fn":"checkValidSlug","args":["HELLO"],"ok":false}
+{"fn":"checkValidSlug","args":["﻿bom"],"ok":false}
+{"fn":"checkValidSlug","args":["日本語のテキスト"],"ok":false}
+{"fn":"checkValidSlug","args":["emoji 👍🏽 mix"],"ok":false}
+{"fn":"checkValidSlug","args":["abc﻿bom"],"ok":false}
+{"fn":"checkValidSlug","args":["😀"],"ok":false}
+{"fn":"checkValidSlug","args":["héllo wörld"],"ok":false}
+{"fn":"checkValidSlug","args":["👍🏽 thumbs"],"ok":false}
+{"fn":"checkValidSlug","args":["日本語"],"ok":false}
+{"fn":"checkValidSlug","args":["é"],"ok":false}
+{"fn":"checkValidSlug","args":["İstanbul"],"ok":false}
+{"fn":"checkValidSlug","args":["ılık ırmak"],"ok":false}
+{"fn":"checkValidSlug","args":["👨‍👩‍👧 family"],"ok":false}
+{"fn":"checkValidSlug","args":["a b"],"ok":false}
+{"fn":"checkValidSlug","args":["ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkValidSlug","args":["a😀b"],"ok":false}
+{"fn":"checkValidSlug","args":["a²b x½ y①"],"ok":false}
+{"fn":"checkValidSlug","args":["aⅠb Ⅻ"],"ok":false}
+{"fn":"checkValidSlug","args":["a𐐀b 𝐀bc"],"ok":false}
+{"fn":"checkValidSlug","args":["कि ٣٤"],"ok":false}
+{"fn":"checkValidSlug","args":["Iı İi"],"ok":false}
+{"fn":"checkValidSlug","args":["K K k"],"ok":false}
+{"fn":"checkValidSlug","args":["ſ s S"],"ok":false}
+{"fn":"checkValidSlug","args":["x‍y 👨‍👩‍👧"],"ok":false}
+{"fn":"checkValidSlug","args":["a b c　d"],"ok":false}
+{"fn":"checkValidSlug","args":["١٢٣ ٤٥"],"ok":false}
+{"fn":"checkValidSlug","args":["𝟘𝟙 ²³"],"ok":false}
+{"fn":"checkValidSlug","args":["snake_case foo-bar o'neil"],"ok":false}
+{"fn":"checkValidSlug","args":["ǅungla Ǆ"],"ok":false}
+{"fn":"checkValidSlug","args":["one\r\ntwo threefour"],"ok":false}
+{"fn":"checkValidSlug","args":["café café"],"ok":false}
+{"fn":"checkValidSlug","args":["ΣΑΣ σας ς"],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["","ns:key.path",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["é","ünïcödé",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["src/a/b.ts:","😀",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a","A",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["é","😀",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["added  ","  padded  ",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["{name} has {count} items","a.b.c",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["trailing.","src/a/b.ts",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["src/a/b.tsab","a",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["trailing.","ns:key.path",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":[".leading","a..b",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":[".leading","./x/**/*.json",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["  padded  ","  padded",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a","src/a/b.ts",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["line1\nline2","hello",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["😀","é",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ab","emoji 👍🏽 mix",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["日本語のテキスト","a.b.c",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["key_name-1","line1\nline2abc",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["héllo wörld","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["👍🏽 thumbs","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["日本語","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["é","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["İstanbul","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["straße","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ılık ırmak","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["👨‍👩‍👧 family","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a b","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ΣΊΣΥΦΟΣ","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a😀b","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["﻿bom","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a²b x½ y①","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["aⅠb Ⅻ","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a𐐀b 𝐀bc","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["कि ٣٤","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["Iı İi","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["K K k","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ſ s S","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["x‍y 👨‍👩‍👧","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a b c　d","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["١٢٣ ٤٥","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["𝟘𝟙 ²³","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["snake_case foo-bar o'neil","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ǅungla Ǆ","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["one\r\ntwo threefour","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["café café","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["ΣΑΣ σας ς","  padded  ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","héllo wörld",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","👍🏽 thumbs",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","日本語",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","é",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","İstanbul",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","straße",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","ılık ırmak",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","👨‍👩‍👧 family",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","a b",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","ΣΊΣΥΦΟΣ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","a😀b",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","﻿bom",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","a²b x½ y①",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","aⅠb Ⅻ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","a𐐀b 𝐀bc",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","कि ٣٤",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","Iı İi",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","K K k",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","ſ s S",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","x‍y 👨‍👩‍👧",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","a b c　d",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","١٢٣ ٤٥",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","𝟘𝟙 ²³",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","snake_case foo-bar o'neil",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","ǅungla Ǆ",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","one\r\ntwo threefour",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","café café",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["a..b","ΣΑΣ σας ς",true],"ok":false}
+{"fn":"checkTokenHash","args":["Hello World"],"ok":"a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"}
+{"fn":"checkTokenHash","args":["é"],"ok":"bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6"}
+{"fn":"checkTokenHash","args":[".leading"],"ok":"9c74491a21e8fc7a9b48d53d4432be058b3ae9771f0d6ce92881805dc8947feb"}
+{"fn":"checkTokenHash","args":["hello"],"ok":"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"}
+{"fn":"checkTokenHash","args":["a😀b😀c"],"ok":"3b0fa9d763b5cb38e6cdd6c5d95ca5fea8cf1d5f54570b87b06f3c8c22fe47d1"}
+{"fn":"checkTokenHash","args":["﻿bom"],"ok":"2623148f0d047ef6feae63422c0d60741888ae7f45fd979ba232e1c975c14702"}
+{"fn":"checkTokenHash","args":["src/a/b.ts"],"ok":"eb7041468cb32feadbbbcf82b6cf05326b26c717d315fc2a4cef3eaa16b0aaed"}
+{"fn":"checkTokenHash","args":["ünïcödé"],"ok":"b09ad3e278dfb341468394a32f732467e2245b4b2876c3e15e0aaf1aa5ac242a"}
+{"fn":"checkTokenHash","args":["emoji 👍🏽 mix"],"ok":"7839fd7a65ab6e7d304ce23023e26614284e9c745c139718a7d4ac50e9db5330"}
+{"fn":"checkTokenHash","args":["line1\nline2"],"ok":"683376e290829b482c2655745caffa7a1dccfa10afaa62dac2b42dd6c68d0f83"}
+{"fn":"checkTokenHash","args":["﻿bomab"],"ok":"599947262f4cad0d6864ede9e4af0536bf68823461fbaed093843008533a1ad9"}
+{"fn":"checkTokenHash","args":["  padded  "],"ok":"3d4a55719d2ebc89e0e90d5c6ca663ba4871cb0aa98603cf716bf343db149465"}
+{"fn":"checkTokenHash","args":["tab\tseparated"],"ok":"737304a727e038b1b7006995771a6087621516d1337a62877c80a7406b1d4b1c"}
+{"fn":"checkTokenHash","args":["trailing."],"ok":"44c12a4e432eba3f7fa634fd116eef3900ad9166688cb40c3f488ef3a5320316"}
+{"fn":"checkTokenHash","args":["ns:key.path"],"ok":"090ed4bc851381c01fc77d9df176dfe517adb082c4601d1e6241d0492bf78d83"}
+{"fn":"checkTokenHash","args":["éa.b.c"],"ok":"4727f6b2fd5f5b9f5688d9e4ee6a5f0a4ddea21b794c49170031fd6d7ffa4a2e"}
+{"fn":"checkTokenHash","args":["abc"],"ok":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}
+{"fn":"checkTokenHash","args":["src/a/b.tsstraße"],"ok":"4b95a639da5939bbc75a07629ae64006842be7268abcb0fa42ea9a509b30ac2b"}
+{"fn":"checkTokenHash","args":["hello./x/**/*.json"],"ok":"9565d1a8676d1f959ae6442a5d20050f04412bc9332005fe2dbe2d2a5299abb0"}
+{"fn":"checkTokenHash","args":["{name} has {count} items"],"ok":"42ff2ad309da81ff6c5bab2538b35b5e9561d56f9ee93b7e9a5af1d03b28c40a"}
+{"fn":"checkTokenHash","args":["héllo wörld"],"ok":"a1003f7d04a4115711d0b48a2eaf1359ce565d2d2a6fd65098dfcffadeeef59f"}
+{"fn":"checkTokenHash","args":["👍🏽 thumbs"],"ok":"2752e65dacf50732034519d1b6d574545e020fd911220a407df26a724d4b3748"}
+{"fn":"checkTokenHash","args":["日本語"],"ok":"77710aedc74ecfa33685e33a6c7df5cc83004da1bdcef7fb280f5c2b2e97e0a5"}
+{"fn":"checkTokenHash","args":[""],"ok":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"fn":"checkTokenHash","args":["İstanbul"],"ok":"24ec8f72b5eac4594cf4401235af1639159192194e025495d4a1055ab0f6dc9b"}
+{"fn":"checkTokenHash","args":["straße"],"ok":"787f4770613d3824cbc89b6d5da90a123e41b07b90b45ea3738c216b14616140"}
+{"fn":"checkTokenHash","args":["ılık ırmak"],"ok":"60dc09d56c2ba920b1ecc799e47c00c8c4abbc670f861e1410b3952c42e0f7e8"}
+{"fn":"checkTokenHash","args":["👨‍👩‍👧 family"],"ok":"bb5f3770a5817fd95570670d8957256d8ee8edf3df5f80dba854595cf158e3b8"}
+{"fn":"checkTokenHash","args":["a b"],"ok":"9507017c6d887511a5a6ac28ea7e3a438882576e1bd76fe3df27a336f49c263b"}
+{"fn":"checkTokenHash","args":["ΣΊΣΥΦΟΣ"],"ok":"5b04c6021d490c76e976b01f599560293d202f4aecb24178b2d793f3b08a8745"}
+{"fn":"checkTokenHash","args":["a😀b"],"ok":"6fba5b2ea783ded096fc2444d540ffbdf49168df30993b155b7efb683313f110"}
+{"fn":"checkTokenHash","args":["a²b x½ y①"],"ok":"a950cdbd5ee7163254f5361d9a9ed901735e4b1afe7f9279e5af77c8f6380517"}
+{"fn":"checkTokenHash","args":["aⅠb Ⅻ"],"ok":"da9cf8ae08a9054643c590fa59cb714f8bfde7af8d23de73344b4000c7cac78b"}
+{"fn":"checkTokenHash","args":["a𐐀b 𝐀bc"],"ok":"abf46dba5dae8b506447b2206600726690aa1cc41b7e2b1b2b07c5c64f4dfb0c"}
+{"fn":"checkTokenHash","args":["कि ٣٤"],"ok":"9dc1759d14c77f7412fba6d5bb0642548a47c8dfe66c84ef88bf55fd6e30101b"}
+{"fn":"checkTokenHash","args":["Iı İi"],"ok":"3de140f8595826857c8ab406130e92c1b27f0bb9fc3abe986fdefdf33e6732bd"}
+{"fn":"checkTokenHash","args":["K K k"],"ok":"dcda7a5326eedb435df97e6887ddccbe45dc81fddbf924ac883fd9f0afaab34a"}
+{"fn":"checkTokenHash","args":["ſ s S"],"ok":"56f470c329b2eadd3a93e3998f0e180d28c9a0d1ac5902129056ab5b876ff37c"}
+{"fn":"checkTokenHash","args":["x‍y 👨‍👩‍👧"],"ok":"c7928a54bec381d87d2c4fcbfa36f792b23924e28497916899c99ed4d83c4903"}
+{"fn":"checkTokenHash","args":["a b c　d"],"ok":"256164abe23ff0180daa3146bd5ecaa2e20f2bf40ba26dc29ef5763af14ee38d"}
+{"fn":"checkTokenHash","args":["١٢٣ ٤٥"],"ok":"35315cd5ab81b9cadecb15f11ce73ce230da738323214b0d5a097a459aca4b8e"}
+{"fn":"checkTokenHash","args":["𝟘𝟙 ²³"],"ok":"46afe9729d82fb099892e79c27ffd1ecb1a3da218c2fbc73105925be2ee215e5"}
+{"fn":"checkTokenHash","args":["snake_case foo-bar o'neil"],"ok":"0598d49c834526c6486e52ae13ccb612d12f97fb92626ded8b51f553c261ffcd"}
+{"fn":"checkTokenHash","args":["ǅungla Ǆ"],"ok":"16efdceea18dd59556a36e1b28ebe505a44451c6a0d170f35c18006122eb7a74"}
+{"fn":"checkTokenHash","args":["one\r\ntwo threefour"],"ok":"fced7d1dddd848c1033a1cccef8fdd5b90d728d303efbd8591d6a062fc5c7b5a"}
+{"fn":"checkTokenHash","args":["café café"],"ok":"886a02e53758efe926094e98b6d496578be7ff13fd4d4de7138aff348fbf816d"}
+{"fn":"checkTokenHash","args":["ΣΑΣ σας ς"],"ok":"930710ee7dd71764b28b4ee0056944fa993276843b5d2cb177ebdfeed69c0be8"}
+{"fn":"checkNewToken","args":["İstanbul"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":[".leading"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ünïcödé"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ΣΊΣΥΦΟΣhello"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["é"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["HELLO"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["helloemoji 👍🏽 mix"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["{name} has {count} items"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["hello world"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["  padded  "],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ΣΊΣΥΦΟΣ"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a😀b😀c"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["😀"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":[""],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["tab\tseparated"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ünïcödéemoji 👍🏽 mix"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["trailing."],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a:b:c"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["日本語のテキスト"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a.b.ca..b"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["héllo wörld"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["👍🏽 thumbs"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["日本語"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["straße"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ılık ırmak"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["👨‍👩‍👧 family"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a b"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a😀b"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["﻿bom"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a²b x½ y①"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["aⅠb Ⅻ"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a𐐀b 𝐀bc"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["कि ٣٤"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["Iı İi"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["K K k"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ſ s S"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["x‍y 👨‍👩‍👧"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["a b c　d"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["١٢٣ ٤٥"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["𝟘𝟙 ²³"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["snake_case foo-bar o'neil"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ǅungla Ǆ"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["one\r\ntwo threefour"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["café café"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["ΣΑΣ σας ς"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ΣΊΣΥΦΟΣ","HELLO{name} has {count} items"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["😀","😀"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["son日本","./x/**/*.json日本語のテキスト"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["  padded  ","İstanbul日本語のテキスト"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a","a"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["hello","ns:key.path:"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["﻿bom","ünïcödéHello World"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["{name} has {count} items","a..b"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["trailing.","a"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["straße",""],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["tab\tseparated","b"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a.b.c","Hello World"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["{name} has {count} items","./x/**/*.json"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["abcHello World","﻿bom"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["emoji 👍🏽 mix","ns:key.pathns:key.path"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["﻿bom","hello world"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["Hello World","a😀b😀c"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ab","İstanbul"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["{name} has {count} items","s"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["héllo wörld",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["👍🏽 thumbs",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["日本語",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["é",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["İstanbul",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["straße",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ılık ırmak",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["👨‍👩‍👧 family",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a b",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ΣΊΣΥΦΟΣ",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a😀b",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["﻿bom",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a²b x½ y①",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["aⅠb Ⅻ",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a𐐀b 𝐀bc",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["कि ٣٤",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["Iı İi",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["K K k",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ſ s S",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["x‍y 👨‍👩‍👧",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a b c　d",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["١٢٣ ٤٥",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["𝟘𝟙 ²³",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["snake_case foo-bar o'neil",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ǅungla Ǆ",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["one\r\ntwo threefour",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["café café",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["ΣΑΣ σας ς",":"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","héllo wörld"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","👍🏽 thumbs"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","日本語"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c",""],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","é"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","İstanbul"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","straße"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","ılık ırmak"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","👨‍👩‍👧 family"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","a b"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","ΣΊΣΥΦΟΣ"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","a😀b"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","﻿bom"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","a²b x½ y①"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","aⅠb Ⅻ"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","a𐐀b 𝐀bc"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","कि ٣٤"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","Iı İi"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","K K k"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","ſ s S"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","x‍y 👨‍👩‍👧"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","a b c　d"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","١٢٣ ٤٥"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","𝟘𝟙 ²³"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","snake_case foo-bar o'neil"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","ǅungla Ǆ"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","one\r\ntwo threefour"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","café café"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["a:b:c","ΣΑΣ σας ς"],"error":"Invalid test entropy"}
+{"fn":"checkVerifyPassword","args":["hello world","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":[".leading","ns:key.path./x/**/*.json"],"ok":false}
+{"fn":"checkVerifyPassword","args":["Hello Worlda","a😀b😀c"],"ok":false}
+{"fn":"checkVerifyPassword","args":["src/a/b.ts","/a/b.ts"],"ok":false}
+{"fn":"checkVerifyPassword","args":["e1\nline2","line1\nline2src/a/b.ts"],"ok":false}
+{"fn":"checkVerifyPassword","args":["trailing.",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["ab","😀"],"ok":false}
+{"fn":"checkVerifyPassword","args":["{name} has {count} items","trailing."],"ok":false}
+{"fn":"checkVerifyPassword","args":["a:b:c",":c"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ab","a😀b😀ctab\tseparated"],"ok":false}
+{"fn":"checkVerifyPassword","args":["İstanbula..b","./x/**/*.json"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ab","é"],"ok":false}
+{"fn":"checkVerifyPassword","args":["﻿boma.b.c","hello world😀"],"ok":false}
+{"fn":"checkVerifyPassword","args":["😀","😀"],"ok":false}
+{"fn":"checkVerifyPassword","args":["  padded  ns:key.path","trailing.İstanbul"],"ok":false}
+{"fn":"checkVerifyPassword","args":["日本語のテキスト","ns:key.path"],"ok":false}
+{"fn":"checkVerifyPassword","args":["{name} has {count} items","HELLO"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a..b","a"],"ok":false}
+{"fn":"checkVerifyPassword","args":[":","a:b:c"],"ok":false}
+{"fn":"checkVerifyPassword","args":["./x/**/*.jsontab\tseparated","a..b"],"ok":false}
+{"fn":"checkVerifyPassword","args":["héllo wörld","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["👍🏽 thumbs","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["日本語","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["é","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["İstanbul","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["straße","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ılık ırmak","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["👨‍👩‍👧 family","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a b","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ΣΊΣΥΦΟΣ","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a😀b","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["﻿bom","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a²b x½ y①","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aⅠb Ⅻ","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a𐐀b 𝐀bc","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["कि ٣٤","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["Iı İi","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["K K k","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ſ s S","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["x‍y 👨‍👩‍👧","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["a b c　d","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["١٢٣ ٤٥","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["𝟘𝟙 ²³","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["snake_case foo-bar o'neil","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ǅungla Ǆ","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["one\r\ntwo threefour","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["café café","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["ΣΑΣ σας ς","ΣΊΣΥΦΟΣ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","héllo wörld"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","👍🏽 thumbs"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","日本語"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","é"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","İstanbul"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","straße"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","ılık ırmak"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","👨‍👩‍👧 family"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","a b"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","a😀b"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","﻿bom"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","a²b x½ y①"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","aⅠb Ⅻ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","a𐐀b 𝐀bc"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","कि ٣٤"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","Iı İi"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","K K k"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","ſ s S"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","x‍y 👨‍👩‍👧"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","a b c　d"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","١٢٣ ٤٥"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","𝟘𝟙 ²³"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","snake_case foo-bar o'neil"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","ǅungla Ǆ"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","one\r\ntwo threefour"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","café café"],"ok":false}
+{"fn":"checkVerifyPassword","args":["hello world","ΣΑΣ σας ς"],"ok":false}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a:b:cHello World","hello world"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a..b",".leading"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["é","ns:key.path"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["  padded  ","hello world"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["straße","Hello World"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":[".leading","in"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["é","́"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["HELLO","O"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["Hello World日本語のテキスト","  padded  trailing."],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["straße","a.b.c"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["abcünïcödé","a😀b😀c"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["trailing.İstanbul","ünïcödé"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ünïcödé.leading","ns:key.path"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["emoji 👍🏽 mixemoji 👍🏽 mix","ΣΊΣΥΦΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ailing.","trailing."],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["{name} has {count} items","hello"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["hello","a😀b😀c"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["moji 👍🏽 ","a..bemoji 👍🏽 mix"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a.b.c",""],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["héllo wörld","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["👍🏽 thumbs","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["日本語","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["é","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["İstanbul","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["straße","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ılık ırmak","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["👨‍👩‍👧 family","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a b","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a😀b","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["﻿bom","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a²b x½ y①","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["aⅠb Ⅻ","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a𐐀b 𝐀bc","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["कि ٣٤","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["Iı İi","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["K K k","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ſ s S","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["x‍y 👨‍👩‍👧","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["a b c　d","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["١٢٣ ٤٥","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["𝟘𝟙 ²³","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["snake_case foo-bar o'neil","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ǅungla Ǆ","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["one\r\ntwo threefour","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["café café","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΑΣ σας ς","ΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","héllo wörld"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","👍🏽 thumbs"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","日本語"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ",""],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","é"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","İstanbul"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","straße"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ılık ırmak"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","👨‍👩‍👧 family"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","a b"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ΣΊΣΥΦΟΣ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","a😀b"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","﻿bom"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","a²b x½ y①"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","aⅠb Ⅻ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","a𐐀b 𝐀bc"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","कि ٣٤"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","Iı İi"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","K K k"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ſ s S"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","x‍y 👨‍👩‍👧"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","a b c　d"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","١٢٣ ٤٥"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","𝟘𝟙 ²³"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","snake_case foo-bar o'neil"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ǅungla Ǆ"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","one\r\ntwo threefour"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","café café"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["ΣΊΣΥΦΟΣ","ΣΑΣ σας ς"],"error":"Invalid origin JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a:b:c","","hello world",{"$num":"NaN"}],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["{name} has {count} items","emoji 👍🏽 mix","a😀b😀c",{"$num":"-0"}],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["日本語のテキスト","a..b","日",100],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a..b","日本語のテキスト","日本語のテキスト",10],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a😀b😀c","a","{name} has {count} items",9007199254740992],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["key_name-1","{name} has {count} itemsHello World","key_name-1./x/**/*.json",{"$num":"-0"}],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparated","key_name-1","hello world",0],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["{name} has {count} itemsline1\nline2","😀","emoji 👍🏽 mix",3],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparated","ab","hellohello world",42],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["  padded  ","straße","Hello World",{"$num":"-0"}],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["","trailing.","﻿bom",10],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["İstanbul","straßeünïcödé","abc",2147483648],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["Hello World","./x/**/*.json","*/*.js",2147483648],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["./x/**/*.json","/x/**/*.","line1\nline2",-2.5],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["hello","é","﻿bom",1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["日本語のテキスト","ab","İstanbul",100],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["  padded  ","hello world","./x/**/*.json",9007199254740992],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["日本語のテキスト","tab\tseparated","😀",1000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["","  padded  ","trailing.a😀b😀c",42],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["héllo wörld",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["👍🏽 thumbs",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["日本語",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["é",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["İstanbul",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["straße",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["ılık ırmak",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["👨‍👩‍👧 family",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a b",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["ΣΊΣΥΦΟΣ",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a😀b",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["﻿bom",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a²b x½ y①",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["aⅠb Ⅻ",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a𐐀b 𝐀bc",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["कि ٣٤",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["Iı İi",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["K K k",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["ſ s S",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["x‍y 👨‍👩‍👧",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["a b c　d",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["١٢٣ ٤٥",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["𝟘𝟙 ²³",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["snake_case foo-bar o'neil",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["ǅungla Ǆ",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["one\r\ntwo threefour",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["café café",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["ΣΑΣ σας ς",":","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","héllo wörld","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","👍🏽 thumbs","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","日本語","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","é","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","İstanbul","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","straße","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","ılık ırmak","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","👨‍👩‍👧 family","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","a b","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","ΣΊΣΥΦΟΣ","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","a😀b","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","﻿bom","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","a²b x½ y①","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","aⅠb Ⅻ","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","a𐐀b 𝐀bc","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","कि ٣٤","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","Iı İi","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","K K k","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","ſ s S","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","x‍y 👨‍👩‍👧","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","a b c　d","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","١٢٣ ٤٥","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","𝟘𝟙 ²³","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","snake_case foo-bar o'neil","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","ǅungla Ǆ","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","one\r\ntwo threefour","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","café café","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world","ΣΑΣ σας ς","tab\tseparated",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","héllo wörld",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","👍🏽 thumbs",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","日本語",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","é",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","İstanbul",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","straße",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","ılık ırmak",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","👨‍👩‍👧 family",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","a b",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","ΣΊΣΥΦΟΣ",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","a😀b",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","﻿bom",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","a²b x½ y①",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","aⅠb Ⅻ",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","a𐐀b 𝐀bc",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","कि ٣٤",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","Iı İi",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","K K k",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","ſ s S",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","x‍y 👨‍👩‍👧",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","a b c　d",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","١٢٣ ٤٥",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","𝟘𝟙 ²³",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","snake_case foo-bar o'neil",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","ǅungla Ǆ",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","one\r\ntwo threefour",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","café café",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","ΣΑΣ σας ς",-1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",-7.5],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",0.1],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",0.30000000000000004],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",1e+21],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",1e-7],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",5e-324],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",1.7976931348623157e+308],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",9007199254740992],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["tab\tseparatedhello world",":","tab\tseparated",{"$num":"-0"}],"error":"Invalid claims JSON"}
+{"fn":"checkValidSlug","args":[""],"ok":false}
+{"fn":"checkValidSlug","args":["ab"],"ok":false}
+{"fn":"checkValidSlug","args":["abc"],"ok":true}
+{"fn":"checkValidSlug","args":["a-b"],"ok":true}
+{"fn":"checkValidSlug","args":["a--b"],"ok":false}
+{"fn":"checkValidSlug","args":["-abc"],"ok":false}
+{"fn":"checkValidSlug","args":["abc-"],"ok":false}
+{"fn":"checkValidSlug","args":["A-b"],"ok":false}
+{"fn":"checkValidSlug","args":["123"],"ok":true}
+{"fn":"checkValidSlug","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"ok":true}
+{"fn":"checkValidSlug","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"ok":false}
+{"fn":"checkValidSlug","args":["scout"],"ok":true}
+{"fn":"checkValidSlug","args":["tenant-one"],"ok":true}
+{"fn":"checkValidSlug","args":["api"],"ok":false}
+{"fn":"checkValidSlug","args":["admin"],"ok":false}
+{"fn":"checkValidSlug","args":["healthz"],"ok":false}
+{"fn":"checkValidSlug","args":["tasks"],"ok":false}
+{"fn":"checkValidSlug","args":["inbox"],"ok":false}
+{"fn":"checkValidSlug","args":["audit"],"ok":false}
+{"fn":"checkValidSlug","args":["connections"],"ok":false}
+{"fn":"checkValidSlug","args":["login"],"ok":false}
+{"fn":"checkValidSlug","args":["logout"],"ok":false}
+{"fn":"checkValidSlug","args":["register"],"ok":false}
+{"fn":"checkValidSlug","args":["new"],"ok":false}
+{"fn":"checkValidSlug","args":["auth"],"ok":false}
+{"fn":"checkValidSlug","args":["scout-icon"],"ok":false}
+{"fn":"checkValidSlug","args":["favicon"],"ok":false}
+{"fn":"checkValidSlug","args":["join"],"ok":false}
+{"fn":"checkValidSlug","args":["école"],"ok":false}
+{"fn":"checkValidSlug","args":["😀😀"],"ok":false}
+{"fn":"checkValidSlug","args":["a\nb"],"ok":false}
+{"fn":"checkValidSlug","args":["abc\n"],"ok":false}
+{"fn":"checkValidSlug","args":["abc "],"ok":false}
+{"fn":"checkValidSlug","args":["abc\u0000"],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","public",true],"ok":true}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","tenant_00000000000040008000000000000001",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","tenant_00000000000040008000000000000001",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","wrong",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","public",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","tenant_12345678123412341234123456789abc",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","tenant_12345678123412341234123456789abc",false],"ok":true}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","wrong",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","public",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","tenant_12345678123412341234123456789ABC",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","tenant_12345678123412341234123456789ABC",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","wrong",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","public",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","tenant_00000000000000000000000000000000",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","tenant_00000000000000000000000000000000",false],"ok":true}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","wrong",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","public",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","tenant_abc",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","tenant_abc",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["abc","wrong",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","public",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","tenant_12345678123412341234123456789abx",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","wrong",true],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","public",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","tenant_12345678123412341234123456789abx",false],"ok":false}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","wrong",false],"ok":false}
+{"fn":"checkTokenHash","args":[""],"ok":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"fn":"checkTokenHash","args":["ascii-token"],"ok":"6f91f37c204c38444122ac0a2363dd0078342dfab9e78dad27948f0e814442c2"}
+{"fn":"checkTokenHash","args":["😀"],"ok":"f0443a342c5ef54783a111b51ba56c938e474c32324d90c3a60c9c8e3a37e2d9"}
+{"fn":"checkTokenHash","args":["Zażółć gęślą jaźń"],"ok":"bc5348fd7c2dd8bbf411f0b9268265f7c2e0d31ebf314695882b8170c7e1e9d7"}
+{"fn":"checkTokenHash","args":["﻿hello"],"ok":"7489ebbcc2a00056ddaaaac190bce473e5c03696ea1bd8ed83cf59a174283862"}
+{"fn":"checkTokenHash","args":["nul\u0000inside"],"ok":"908119b432fd47129456913e905386956de4b6e2ade16763eb336040cec3d8d5"}
+{"fn":"checkTokenHash","args":["ΟΣ"],"ok":"f286d82bb94eeca33edf16be4edd586cad6a062ce618eecfa58bb8b2684f2c2a"}
+{"fn":"checkTokenHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"ok":"b2a3a502fdfc34f4e3edfa94b7f3109cd972d87a4fec63ab21a6673379ccf7ad"}
+{"fn":"checkNewToken","args":["0707070707070707070707070707070707070707070707070707070707070707"],"ok":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"}
+{"fn":"checkNewToken","args":["0000000000000000000000000000000000000000000000000000000000000000"],"ok":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+{"fn":"checkNewToken","args":["ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":"__________________________________________8"}
+{"fn":"checkNewToken","args":["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],"ok":"ASNFZ4mrze8BI0VniavN7wEjRWeJq83vASNFZ4mrze8"}
+{"fn":"checkNewToken","args":[""],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["000000000000000000000000000000000000000000000000000000000000000"],"error":"Invalid test entropy"}
+{"fn":"checkNewToken","args":["gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"],"error":"Invalid test entropy"}
+{"fn":"checkPasswordHash","args":["","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["short","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$af159b16687c0f95cb16eb92e0e327e9daf4207ebbc173f4fb323d6bb304d58a393ff59278844974545be482d9208006f99e39f54a19b2cf34d9bfb6d7185988"}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$4b601138cd66e1bfa92de8779b2fb83a2740037eb6d418138ca4b487e12d09b2b4471acf07e3c9082f0d67e76dfc3f486feaf05951df7bc9862b569a06962210"}
+{"fn":"checkPasswordHash","args":["Zażółć gęślą jaźń","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$36e32c09d5c32d41c1674abfdcbbe21601693494a725cc5e927faf15c8ade46ea4e096c8c8caeb0d5eb474461bcc3ad6ee39e5aa07e1cfee6718371ea15195f8"}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$a750cdebdbe690c7c574fba40c13010dadaac0e35c0aee86d3e013b0c83ebc0b1670e3f71de8cd2503d55e642e4ffbbbb4e4026b47f9b8ab138077657616cb47"}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"],"ok":"scrypt$07070707070707070707070707070707$65b407d47c728b9163c1ca7d824979a95e2bc26245e51314d03a2a41e7c6ecf966b5d04736fa77c0492ceda248e9986e9ccdbc4440da6428b2e910bf8173264e"}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"],"error":"Use a password with 12–1024 characters."}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0000000000000000000000000000000000000000000000000000000000000000"],"ok":"scrypt$00000000000000000000000000000000$b166eb0208ab2c507f27669e3813edbd0db29b7bf427171b352e8feb3c52cc92f2c76343c1d0457423e18d46e5400b56ca49cd8e13637afb19725d79c1f5bd69"}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":"scrypt$ffffffffffffffffffffffffffffffff$81b917b9e83f03407d14873f72b7c0885bd80bc8e6e96bcd24b403e174cfd602d0ae74813e536d21452c18219bb1c5d176a36583d43b190b1eef8ac691abe868"}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],"ok":"scrypt$0123456789abcdef0123456789abcdef$47828e890e26499530026a1d8a709efa527338b8abd7cb7d792cd5f4b1f82b26b750601fb1b83c00303baba3b2fbdc55f92dbe16caffb5496f47df62bc458b0e"}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","invalid"],"error":"Invalid test entropy"}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":true}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$bad$bad"],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$bad$bad"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","scrypt$bad$bad"],"ok":false}
+{"fn":"checkVerifyPassword","args":["",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$bad$bad"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",""],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"],"ok":false}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"],"ok":false}
+{"fn":"checkSameOrigin","args":["null","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://EXAMPLE.com:443/path"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://EXAMPLE.com\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com:443\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com/\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com:444"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"http://127.0.0.1:3000\"","http://127.0.0.1:3000"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"null\"","file:///a"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"ftp://example.com\"","ftp://example.com/a"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"ws://example.com\"","ws://example.com/a"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"blob:https://example.com/id\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://xn--bcher-kva.de\"","https://bücher.de/path"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://[::1]\"","https://[::1]:443"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://user:pass@example.com/path"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","garbage"],"ok":false}
+{"fn":"checkSameOrigin","args":["\" https://example.com\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https:example.com"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com?hello"],"ok":true}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com#hello"],"ok":true}
+{"fn":"checkSameOrigin","args":["","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["{","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["[]","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["{}","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["1","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkSameOrigin","args":["true","https://example.com"],"error":"Invalid origin JSON"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"ΟΣ@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"ος@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"İ@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"i̇@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"ab@example.com\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"ab@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a﻿b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b.c.d\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"a@b.c.d\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@@b.c\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@.c\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b.\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b..c\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"a@b..c\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"evil\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid issuer"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":[\"client\"],\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"bad\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":1,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689600,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689599,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":\"1735689601\",\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":1,\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":null}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{}","client","nonce",1735689600000],"error":"Invalid issuer"}
+{"fn":"checkValidateIdentity","args":["","client","nonce",1735689600000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["{","client","nonce",1735689600000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["[]","client","nonce",1735689600000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["null","client","nonce",1735689600000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["true","client","nonce",1735689600000],"error":"Invalid claims JSON"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\ud800\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\ud800@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\udfff\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\udfff\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\udfff@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\udfff@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"x\\ud800y\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"x\\ud800y\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"x\\ud800y@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"x\\ud800y@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800\\ud800\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\ud800\\ud800\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800\\ud800@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\ud800\\ud800@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\udfff\\udfff\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\udfff\\udfff\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\udfff\\udfff@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\udfff\\udfff@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"😀\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"😀\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"😀@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"😀@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"Σ\\ud800Σ\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"Σ\\ud800Σ\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"Σ\\ud800Σ@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"σ\\ud800σ@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800Σ\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\ud800Σ\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800Σ@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\ud800σ@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\u0000\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"\\u0000\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\u0000@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"\\u0000@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"line\\nnext\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"line\\nnext\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"line\\nnext@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\" \",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\" \",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\" @EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"quote\\\"backslash\\\\\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"quote\\\"backslash\\\\\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"quote\\\"backslash\\\\@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"quote\\\"backslash\\\\@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\",\"\\ud800\":{\"nested\":\"\\ud800\"}}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1e999,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":-1e999,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1.735689601e9,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\",\"sub\":\"last wins\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"last wins\",\"email\":\"user@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"AB@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"ab@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"A᠎B@EXAMPLE.COM\"}","client","nonce",1735689600000],"ok":"{\"subject\":\"subject\",\"email\":\"a᠎b@example.com\"}"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\tb@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\u000bb@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\fb@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a　b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a﻿b@example.com\"}","client","nonce",1735689600000],"error":"Invalid identity"}
+{"fn":"checkSameOrigin","args":["\"\\ud800\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://\\ud800\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com/\\ud800\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com\\udfff\"","https://example.com"],"ok":false}
+{"fn":"checkSameOrigin","args":["\"https://example.com?x=\\ud800\"","https://example.com"],"ok":false}

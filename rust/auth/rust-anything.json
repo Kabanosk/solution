@@ -1,0 +1,204 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/pawel/hackatons/collabothon2026/solution/rust/auth-reference",
+  "unit": "bindings.ts",
+  "language": "ts",
+  "kind": "napi",
+  "crate_name": "scout-auth-rs",
+  "exports": [
+    {
+      "name": "checkValidSlug",
+      "file": "bindings.ts",
+      "line": 23,
+      "params": [
+        {
+          "name": "slug",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "boolean",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkRegisteredSchema",
+      "file": "bindings.ts",
+      "line": 27,
+      "params": [
+        {
+          "name": "id",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "schema",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "legacy",
+          "ts_type": "boolean",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "boolean",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkTokenHash",
+      "file": "bindings.ts",
+      "line": 31,
+      "params": [
+        {
+          "name": "token",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkNewToken",
+      "file": "bindings.ts",
+      "line": 35,
+      "params": [
+        {
+          "name": "testEntropy",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "Promise<string>",
+      "is_async": true,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkPasswordHash",
+      "file": "bindings.ts",
+      "line": 39,
+      "params": [
+        {
+          "name": "password",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "testEntropy",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "Promise<string>",
+      "is_async": true,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkVerifyPassword",
+      "file": "bindings.ts",
+      "line": 43,
+      "params": [
+        {
+          "name": "password",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "stored",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "Promise<boolean>",
+      "is_async": true,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkSameOrigin",
+      "file": "bindings.ts",
+      "line": 47,
+      "params": [
+        {
+          "name": "originJson",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "configured",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "boolean",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkValidateIdentity",
+      "file": "bindings.ts",
+      "line": 55,
+      "params": [
+        {
+          "name": "claimsJson",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "client",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "nonce",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "now",
+          "ts_type": "number",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

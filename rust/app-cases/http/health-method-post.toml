@@ -1,0 +1,14 @@
+[request]
+method = "POST"
+path = "/healthz"
+
+[request.headers]
+Access-Control-Request-Method = "GET"
+Origin = "https://dashboard.example.invalid"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

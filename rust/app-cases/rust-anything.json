@@ -1,0 +1,14 @@
+{
+  "schema": "rust-anything/app-cases@1",
+  "name": "reference-api",
+  "run": [
+    "python3",
+    "rust/scripts/reference-api.py"
+  ],
+  "timeout_secs": 30,
+  "http": {},
+  "effects": {
+    "db_reset": "python3 rust/scripts/http-fixtures.py",
+    "db_dump": "python3 rust/scripts/http-db-dump.py"
+  }
+}

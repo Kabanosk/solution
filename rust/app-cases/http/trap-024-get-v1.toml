@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1//liquidity?horizon_days=365"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

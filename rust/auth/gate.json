@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "fmt",
+      "passed": true,
+      "detail": "formatted"
+    },
+    {
+      "name": "clippy",
+      "passed": true,
+      "detail": "no warnings"
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "detail": "passed"
+    },
+    {
+      "name": "unsafe",
+      "passed": true,
+      "detail": "3 unsafe uses, each with a `// SAFETY:` comment"
+    },
+    {
+      "name": "lockfile",
+      "passed": true,
+      "detail": "Cargo.lock matches Cargo.toml"
+    },
+    {
+      "name": "ported",
+      "passed": true,
+      "detail": "nothing in port.rs is `unimplemented!`, `todo!` or only a `panic!`"
+    },
+    {
+      "name": "size",
+      "passed": true,
+      "detail": "302 lines of Rust for 84 lines of TypeScript/JavaScript (3.6x)"
+    },
+    {
+      "name": "error cases",
+      "passed": true,
+      "detail": "each of the 2 functions that fail in the original has a recorded failing case"
+    },
+    {
+      "name": "panics",
+      "passed": true,
+      "detail": "no unwrap, expect or panic where the original returns an error"
+    },
+    {
+      "name": "build",
+      "passed": true,
+      "detail": "built /home/pawel/hackatons/collabothon2026/solution/rust/auth/scout_auth_rs.node"
+    },
+    {
+      "name": "coverage",
+      "passed": true,
+      "detail": "the recorded cases ran 88 of the original's 88 lines (100%)"
+    },
+    {
+      "name": "api",
+      "passed": true,
+      "detail": "exports checkValidSlug, checkRegisteredSchema, checkTokenHash, checkNewToken, checkPasswordHash, checkVerifyPassword, checkSameOrigin, checkValidateIdentity"
+    },
+    {
+      "name": "behavior",
+      "passed": true,
+      "detail": "801/801 recorded cases match"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"results":[1,null,{"attempts":1,"dedupe_key":"once","error":null,"id":1,"kind":"dm","payload":{"text":"héllo 😀"},"status":"running","task_id":null},true,null],"rows":[{"attempts":1,"dedupe_key":"once","error":null,"id":1,"kind":"dm","payload":{"text":"héllo 😀"},"status":"done","task_id":"task-1","worker":"worker"}]}

@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/costs/by-team?from=2025-10-01&to=a%C2%A0b"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

@@ -1,0 +1,17 @@
+[request]
+method = "HEAD"
+path = "/healthz"
+
+[request.headers]
+Access-Control-Request-Method = "GET"
+Origin = "https://dashboard.example.invalid"
+
+[response]
+status = 405
+
+[response.headers]
+access-control-allow-origin = "*"
+access-control-expose-headers = "X-Stub"
+allow = "GET"
+content-type = "application/json"
+vary = "Origin"

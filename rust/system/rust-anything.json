@@ -1,0 +1,23 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/pawel/hackatons/collabothon2026/solution/rust/system-reference",
+  "unit": "system.py",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "scout-system",
+  "exports": [
+    {
+      "name": "health_json",
+      "file": "system.py",
+      "line": 7,
+      "params": [],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

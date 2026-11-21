@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/forecast/e%CC%81?horizon_days=365"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

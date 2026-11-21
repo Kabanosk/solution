@@ -1,0 +1,1 @@
+{"operations": [{"op": "claim"}, {"op": "reap"}, {"op": "renew", "id": 999, "attempt": 1}, {"op": "done", "id": 999, "attempt": 1}, {"op": "fail", "id": 999, "attempt": 1}, {"op": "fail", "id": 999}]}

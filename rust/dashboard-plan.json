@@ -1,0 +1,3081 @@
+{
+  "schema": "rust-anything/analyze@1",
+  "language": "ts",
+  "summary": {
+    "packages": 1,
+    "source_files": 74,
+    "test_files": 40,
+    "ui_files": 61,
+    "loc": 9645,
+    "units": 46,
+    "ready": 24,
+    "caution": 5,
+    "blocked": 0,
+    "keep": 17,
+    "parse_errors": 0
+  },
+  "packages": [
+    {
+      "name": "scout-dashboard",
+      "dir": "",
+      "order": 1,
+      "runtime": "node",
+      "workspace_deps": [],
+      "test_files": 40,
+      "units": [
+        "app/",
+        "app/[organization]/",
+        "app/api/approve/",
+        "app/api/auth/[action]/",
+        "app/api/auth/google/callback/",
+        "app/api/auth/google/start/",
+        "app/api/chat/",
+        "app/api/chat/ack/",
+        "app/api/dashboard/",
+        "app/api/demo/",
+        "app/api/google/",
+        "app/api/guardrails/",
+        "app/api/invoices/[transactionId]/",
+        "app/api/ksef/",
+        "app/api/llm-usage/",
+        "app/api/onboarding/",
+        "app/api/onboarding/callback/[provider]/",
+        "app/api/onboarding/connect/[provider]/",
+        "app/api/onboarding/handoff/",
+        "app/api/onboarding/slack/channels/",
+        "app/api/records/[kind]/",
+        "app/api/strategy/review/",
+        "app/api/strategy/settings/",
+        "app/api/tasks/[id]/",
+        "app/audit/",
+        "app/connections/",
+        "app/google-g.png/",
+        "app/healthz/",
+        "app/inbox/",
+        "app/join/[organization]/[token]/",
+        "app/login/[organization]/[token]/",
+        "app/privacy/",
+        "app/scout-icon.png/",
+        "app/scout-icon.svg/",
+        "app/tasks/",
+        "app/tasks/[id]/",
+        "app/terms/",
+        "components/",
+        "components/overview/",
+        "components/tasks/",
+        "components/ui/",
+        "hooks/",
+        "instrumentation.ts",
+        "lib/",
+        "proxy.ts",
+        "scripts/"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "id": "app/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/error.tsx",
+        "app/layout.tsx",
+        "app/loading.tsx",
+        "app/page.tsx"
+      ],
+      "loc": 64,
+      "wave": 4,
+      "readiness": 95,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/page.tsx:4",
+            "app/page.tsx:5"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "app/loading.tsx:28"
+          ]
+        },
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "app/error.tsx:4"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/",
+        "components/ui/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 63,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 imports use aliases or virtual modules and were not followed."
+      ]
+    },
+    {
+      "id": "app/[organization]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/[organization]/page.tsx"
+      ],
+      "loc": 22,
+      "wave": 4,
+      "readiness": 93,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 7,
+          "samples": [
+            "app/[organization]/page.tsx:10",
+            "app/[organization]/page.tsx:11",
+            "app/[organization]/page.tsx:13"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/approve/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/approve/route.ts"
+      ],
+      "loc": 19,
+      "wave": 1,
+      "readiness": 97,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "app/api/approve/route.ts:5",
+            "app/api/approve/route.ts:6",
+            "app/api/approve/route.ts:8"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/approve/route.ts:12"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/auth/[action]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/auth/[action]/route.ts"
+      ],
+      "loc": 72,
+      "wave": 1,
+      "readiness": 87,
+      "status": "caution",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 28,
+          "samples": [
+            "app/api/auth/[action]/route.ts:13",
+            "app/api/auth/[action]/route.ts:17",
+            "app/api/auth/[action]/route.ts:19"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/auth/[action]/route.ts:17",
+            "app/api/auth/[action]/route.ts:22"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 60,
+      "exports": 1,
+      "bridgeable": 0,
+      "notes": [
+        "Every export is JS-shaped (functions, plugin objects, iterators): porting the logic means adding a data-only function, an API change.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/auth/google/callback/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/auth/google/callback/route.ts"
+      ],
+      "loc": 48,
+      "wave": 1,
+      "readiness": 83,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "app/api/auth/google/callback/route.ts:37",
+            "app/api/auth/google/callback/route.ts:37"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 11,
+          "samples": [
+            "app/api/auth/google/callback/route.ts:10",
+            "app/api/auth/google/callback/route.ts:11",
+            "app/api/auth/google/callback/route.ts:18"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 8,
+          "samples": [
+            "app/api/auth/google/callback/route.ts:15",
+            "app/api/auth/google/callback/route.ts:17",
+            "app/api/auth/google/callback/route.ts:19"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "jose",
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 4.2,
+      "priority": 63,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/auth/google/start/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/auth/google/start/route.ts"
+      ],
+      "loc": 48,
+      "wave": 1,
+      "readiness": 91,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 9,
+          "samples": [
+            "app/api/auth/google/start/route.ts:11",
+            "app/api/auth/google/start/route.ts:15",
+            "app/api/auth/google/start/route.ts:22"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/auth/google/start/route.ts:21",
+            "app/api/auth/google/start/route.ts:42"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 2,
+      "bridgeable": 2,
+      "notes": [
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/chat/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/chat/route.ts"
+      ],
+      "loc": 77,
+      "wave": 1,
+      "readiness": 91,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 11,
+          "samples": [
+            "app/api/chat/route.ts:10",
+            "app/api/chat/route.ts:11",
+            "app/api/chat/route.ts:15"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 7,
+          "samples": [
+            "app/api/chat/route.ts:15",
+            "app/api/chat/route.ts:26",
+            "app/api/chat/route.ts:39"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/chat/route.ts:52",
+            "app/api/chat/route.ts:62"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 1.3,
+      "priority": 65,
+      "exports": 2,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/chat/ack/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/chat/ack/route.ts"
+      ],
+      "loc": 21,
+      "wave": 1,
+      "readiness": 97,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "app/api/chat/ack/route.ts:5",
+            "app/api/chat/ack/route.ts:6",
+            "app/api/chat/ack/route.ts:8"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/chat/ack/route.ts:14"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/chat/ack/route.ts:16"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/dashboard/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/dashboard/route.ts"
+      ],
+      "loc": 9,
+      "wave": 1,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/api/dashboard/route.ts:4",
+            "app/api/dashboard/route.ts:6"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/dashboard/route.ts:5"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/demo/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/demo/route.ts"
+      ],
+      "loc": 17,
+      "wave": 1,
+      "readiness": 95,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "app/api/demo/route.ts:7",
+            "app/api/demo/route.ts:9",
+            "app/api/demo/route.ts:11"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "app/api/demo/route.ts:4"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/demo/route.ts:13"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/google/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/google/route.ts"
+      ],
+      "loc": 2,
+      "wave": 0,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "app/api/google/route.ts:2"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "Leaf: imports no other unit."
+      ]
+    },
+    {
+      "id": "app/api/guardrails/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/guardrails/route.ts"
+      ],
+      "loc": 25,
+      "wave": 1,
+      "readiness": 95,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "app/api/guardrails/route.ts:10",
+            "app/api/guardrails/route.ts:11",
+            "app/api/guardrails/route.ts:13"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "app/api/guardrails/route.ts:13",
+            "app/api/guardrails/route.ts:21",
+            "app/api/guardrails/route.ts:23"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 2,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/invoices/[transactionId]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/invoices/[transactionId]/route.ts"
+      ],
+      "loc": 21,
+      "wave": 1,
+      "readiness": 97,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "app/api/invoices/[transactionId]/route.ts:10",
+            "app/api/invoices/[transactionId]/route.ts:11",
+            "app/api/invoices/[transactionId]/route.ts:12"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/invoices/[transactionId]/route.ts:15",
+            "app/api/invoices/[transactionId]/route.ts:18"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/ksef/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/ksef/route.ts"
+      ],
+      "loc": 15,
+      "wave": 1,
+      "readiness": 98,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "app/api/ksef/route.ts:6",
+            "app/api/ksef/route.ts:7",
+            "app/api/ksef/route.ts:10"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/ksef/route.ts:9"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/llm-usage/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/llm-usage/route.ts"
+      ],
+      "loc": 12,
+      "wave": 1,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "app/api/llm-usage/route.ts:8",
+            "app/api/llm-usage/route.ts:9",
+            "app/api/llm-usage/route.ts:12"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/onboarding/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/onboarding/route.ts"
+      ],
+      "loc": 37,
+      "wave": 1,
+      "readiness": 94,
+      "status": "caution",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 10,
+          "samples": [
+            "app/api/onboarding/route.ts:12",
+            "app/api/onboarding/route.ts:14",
+            "app/api/onboarding/route.ts:15"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "app/api/onboarding/route.ts:13",
+            "app/api/onboarding/route.ts:30",
+            "app/api/onboarding/route.ts:34"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/onboarding/route.ts:36"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 2,
+      "bridgeable": 0,
+      "notes": [
+        "Every export is JS-shaped (functions, plugin objects, iterators): porting the logic means adding a data-only function, an API change."
+      ]
+    },
+    {
+      "id": "app/api/onboarding/callback/[provider]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/onboarding/callback/[provider]/route.ts"
+      ],
+      "loc": 27,
+      "wave": 1,
+      "readiness": 93,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "browser"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "app/api/onboarding/callback/[provider]/route.ts:12",
+            "app/api/onboarding/callback/[provider]/route.ts:14",
+            "app/api/onboarding/callback/[provider]/route.ts:16"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/onboarding/callback/[provider]/route.ts:19"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/onboarding/connect/[provider]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/onboarding/connect/[provider]/route.ts"
+      ],
+      "loc": 54,
+      "wave": 1,
+      "readiness": 88,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 17,
+          "samples": [
+            "app/api/onboarding/connect/[provider]/route.ts:12",
+            "app/api/onboarding/connect/[provider]/route.ts:13",
+            "app/api/onboarding/connect/[provider]/route.ts:15"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "app/api/onboarding/connect/[provider]/route.ts:26",
+            "app/api/onboarding/connect/[provider]/route.ts:30",
+            "app/api/onboarding/connect/[provider]/route.ts:51"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/onboarding/connect/[provider]/route.ts:41"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 2,
+      "bridgeable": 1,
+      "notes": [
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/api/onboarding/handoff/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/onboarding/handoff/route.ts"
+      ],
+      "loc": 26,
+      "wave": 1,
+      "readiness": 96,
+      "status": "caution",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 7,
+          "samples": [
+            "app/api/onboarding/handoff/route.ts:13",
+            "app/api/onboarding/handoff/route.ts:14",
+            "app/api/onboarding/handoff/route.ts:16"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/onboarding/handoff/route.ts:18",
+            "app/api/onboarding/handoff/route.ts:20"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 0,
+      "notes": [
+        "Every export is JS-shaped (functions, plugin objects, iterators): porting the logic means adding a data-only function, an API change."
+      ]
+    },
+    {
+      "id": "app/api/onboarding/slack/channels/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/onboarding/slack/channels/route.ts"
+      ],
+      "loc": 24,
+      "wave": 1,
+      "readiness": 95,
+      "status": "caution",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 7,
+          "samples": [
+            "app/api/onboarding/slack/channels/route.ts:10",
+            "app/api/onboarding/slack/channels/route.ts:11",
+            "app/api/onboarding/slack/channels/route.ts:14"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/onboarding/slack/channels/route.ts:13",
+            "app/api/onboarding/slack/channels/route.ts:18"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/onboarding/slack/channels/route.ts:22"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 0,
+      "notes": [
+        "Every export is JS-shaped (functions, plugin objects, iterators): porting the logic means adding a data-only function, an API change."
+      ]
+    },
+    {
+      "id": "app/api/records/[kind]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/records/[kind]/route.ts"
+      ],
+      "loc": 16,
+      "wave": 1,
+      "readiness": 98,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "app/api/records/[kind]/route.ts:9",
+            "app/api/records/[kind]/route.ts:10",
+            "app/api/records/[kind]/route.ts:11"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/records/[kind]/route.ts:13"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/strategy/review/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/strategy/review/route.ts"
+      ],
+      "loc": 16,
+      "wave": 1,
+      "readiness": 98,
+      "status": "caution",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "app/api/strategy/review/route.ts:6",
+            "app/api/strategy/review/route.ts:7",
+            "app/api/strategy/review/route.ts:9"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/strategy/review/route.ts:11"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 0,
+      "notes": [
+        "Every export is JS-shaped (functions, plugin objects, iterators): porting the logic means adding a data-only function, an API change."
+      ]
+    },
+    {
+      "id": "app/api/strategy/settings/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/strategy/settings/route.ts"
+      ],
+      "loc": 23,
+      "wave": 1,
+      "readiness": 94,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "app/api/strategy/settings/route.ts:6",
+            "app/api/strategy/settings/route.ts:7",
+            "app/api/strategy/settings/route.ts:9"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "app/api/strategy/settings/route.ts:20"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "app/api/strategy/settings/route.ts:9",
+            "app/api/strategy/settings/route.ts:16"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 2,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/api/tasks/[id]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/api/tasks/[id]/route.ts"
+      ],
+      "loc": 17,
+      "wave": 1,
+      "readiness": 98,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "app/api/tasks/[id]/route.ts:9",
+            "app/api/tasks/[id]/route.ts:10",
+            "app/api/tasks/[id]/route.ts:11"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "app/api/tasks/[id]/route.ts:12"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/audit/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/audit/page.tsx"
+      ],
+      "loc": 2,
+      "wave": 0,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/connections/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/connections/page.tsx"
+      ],
+      "loc": 6,
+      "wave": 0,
+      "readiness": 97,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/connections/page.tsx:4",
+            "app/connections/page.tsx:5"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/google-g.png/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/google-g.png/route.ts"
+      ],
+      "loc": 8,
+      "wave": 0,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/google-g.png/route.ts:6",
+            "app/google-g.png/route.ts:7"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "Leaf: imports no other unit."
+      ]
+    },
+    {
+      "id": "app/healthz/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/healthz/route.ts"
+      ],
+      "loc": 3,
+      "wave": 0,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "Leaf: imports no other unit."
+      ]
+    },
+    {
+      "id": "app/inbox/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/inbox/page.tsx"
+      ],
+      "loc": 2,
+      "wave": 0,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/join/[organization]/[token]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/join/[organization]/[token]/page.tsx"
+      ],
+      "loc": 16,
+      "wave": 4,
+      "readiness": 95,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "app/join/[organization]/[token]/page.tsx:9",
+            "app/join/[organization]/[token]/page.tsx:10",
+            "app/join/[organization]/[token]/page.tsx:13"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/login/[organization]/[token]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/login/[organization]/[token]/page.tsx"
+      ],
+      "loc": 15,
+      "wave": 4,
+      "readiness": 95,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "app/login/[organization]/[token]/page.tsx:10",
+            "app/login/[organization]/[token]/page.tsx:11",
+            "app/login/[organization]/[token]/page.tsx:13"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/privacy/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/privacy/page.tsx"
+      ],
+      "loc": 44,
+      "wave": 4,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [
+        "components/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 63,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language."
+      ]
+    },
+    {
+      "id": "app/scout-icon.png/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/scout-icon.png/route.ts"
+      ],
+      "loc": 8,
+      "wave": 0,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/scout-icon.png/route.ts:6",
+            "app/scout-icon.png/route.ts:7"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "Leaf: imports no other unit."
+      ]
+    },
+    {
+      "id": "app/scout-icon.svg/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/scout-icon.svg/route.ts"
+      ],
+      "loc": 5,
+      "wave": 1,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "app/tasks/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/tasks/page.tsx"
+      ],
+      "loc": 2,
+      "wave": 0,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 58,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/tasks/[id]/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/tasks/[id]/page.tsx"
+      ],
+      "loc": 7,
+      "wave": 0,
+      "readiness": 97,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "app/tasks/[id]/page.tsx:5",
+            "app/tasks/[id]/page.tsx:6"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 57,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "app/terms/",
+      "package": "scout-dashboard",
+      "files": [
+        "app/terms/page.tsx"
+      ],
+      "loc": 33,
+      "wave": 4,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [],
+      "risks": [],
+      "internal_deps": [
+        "components/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 62,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language."
+      ]
+    },
+    {
+      "id": "components/",
+      "package": "scout-dashboard",
+      "files": [
+        "components/access-policies.tsx",
+        "components/app-sidebar.tsx",
+        "components/audit-log.tsx",
+        "components/brand.tsx",
+        "components/connections.tsx",
+        "components/dashboard.tsx",
+        "components/demo-panel.tsx",
+        "components/dom-ids.tsx",
+        "components/external-provider-dialog.tsx",
+        "components/guardrails-switch.tsx",
+        "components/join-workspace.tsx",
+        "components/legal-document.tsx",
+        "components/llm-chat.tsx",
+        "components/llm-usage.tsx",
+        "components/login-link.tsx",
+        "components/markdown.tsx",
+        "components/onboarding.tsx",
+        "components/organization-auth.tsx",
+        "components/staffing.tsx",
+        "components/strategy-settings.tsx",
+        "components/theme-toggle.tsx",
+        "components/transactions.tsx",
+        "components/view-skeletons.tsx"
+      ],
+      "loc": 2630,
+      "wave": 3,
+      "readiness": 0,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "browser",
+        "ui"
+      ],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 9,
+          "samples": [
+            "components/app-sidebar.tsx:113",
+            "components/connections.tsx:76",
+            "components/dashboard.tsx:210"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 67,
+          "samples": [
+            "components/app-sidebar.tsx:35",
+            "components/app-sidebar.tsx:36",
+            "components/app-sidebar.tsx:37"
+          ]
+        },
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 23,
+          "samples": [
+            "components/app-sidebar.tsx:44",
+            "components/app-sidebar.tsx:44",
+            "components/app-sidebar.tsx:44"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 13,
+          "samples": [
+            "components/dashboard.tsx:51",
+            "components/dashboard.tsx:91",
+            "components/dashboard.tsx:100"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "components/onboarding.tsx:182"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 35,
+          "samples": [
+            "components/app-sidebar.tsx:48",
+            "components/app-sidebar.tsx:52",
+            "components/dashboard.tsx:69"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 13,
+          "samples": [
+            "components/app-sidebar.tsx:36",
+            "components/app-sidebar.tsx:48",
+            "components/app-sidebar.tsx:52"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 11,
+          "samples": [
+            "components/llm-chat.tsx:321",
+            "components/llm-chat.tsx:321",
+            "components/llm-usage.tsx:19"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 5,
+          "samples": [
+            "components/dashboard.tsx:148",
+            "components/dashboard.tsx:149",
+            "components/llm-chat.tsx:93"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/overview/",
+        "components/tasks/",
+        "components/ui/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "lucide-react",
+        "next",
+        "recharts"
+      ],
+      "direct_tests": 0,
+      "fan_in": 7,
+      "density": 0.6,
+      "priority": 14,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "3 npm dependencies not in the crate table: check them by hand.",
+        "Import cycle with components/tasks/: port them together."
+      ]
+    },
+    {
+      "id": "components/overview/",
+      "package": "scout-dashboard",
+      "files": [
+        "components/overview/forecast-section.tsx",
+        "components/overview/panel.tsx",
+        "components/overview/round-charts.tsx"
+      ],
+      "loc": 289,
+      "wave": 2,
+      "readiness": 75,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "browser",
+        "ui"
+      ],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "components/overview/panel.tsx:10",
+            "components/overview/round-charts.tsx:80"
+          ]
+        },
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "components/overview/forecast-section.tsx:34",
+            "components/overview/forecast-section.tsx:35",
+            "components/overview/panel.tsx:32"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "components/overview/round-charts.tsx:36",
+            "components/overview/round-charts.tsx:78"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 8,
+          "samples": [
+            "components/overview/forecast-section.tsx:15",
+            "components/overview/forecast-section.tsx:15",
+            "components/overview/forecast-section.tsx:108"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/ui/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "recharts"
+      ],
+      "direct_tests": 0,
+      "fan_in": 1,
+      "density": 0.7,
+      "priority": 56,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "components/tasks/",
+      "package": "scout-dashboard",
+      "files": [
+        "components/tasks/status-icon.tsx",
+        "components/tasks/task-detail.tsx",
+        "components/tasks/task-list.tsx"
+      ],
+      "loc": 294,
+      "wave": 3,
+      "readiness": 70,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "ui"
+      ],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "components/tasks/task-list.tsx:127"
+          ]
+        },
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "components/tasks/task-detail.tsx:35",
+            "components/tasks/task-list.tsx:31",
+            "components/tasks/task-list.tsx:59"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "components/tasks/task-list.tsx:62",
+            "components/tasks/task-list.tsx:63",
+            "components/tasks/task-list.tsx:63"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "components/tasks/task-detail.tsx:53",
+            "components/tasks/task-detail.tsx:56"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "components/tasks/task-detail.tsx:56"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "components/",
+        "components/ui/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "lucide-react",
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 1,
+      "density": 0.3,
+      "priority": 53,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "2 npm dependencies not in the crate table: check them by hand.",
+        "Import cycle with components/: port them together."
+      ]
+    },
+    {
+      "id": "components/ui/",
+      "package": "scout-dashboard",
+      "files": [
+        "components/ui/alert.tsx",
+        "components/ui/avatar.tsx",
+        "components/ui/badge.tsx",
+        "components/ui/button.tsx",
+        "components/ui/card.tsx",
+        "components/ui/chart.tsx",
+        "components/ui/dialog.tsx",
+        "components/ui/dropdown-menu.tsx",
+        "components/ui/input.tsx",
+        "components/ui/separator.tsx",
+        "components/ui/sheet.tsx",
+        "components/ui/sidebar.tsx",
+        "components/ui/skeleton.tsx",
+        "components/ui/switch.tsx",
+        "components/ui/table.tsx",
+        "components/ui/tabs.tsx",
+        "components/ui/textarea.tsx",
+        "components/ui/tooltip.tsx"
+      ],
+      "loc": 2190,
+      "wave": 1,
+      "readiness": 12,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "browser",
+        "ui"
+      ],
+      "risks": [
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "components/ui/sidebar.tsx:38",
+            "components/ui/sidebar.tsx:40",
+            "components/ui/sidebar.tsx:42"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "components/ui/chart.tsx:341",
+            "components/ui/chart.tsx:350",
+            "components/ui/chart.tsx:356"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "components/ui/chart.tsx:85",
+            "components/ui/chart.tsx:96"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "components/ui/chart.tsx:35",
+            "components/ui/sidebar.tsx:50"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "components/ui/sidebar.tsx:611"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hooks/",
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "class-variance-authority",
+        "lucide-react",
+        "radix-ui",
+        "recharts"
+      ],
+      "direct_tests": 0,
+      "fan_in": 4,
+      "density": 0.0,
+      "priority": 18,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "4 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "hooks/",
+      "package": "scout-dashboard",
+      "files": [
+        "hooks/use-mobile.ts"
+      ],
+      "loc": 15,
+      "wave": 0,
+      "readiness": 100,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "browser",
+        "ui"
+      ],
+      "risks": [],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 1,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language."
+      ]
+    },
+    {
+      "id": "instrumentation.ts",
+      "package": "scout-dashboard",
+      "files": [
+        "instrumentation.ts"
+      ],
+      "loc": 17,
+      "wave": 1,
+      "readiness": 98,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "instrumentation.ts:1",
+            "instrumentation.ts:3",
+            "instrumentation.ts:7"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "instrumentation.ts:10"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": []
+    },
+    {
+      "id": "lib/",
+      "package": "scout-dashboard",
+      "files": [
+        "lib/auth-client-address.ts",
+        "lib/auth-crypto.ts",
+        "lib/auth-request.ts",
+        "lib/auth-store.ts",
+        "lib/auth.ts",
+        "lib/brand-icon.ts",
+        "lib/chat-model.ts",
+        "lib/chat-stream.ts",
+        "lib/connection-display.ts",
+        "lib/development-preview.ts",
+        "lib/external-chat.ts",
+        "lib/external-context.ts",
+        "lib/external-conversation.ts",
+        "lib/external-model.ts",
+        "lib/finance-model.ts",
+        "lib/finance.ts",
+        "lib/guardrails-model.ts",
+        "lib/guardrails-store.ts",
+        "lib/invoice-model.ts",
+        "lib/ksef.ts",
+        "lib/legal-links.ts",
+        "lib/llm-usage-model.ts",
+        "lib/llm-usage.ts",
+        "lib/markdown.ts",
+        "lib/market-research-model.ts",
+        "lib/market-research.ts",
+        "lib/nav.ts",
+        "lib/onboarding-client.ts",
+        "lib/onboarding-handoff.ts",
+        "lib/onboarding-model.ts",
+        "lib/onboarding-server.ts",
+        "lib/overview-model.ts",
+        "lib/preview-data.ts",
+        "lib/scout-api.ts",
+        "lib/scout-model.ts",
+        "lib/scout.ts",
+        "lib/strategy-credentials.ts",
+        "lib/strategy-model.ts",
+        "lib/strategy-store.ts",
+        "lib/task-signals.ts",
+        "lib/tenant-browser.ts",
+        "lib/use-records.ts",
+        "lib/use-seen-tasks.ts",
+        "lib/utils.ts"
+      ],
+      "loc": 3303,
+      "wave": 0,
+      "readiness": 0,
+      "status": "keep",
+      "bridge": "keep-in-js",
+      "platforms": [
+        "node",
+        "browser",
+        "ui"
+      ],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 86,
+          "samples": [
+            "lib/chat-model.ts:50",
+            "lib/chat-model.ts:59",
+            "lib/chat-model.ts:64"
+          ]
+        },
+        {
+          "risk": "regex-syntax",
+          "severity": "high",
+          "count": 10,
+          "samples": [
+            "lib/external-chat.ts:9",
+            "lib/external-chat.ts:170",
+            "lib/markdown.ts:17"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 262,
+          "samples": [
+            "lib/auth-crypto.ts:13",
+            "lib/auth-crypto.ts:16",
+            "lib/auth-crypto.ts:19"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 30,
+          "samples": [
+            "lib/auth-crypto.ts:3",
+            "lib/chat-model.ts:32",
+            "lib/chat-model.ts:150"
+          ]
+        },
+        {
+          "risk": "callbacks",
+          "severity": "medium",
+          "count": 26,
+          "samples": [
+            "lib/external-chat.ts:78",
+            "lib/external-chat.ts:79",
+            "lib/external-chat.ts:80"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 23,
+          "samples": [
+            "lib/chat-model.ts:178",
+            "lib/chat-model.ts:189",
+            "lib/chat-model.ts:193"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "lib/chat-model.ts:74",
+            "lib/external-chat.ts:86",
+            "lib/external-context.ts:7"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "lib/guardrails-store.ts:5",
+            "lib/onboarding-client.ts:87",
+            "lib/scout.ts:20"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 226,
+          "samples": [
+            "lib/auth-client-address.ts:6",
+            "lib/auth-client-address.ts:10",
+            "lib/auth-crypto.ts:17"
+          ]
+        },
+        {
+          "risk": "json",
+          "severity": "low",
+          "count": 31,
+          "samples": [
+            "lib/auth-request.ts:16",
+            "lib/auth-store.ts:200",
+            "lib/chat-model.ts:174"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 15,
+          "samples": [
+            "lib/auth-crypto.ts:31",
+            "lib/chat-model.ts:79",
+            "lib/external-chat.ts:103"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 9,
+          "samples": [
+            "lib/brand-icon.ts:8",
+            "lib/overview-model.ts:28",
+            "lib/overview-model.ts:39"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "clsx",
+        "next",
+        "pg",
+        "server-only",
+        "tailwind-merge"
+      ],
+      "direct_tests": 25,
+      "fan_in": 32,
+      "density": 3.8,
+      "priority": 28,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "UI code: keep in the original language.",
+        "4 npm dependencies not in the crate table: check them by hand.",
+        "25 test files import it directly."
+      ]
+    },
+    {
+      "id": "proxy.ts",
+      "package": "scout-dashboard",
+      "files": [
+        "proxy.ts"
+      ],
+      "loc": 36,
+      "wave": 1,
+      "readiness": 89,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "proxy.ts:26"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "proxy.ts:6",
+            "proxy.ts:21"
+          ]
+        },
+        {
+          "risk": "ordered-collections",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "proxy.ts:5"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "proxy.ts:20"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "lib/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "next"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 2.8,
+      "priority": 62,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "1 npm dependencies not in the crate table: check them by hand."
+      ]
+    },
+    {
+      "id": "scripts/",
+      "package": "scout-dashboard",
+      "files": [
+        "scripts/prepare-assets.mjs"
+      ],
+      "loc": 8,
+      "wave": 0,
+      "readiness": 100,
+      "status": "ready",
+      "bridge": "napi-rs",
+      "platforms": [
+        "node"
+      ],
+      "risks": [
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "scripts/prepare-assets.mjs:7",
+            "scripts/prepare-assets.mjs:8"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 0.0,
+      "priority": 59,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Leaf: imports no other unit."
+      ]
+    }
+  ],
+  "start_here": [
+    "app/api/chat/",
+    "app/api/auth/google/callback/",
+    "proxy.ts",
+    "app/api/invoices/[transactionId]/",
+    "app/api/auth/google/start/",
+    "app/api/chat/ack/",
+    "app/api/guardrails/",
+    "app/api/onboarding/connect/[provider]/",
+    "app/api/strategy/settings/",
+    "app/api/onboarding/callback/[provider]/"
+  ],
+  "dependencies": [
+    {
+      "name": "next",
+      "used_by": 6,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "jose",
+      "used_by": 1,
+      "crates": "jsonwebtoken",
+      "fit": "good",
+      "note": ""
+    }
+  ],
+  "whole_app": {
+    "shape": "library",
+    "entry_points": [
+      {
+        "kind": "library",
+        "path": ".",
+        "name": "scout-dashboard",
+        "evidence": "no main and no server: the package's public API"
+      }
+    ],
+    "dependencies": [
+      {
+        "name": "next",
+        "names": [
+          "next"
+        ],
+        "declared": true,
+        "used_by": 17,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "lucide-react",
+        "names": [
+          "lucide-react"
+        ],
+        "declared": true,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "recharts",
+        "names": [
+          "recharts"
+        ],
+        "declared": true,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "class-variance-authority",
+        "names": [
+          "class-variance-authority"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "clsx",
+        "names": [
+          "clsx"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "radix-ui",
+        "names": [
+          "radix-ui"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "server-only",
+        "names": [
+          "server-only"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "tailwind-merge",
+        "names": [
+          "tailwind-merge"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "react",
+        "names": [
+          "react"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "react-dom",
+        "names": [
+          "react-dom"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "jose",
+        "names": [
+          "jose"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": "jsonwebtoken",
+        "fit": "good",
+        "note": ""
+      },
+      {
+        "name": "pg",
+        "names": [
+          "pg"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": "tokio-postgres, sqlx",
+        "fit": "good",
+        "note": ""
+      }
+    ],
+    "pieces": [
+      {
+        "wave": 0,
+        "units": [
+          "app/api/google/"
+        ],
+        "loc": 2,
+        "tangled": false
+      },
+      {
+        "wave": 0,
+        "units": [
+          "app/google-g.png/"
+        ],
+        "loc": 8,
+        "tangled": false
+      },
+      {
+        "wave": 0,
+        "units": [
+          "app/healthz/"
+        ],
+        "loc": 3,
+        "tangled": false
+      },
+      {
+        "wave": 0,
+        "units": [
+          "app/scout-icon.png/"
+        ],
+        "loc": 8,
+        "tangled": false
+      },
+      {
+        "wave": 0,
+        "units": [
+          "scripts/"
+        ],
+        "loc": 8,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/approve/"
+        ],
+        "loc": 19,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/auth/[action]/"
+        ],
+        "loc": 72,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/auth/google/callback/"
+        ],
+        "loc": 48,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/auth/google/start/"
+        ],
+        "loc": 48,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/chat/"
+        ],
+        "loc": 77,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/chat/ack/"
+        ],
+        "loc": 21,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/dashboard/"
+        ],
+        "loc": 9,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/demo/"
+        ],
+        "loc": 17,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/guardrails/"
+        ],
+        "loc": 25,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/invoices/[transactionId]/"
+        ],
+        "loc": 21,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/ksef/"
+        ],
+        "loc": 15,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/llm-usage/"
+        ],
+        "loc": 12,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/onboarding/"
+        ],
+        "loc": 37,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/onboarding/callback/[provider]/"
+        ],
+        "loc": 27,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/onboarding/connect/[provider]/"
+        ],
+        "loc": 54,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/onboarding/handoff/"
+        ],
+        "loc": 26,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/onboarding/slack/channels/"
+        ],
+        "loc": 24,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/records/[kind]/"
+        ],
+        "loc": 16,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/strategy/review/"
+        ],
+        "loc": 16,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/strategy/settings/"
+        ],
+        "loc": 23,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/api/tasks/[id]/"
+        ],
+        "loc": 17,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "app/scout-icon.svg/"
+        ],
+        "loc": 5,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "instrumentation.ts"
+        ],
+        "loc": 17,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "proxy.ts"
+        ],
+        "loc": 36,
+        "tangled": false
+      }
+    ],
+    "decisions": [
+      {
+        "id": "D1",
+        "topic": "shape",
+        "question": "The app is a library, entered through scout-dashboard (.). Port every entry point, in that shape?",
+        "recommendation": "Yes: the Rust crate's public API becomes the library's front door"
+      },
+      {
+        "id": "D2",
+        "topic": "keep app/",
+        "question": "app/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D3",
+        "topic": "keep app/[organization]/",
+        "question": "app/[organization]/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D4",
+        "topic": "keep app/audit/",
+        "question": "app/audit/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D5",
+        "topic": "keep app/connections/",
+        "question": "app/connections/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D6",
+        "topic": "keep app/inbox/",
+        "question": "app/inbox/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D7",
+        "topic": "keep app/join/[organization]/[token]/",
+        "question": "app/join/[organization]/[token]/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D8",
+        "topic": "keep app/login/[organization]/[token]/",
+        "question": "app/login/[organization]/[token]/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D9",
+        "topic": "keep app/privacy/",
+        "question": "app/privacy/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D10",
+        "topic": "keep app/tasks/",
+        "question": "app/tasks/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D11",
+        "topic": "keep app/tasks/[id]/",
+        "question": "app/tasks/[id]/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D12",
+        "topic": "keep app/terms/",
+        "question": "app/terms/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D13",
+        "topic": "keep components/",
+        "question": "components/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D14",
+        "topic": "keep components/overview/",
+        "question": "components/overview/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D15",
+        "topic": "keep components/tasks/",
+        "question": "components/tasks/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D16",
+        "topic": "keep components/ui/",
+        "question": "components/ui/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D17",
+        "topic": "keep hooks/",
+        "question": "hooks/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D18",
+        "topic": "keep lib/",
+        "question": "lib/ stays in the source language (UI code: keep in the original language). What replaces it in the Rust app, or does it stay outside?",
+        "recommendation": "Keep it outside the Rust app, behind the front door, and decide its replacement once the rest is Rust"
+      },
+      {
+        "id": "D19",
+        "topic": "dependency next",
+        "question": "Which crate replaces next (used by 17 units)?",
+        "recommendation": "Research it against primary sources into rust/research/next.md before porting what uses it"
+      },
+      {
+        "id": "D20",
+        "topic": "dependency lucide-react",
+        "question": "Which crate replaces lucide-react (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/lucide-react.md before porting what uses it"
+      },
+      {
+        "id": "D21",
+        "topic": "dependency recharts",
+        "question": "Which crate replaces recharts (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/recharts.md before porting what uses it"
+      },
+      {
+        "id": "D22",
+        "topic": "dependency class-variance-authority",
+        "question": "Which crate replaces class-variance-authority (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/class-variance-authority.md before porting what uses it"
+      },
+      {
+        "id": "D23",
+        "topic": "dependency clsx",
+        "question": "Which crate replaces clsx (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/clsx.md before porting what uses it"
+      },
+      {
+        "id": "D24",
+        "topic": "dependency radix-ui",
+        "question": "Which crate replaces radix-ui (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/radix-ui.md before porting what uses it"
+      },
+      {
+        "id": "D25",
+        "topic": "dependency server-only",
+        "question": "Which crate replaces server-only (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/server-only.md before porting what uses it"
+      },
+      {
+        "id": "D26",
+        "topic": "dependency tailwind-merge",
+        "question": "Which crate replaces tailwind-merge (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/tailwind-merge.md before porting what uses it"
+      },
+      {
+        "id": "D27",
+        "topic": "dependency react",
+        "question": "Which crate replaces react (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/react.md before porting what uses it"
+      },
+      {
+        "id": "D28",
+        "topic": "dependency react-dom",
+        "question": "Which crate replaces react-dom (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/react-dom.md before porting what uses it"
+      }
+    ]
+  }
+}

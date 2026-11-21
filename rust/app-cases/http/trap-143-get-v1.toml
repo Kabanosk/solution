@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/stra%C3%9Fe/dec_6f1c0a7e2b11"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

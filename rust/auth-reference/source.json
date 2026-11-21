@@ -1,0 +1,9 @@
+{
+  "source": "dashboard/lib/auth-crypto.ts",
+  "sha256": "e5577d6df4aa310e4bc63349f2d2100783a6f33d7efcb386d6433baa5cefaea2",
+  "reference_copy": "rust/auth-reference/original.ts",
+  "adapters": "rust/auth-reference/bindings.ts",
+  "input_cases": "rust/auth-reference/inputs.jsonl",
+  "clock": "explicit milliseconds passed to checkValidateIdentity; no production clock mutation",
+  "entropy": "deterministic 32 bytes for record adapter only; production functions call OS RNG"
+}

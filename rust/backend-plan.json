@@ -1,0 +1,2619 @@
+{
+  "schema": "rust-anything/analyze@1",
+  "language": "python",
+  "summary": {
+    "packages": 1,
+    "source_files": 123,
+    "test_files": 80,
+    "ui_files": 0,
+    "loc": 18823,
+    "units": 14,
+    "ready": 3,
+    "caution": 4,
+    "blocked": 7,
+    "keep": 0,
+    "parse_errors": 0
+  },
+  "packages": [
+    {
+      "name": "cfo",
+      "dir": "",
+      "order": 1,
+      "runtime": "portable",
+      "workspace_deps": [],
+      "test_files": 80,
+      "units": [
+        "cfo/",
+        "cfo/analysis/",
+        "cfo/api/",
+        "cfo/api/routers/",
+        "cfo/data/",
+        "cfo/db/",
+        "cfo/forecast/",
+        "cfo/mcp_servers/",
+        "cfo/usage/",
+        "scout/",
+        "scout/connectors/",
+        "scout/loops/",
+        "scout/mock_bank/",
+        "scout/onboarding/"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "id": "cfo/",
+      "package": "cfo",
+      "files": [
+        "cfo/__init__.py",
+        "cfo/config.py",
+        "cfo/domain.py",
+        "cfo/llm.py",
+        "cfo/observability.py",
+        "cfo/tenancy.py"
+      ],
+      "loc": 737,
+      "wave": 0,
+      "readiness": 6,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 5,
+          "samples": [
+            "cfo/llm.py:46",
+            "cfo/llm.py:112",
+            "cfo/llm.py:114"
+          ]
+        },
+        {
+          "risk": "dynamic-code",
+          "severity": "high",
+          "count": 3,
+          "samples": [
+            "cfo/observability.py:80",
+            "cfo/observability.py:89",
+            "cfo/observability.py:108"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "cfo/domain.py:21",
+            "cfo/observability.py:135"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 23,
+          "samples": [
+            "cfo/config.py:12",
+            "cfo/domain.py:28",
+            "cfo/domain.py:36"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 20,
+          "samples": [
+            "cfo/llm.py:26",
+            "cfo/llm.py:31",
+            "cfo/llm.py:44"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "cfo/observability.py:175",
+            "cfo/observability.py:175",
+            "cfo/observability.py:182"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 48,
+          "samples": [
+            "cfo/domain.py:70",
+            "cfo/domain.py:74",
+            "cfo/domain.py:77"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 33,
+          "samples": [
+            "cfo/llm.py:40",
+            "cfo/llm.py:180",
+            "cfo/llm.py:181"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "cfo/domain.py:25"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/usage/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "httpx",
+        "langgraph",
+        "openai",
+        "psycopg",
+        "pydantic",
+        "pydantic-settings"
+      ],
+      "direct_tests": 40,
+      "fan_in": 13,
+      "density": 1.9,
+      "priority": 27,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Uses dynamic code (eval, new Function or computed imports).",
+        "3 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/: port them together.",
+        "40 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/analysis/",
+      "package": "cfo",
+      "files": [
+        "cfo/analysis/__init__.py",
+        "cfo/analysis/cost_metrics.py"
+      ],
+      "loc": 257,
+      "wave": 0,
+      "readiness": 79,
+      "status": "ready",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "cfo/analysis/cost_metrics.py:170",
+            "cfo/analysis/cost_metrics.py:282"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "cfo/analysis/cost_metrics.py:307"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "cfo/analysis/cost_metrics.py:121",
+            "cfo/analysis/cost_metrics.py:121",
+            "cfo/analysis/cost_metrics.py:132"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 22,
+          "samples": [
+            "cfo/analysis/cost_metrics.py:78",
+            "cfo/analysis/cost_metrics.py:81",
+            "cfo/analysis/cost_metrics.py:85"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "cfo/analysis/cost_metrics.py:123"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/api/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 3,
+      "fan_in": 2,
+      "density": 7.0,
+      "priority": 79,
+      "exports": 11,
+      "bridgeable": 5,
+      "notes": [
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "3 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/api/",
+      "package": "cfo",
+      "files": [
+        "cfo/api/__init__.py",
+        "cfo/api/app.py",
+        "cfo/api/auth.py",
+        "cfo/api/deps.py",
+        "cfo/api/errors.py",
+        "cfo/api/export_openapi.py",
+        "cfo/api/schemas.py",
+        "cfo/api/schemas_usage.py",
+        "cfo/api/services.py",
+        "cfo/api/settings.py"
+      ],
+      "loc": 914,
+      "wave": 0,
+      "readiness": 0,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 3,
+          "samples": [
+            "cfo/api/services.py:357",
+            "cfo/api/services.py:358",
+            "cfo/api/services.py:358"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "cfo/api/export_openapi.py:24",
+            "cfo/api/services.py:224"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 33,
+          "samples": [
+            "cfo/api/errors.py:25",
+            "cfo/api/errors.py:31",
+            "cfo/api/errors.py:37"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 26,
+          "samples": [
+            "cfo/api/app.py:52",
+            "cfo/api/auth.py:44",
+            "cfo/api/auth.py:46"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "cfo/api/auth.py:41",
+            "cfo/api/auth.py:44",
+            "cfo/api/auth.py:78"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "cfo/api/app.py:55",
+            "cfo/api/app.py:55",
+            "cfo/api/deps.py:24"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cfo/api/services.py:319"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cfo/api/services.py:111"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 48,
+          "samples": [
+            "cfo/api/auth.py:21",
+            "cfo/api/errors.py:26",
+            "cfo/api/schemas.py:34"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 12,
+          "samples": [
+            "cfo/api/auth.py:33",
+            "cfo/api/auth.py:61",
+            "cfo/api/auth.py:90"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "cfo/api/services.py:346",
+            "cfo/api/services.py:347"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/analysis/",
+        "cfo/api/routers/",
+        "cfo/db/",
+        "cfo/forecast/",
+        "scout/",
+        "scout/onboarding/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "fastapi",
+        "pandas",
+        "psycopg",
+        "pydantic",
+        "pydantic-settings",
+        "starlette"
+      ],
+      "direct_tests": 18,
+      "fan_in": 5,
+      "density": 2.3,
+      "priority": 25,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "`fastapi` has no Rust equivalent.",
+        "`starlette` has no Rust equivalent.",
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, scout/, cfo/usage/, cfo/: port them together.",
+        "18 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/api/routers/",
+      "package": "cfo",
+      "files": [
+        "cfo/api/routers/__init__.py",
+        "cfo/api/routers/cost_metrics.py",
+        "cfo/api/routers/costs.py",
+        "cfo/api/routers/forecast.py",
+        "cfo/api/routers/kpis.py",
+        "cfo/api/routers/llm_usage.py"
+      ],
+      "loc": 127,
+      "wave": 0,
+      "readiness": 90,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 5,
+          "samples": [
+            "cfo/api/routers/cost_metrics.py:18",
+            "cfo/api/routers/costs.py:18",
+            "cfo/api/routers/costs.py:20"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "cfo/api/routers/costs.py:27",
+            "cfo/api/routers/llm_usage.py:53",
+            "cfo/api/routers/llm_usage.py:67"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/api/",
+        "cfo/db/",
+        "cfo/usage/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "fastapi"
+      ],
+      "direct_tests": 1,
+      "fan_in": 1,
+      "density": 0.0,
+      "priority": 70,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "`fastapi` has no Rust equivalent.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "1 test file imports it directly."
+      ]
+    },
+    {
+      "id": "cfo/data/",
+      "package": "cfo",
+      "files": [
+        "cfo/data/__init__.py",
+        "cfo/data/generate.py",
+        "cfo/data/invoices.py",
+        "cfo/data/load.py",
+        "cfo/data/metrics.py",
+        "cfo/data/pdf.py",
+        "cfo/data/people.py",
+        "cfo/data/source.py"
+      ],
+      "loc": 795,
+      "wave": 0,
+      "readiness": 46,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 6,
+          "samples": [
+            "cfo/data/generate.py:79",
+            "cfo/data/generate.py:80",
+            "cfo/data/generate.py:176"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 3,
+          "samples": [
+            "cfo/data/generate.py:179",
+            "cfo/data/generate.py:179",
+            "cfo/data/load.py:36"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "cfo/data/generate.py:216",
+            "cfo/data/metrics.py:115",
+            "cfo/data/pdf.py:21"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "cfo/data/generate.py:47",
+            "cfo/data/generate.py:49",
+            "cfo/data/generate.py:130"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cfo/data/source.py:42"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 9,
+          "samples": [
+            "cfo/data/generate.py:46",
+            "cfo/data/generate.py:46",
+            "cfo/data/generate.py:141"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 6,
+          "samples": [
+            "cfo/data/generate.py:124",
+            "cfo/data/generate.py:150",
+            "cfo/data/generate.py:279"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "cfo/data/generate.py:173",
+            "cfo/data/generate.py:183",
+            "cfo/data/metrics.py:60"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/db/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "pydantic"
+      ],
+      "direct_tests": 16,
+      "fan_in": 3,
+      "density": 8.6,
+      "priority": 60,
+      "exports": 24,
+      "bridgeable": 20,
+      "notes": [
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "16 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/db/",
+      "package": "cfo",
+      "files": [
+        "cfo/db/__init__.py",
+        "cfo/db/migrate.py",
+        "cfo/db/repo.py"
+      ],
+      "loc": 343,
+      "wave": 0,
+      "readiness": 63,
+      "status": "ready",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 9,
+          "samples": [
+            "cfo/db/migrate.py:67",
+            "cfo/db/migrate.py:73",
+            "cfo/db/repo.py:35"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "cfo/db/repo.py:58",
+            "cfo/db/repo.py:58"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cfo/db/repo.py:44"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 11,
+          "samples": [
+            "cfo/db/migrate.py:33",
+            "cfo/db/repo.py:35",
+            "cfo/db/repo.py:74"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 10,
+          "samples": [
+            "cfo/db/migrate.py:74",
+            "cfo/db/migrate.py:125",
+            "cfo/db/migrate.py:130"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "langgraph",
+        "psycopg"
+      ],
+      "direct_tests": 21,
+      "fan_in": 7,
+      "density": 4.7,
+      "priority": 66,
+      "exports": 6,
+      "bridgeable": 4,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "21 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/forecast/",
+      "package": "cfo",
+      "files": [
+        "cfo/forecast/__init__.py",
+        "cfo/forecast/band.py",
+        "cfo/forecast/compare.py",
+        "cfo/forecast/evaluate.py",
+        "cfo/forecast/features.py",
+        "cfo/forecast/folds.py",
+        "cfo/forecast/liquidity.py",
+        "cfo/forecast/model.py",
+        "cfo/forecast/schedule.py",
+        "cfo/forecast/train.py",
+        "cfo/forecast/tune.py"
+      ],
+      "loc": 3154,
+      "wave": 0,
+      "readiness": 0,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 17,
+          "samples": [
+            "cfo/forecast/evaluate.py:103",
+            "cfo/forecast/features.py:69",
+            "cfo/forecast/features.py:69"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 12,
+          "samples": [
+            "cfo/forecast/compare.py:111",
+            "cfo/forecast/liquidity.py:411",
+            "cfo/forecast/liquidity.py:411"
+          ]
+        },
+        {
+          "risk": "dynamic-code",
+          "severity": "high",
+          "count": 3,
+          "samples": [
+            "cfo/forecast/model.py:310",
+            "cfo/forecast/model.py:586",
+            "cfo/forecast/model.py:659"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 25,
+          "samples": [
+            "cfo/forecast/compare.py:85",
+            "cfo/forecast/compare.py:87",
+            "cfo/forecast/compare.py:89"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 16,
+          "samples": [
+            "cfo/forecast/features.py:146",
+            "cfo/forecast/features.py:146",
+            "cfo/forecast/features.py:146"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "cfo/forecast/tune.py:367",
+            "cfo/forecast/tune.py:367",
+            "cfo/forecast/tune.py:373"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "cfo/forecast/liquidity.py:86",
+            "cfo/forecast/liquidity.py:101",
+            "cfo/forecast/liquidity.py:117"
+          ]
+        },
+        {
+          "risk": "integer-semantics",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "cfo/forecast/band.py:52",
+            "cfo/forecast/band.py:53",
+            "cfo/forecast/band.py:86"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 98,
+          "samples": [
+            "cfo/forecast/band.py:79",
+            "cfo/forecast/evaluate.py:171",
+            "cfo/forecast/features.py:109"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 71,
+          "samples": [
+            "cfo/forecast/compare.py:78",
+            "cfo/forecast/compare.py:177",
+            "cfo/forecast/compare.py:277"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "cfo/forecast/model.py:634",
+            "cfo/forecast/tune.py:425",
+            "cfo/forecast/tune.py:463"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/data/",
+        "scout/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "matplotlib",
+        "mlflow",
+        "numpy",
+        "optuna",
+        "pandas",
+        "psycopg",
+        "pydantic",
+        "xgboost"
+      ],
+      "direct_tests": 16,
+      "fan_in": 3,
+      "density": 5.2,
+      "priority": 30,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Uses dynamic code (eval, new Function or computed imports).",
+        "2 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "16 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/mcp_servers/",
+      "package": "cfo",
+      "files": [
+        "cfo/mcp_servers/__init__.py",
+        "cfo/mcp_servers/__main__.py",
+        "cfo/mcp_servers/common.py",
+        "cfo/mcp_servers/company_db.py",
+        "cfo/mcp_servers/hr.py",
+        "cfo/mcp_servers/workstations.py"
+      ],
+      "loc": 588,
+      "wave": 0,
+      "readiness": 54,
+      "status": "ready",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 7,
+          "samples": [
+            "cfo/mcp_servers/company_db.py:41",
+            "cfo/mcp_servers/workstations.py:129",
+            "cfo/mcp_servers/workstations.py:129"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 3,
+          "samples": [
+            "cfo/mcp_servers/company_db.py:122",
+            "cfo/mcp_servers/hr.py:77",
+            "cfo/mcp_servers/workstations.py:28"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "cfo/mcp_servers/common.py:29",
+            "cfo/mcp_servers/common.py:37",
+            "cfo/mcp_servers/workstations.py:77"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "cfo/mcp_servers/workstations.py:34",
+            "cfo/mcp_servers/workstations.py:38"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 34,
+          "samples": [
+            "cfo/mcp_servers/common.py:13",
+            "cfo/mcp_servers/common.py:13",
+            "cfo/mcp_servers/common.py:34"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 17,
+          "samples": [
+            "cfo/mcp_servers/company_db.py:94",
+            "cfo/mcp_servers/company_db.py:123",
+            "cfo/mcp_servers/company_db.py:165"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 1,
+          "samples": [
+            "cfo/mcp_servers/hr.py:27"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/db/",
+        "scout/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "mcp"
+      ],
+      "direct_tests": 4,
+      "fan_in": 1,
+      "density": 6.3,
+      "priority": 65,
+      "exports": 13,
+      "bridgeable": 7,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "4 test files import it directly."
+      ]
+    },
+    {
+      "id": "cfo/usage/",
+      "package": "cfo",
+      "files": [
+        "cfo/usage/__init__.py",
+        "cfo/usage/__main__.py",
+        "cfo/usage/cost.py",
+        "cfo/usage/recorder.py",
+        "cfo/usage/report.py",
+        "cfo/usage/sampler.py",
+        "cfo/usage/settings.py",
+        "cfo/usage/store.py",
+        "cfo/usage/vllm_metrics.py"
+      ],
+      "loc": 956,
+      "wave": 0,
+      "readiness": 41,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "cfo/usage/__main__.py:46",
+            "cfo/usage/report.py:68"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "cfo/usage/recorder.py:41",
+            "cfo/usage/recorder.py:41"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "cfo/usage/recorder.py:82",
+            "cfo/usage/recorder.py:83",
+            "cfo/usage/recorder.py:91"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "cfo/usage/recorder.py:71",
+            "cfo/usage/settings.py:28",
+            "cfo/usage/settings.py:49"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "cfo/usage/recorder.py:47",
+            "cfo/usage/recorder.py:47"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cfo/usage/sampler.py:118"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 48,
+          "samples": [
+            "cfo/usage/cost.py:25",
+            "cfo/usage/cost.py:29",
+            "cfo/usage/cost.py:36"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 15,
+          "samples": [
+            "cfo/usage/__main__.py:32",
+            "cfo/usage/__main__.py:37",
+            "cfo/usage/__main__.py:46"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "scout/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "psycopg",
+        "pydantic",
+        "pydantic-settings"
+      ],
+      "direct_tests": 2,
+      "fan_in": 4,
+      "density": 3.9,
+      "priority": 48,
+      "exports": 45,
+      "bridgeable": 34,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/: port them together.",
+        "2 test files import it directly."
+      ]
+    },
+    {
+      "id": "scout/",
+      "package": "cfo",
+      "files": [
+        "scout/__init__.py",
+        "scout/api.py",
+        "scout/audit.py",
+        "scout/chat_api.py",
+        "scout/config.py",
+        "scout/dashboard_help.py",
+        "scout/db.py",
+        "scout/demo.py",
+        "scout/demo_data.py",
+        "scout/demo_guard.py",
+        "scout/dm_replies.py",
+        "scout/documents.py",
+        "scout/documents_api.py",
+        "scout/forecast_bridge.py",
+        "scout/guardrails.py",
+        "scout/hiring_bridge.py",
+        "scout/jobs.py",
+        "scout/ksef_api.py",
+        "scout/ksef_sync.py",
+        "scout/llm_tasks.py",
+        "scout/login_links.py",
+        "scout/models.py",
+        "scout/policy.py",
+        "scout/seed.py",
+        "scout/slack_directory.py",
+        "scout/slack_runtime.py",
+        "scout/slack_ui.py",
+        "scout/strategy.py",
+        "scout/tasks.py",
+        "scout/watchers.py",
+        "scout/worker.py"
+      ],
+      "loc": 5914,
+      "wave": 0,
+      "readiness": 0,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 74,
+          "samples": [
+            "scout/audit.py:79",
+            "scout/audit.py:139",
+            "scout/audit.py:204"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 52,
+          "samples": [
+            "scout/api.py:71",
+            "scout/audit.py:14",
+            "scout/audit.py:14"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "scout/slack_ui.py:458",
+            "scout/strategy.py:32"
+          ]
+        },
+        {
+          "risk": "regex-syntax",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "scout/slack_directory.py:38"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 66,
+          "samples": [
+            "scout/api.py:57",
+            "scout/api.py:59",
+            "scout/api.py:61"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 28,
+          "samples": [
+            "scout/chat_api.py:53",
+            "scout/chat_api.py:66",
+            "scout/chat_api.py:79"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 20,
+          "samples": [
+            "scout/api.py:46",
+            "scout/api.py:46",
+            "scout/api.py:118"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 10,
+          "samples": [
+            "scout/chat_api.py:257",
+            "scout/chat_api.py:326",
+            "scout/chat_api.py:383"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "scout/api.py:344",
+            "scout/guardrails.py:548",
+            "scout/guardrails.py:551"
+          ]
+        },
+        {
+          "risk": "integer-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "scout/llm_tasks.py:78",
+            "scout/strategy.py:155"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 219,
+          "samples": [
+            "scout/api.py:39",
+            "scout/api.py:91",
+            "scout/api.py:91"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 164,
+          "samples": [
+            "scout/api.py:45",
+            "scout/api.py:78",
+            "scout/api.py:116"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 25,
+          "samples": [
+            "scout/api.py:79",
+            "scout/api.py:299",
+            "scout/api.py:299"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/api/",
+        "cfo/data/",
+        "cfo/db/",
+        "cfo/forecast/",
+        "cfo/usage/",
+        "scout/connectors/",
+        "scout/loops/",
+        "scout/mock_bank/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "fastapi",
+        "httpx",
+        "langgraph",
+        "psycopg",
+        "pydantic",
+        "pydantic-settings",
+        "pypdf",
+        "slack-bolt",
+        "slack-sdk"
+      ],
+      "direct_tests": 36,
+      "fan_in": 8,
+      "density": 5.2,
+      "priority": 30,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "`fastapi` has no Rust equivalent.",
+        "5 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, cfo/usage/, cfo/: port them together.",
+        "36 test files import it directly."
+      ]
+    },
+    {
+      "id": "scout/connectors/",
+      "package": "cfo",
+      "files": [
+        "scout/connectors/__init__.py",
+        "scout/connectors/bank.py",
+        "scout/connectors/bunq.py",
+        "scout/connectors/chat.py",
+        "scout/connectors/crypto.py",
+        "scout/connectors/files.py",
+        "scout/connectors/invoicing.py",
+        "scout/connectors/ksef.py",
+        "scout/connectors/mail.py",
+        "scout/connectors/registry.py"
+      ],
+      "loc": 1385,
+      "wave": 0,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 13,
+          "samples": [
+            "scout/connectors/bank.py:23",
+            "scout/connectors/chat.py:31",
+            "scout/connectors/chat.py:31"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 8,
+          "samples": [
+            "scout/connectors/chat.py:27",
+            "scout/connectors/chat.py:45",
+            "scout/connectors/ksef.py:360"
+          ]
+        },
+        {
+          "risk": "regex-syntax",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "scout/connectors/chat.py:15"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 44,
+          "samples": [
+            "scout/connectors/bank.py:57",
+            "scout/connectors/bunq.py:72",
+            "scout/connectors/bunq.py:73"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 9,
+          "samples": [
+            "scout/connectors/bank.py:14",
+            "scout/connectors/bunq.py:49",
+            "scout/connectors/chat.py:18"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "scout/connectors/ksef.py:58",
+            "scout/connectors/ksef.py:67"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 63,
+          "samples": [
+            "scout/connectors/bank.py:41",
+            "scout/connectors/bank.py:41",
+            "scout/connectors/bunq.py:54"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 53,
+          "samples": [
+            "scout/connectors/bank.py:64",
+            "scout/connectors/bunq.py:67",
+            "scout/connectors/bunq.py:71"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 4,
+          "samples": [
+            "scout/connectors/bunq.py:150",
+            "scout/connectors/ksef.py:54",
+            "scout/connectors/ksef.py:286"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/db/",
+        "cfo/mcp_servers/",
+        "scout/",
+        "scout/mock_bank/",
+        "scout/onboarding/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "cryptography",
+        "google",
+        "google-auth-httplib2",
+        "googleapiclient",
+        "httplib2",
+        "httpx",
+        "lxml",
+        "signxml",
+        "slack-sdk"
+      ],
+      "direct_tests": 15,
+      "fan_in": 3,
+      "density": 6.5,
+      "priority": 33,
+      "exports": 48,
+      "bridgeable": 20,
+      "notes": [
+        "6 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "15 test files import it directly."
+      ]
+    },
+    {
+      "id": "scout/loops/",
+      "package": "cfo",
+      "files": [
+        "scout/loops/__init__.py",
+        "scout/loops/chat.py",
+        "scout/loops/context.py",
+        "scout/loops/cost_control.py",
+        "scout/loops/invoicing.py",
+        "scout/loops/liquidity.py",
+        "scout/loops/strategy.py",
+        "scout/loops/toolbox.py"
+      ],
+      "loc": 2432,
+      "wave": 0,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 91,
+          "samples": [
+            "scout/loops/chat.py:79",
+            "scout/loops/chat.py:122",
+            "scout/loops/chat.py:136"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 10,
+          "samples": [
+            "scout/loops/chat.py:327",
+            "scout/loops/chat.py:340",
+            "scout/loops/chat.py:340"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "scout/loops/chat.py:172",
+            "scout/loops/chat.py:355",
+            "scout/loops/chat.py:499"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 17,
+          "samples": [
+            "scout/loops/chat.py:470",
+            "scout/loops/context.py:57",
+            "scout/loops/context.py:61"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "scout/loops/chat.py:110",
+            "scout/loops/chat.py:124",
+            "scout/loops/chat.py:128"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "scout/loops/context.py:33",
+            "scout/loops/liquidity.py:31"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 61,
+          "samples": [
+            "scout/loops/chat.py:40",
+            "scout/loops/chat.py:40",
+            "scout/loops/chat.py:83"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 35,
+          "samples": [
+            "scout/loops/chat.py:137",
+            "scout/loops/chat.py:256",
+            "scout/loops/chat.py:282"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "scout/loops/context.py:165",
+            "scout/loops/liquidity.py:181"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/analysis/",
+        "cfo/data/",
+        "cfo/db/",
+        "cfo/forecast/",
+        "cfo/usage/",
+        "scout/",
+        "scout/connectors/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "langgraph",
+        "psycopg"
+      ],
+      "direct_tests": 15,
+      "fan_in": 1,
+      "density": 9.6,
+      "priority": 39,
+      "exports": 33,
+      "bridgeable": 26,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "Import cycle with scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "15 test files import it directly."
+      ]
+    },
+    {
+      "id": "scout/mock_bank/",
+      "package": "cfo",
+      "files": [
+        "scout/mock_bank/__init__.py",
+        "scout/mock_bank/__main__.py",
+        "scout/mock_bank/app.py",
+        "scout/mock_bank/store.py"
+      ],
+      "loc": 148,
+      "wave": 0,
+      "readiness": 42,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "scout/mock_bank/store.py:76"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "scout/mock_bank/store.py:12"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "scout/mock_bank/app.py:62",
+            "scout/mock_bank/app.py:64",
+            "scout/mock_bank/app.py:64"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "scout/mock_bank/app.py:60",
+            "scout/mock_bank/app.py:62"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "scout/mock_bank/app.py:41"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "scout/mock_bank/store.py:17"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 9,
+          "samples": [
+            "scout/mock_bank/app.py:46",
+            "scout/mock_bank/app.py:47",
+            "scout/mock_bank/app.py:76"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "scout/mock_bank/store.py:38",
+            "scout/mock_bank/store.py:58",
+            "scout/mock_bank/store.py:70"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/api/",
+        "scout/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "fastapi",
+        "pydantic",
+        "starlette",
+        "uvicorn"
+      ],
+      "direct_tests": 4,
+      "fan_in": 2,
+      "density": 4.1,
+      "priority": 54,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "`fastapi` has no Rust equivalent.",
+        "`starlette` has no Rust equivalent.",
+        "`uvicorn` has no Rust equivalent.",
+        "Import cycle with scout/loops/, cfo/mcp_servers/, scout/connectors/, scout/onboarding/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "4 test files import it directly."
+      ]
+    },
+    {
+      "id": "scout/onboarding/",
+      "package": "cfo",
+      "files": [
+        "scout/onboarding/__init__.py",
+        "scout/onboarding/api.py",
+        "scout/onboarding/catalog.py",
+        "scout/onboarding/gmail_oauth.py",
+        "scout/onboarding/http.py",
+        "scout/onboarding/oauth.py",
+        "scout/onboarding/service.py",
+        "scout/onboarding/slack_oauth.py",
+        "scout/onboarding/state.py"
+      ],
+      "loc": 1073,
+      "wave": 0,
+      "readiness": 27,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 9,
+          "samples": [
+            "scout/onboarding/gmail_oauth.py:62",
+            "scout/onboarding/slack_oauth.py:68",
+            "scout/onboarding/slack_oauth.py:69"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "scout/onboarding/slack_oauth.py:131"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 11,
+          "samples": [
+            "scout/onboarding/api.py:83",
+            "scout/onboarding/catalog.py:62",
+            "scout/onboarding/catalog.py:66"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 9,
+          "samples": [
+            "scout/onboarding/catalog.py:121",
+            "scout/onboarding/gmail_oauth.py:56",
+            "scout/onboarding/service.py:188"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 77,
+          "samples": [
+            "scout/onboarding/api.py:42",
+            "scout/onboarding/api.py:44",
+            "scout/onboarding/api.py:69"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 24,
+          "samples": [
+            "scout/onboarding/catalog.py:16",
+            "scout/onboarding/catalog.py:29",
+            "scout/onboarding/catalog.py:42"
+          ]
+        },
+        {
+          "risk": "clock-and-random",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "scout/onboarding/gmail_oauth.py:30",
+            "scout/onboarding/oauth.py:27"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "cfo/",
+        "cfo/api/",
+        "scout/",
+        "scout/connectors/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "fastapi",
+        "httpx",
+        "psycopg",
+        "pydantic"
+      ],
+      "direct_tests": 8,
+      "fan_in": 2,
+      "density": 1.8,
+      "priority": 37,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "`fastapi` has no Rust equivalent.",
+        "Import cycle with scout/loops/, scout/mock_bank/, cfo/mcp_servers/, scout/connectors/, cfo/data/, cfo/forecast/, cfo/db/, cfo/api/routers/, cfo/analysis/, cfo/api/, scout/, cfo/usage/, cfo/: port them together.",
+        "8 test files import it directly."
+      ]
+    }
+  ],
+  "start_here": [
+    "cfo/analysis/",
+    "cfo/db/",
+    "cfo/mcp_servers/"
+  ],
+  "dependencies": [
+    {
+      "name": "fastapi",
+      "used_by": 5,
+      "crates": "-",
+      "fit": "none",
+      "note": "Web framework: keep the app in Python."
+    },
+    {
+      "name": "starlette",
+      "used_by": 2,
+      "crates": "-",
+      "fit": "none",
+      "note": "Web framework: keep the app in Python."
+    },
+    {
+      "name": "uvicorn",
+      "used_by": 1,
+      "crates": "axum",
+      "fit": "none",
+      "note": "a server is an application rewrite, not a port"
+    },
+    {
+      "name": "langgraph",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "pydantic-settings",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "slack-sdk",
+      "used_by": 2,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "google",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "google-auth-httplib2",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "googleapiclient",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "httplib2",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "mcp",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "mlflow",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "openai",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "optuna",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "pypdf",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "signxml",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "slack-bolt",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "psycopg",
+      "used_by": 8,
+      "crates": "sqlx",
+      "fit": "partial",
+      "note": "ORM layers port by hand."
+    },
+    {
+      "name": "pydantic",
+      "used_by": 8,
+      "crates": "serde, garde",
+      "fit": "partial",
+      "note": "Validation errors will differ."
+    },
+    {
+      "name": "pandas",
+      "used_by": 2,
+      "crates": "polars",
+      "fit": "partial",
+      "note": "Different API; port by behavior, not by call."
+    },
+    {
+      "name": "cryptography",
+      "used_by": 1,
+      "crates": "ring, RustCrypto crates",
+      "fit": "partial",
+      "note": ""
+    },
+    {
+      "name": "lxml",
+      "used_by": 1,
+      "crates": "quick-xml, scraper",
+      "fit": "partial",
+      "note": ""
+    },
+    {
+      "name": "matplotlib",
+      "used_by": 1,
+      "crates": "plotters",
+      "fit": "partial",
+      "note": ""
+    },
+    {
+      "name": "numpy",
+      "used_by": 1,
+      "crates": "ndarray",
+      "fit": "partial",
+      "note": "Broadcasting and dtype rules differ; check numerics."
+    },
+    {
+      "name": "xgboost",
+      "used_by": 1,
+      "crates": "linfa",
+      "fit": "partial",
+      "note": "estimators have to be retrained or the model loaded"
+    },
+    {
+      "name": "httpx",
+      "used_by": 4,
+      "crates": "reqwest",
+      "fit": "good",
+      "note": ""
+    }
+  ],
+  "whole_app": {
+    "shape": "server",
+    "entry_points": [
+      {
+        "kind": "server",
+        "path": "cfo/api/app.py",
+        "evidence": "`FastAPI(` at cfo/api/app.py:59"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/api/export_openapi.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/api/export_openapi.py:23"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/data/generate.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/data/generate.py:278"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/data/load.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/data/load.py:115"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/db/migrate.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/db/migrate.py:170"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/forecast/compare.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/forecast/compare.py:276"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/forecast/evaluate.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/forecast/evaluate.py:204"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/forecast/train.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/forecast/train.py:133"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/forecast/tune.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/forecast/tune.py:1006"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/mcp_servers/__main__.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/mcp_servers/__main__.py:44"
+      },
+      {
+        "kind": "cli",
+        "path": "cfo/usage/__main__.py",
+        "evidence": "`if __name__ == \"__main__\"` at cfo/usage/__main__.py:45"
+      },
+      {
+        "kind": "cli",
+        "path": "scout/demo.py",
+        "evidence": "`if __name__ == \"__main__\"` at scout/demo.py:139"
+      },
+      {
+        "kind": "server",
+        "path": "scout/mock_bank/__main__.py",
+        "evidence": "`uvicorn.run` at scout/mock_bank/__main__.py:5"
+      },
+      {
+        "kind": "server",
+        "path": "scout/mock_bank/app.py",
+        "evidence": "`FastAPI(` at scout/mock_bank/app.py:53"
+      },
+      {
+        "kind": "cli",
+        "path": "scout/seed.py",
+        "evidence": "`if __name__ == \"__main__\"` at scout/seed.py:228"
+      },
+      {
+        "kind": "cli",
+        "path": "scout/worker.py",
+        "evidence": "`if __name__ == \"__main__\"` at scout/worker.py:410"
+      }
+    ],
+    "dependencies": [
+      {
+        "name": "fastapi",
+        "names": [
+          "fastapi",
+          "starlette"
+        ],
+        "declared": true,
+        "used_by": 5,
+        "crates": "-",
+        "fit": "none",
+        "note": "Web framework: keep the app in Python."
+      },
+      {
+        "name": "uvicorn",
+        "names": [
+          "uvicorn"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": "axum",
+        "fit": "none",
+        "note": "a server is an application rewrite, not a port"
+      },
+      {
+        "name": "langgraph",
+        "names": [
+          "langgraph"
+        ],
+        "declared": true,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pydantic-settings",
+        "names": [
+          "pydantic-settings"
+        ],
+        "declared": true,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "slack-sdk",
+        "names": [
+          "slack-sdk"
+        ],
+        "declared": false,
+        "used_by": 2,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "google",
+        "names": [
+          "google"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "google-auth-httplib2",
+        "names": [
+          "google-auth-httplib2"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "googleapiclient",
+        "names": [
+          "googleapiclient"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "httplib2",
+        "names": [
+          "httplib2"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "mcp",
+        "names": [
+          "mcp"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "mlflow",
+        "names": [
+          "mlflow"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "openai",
+        "names": [
+          "openai"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "optuna",
+        "names": [
+          "optuna"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pypdf",
+        "names": [
+          "pypdf"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "signxml",
+        "names": [
+          "signxml"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "slack-bolt",
+        "names": [
+          "slack-bolt"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "google-api-python-client",
+        "names": [
+          "google-api-python-client"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "google-auth",
+        "names": [
+          "google-auth"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "google-auth-oauthlib",
+        "names": [
+          "google-auth-oauthlib"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "langgraph-checkpoint-postgres",
+        "names": [
+          "langgraph-checkpoint-postgres"
+        ],
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "psycopg",
+        "names": [
+          "psycopg"
+        ],
+        "declared": true,
+        "used_by": 8,
+        "crates": "sqlx",
+        "fit": "partial",
+        "note": "ORM layers port by hand."
+      },
+      {
+        "name": "pydantic",
+        "names": [
+          "pydantic"
+        ],
+        "declared": true,
+        "used_by": 8,
+        "crates": "serde, garde",
+        "fit": "partial",
+        "note": "Validation errors will differ."
+      },
+      {
+        "name": "pandas",
+        "names": [
+          "pandas"
+        ],
+        "declared": true,
+        "used_by": 2,
+        "crates": "polars",
+        "fit": "partial",
+        "note": "Different API; port by behavior, not by call."
+      },
+      {
+        "name": "cryptography",
+        "names": [
+          "cryptography"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": "ring, RustCrypto crates",
+        "fit": "partial",
+        "note": ""
+      },
+      {
+        "name": "lxml",
+        "names": [
+          "lxml"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": "quick-xml, scraper",
+        "fit": "partial",
+        "note": ""
+      },
+      {
+        "name": "matplotlib",
+        "names": [
+          "matplotlib"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": "plotters",
+        "fit": "partial",
+        "note": ""
+      },
+      {
+        "name": "numpy",
+        "names": [
+          "numpy"
+        ],
+        "declared": false,
+        "used_by": 1,
+        "crates": "ndarray",
+        "fit": "partial",
+        "note": "Broadcasting and dtype rules differ; check numerics."
+      },
+      {
+        "name": "scikit-learn",
+        "names": [
+          "scikit-learn",
+          "xgboost"
+        ],
+        "declared": true,
+        "used_by": 1,
+        "crates": "linfa",
+        "fit": "partial",
+        "note": "estimators have to be retrained or the model loaded"
+      },
+      {
+        "name": "httpx",
+        "names": [
+          "httpx"
+        ],
+        "declared": true,
+        "used_by": 4,
+        "crates": "reqwest",
+        "fit": "good",
+        "note": ""
+      }
+    ],
+    "pieces": [
+      {
+        "wave": 0,
+        "units": [
+          "cfo/",
+          "cfo/analysis/",
+          "cfo/api/",
+          "cfo/api/routers/",
+          "cfo/data/",
+          "cfo/db/",
+          "cfo/forecast/",
+          "cfo/mcp_servers/",
+          "cfo/usage/",
+          "scout/",
+          "scout/connectors/",
+          "scout/loops/",
+          "scout/mock_bank/",
+          "scout/onboarding/"
+        ],
+        "loc": 18823,
+        "tangled": true
+      }
+    ],
+    "decisions": [
+      {
+        "id": "D1",
+        "topic": "shape",
+        "question": "The app is a server, entered through cfo/api/app.py, cfo/api/export_openapi.py, cfo/data/generate.py, cfo/data/load.py, cfo/db/migrate.py, cfo/forecast/compare.py, cfo/forecast/evaluate.py, cfo/forecast/train.py, cfo/forecast/tune.py, cfo/mcp_servers/__main__.py, cfo/usage/__main__.py, scout/demo.py, scout/mock_bank/__main__.py, scout/mock_bank/app.py, scout/seed.py, scout/worker.py. Port every entry point, in that shape?",
+        "recommendation": "Yes: an axum front door (`app front-door`) takes the server over first"
+      },
+      {
+        "id": "D2",
+        "topic": "blocked cfo/",
+        "question": "cfo/ is blocked: Uses dynamic code (eval, new Function or computed imports). Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D3",
+        "topic": "blocked cfo/api/",
+        "question": "cfo/api/ is blocked: `fastapi` has no Rust equivalent. Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D4",
+        "topic": "blocked cfo/api/routers/",
+        "question": "cfo/api/routers/ is blocked: `fastapi` has no Rust equivalent. Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D5",
+        "topic": "blocked cfo/forecast/",
+        "question": "cfo/forecast/ is blocked: Uses dynamic code (eval, new Function or computed imports). Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D6",
+        "topic": "blocked scout/",
+        "question": "scout/ is blocked: `fastapi` has no Rust equivalent. Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D7",
+        "topic": "blocked scout/mock_bank/",
+        "question": "scout/mock_bank/ is blocked: `fastapi` has no Rust equivalent. Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D8",
+        "topic": "blocked scout/onboarding/",
+        "question": "scout/onboarding/ is blocked: `fastapi` has no Rust equivalent. Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D9",
+        "topic": "dependency fastapi",
+        "question": "No crate does what fastapi does (used by 5 units; Web framework: keep the app in Python). Reimplement what the app uses, or drop the feature?",
+        "recommendation": "Reimplement only the part the app uses, proved by its recorded cases"
+      },
+      {
+        "id": "D10",
+        "topic": "dependency uvicorn",
+        "question": "No crate does what uvicorn does (used by 1 unit; a server is an application rewrite, not a port). Reimplement what the app uses, or drop the feature?",
+        "recommendation": "Reimplement only the part the app uses, proved by its recorded cases"
+      },
+      {
+        "id": "D11",
+        "topic": "dependency langgraph",
+        "question": "Which crate replaces langgraph (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/langgraph.md before porting what uses it"
+      },
+      {
+        "id": "D12",
+        "topic": "dependency pydantic-settings",
+        "question": "Which crate replaces pydantic-settings (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/pydantic-settings.md before porting what uses it"
+      },
+      {
+        "id": "D13",
+        "topic": "dependency slack-sdk",
+        "question": "Which crate replaces slack-sdk (used by 2 units)?",
+        "recommendation": "Research it against primary sources into rust/research/slack-sdk.md before porting what uses it"
+      },
+      {
+        "id": "D14",
+        "topic": "dependency google",
+        "question": "Which crate replaces google (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/google.md before porting what uses it"
+      },
+      {
+        "id": "D15",
+        "topic": "dependency google-auth-httplib2",
+        "question": "Which crate replaces google-auth-httplib2 (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/google-auth-httplib2.md before porting what uses it"
+      },
+      {
+        "id": "D16",
+        "topic": "dependency googleapiclient",
+        "question": "Which crate replaces googleapiclient (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/googleapiclient.md before porting what uses it"
+      },
+      {
+        "id": "D17",
+        "topic": "dependency httplib2",
+        "question": "Which crate replaces httplib2 (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/httplib2.md before porting what uses it"
+      },
+      {
+        "id": "D18",
+        "topic": "dependency mcp",
+        "question": "Which crate replaces mcp (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/mcp.md before porting what uses it"
+      },
+      {
+        "id": "D19",
+        "topic": "dependency mlflow",
+        "question": "Which crate replaces mlflow (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/mlflow.md before porting what uses it"
+      },
+      {
+        "id": "D20",
+        "topic": "dependency openai",
+        "question": "Which crate replaces openai (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/openai.md before porting what uses it"
+      },
+      {
+        "id": "D21",
+        "topic": "dependency optuna",
+        "question": "Which crate replaces optuna (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/optuna.md before porting what uses it"
+      },
+      {
+        "id": "D22",
+        "topic": "dependency pypdf",
+        "question": "Which crate replaces pypdf (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/pypdf.md before porting what uses it"
+      },
+      {
+        "id": "D23",
+        "topic": "dependency signxml",
+        "question": "Which crate replaces signxml (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/signxml.md before porting what uses it"
+      },
+      {
+        "id": "D24",
+        "topic": "dependency slack-bolt",
+        "question": "Which crate replaces slack-bolt (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/slack-bolt.md before porting what uses it"
+      },
+      {
+        "id": "D25",
+        "topic": "dependency google-api-python-client",
+        "question": "Which crate replaces google-api-python-client (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/google-api-python-client.md before porting what uses it"
+      },
+      {
+        "id": "D26",
+        "topic": "dependency google-auth",
+        "question": "Which crate replaces google-auth (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/google-auth.md before porting what uses it"
+      },
+      {
+        "id": "D27",
+        "topic": "dependency google-auth-oauthlib",
+        "question": "Which crate replaces google-auth-oauthlib (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/google-auth-oauthlib.md before porting what uses it"
+      },
+      {
+        "id": "D28",
+        "topic": "dependency langgraph-checkpoint-postgres",
+        "question": "Which crate replaces langgraph-checkpoint-postgres (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/langgraph-checkpoint-postgres.md before porting what uses it"
+      },
+      {
+        "id": "D29",
+        "topic": "dependency psycopg",
+        "question": "psycopg maps to sqlx only in part (used by 8 units; ORM layers port by hand). Use it?",
+        "recommendation": "Use sqlx, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D30",
+        "topic": "dependency pydantic",
+        "question": "pydantic maps to serde, garde only in part (used by 8 units; Validation errors will differ). Use it?",
+        "recommendation": "Use serde, garde, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D31",
+        "topic": "dependency pandas",
+        "question": "pandas maps to polars only in part (used by 2 units; Different API; port by behavior, not by call). Use it?",
+        "recommendation": "Use polars, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D32",
+        "topic": "dependency cryptography",
+        "question": "cryptography maps to ring, RustCrypto crates only in part (used by 1 unit). Use it?",
+        "recommendation": "Use ring, RustCrypto crates, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D33",
+        "topic": "dependency lxml",
+        "question": "lxml maps to quick-xml, scraper only in part (used by 1 unit). Use it?",
+        "recommendation": "Use quick-xml, scraper, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D34",
+        "topic": "dependency matplotlib",
+        "question": "matplotlib maps to plotters only in part (used by 1 unit). Use it?",
+        "recommendation": "Use plotters, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D35",
+        "topic": "dependency numpy",
+        "question": "numpy maps to ndarray only in part (used by 1 unit; Broadcasting and dtype rules differ; check numerics). Use it?",
+        "recommendation": "Use ndarray, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D36",
+        "topic": "dependency scikit-learn",
+        "question": "scikit-learn maps to linfa only in part (used by 1 unit; estimators have to be retrained or the model loaded). Use it?",
+        "recommendation": "Use linfa, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D37",
+        "topic": "tangled units",
+        "question": "cfo/, cfo/analysis/, cfo/api/, cfo/api/routers/, cfo/data/, cfo/db/, cfo/forecast/, cfo/mcp_servers/, cfo/usage/, scout/, scout/connectors/, scout/loops/, scout/mock_bank/, scout/onboarding/ import each other (18823 lines). Port them as one piece?",
+        "recommendation": "Yes: one piece in wave 0, no glue between its parts"
+      }
+    ]
+  }
+}

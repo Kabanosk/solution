@@ -1,0 +1,1 @@
+{"operations": [{"op": "open", "key": "safe", "fields": {"z": "unknown", "a": "unknown"}}, {"op": "open", "key": "safe"}, {"op": "update", "id": "SC-100", "fields": {"dedupe_key": "overwrite"}}, {"op": "get", "id": "missing"}, {"op": "get", "id": "SC-100"}]}

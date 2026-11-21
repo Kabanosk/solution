@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "source": "dashboard/lib/finance-model.ts",
+      "copy": "rust/finance-reference/finance-model.ts",
+      "sha256": "6d6d0cf145757f5f06bcac9f3f780de5b7ed69ffaa06b0809914d6f96ac435a2",
+      "ported": true
+    },
+    {
+      "source": "dashboard/lib/invoice-model.ts",
+      "copy": "rust/finance-reference/invoice-model.ts",
+      "sha256": "524e9bde183e637dd1b0cad5875fd528f35ef9d518d6f21b79834760202e39c7",
+      "ported": true
+    },
+    {
+      "source": "dashboard/lib/scout-model.ts",
+      "copy": "rust/finance-reference/scout-model.ts",
+      "sha256": "60aa5cf9f6622978fb5226e5fd5444ebf401ba60caac92f104735f1203468993",
+      "ported": false
+    }
+  ],
+  "locale": "en-US",
+  "reference_node_icu": "77.1",
+  "reference_unicode": "16.0",
+  "input_cases": 144
+}

@@ -1,0 +1,1 @@
+{"operations": [{"op": "open", "key": "payload-clocks"}, {"op": "step", "id": "SC-100", "options": {"detail": {"ts": "user-timestamp", "closed_at": "user-value"}, "evidence": {"ts": "evidence-time", "closed_at": "evidence-value"}}}, {"op": "get", "id": "SC-100"}, {"op": "steps", "id": "SC-100"}]}

@@ -1,0 +1,18 @@
+{
+  "build": [
+    "/home/pawel/hackatons/collabothon2026/solution/rust/app/target/debug/reference-api"
+  ],
+  "passed": 330,
+  "total": 330,
+  "skipped": 0,
+  "failures": [],
+  "fallback": {
+    "cases": 1,
+    "total": 330,
+    "rate": 0.0030303030303030303,
+    "names": [
+      "authenticated-17"
+    ]
+  },
+  "report": "/home/pawel/hackatons/collabothon2026/solution/rust/app-cases/replay-report.md"
+}

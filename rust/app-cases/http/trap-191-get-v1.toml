@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/v1/approvals?state=stra%C3%9Fe"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

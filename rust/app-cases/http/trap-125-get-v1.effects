@@ -1,0 +1,15 @@
+db
+agent_tasks:[{"id": "SC-100", "loop": "invoicing", "level": null, "title": "Find invoice héllo 😀", "amount": -123.45, "status": "waiting", "outcome": null, "category": null, "currency": "EUR", "evidence": [], "owner_id": "fixture-owner", "closed_at": null, "simulated": false, "slack_ref": null, "created_at": "2026-11-01T10:00:00+00:00", "dedupe_key": "fixture:invoice", "updated_at": "2026-11-01T10:00:00+00:00", "approval_id": null, "counterparty": "Fixture supplier", "requested_by": "agent", "resolved_via": null, "transaction_id": null}, {"id": "SC-101", "loop": "strategy", "level": null, "title": "Daily briefing", "amount": null, "status": "done", "outcome": null, "category": null, "currency": "EUR", "evidence": [], "owner_id": "fixture-owner", "closed_at": null, "simulated": false, "slack_ref": null, "created_at": "2026-11-01T09:00:00+00:00", "dedupe_key": "fixture:strategy", "updated_at": "2026-11-01T09:00:00+00:00", "approval_id": null, "counterparty": null, "requested_by": "agent", "resolved_via": null, "transaction_id": null}]
+agent_task_steps:[{"id": 1, "ts": "2026-11-01T10:00:00+00:00", "kind": "lookup", "text": "Read fixture folder", "detail": {"count": 0}, "source": "files", "task_id": "SC-100", "evidence": null, "result_count": null}]
+agent_jobs:[]
+approvals:[{"id": "apr-fixture", "status": "pending", "task_id": "SC-100", "question": "Approve this simulated action?", "slack_ref": null, "created_at": "2026-11-01T10:00:00+00:00", "answered_at": null, "answered_by": null, "approver_id": "fixture-owner"}]
+audit_log:[{"id": 1, "ts": "2026-11-01T10:00:00+00:00", "role": null, "actor": "agent", "action": "read", "policy": null, "reason": null, "target": "fixture", "task_id": "SC-100", "decision": "ALLOW", "resource": "files", "requester": null}]
+connections:[]
+invoices:[{"id": "invoice-1", "total": 123.45, "number": "INV-TEST", "source": "db", "team_id": null, "category": null, "currency": "EUR", "due_date": null, "supplier": "Fixture supplier", "issue_date": "2026-11-01", "transaction_id": "booking-1"}]
+invoice_lines:[{"id": 1, "amount": 123.45, "category": null, "position": 1, "quantity": 2.0000, "invoice_id": "invoice-1", "unit_price": 61.7250, "description": "Supplies"}]
+transactions:[{"id": "booking-1", "type": "transfer", "amount": -123.45, "team_id": null, "category": null, "currency": "EUR", "reference": "Fixture payment", "documented": false, "invoice_id": null, "value_date": null, "booking_date": "2026-11-01", "counterparty": "Fixture supplier", "invoice_number": "INV-TEST", "counterparty_account": null}]
+agent_task_seq:100:False
+agent_task_steps_id_seq:1:True
+agent_jobs_id_seq:1:False
+audit_log_id_seq:1:True
+invoice_lines_id_seq:1:True

@@ -1,0 +1,2934 @@
+{
+  "schema": "scout-dashboard-migration-inventory@1",
+  "generated_at": "2026-11-21",
+  "counts": {
+    "route_files": 37,
+    "source_files": 134,
+    "source_lines": 10466
+  },
+  "routes": [
+    {
+      "path": "/api/approve",
+      "source": "dashboard/app/api/approve/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/auth/[action]",
+      "source": "dashboard/app/api/auth/[action]/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/auth/google/callback",
+      "source": "dashboard/app/api/auth/google/callback/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/auth/google/start",
+      "source": "dashboard/app/api/auth/google/start/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/chat/ack",
+      "source": "dashboard/app/api/chat/ack/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/chat",
+      "source": "dashboard/app/api/chat/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/dashboard",
+      "source": "dashboard/app/api/dashboard/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/demo",
+      "source": "dashboard/app/api/demo/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/google",
+      "source": "dashboard/app/api/google/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/guardrails",
+      "source": "dashboard/app/api/guardrails/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "path": "/api/invoices/[transactionId]",
+      "source": "dashboard/app/api/invoices/[transactionId]/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/ksef",
+      "source": "dashboard/app/api/ksef/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/llm-usage",
+      "source": "dashboard/app/api/llm-usage/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/onboarding/callback/[provider]",
+      "source": "dashboard/app/api/onboarding/callback/[provider]/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/onboarding/connect/[provider]",
+      "source": "dashboard/app/api/onboarding/connect/[provider]/route.ts",
+      "methods": [
+        "POST",
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/api/onboarding/handoff",
+      "source": "dashboard/app/api/onboarding/handoff/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/onboarding",
+      "source": "dashboard/app/api/onboarding/route.ts",
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "path": "/api/onboarding/slack/channels",
+      "source": "dashboard/app/api/onboarding/slack/channels/route.ts",
+      "methods": [
+        "PUT"
+      ]
+    },
+    {
+      "path": "/api/records/[kind]",
+      "source": "dashboard/app/api/records/[kind]/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/api/strategy/review",
+      "source": "dashboard/app/api/strategy/review/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/strategy/settings",
+      "source": "dashboard/app/api/strategy/settings/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "path": "/api/tasks/[id]",
+      "source": "dashboard/app/api/tasks/[id]/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/google-g.png",
+      "source": "dashboard/app/google-g.png/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/healthz",
+      "source": "dashboard/app/healthz/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/scout-icon.png",
+      "source": "dashboard/app/scout-icon.png/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/scout-icon.svg",
+      "source": "dashboard/app/scout-icon.svg/route.ts",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/[organization]",
+      "source": "dashboard/app/[organization]/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/audit",
+      "source": "dashboard/app/audit/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/connections",
+      "source": "dashboard/app/connections/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/inbox",
+      "source": "dashboard/app/inbox/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/join/[organization]/[token]",
+      "source": "dashboard/app/join/[organization]/[token]/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/login/[organization]/[token]",
+      "source": "dashboard/app/login/[organization]/[token]/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/",
+      "source": "dashboard/app/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/privacy",
+      "source": "dashboard/app/privacy/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/tasks/[id]",
+      "source": "dashboard/app/tasks/[id]/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/tasks",
+      "source": "dashboard/app/tasks/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    },
+    {
+      "path": "/terms",
+      "source": "dashboard/app/terms/page.tsx",
+      "methods": [
+        "GET"
+      ],
+      "kind": "page"
+    }
+  ],
+  "hash_views": [
+    "overview",
+    "tasks",
+    "chat",
+    "transactions",
+    "staffing",
+    "connections",
+    "audit",
+    "policies",
+    "llm-usage",
+    "demo",
+    "setup"
+  ],
+  "hash_task_filter_keys": [
+    "scope",
+    "loop",
+    "status",
+    "owner"
+  ],
+  "feature_files": {
+    "authentication": [
+      "dashboard/components/join-workspace.tsx",
+      "dashboard/components/login-link.tsx",
+      "dashboard/components/organization-auth.tsx",
+      "dashboard/lib/auth-client-address.ts",
+      "dashboard/lib/auth-crypto.ts",
+      "dashboard/lib/auth-request.ts",
+      "dashboard/lib/auth-store.ts",
+      "dashboard/lib/auth.ts"
+    ],
+    "shell": [
+      "dashboard/components/app-sidebar.tsx",
+      "dashboard/components/dashboard.tsx",
+      "dashboard/components/dom-ids.tsx",
+      "dashboard/components/theme-toggle.tsx",
+      "dashboard/lib/nav.ts",
+      "dashboard/lib/task-signals.ts",
+      "dashboard/lib/tenant-browser.ts",
+      "dashboard/lib/use-seen-tasks.ts"
+    ],
+    "overview": [
+      "dashboard/components/overview/forecast-section.tsx",
+      "dashboard/components/overview/panel.tsx",
+      "dashboard/components/overview/round-charts.tsx",
+      "dashboard/lib/finance-model.ts",
+      "dashboard/lib/finance.ts",
+      "dashboard/lib/overview-model.ts"
+    ],
+    "tasks": [
+      "dashboard/components/tasks/status-icon.tsx",
+      "dashboard/components/tasks/task-detail.tsx",
+      "dashboard/components/tasks/task-list.tsx",
+      "dashboard/lib/scout-model.ts",
+      "dashboard/lib/scout.ts"
+    ],
+    "chat": [
+      "dashboard/components/external-provider-dialog.tsx",
+      "dashboard/components/llm-chat.tsx",
+      "dashboard/components/markdown.tsx",
+      "dashboard/lib/chat-model.ts",
+      "dashboard/lib/chat-stream.ts",
+      "dashboard/lib/external-chat.ts",
+      "dashboard/lib/external-context.ts",
+      "dashboard/lib/external-conversation.ts",
+      "dashboard/lib/external-model.ts",
+      "dashboard/lib/markdown.ts",
+      "dashboard/lib/market-research-model.ts",
+      "dashboard/lib/market-research.ts"
+    ],
+    "connections_onboarding": [
+      "dashboard/components/connections.tsx",
+      "dashboard/components/onboarding.tsx",
+      "dashboard/lib/connection-display.ts",
+      "dashboard/lib/ksef.ts",
+      "dashboard/lib/onboarding-client.ts",
+      "dashboard/lib/onboarding-handoff.ts",
+      "dashboard/lib/onboarding-model.ts",
+      "dashboard/lib/onboarding-server.ts"
+    ],
+    "settings": [
+      "dashboard/components/access-policies.tsx",
+      "dashboard/components/guardrails-switch.tsx",
+      "dashboard/components/strategy-settings.tsx",
+      "dashboard/lib/guardrails-model.ts",
+      "dashboard/lib/guardrails-store.ts",
+      "dashboard/lib/strategy-credentials.ts",
+      "dashboard/lib/strategy-model.ts",
+      "dashboard/lib/strategy-store.ts"
+    ],
+    "records": [
+      "dashboard/components/audit-log.tsx",
+      "dashboard/components/staffing.tsx",
+      "dashboard/components/transactions.tsx",
+      "dashboard/lib/invoice-model.ts",
+      "dashboard/lib/use-records.ts"
+    ],
+    "llm_usage": [
+      "dashboard/components/llm-usage.tsx",
+      "dashboard/lib/llm-usage-model.ts",
+      "dashboard/lib/llm-usage.ts"
+    ],
+    "demo_legal_assets": [
+      "dashboard/components/brand.tsx",
+      "dashboard/components/demo-panel.tsx",
+      "dashboard/components/legal-document.tsx",
+      "dashboard/lib/brand-icon.ts",
+      "dashboard/lib/development-preview.ts",
+      "dashboard/lib/legal-links.ts",
+      "dashboard/lib/preview-data.ts"
+    ]
+  },
+  "dependencies": {
+    "name": "scout-dashboard",
+    "version": "0.2.0",
+    "private": true,
+    "scripts": {
+      "predev": "node scripts/prepare-assets.mjs",
+      "dev": "next dev --hostname 127.0.0.1 --port 3000",
+      "build": "node scripts/prepare-assets.mjs && next build --webpack",
+      "start": "next start --hostname 127.0.0.1 --port 3000",
+      "typecheck": "tsc --noEmit",
+      "prepare:assets": "node scripts/prepare-assets.mjs",
+      "test": "node --experimental-strip-types --test tests/*.test.ts",
+      "test:e2e": "node tests/public-assets.e2e.cjs && node tests/organization-auth.e2e.cjs",
+      "test:e2e:onboarding": "node tests/onboarding-callback.e2e.cjs && node tests/onboarding.e2e.cjs",
+      "test:e2e:legacy": "node tests/ui-cleanup.e2e.cjs && node tests/connections.e2e.cjs && node tests/dm-reply.e2e.cjs"
+    },
+    "dependencies": {
+      "class-variance-authority": "^0.7.1",
+      "clsx": "^2.1.1",
+      "jose": "^6.2.18",
+      "lucide-react": "1.77.0",
+      "next": "16.4.6",
+      "pg": "^8.23.1",
+      "radix-ui": "^1.8.1",
+      "react": "19.3.1",
+      "react-dom": "19.3.1",
+      "recharts": "^3.8.0",
+      "server-only": "^0.0.1",
+      "tailwind-merge": "3.7.1"
+    },
+    "devDependencies": {
+      "@tailwindcss/postcss": "4.3.5",
+      "@types/node": "26.6.6",
+      "@types/pg": "^8.23.1",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "playwright": "^1.58.2",
+      "postcss": "8.5.33",
+      "tailwindcss": "4.3.5",
+      "tw-animate-css": "1.4.0",
+      "typescript": "7.0.2"
+    }
+  },
+  "parity_risks": [
+    "React/Radix behavioral primitives have no verified direct Rust replacement",
+    "Recharts output and interactive geometry require explicit port",
+    "opaque session and scrypt/AES-GCM wire formats must remain compatible",
+    "server/client hydration and DOM ids must match",
+    "browser caches and persisted state must remain tenant/user scoped",
+    "JS UTF-16 lengths and Intl formatting differ from Rust defaults",
+    "HTTP replay alone does not validate hydrated UI interactions"
+  ],
+  "files": [
+    {
+      "path": "dashboard/app/[organization]/page.tsx",
+      "lines": 22,
+      "client": false,
+      "imports": [
+        "@/components/dashboard",
+        "@/components/organization-auth",
+        "@/lib/auth",
+        "@/lib/auth-crypto",
+        "@/lib/finance",
+        "next/navigation"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime"
+      ],
+      "environment": [
+        "SCOUT_GOOGLE_CLIENT_ID",
+        "SCOUT_GOOGLE_CLIENT_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/approve/route.ts",
+      "lines": 20,
+      "client": false,
+      "imports": [
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/approvals/${encodeURIComponent(body.id)}:${body.action}"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/auth/[action]/route.ts",
+      "lines": 74,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-client-address",
+        "@/lib/auth-crypto",
+        "@/lib/auth-request",
+        "@/lib/onboarding-server",
+        "next/headers"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/auth/google/callback/route.ts",
+      "lines": 49,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-crypto",
+        "@/lib/onboarding-server",
+        "jose",
+        "next/headers"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [
+        "SCOUT_GOOGLE_CLIENT_ID",
+        "SCOUT_GOOGLE_CLIENT_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/auth/google/start/route.ts",
+      "lines": 49,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-client-address",
+        "@/lib/auth-crypto",
+        "@/lib/auth-request",
+        "@/lib/auth-store",
+        "next/headers",
+        "node:crypto"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET",
+        "POST"
+      ],
+      "environment": [
+        "SCOUT_GOOGLE_CLIENT_ID",
+        "SCOUT_GOOGLE_CLIENT_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/chat/ack/route.ts",
+      "lines": 22,
+      "client": false,
+      "imports": [
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/chat/followups/ack"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/chat/route.ts",
+      "lines": 80,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/chat-model",
+        "@/lib/scout-api",
+        "@/lib/strategy-store"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/chat"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/dashboard/route.ts",
+      "lines": 10,
+      "client": false,
+      "imports": [
+        "@/lib/finance"
+      ],
+      "exports": [
+        "dynamic",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/demo/route.ts",
+      "lines": 19,
+      "client": false,
+      "imports": [
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "POST"
+      ],
+      "environment": [
+        "SCOUT_DEMO"
+      ],
+      "request_paths": [
+        "/v1/demo/play/${body.scenario}"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/google/route.ts",
+      "lines": 2,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/guardrails/route.ts",
+      "lines": 25,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/chat-model",
+        "@/lib/guardrails-model",
+        "@/lib/guardrails-store",
+        "@/lib/scout-api",
+        "@/lib/strategy-store"
+      ],
+      "exports": [
+        "dynamic",
+        "GET",
+        "PUT"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/invoices/[transactionId]/route.ts",
+      "lines": 23,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/invoice-model",
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/transactions/${encodeURIComponent(id)}/invoice"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/ksef/route.ts",
+      "lines": 16,
+      "client": false,
+      "imports": [
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/connections/ksef:connect"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/llm-usage/route.ts",
+      "lines": 14,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/llm-usage"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/onboarding/callback/[provider]/route.ts",
+      "lines": 29,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/onboarding-server",
+        "@/lib/scout-api",
+        "next/headers"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/onboarding/connect/[provider]/route.ts",
+      "lines": 58,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-request",
+        "@/lib/onboarding-server",
+        "@/lib/scout-api",
+        "next/headers"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "POST",
+        "DELETE"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/onboarding/connect/${provider}"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/onboarding/handoff/route.ts",
+      "lines": 28,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-request",
+        "@/lib/onboarding-handoff",
+        "@/lib/onboarding-server",
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/onboarding"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/onboarding/route.ts",
+      "lines": 40,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-request",
+        "@/lib/onboarding-server",
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET",
+        "PATCH"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/onboarding"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/onboarding/slack/channels/route.ts",
+      "lines": 26,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/auth-request",
+        "@/lib/onboarding-server",
+        "@/lib/scout-api"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "PUT"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/onboarding/slack/channels"
+      ]
+    },
+    {
+      "path": "dashboard/app/api/records/[kind]/route.ts",
+      "lines": 18,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/finance"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/strategy/review/route.ts",
+      "lines": 17,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/scout-api",
+        "@/lib/strategy-store"
+      ],
+      "exports": [
+        "dynamic",
+        "POST"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/strategy/settings/route.ts",
+      "lines": 23,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/chat-model",
+        "@/lib/scout-api",
+        "@/lib/strategy-store"
+      ],
+      "exports": [
+        "dynamic",
+        "GET",
+        "PUT"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/api/tasks/[id]/route.ts",
+      "lines": 19,
+      "client": false,
+      "imports": [
+        "@/lib/auth",
+        "@/lib/finance"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/audit/page.tsx",
+      "lines": 2,
+      "client": false,
+      "imports": [
+        "next/navigation"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/connections/page.tsx",
+      "lines": 7,
+      "client": false,
+      "imports": [
+        "next/navigation"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/error.tsx",
+      "lines": 6,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/card"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/globals.css",
+      "lines": 158,
+      "client": false,
+      "imports": [
+        "tailwindcss",
+        "tw-animate-css"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/google-g.png/route.ts",
+      "lines": 9,
+      "client": false,
+      "imports": [
+        "node:fs/promises",
+        "node:path"
+      ],
+      "exports": [
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/healthz/route.ts",
+      "lines": 3,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/icon.svg",
+      "lines": 1,
+      "client": false,
+      "imports": [],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/inbox/page.tsx",
+      "lines": 2,
+      "client": false,
+      "imports": [
+        "next/navigation"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/join/[organization]/[token]/page.tsx",
+      "lines": 17,
+      "client": false,
+      "imports": [
+        "@/components/join-workspace",
+        "@/lib/auth",
+        "@/lib/auth-crypto",
+        "next/navigation"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/layout.tsx",
+      "lines": 21,
+      "client": false,
+      "imports": [
+        "./globals.css",
+        "next"
+      ],
+      "exports": [
+        "metadata",
+        "viewport"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/loading.tsx",
+      "lines": 33,
+      "client": false,
+      "imports": [
+        "@/components/ui/skeleton",
+        "@/components/view-skeletons"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/login/[organization]/[token]/page.tsx",
+      "lines": 16,
+      "client": false,
+      "imports": [
+        "@/components/login-link",
+        "@/lib/auth",
+        "@/lib/auth-crypto",
+        "next/navigation"
+      ],
+      "exports": [
+        "dynamic",
+        "runtime"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/page.tsx",
+      "lines": 8,
+      "client": false,
+      "imports": [
+        "@/components/organization-auth",
+        "@/lib/auth"
+      ],
+      "exports": [
+        "dynamic"
+      ],
+      "environment": [
+        "SCOUT_GOOGLE_CLIENT_ID",
+        "SCOUT_GOOGLE_CLIENT_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/privacy/page.tsx",
+      "lines": 46,
+      "client": false,
+      "imports": [
+        "@/components/legal-document",
+        "next"
+      ],
+      "exports": [
+        "metadata"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/scout-icon.png/route.ts",
+      "lines": 9,
+      "client": false,
+      "imports": [
+        "node:fs/promises",
+        "node:path"
+      ],
+      "exports": [
+        "runtime",
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/scout-icon.svg/route.ts",
+      "lines": 6,
+      "client": false,
+      "imports": [
+        "@/lib/brand-icon"
+      ],
+      "exports": [
+        "GET"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/tasks/[id]/page.tsx",
+      "lines": 8,
+      "client": false,
+      "imports": [
+        "next/navigation"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/tasks/page.tsx",
+      "lines": 2,
+      "client": false,
+      "imports": [
+        "next/navigation"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/app/terms/page.tsx",
+      "lines": 35,
+      "client": false,
+      "imports": [
+        "@/components/legal-document",
+        "next"
+      ],
+      "exports": [
+        "metadata"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/access-policies.tsx",
+      "lines": 46,
+      "client": false,
+      "imports": [
+        "@/components/ui/badge",
+        "@/components/ui/card"
+      ],
+      "exports": [
+        "AccessPolicies"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/app-sidebar.tsx",
+      "lines": 117,
+      "client": true,
+      "imports": [
+        "@/components/brand",
+        "@/components/ui/avatar",
+        "@/components/ui/button",
+        "@/components/ui/dropdown-menu",
+        "@/components/ui/sidebar",
+        "@/lib/nav",
+        "@/lib/task-signals",
+        "@/lib/tenant-browser",
+        "@/lib/utils",
+        "lucide-react",
+        "react"
+      ],
+      "exports": [
+        "LoopStatus",
+        "NavCounts",
+        "AppSidebar"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/auth/google/start?organization=${encodeURIComponent(organizationSlug)}",
+        "/api/auth/logout",
+        "/api/auth/switch"
+      ]
+    },
+    {
+      "path": "dashboard/components/audit-log.tsx",
+      "lines": 50,
+      "client": true,
+      "imports": [
+        "@/components/ui/badge",
+        "@/components/ui/button",
+        "@/components/ui/table",
+        "@/lib/scout-model",
+        "@/lib/utils",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "DecisionBadge",
+        "AuditTable",
+        "AuditLog"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/brand.tsx",
+      "lines": 22,
+      "client": false,
+      "imports": [
+        "@/lib/brand-icon",
+        "@/lib/utils"
+      ],
+      "exports": [
+        "ScoutMark",
+        "ScoutLockup"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/connections.tsx",
+      "lines": 163,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/table",
+        "@/lib/ksef",
+        "@/lib/onboarding-model",
+        "@/lib/scout-model",
+        "@/lib/utils",
+        "lucide-react",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "Connections"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/dashboard.tsx",
+      "lines": 364,
+      "client": true,
+      "imports": [
+        "@/components/access-policies",
+        "@/components/app-sidebar",
+        "@/components/audit-log",
+        "@/components/connections",
+        "@/components/demo-panel",
+        "@/components/dom-ids",
+        "@/components/guardrails-switch",
+        "@/components/llm-chat",
+        "@/components/llm-usage",
+        "@/components/onboarding",
+        "@/components/overview/forecast-section",
+        "@/components/overview/round-charts",
+        "@/components/staffing",
+        "@/components/tasks/task-detail",
+        "@/components/tasks/task-list",
+        "@/components/theme-toggle",
+        "@/components/transactions",
+        "@/components/ui/button",
+        "@/components/ui/dialog",
+        "@/components/ui/input",
+        "@/components/ui/sidebar",
+        "@/components/view-skeletons",
+        "@/lib/finance",
+        "@/lib/nav",
+        "@/lib/onboarding-client",
+        "@/lib/overview-model",
+        "@/lib/scout-model",
+        "@/lib/task-signals",
+        "@/lib/tenant-browser",
+        "@/lib/use-records",
+        "@/lib/use-seen-tasks",
+        "@/lib/utils",
+        "lucide-react",
+        "next/link",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "Dashboard"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/tasks/${encodeURIComponent(id)}"
+      ]
+    },
+    {
+      "path": "dashboard/components/demo-panel.tsx",
+      "lines": 53,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/lib/tenant-browser",
+        "lucide-react",
+        "next/link",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "DemoView"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/demo"
+      ]
+    },
+    {
+      "path": "dashboard/components/dom-ids.tsx",
+      "lines": 36,
+      "client": true,
+      "imports": [
+        "react"
+      ],
+      "exports": [
+        "DomIds"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/external-provider-dialog.tsx",
+      "lines": 67,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/dialog",
+        "@/components/ui/input",
+        "@/lib/external-model",
+        "@/lib/tenant-browser",
+        "react"
+      ],
+      "exports": [
+        "ExternalProviderDialog"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/strategy/settings"
+      ]
+    },
+    {
+      "path": "dashboard/components/guardrails-switch.tsx",
+      "lines": 103,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/switch",
+        "@/lib/guardrails-model",
+        "@/lib/scout-model",
+        "@/lib/tenant-browser",
+        "@/lib/utils",
+        "lucide-react",
+        "react"
+      ],
+      "exports": [
+        "setGuardrails",
+        "GuardrailsSwitch",
+        "GuardrailsBanner"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/guardrails"
+      ]
+    },
+    {
+      "path": "dashboard/components/join-workspace.tsx",
+      "lines": 56,
+      "client": true,
+      "imports": [
+        "@/components/brand",
+        "@/components/theme-toggle",
+        "@/components/ui/button",
+        "@/components/ui/card",
+        "@/components/ui/input",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "JoinWorkspace"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/auth/join"
+      ]
+    },
+    {
+      "path": "dashboard/components/legal-document.tsx",
+      "lines": 27,
+      "client": false,
+      "imports": [
+        "@/components/brand",
+        "@/components/theme-toggle",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "LegalDocument"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/llm-chat.tsx",
+      "lines": 350,
+      "client": true,
+      "imports": [
+        "@/components/brand",
+        "@/components/external-provider-dialog",
+        "@/components/markdown",
+        "@/components/ui/button",
+        "@/components/ui/dropdown-menu",
+        "@/components/ui/textarea",
+        "@/lib/chat-model",
+        "@/lib/external-model",
+        "@/lib/market-research-model",
+        "@/lib/tenant-browser",
+        "lucide-react",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "LlmChat"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/chat",
+        "/api/chat/ack",
+        "/api/tasks/${encodeURIComponent(watchedTask)}"
+      ]
+    },
+    {
+      "path": "dashboard/components/llm-usage.tsx",
+      "lines": 206,
+      "client": true,
+      "imports": [
+        "@/components/ui/badge",
+        "@/components/ui/button",
+        "@/components/ui/card",
+        "@/components/ui/chart",
+        "@/components/ui/skeleton",
+        "@/components/ui/table",
+        "@/lib/llm-usage-model",
+        "@/lib/tenant-browser",
+        "@/lib/utils",
+        "lucide-react",
+        "react",
+        "recharts"
+      ],
+      "exports": [
+        "prefetchLlmUsage",
+        "LlmUsage",
+        "UsageSkeleton"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/llm-usage?days=${days}"
+      ]
+    },
+    {
+      "path": "dashboard/components/login-link.tsx",
+      "lines": 35,
+      "client": true,
+      "imports": [
+        "@/components/brand",
+        "@/components/ui/button",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "LoginLink"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/auth/link"
+      ]
+    },
+    {
+      "path": "dashboard/components/markdown.tsx",
+      "lines": 35,
+      "client": false,
+      "imports": [
+        "@/lib/markdown",
+        "react"
+      ],
+      "exports": [
+        "Markdown"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/onboarding.tsx",
+      "lines": 355,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/dialog",
+        "@/components/ui/input",
+        "@/components/ui/skeleton",
+        "@/components/ui/textarea",
+        "@/lib/onboarding-client",
+        "@/lib/onboarding-model",
+        "@/lib/tenant-browser",
+        "@/lib/utils",
+        "lucide-react",
+        "react"
+      ],
+      "exports": [
+        "Onboarding"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/organization-auth.tsx",
+      "lines": 100,
+      "client": true,
+      "imports": [
+        "@/components/brand",
+        "@/components/dom-ids",
+        "@/components/theme-toggle",
+        "@/components/ui/button",
+        "@/components/ui/card",
+        "@/components/ui/input",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "OrganizationAuth"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/auth/${mode}",
+        "/api/auth/google/start",
+        "/api/auth/google/start?organization=${encodeURIComponent(organization.slug)}"
+      ]
+    },
+    {
+      "path": "dashboard/components/overview/forecast-section.tsx",
+      "lines": 144,
+      "client": true,
+      "imports": [
+        "./panel",
+        "@/components/ui/chart",
+        "@/lib/finance-model",
+        "@/lib/overview-model",
+        "react",
+        "recharts"
+      ],
+      "exports": [
+        "ForecastSection"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/overview/panel.tsx",
+      "lines": 54,
+      "client": false,
+      "imports": [
+        "2026-11-22",
+        "@/lib/utils",
+        "react"
+      ],
+      "exports": [
+        "eur",
+        "eurCents",
+        "day",
+        "Panel",
+        "Segmented",
+        "Swatch"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/overview/round-charts.tsx",
+      "lines": 113,
+      "client": true,
+      "imports": [
+        "./panel",
+        "@/components/ui/chart",
+        "@/lib/finance-model",
+        "@/lib/overview-model",
+        "@/lib/scout-model",
+        "@/lib/utils",
+        "recharts"
+      ],
+      "exports": [
+        "TeamSpendDonut",
+        "ScoutActivityRing"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/staffing.tsx",
+      "lines": 288,
+      "client": true,
+      "imports": [
+        "@/components/ui/avatar",
+        "@/components/ui/badge",
+        "@/components/ui/button",
+        "@/components/ui/card",
+        "@/components/ui/input",
+        "@/components/ui/table",
+        "@/lib/finance",
+        "lucide-react",
+        "react"
+      ],
+      "exports": [
+        "StaffingProps",
+        "Staffing"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/strategy-settings.tsx",
+      "lines": 66,
+      "client": true,
+      "imports": [
+        "@/components/external-provider-dialog",
+        "@/components/ui/button",
+        "@/components/ui/textarea",
+        "@/lib/strategy-model",
+        "@/lib/tenant-browser",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "StrategySettingsPanel"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/strategy/review",
+        "/api/strategy/settings"
+      ]
+    },
+    {
+      "path": "dashboard/components/tasks/status-icon.tsx",
+      "lines": 32,
+      "client": false,
+      "imports": [
+        "@/lib/scout-model",
+        "@/lib/utils",
+        "lucide-react"
+      ],
+      "exports": [
+        "StatusIcon",
+        "PriorityBars"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/tasks/task-detail.tsx",
+      "lines": 156,
+      "client": true,
+      "imports": [
+        "@/components/audit-log",
+        "@/components/markdown",
+        "@/components/tasks/status-icon",
+        "@/components/tasks/task-list",
+        "@/components/ui/badge",
+        "@/components/ui/button",
+        "@/components/ui/skeleton",
+        "@/lib/scout-model",
+        "@/lib/tenant-browser",
+        "@/lib/utils",
+        "lucide-react",
+        "next/link",
+        "next/navigation",
+        "react"
+      ],
+      "exports": [
+        "TaskDetailView",
+        "TaskDetailSkeleton"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/approve"
+      ]
+    },
+    {
+      "path": "dashboard/components/tasks/task-list.tsx",
+      "lines": 129,
+      "client": true,
+      "imports": [
+        "@/components/strategy-settings",
+        "@/components/tasks/status-icon",
+        "@/components/ui/avatar",
+        "@/components/ui/badge",
+        "@/components/ui/button",
+        "@/lib/nav",
+        "@/lib/scout-model",
+        "@/lib/task-signals",
+        "@/lib/utils",
+        "lucide-react",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "OwnerAvatar",
+        "ChannelChip",
+        "OpenTask",
+        "TaskRow",
+        "TaskBoard",
+        "AttentionList"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/theme-toggle.tsx",
+      "lines": 37,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/lib/utils",
+        "lucide-react",
+        "react"
+      ],
+      "exports": [
+        "ThemeToggle"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/transactions.tsx",
+      "lines": 130,
+      "client": true,
+      "imports": [
+        "@/components/ui/badge",
+        "@/components/ui/input",
+        "@/components/ui/sheet",
+        "@/components/ui/skeleton",
+        "@/components/ui/table",
+        "@/lib/invoice-model",
+        "@/lib/scout-model",
+        "@/lib/tenant-browser",
+        "lucide-react",
+        "next/link",
+        "react"
+      ],
+      "exports": [
+        "Transactions"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/invoices/${encodeURIComponent(id)}"
+      ]
+    },
+    {
+      "path": "dashboard/components/ui/alert.tsx",
+      "lines": 65,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "class-variance-authority",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/avatar.tsx",
+      "lines": 108,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/badge.tsx",
+      "lines": 47,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "class-variance-authority",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/button.tsx",
+      "lines": 63,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "class-variance-authority",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/card.tsx",
+      "lines": 91,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/chart.tsx",
+      "lines": 374,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "react",
+        "recharts"
+      ],
+      "exports": [
+        "ChartConfig"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/dialog.tsx",
+      "lines": 158,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/lib/utils",
+        "lucide-react",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/dropdown-menu.tsx",
+      "lines": 256,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "lucide-react",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/input.tsx",
+      "lines": 20,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/separator.tsx",
+      "lines": 27,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/sheet.tsx",
+      "lines": 142,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "lucide-react",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/sidebar.tsx",
+      "lines": 726,
+      "client": true,
+      "imports": [
+        "@/components/ui/button",
+        "@/components/ui/input",
+        "@/components/ui/separator",
+        "@/components/ui/sheet",
+        "@/components/ui/skeleton",
+        "@/components/ui/tooltip",
+        "@/hooks/use-mobile",
+        "@/lib/utils",
+        "class-variance-authority",
+        "lucide-react",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/skeleton.tsx",
+      "lines": 13,
+      "client": false,
+      "imports": [
+        "@/lib/utils"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/switch.tsx",
+      "lines": 29,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/table.tsx",
+      "lines": 115,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/tabs.tsx",
+      "lines": 90,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "class-variance-authority",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/textarea.tsx",
+      "lines": 6,
+      "client": false,
+      "imports": [
+        "@/lib/utils",
+        "react"
+      ],
+      "exports": [
+        "Textarea"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/ui/tooltip.tsx",
+      "lines": 56,
+      "client": true,
+      "imports": [
+        "@/lib/utils",
+        "radix-ui",
+        "react"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/components/view-skeletons.tsx",
+      "lines": 93,
+      "client": false,
+      "imports": [
+        "@/components/ui/skeleton"
+      ],
+      "exports": [
+        "SkeletonView",
+        "ViewSkeleton",
+        "SKELETON_VIEWS",
+        "SKELETON_FROM_HASH_SCRIPT"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/auth-client-address.ts",
+      "lines": 12,
+      "client": false,
+      "imports": [
+        "node:net"
+      ],
+      "exports": [
+        "clientAddress"
+      ],
+      "environment": [
+        "NODE_ENV",
+        "SCOUT_TRUSTED_CLIENT_IP_HEADER"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/auth-crypto.ts",
+      "lines": 33,
+      "client": false,
+      "imports": [
+        "node:crypto"
+      ],
+      "exports": [
+        "validSlug",
+        "registeredSchema",
+        "tokenHash",
+        "newToken",
+        "passwordHash",
+        "verifyPassword",
+        "sameOrigin",
+        "validateIdentity"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/auth-request.ts",
+      "lines": 20,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "readAuthBody"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/auth-store.ts",
+      "lines": 217,
+      "client": false,
+      "imports": [
+        "./auth-crypto.ts",
+        "node:crypto",
+        "pg"
+      ],
+      "exports": [
+        "Session",
+        "OrganizationDraft",
+        "Invite",
+        "AuthStore"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/auth.ts",
+      "lines": 34,
+      "client": false,
+      "imports": [
+        "./auth-store",
+        "./legal-links",
+        "next/headers",
+        "pg"
+      ],
+      "exports": [
+        "SESSION_COOKIE",
+        "OAUTH_COOKIE",
+        "authStore",
+        "appOrigin",
+        "cookieOptions",
+        "currentSession",
+        "requireSession",
+        "sessionToken"
+      ],
+      "environment": [
+        "DATABASE_URL",
+        "NODE_ENV",
+        "PGDATABASE",
+        "PGHOST",
+        "PGPASSWORD",
+        "PGPORT",
+        "PGUSER",
+        "SCOUT_APP_ORIGIN",
+        "SCOUT_AUTH_DATABASE_URL"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/brand-icon.ts",
+      "lines": 17,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "MARK_PATH",
+        "MARK_TRANSFORM",
+        "MARK_BACKGROUND",
+        "scoutIconSvg"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/chat-model.ts",
+      "lines": 222,
+      "client": false,
+      "imports": [
+        "./external-conversation.ts",
+        "./external-model.ts",
+        "./market-research-model.ts"
+      ],
+      "exports": [
+        "CHAT_MODELS",
+        "MAX_MESSAGE_LENGTH",
+        "ChatMessage",
+        "ChatTurn",
+        "ChatFollowup",
+        "ChatFile",
+        "ChatEvent",
+        "SUMMARY_PREFIX",
+        "MAX_REQUEST_MESSAGES",
+        "MAX_CONVERSATION_LENGTH",
+        "MAX_FILE_B64",
+        "sanitizeChatEvent",
+        "ChatInputError",
+        "newConversationId",
+        "parseChatRequest",
+        "requestFor",
+        "conversationForRequest",
+        "applyCompaction",
+        "readChatBody",
+        "mergeFollowups",
+        "unacknowledgedFollowups"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/chat-stream.ts",
+      "lines": 50,
+      "client": false,
+      "imports": [
+        "./chat-model.ts"
+      ],
+      "exports": [],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/connection-display.ts",
+      "lines": 21,
+      "client": false,
+      "imports": [
+        "./ksef.ts"
+      ],
+      "exports": [
+        "connectionDisplayConfig"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/development-preview.ts",
+      "lines": 4,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "isDevelopmentPreview"
+      ],
+      "environment": [
+        "DASHBOARD_PREVIEW",
+        "NODE_ENV"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/external-chat.ts",
+      "lines": 220,
+      "client": false,
+      "imports": [
+        "./chat-model.ts",
+        "./external-conversation.ts",
+        "./external-model.ts",
+        "./market-research-model.ts",
+        "./market-research.ts"
+      ],
+      "exports": [
+        "ForecastIntent",
+        "parseForecastIntent",
+        "ExternalChatError"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/external-context.ts",
+      "lines": 61,
+      "client": false,
+      "imports": [
+        "./external-conversation.ts",
+        "node:crypto"
+      ],
+      "exports": [
+        "ExternalContextBinding",
+        "ExternalContextError",
+        "createExternalContextCodec",
+        "sealExternalContext",
+        "openExternalContext"
+      ],
+      "environment": [
+        "SCOUT_CHAT_CONTEXT_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/external-conversation.ts",
+      "lines": 51,
+      "client": false,
+      "imports": [
+        "./market-research-model.ts"
+      ],
+      "exports": [
+        "MAX_EXTERNAL_CONTEXT_TOKEN",
+        "MAX_EXTERNAL_CONTEXT_BYTES",
+        "PublicConversation",
+        "parsePublicConversation",
+        "continuePublicConversation"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/external-model.ts",
+      "lines": 18,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "EXTERNAL_PROVIDERS",
+        "ExternalConfig",
+        "parseExternalConfig"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/finance-model.ts",
+      "lines": 89,
+      "client": false,
+      "imports": [
+        "./scout-model"
+      ],
+      "exports": [
+        "ExpenseCategory",
+        "FinancePeriod",
+        "Employee",
+        "ForecastPoint",
+        "Forecast",
+        "TeamSpend",
+        "QuarterSpend",
+        "DashboardData",
+        "displayCents",
+        "decimalCents",
+        "financePeriod",
+        "quarterSpend"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/finance.ts",
+      "lines": 175,
+      "client": false,
+      "imports": [
+        "./auth",
+        "./finance-model",
+        "./scout",
+        "./scout-api",
+        "./scout-model",
+        "pg",
+        "server-only"
+      ],
+      "exports": [
+        "getDashboardData",
+        "getTaskDetail",
+        "getRecords"
+      ],
+      "environment": [
+        "DATABASE_URL",
+        "PGDATABASE",
+        "PGHOST",
+        "PGPASSWORD",
+        "PGPORT",
+        "PGUSER",
+        "SCOUT_GOOGLE_CLIENT_ID",
+        "SCOUT_GOOGLE_CLIENT_SECRET"
+      ],
+      "request_paths": [
+        "/v1/forecast/liquidity?${query}"
+      ]
+    },
+    {
+      "path": "dashboard/lib/guardrails-model.ts",
+      "lines": 42,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "GuardrailsSettings",
+        "GUARDRAILS_DEFAULT",
+        "parseGuardrailsToggle",
+        "guardrailsAudit",
+        "guardrailsBanner",
+        "GUARDRAILS_POLL_MS",
+        "WatchEnv",
+        "watchGuardrails"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/guardrails-store.ts",
+      "lines": 39,
+      "client": false,
+      "imports": [
+        "./auth-crypto.ts",
+        "./guardrails-model.ts"
+      ],
+      "exports": [
+        "GuardrailsDb",
+        "readGuardrails",
+        "saveGuardrails"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/invoice-model.ts",
+      "lines": 48,
+      "client": false,
+      "imports": [
+        "./finance-model.ts"
+      ],
+      "exports": [
+        "InvoiceLine",
+        "TransactionInvoice",
+        "parseTransactionInvoice"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/ksef.ts",
+      "lines": 74,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "KsefPhase",
+        "KsefStep",
+        "KsefInvoice",
+        "KsefConfig",
+        "parseKsefConfig",
+        "apiHost",
+        "ksefSummary",
+        "invoiceTotal"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/legal-links.ts",
+      "lines": 7,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "legalLinks"
+      ],
+      "environment": [
+        "SCOUT_PRIVACY_URL",
+        "SCOUT_TERMS_URL"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/llm-usage-model.ts",
+      "lines": 147,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "UsageTotals",
+        "UsageReport",
+        "ModelSnapshot",
+        "LlmUsageData",
+        "parseUsageReport",
+        "parseModelSnapshot",
+        "formatUsageCost",
+        "previewLlmUsage",
+        "ChartBucket",
+        "fillBuckets"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/llm-usage.ts",
+      "lines": 24,
+      "client": false,
+      "imports": [
+        "./auth",
+        "./llm-usage-model",
+        "./scout-api",
+        "server-only"
+      ],
+      "exports": [
+        "getLlmUsage"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/v1/llm/usage/live",
+        "/v1/llm/usage?${params}"
+      ]
+    },
+    {
+      "path": "dashboard/lib/markdown.ts",
+      "lines": 91,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "Inline",
+        "Block",
+        "parseInline",
+        "parseMarkdown"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/market-research-model.ts",
+      "lines": 82,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "MarketResearchQuery",
+        "PublicSource",
+        "PublicResearch",
+        "parseMarketResearchQuery",
+        "publicSourceUrl",
+        "parsePublicResearch",
+        "HiringProposal",
+        "HiringIntent",
+        "parseHiringProposal"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/market-research.ts",
+      "lines": 168,
+      "client": false,
+      "imports": [
+        "./external-model.ts",
+        "./market-research-model.ts"
+      ],
+      "exports": [
+        "MarketResearchError",
+        "supportsMarketResearch",
+        "researchJobMarket",
+        "researchPublicNews"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/nav.ts",
+      "lines": 130,
+      "client": false,
+      "imports": [
+        "./onboarding-model",
+        "./scout-model"
+      ],
+      "exports": [
+        "View",
+        "TaskScope",
+        "TaskFilter",
+        "Route",
+        "IconName",
+        "CountKey",
+        "NavItem",
+        "NavSection",
+        "NAV",
+        "NAV_ITEMS",
+        "hashFromRoute",
+        "routeFromHash",
+        "activeItem",
+        "GO_SHORTCUTS",
+        "VIEW_LABEL"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/onboarding-client.ts",
+      "lines": 172,
+      "client": false,
+      "imports": [
+        "./onboarding-model.ts"
+      ],
+      "exports": [
+        "Fetcher",
+        "OAuthProvider",
+        "Provider",
+        "STEPS",
+        "OnboardingError",
+        "parseSetup",
+        "fetchSetup",
+        "patchSetup",
+        "connectProvider",
+        "disconnectProvider",
+        "parseSlackChannelIds",
+        "saveSlackChannels",
+        "safeAuthorizationUrl",
+        "startOAuth",
+        "createHandoff",
+        "handoffFiles",
+        "Tone",
+        "stepStatus",
+        "canEdit",
+        "shouldOpenSetup",
+        "canComplete",
+        "completionAction",
+        "isSetupStepId",
+        "firstUnsettledStep",
+        "resolveStep",
+        "callbackStep",
+        "stepProgress",
+        "adjacentStep",
+        "nextStepAction",
+        "validNip",
+        "NetworkDraft",
+        "buildNetworkAnswers"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/onboarding",
+        "/api/onboarding/connect/${provider}",
+        "/api/onboarding/handoff",
+        "/api/onboarding/slack/channels"
+      ]
+    },
+    {
+      "path": "dashboard/lib/onboarding-handoff.ts",
+      "lines": 82,
+      "client": false,
+      "imports": [
+        "./auth-crypto.ts",
+        "./onboarding-model.ts"
+      ],
+      "exports": [
+        "buildHandoff"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/onboarding-model.ts",
+      "lines": 9,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "SetupStepId",
+        "SetupStepState",
+        "SetupStatus",
+        "SetupStep",
+        "NetworkAnswers",
+        "Setup",
+        "SetupUpdate",
+        "SetupHandoff"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/onboarding-server.ts",
+      "lines": 201,
+      "client": false,
+      "imports": [
+        "./auth-crypto.ts",
+        "./onboarding-model.ts"
+      ],
+      "exports": [
+        "PROVIDERS",
+        "Provider",
+        "OAuthProvider",
+        "STEP_IDS",
+        "STEP_STATES",
+        "parseProvider",
+        "parseConnectBody",
+        "parseSlackChannels",
+        "parseSetupUpdate",
+        "redirectUri",
+        "providerCookieName",
+        "providerCookiePath",
+        "encodeProviderCookie",
+        "parseProviderCookie",
+        "validProviderAuthUrl",
+        "sanitizeSetup",
+        "mapBackendResult",
+        "BackendFetch",
+        "makeBackendFetch",
+        "ProviderCookie",
+        "startProviderConnect",
+        "completeProviderCallback",
+        "registrationRedirect",
+        "googleSignInRedirect"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/onboarding/callback/${provider}",
+        "/v1/onboarding/callback/${provider}",
+        "/v1/onboarding/connect/${provider}"
+      ]
+    },
+    {
+      "path": "dashboard/lib/overview-model.ts",
+      "lines": 130,
+      "client": false,
+      "imports": [
+        "./finance-model",
+        "./scout-model"
+      ],
+      "exports": [
+        "WhatIf",
+        "latestWhatIf",
+        "withWhatIf",
+        "niceTicks",
+        "BufferStatus",
+        "BUFFER_STATUS_LABEL",
+        "TIGHT_UNDER",
+        "coverage",
+        "bufferStatus",
+        "gaugeStatus",
+        "formatCoverage",
+        "DonutSlice",
+        "donutSlices",
+        "ScoutOutcome",
+        "SCOUT_OUTCOME_LABEL",
+        "scoutOutcome",
+        "scoutRing",
+        "notableActions",
+        "actionSummary"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/preview-data.ts",
+      "lines": 277,
+      "client": false,
+      "imports": [
+        "./finance-model",
+        "./scout-model",
+        "server-only"
+      ],
+      "exports": [
+        "getPreviewTask",
+        "getPreviewData",
+        "getPreviewRecords"
+      ],
+      "environment": [
+        "SCOUT_DEMO"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/scout-api.ts",
+      "lines": 20,
+      "client": false,
+      "imports": [
+        "./auth",
+        "./auth-crypto",
+        "server-only"
+      ],
+      "exports": [
+        "apiUrl",
+        "apiFetch",
+        "checkWriteRequest",
+        "noStore"
+      ],
+      "environment": [
+        "CFO_API_URL"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/scout-model.ts",
+      "lines": 172,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "TaskStatus",
+        "ResolvedVia",
+        "Evidence",
+        "AgentTask",
+        "TaskStep",
+        "Approval",
+        "AuditRow",
+        "Connection",
+        "CashEvent",
+        "TransactionRow",
+        "TransactionInfo",
+        "TaskDetail",
+        "ScoutData",
+        "RecordKind",
+        "ScoutRecords",
+        "STATUS_ORDER",
+        "STATUS_LABEL",
+        "OPEN_STATUSES",
+        "isOpen",
+        "LOOP_LABEL",
+        "RESOLVED_VIA_LABEL",
+        "Channel",
+        "channelChip",
+        "groupByStatus",
+        "priority",
+        "formatShare",
+        "initials",
+        "EvidenceView",
+        "evidenceView",
+        "clock",
+        "fullTimestamp",
+        "shortDate",
+        "money"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/scout.ts",
+      "lines": 97,
+      "client": false,
+      "imports": [
+        "./connection-display",
+        "./finance-model",
+        "./scout-model",
+        "pg",
+        "server-only"
+      ],
+      "exports": [
+        "ceoId",
+        "demoEnabled",
+        "loadScout",
+        "loadRecords",
+        "loadTaskDetail"
+      ],
+      "environment": [
+        "SCOUT_CEO_ID",
+        "SCOUT_DEMO"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/strategy-credentials.ts",
+      "lines": 19,
+      "client": false,
+      "imports": [
+        "./external-model.ts",
+        "node:crypto"
+      ],
+      "exports": [
+        "sealStrategyProvider",
+        "openStrategyProvider"
+      ],
+      "environment": [
+        "API_KEY",
+        "SCOUT_STRATEGY_SECRET"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/strategy-model.ts",
+      "lines": 11,
+      "client": false,
+      "imports": [],
+      "exports": [
+        "DEFAULT_STRATEGY_PROMPT",
+        "StrategySettings",
+        "parseStrategyPreferences"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/strategy-store.ts",
+      "lines": 109,
+      "client": false,
+      "imports": [
+        "./auth-crypto.ts",
+        "./external-model.ts",
+        "./market-research.ts",
+        "./strategy-credentials.ts",
+        "./strategy-model.ts",
+        "pg"
+      ],
+      "exports": [
+        "strategyDatabase",
+        "SERVER_PROVIDER_KEY",
+        "defaultStrategyProvider",
+        "configuredStrategyProvider",
+        "strategySettings",
+        "saveStrategySettings",
+        "runStrategy",
+        "tickStrategy"
+      ],
+      "environment": [
+        "API_KEY",
+        "DATABASE_URL",
+        "PGDATABASE",
+        "PGHOST",
+        "PGPASSWORD",
+        "PGPORT",
+        "PGUSER",
+        "SCOUT_AUTH_DATABASE_URL",
+        "SCOUT_GPT_MODEL"
+      ],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/task-signals.ts",
+      "lines": 50,
+      "client": false,
+      "imports": [
+        "./nav",
+        "./scout-model"
+      ],
+      "exports": [
+        "needsReaction",
+        "inInbox",
+        "filterTasks",
+        "SeenMap",
+        "unseenResult",
+        "LoopSignal",
+        "LOOP_SIGNAL_LABEL",
+        "loopSignal",
+        "baselineSeen"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/tenant-browser.ts",
+      "lines": 18,
+      "client": true,
+      "imports": [],
+      "exports": [
+        "scopeKey",
+        "tenantFetch"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/use-records.ts",
+      "lines": 34,
+      "client": true,
+      "imports": [
+        "./scout-model",
+        "./tenant-browser",
+        "react"
+      ],
+      "exports": [
+        "prefetchRecords",
+        "useRecords"
+      ],
+      "environment": [],
+      "request_paths": [
+        "/api/records/${kind}"
+      ]
+    },
+    {
+      "path": "dashboard/lib/use-seen-tasks.ts",
+      "lines": 59,
+      "client": true,
+      "imports": [
+        "./scout-model",
+        "./task-signals",
+        "./tenant-browser",
+        "react"
+      ],
+      "exports": [
+        "useSeenTasks"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/lib/utils.ts",
+      "lines": 6,
+      "client": false,
+      "imports": [
+        "clsx",
+        "tailwind-merge"
+      ],
+      "exports": [
+        "cn"
+      ],
+      "environment": [],
+      "request_paths": []
+    },
+    {
+      "path": "dashboard/hooks/use-mobile.ts",
+      "lines": 19,
+      "client": false,
+      "imports": [
+        "react"
+      ],
+      "exports": [
+        "useIsMobile"
+      ],
+      "environment": [],
+      "request_paths": []
+    }
+  ]
+}

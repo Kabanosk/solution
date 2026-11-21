@@ -238,3 +238,9 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 
 ## 2026-11-21 — Codzienna pętla strategiczna CEO
 Na podstawie feedbacku jury dodajemy pętlę strategy z notatką dzienną, publicznymi feedami ECB/Eurostat i jawnymi scenariuszami wzrostu z historii wpływów sprzedażowych. Mieszany scorecard obejmuje sprzedaż, nadwyżkę operacyjną, dochód właściciela i ekspansję; brak danych lub celów oznacza unknown. Bez automatycznych wiadomości i decyzji finansowych. Migracja i wdrożenie produkcyjne pozostają osobnym krokiem. Kanoniczny HOUSE_DIR niedostępny na tej maszynie; użyto lokalnej kopii .house.
+
+## D-033 Migracja wdrażanej aplikacji do Rust na osobnej gałęzi
+- **Decyzja:** na wyraźne polecenie użytkownika prowadzimy migrację API, workerów, integracji i dashboardu do Rust z rust-anything, na gałęzi `rewrite/rust-anything`. Użytkownik zatwierdził pracę subagentów i pozostawienie notebooków oraz narzędzi trenowania/tuningu w Pythonie jako narzędzi deweloperskich. Zachowujemy kontrakty, izolację organizacji, semantykę pieniędzy oraz dotychczasowy wygląd Scouta.
+- **Dlaczego:** bezpośrednie zlecenie użytkownika. Oryginał pozostaje referencją; nie przełączamy wdrożenia przed udowodnieniem pełnej zgodności i usunięciem fallbacku. Kanoniczny HOUSE_DIR i narzędzie house są niedostępne na tej maszynie; dokumentujemy pracę w lokalnej kopii .house i katalogu rust/.
+- **Kto:** człowiek (zakres i gałąź), codex i subagenci (realizacja)
+- **Data:** 2026-11-21

@@ -1,0 +1,58 @@
+[
+  {
+    "fn": "checkValidSlug",
+    "cases": 80,
+    "original_ns": 60.93124634431661,
+    "rust_ns": 358.0908648339059,
+    "speedup": 0.17015582447929378
+  },
+  {
+    "fn": "checkRegisteredSchema",
+    "cases": 114,
+    "original_ns": 78.25581307825938,
+    "rust_ns": 596.0884820747527,
+    "speedup": 0.13128220965766904
+  },
+  {
+    "fn": "checkTokenHash",
+    "cases": 55,
+    "original_ns": 3025.8860163092763,
+    "rust_ns": 1876.6212121212138,
+    "speedup": 1.6124117092809616
+  },
+  {
+    "fn": "checkNewToken",
+    "cases": 53,
+    "original_ns": 18201.770319303345,
+    "rust_ns": 75370.31320754717,
+    "speedup": 0.2414978728983273
+  },
+  {
+    "fn": "checkPasswordHash",
+    "cases": 94,
+    "original_ns": 12093521.829787234,
+    "rust_ns": 9524109.170212768,
+    "speedup": 1.269779841206615
+  },
+  {
+    "fn": "checkVerifyPassword",
+    "cases": 109,
+    "original_ns": 6363299.999999998,
+    "rust_ns": 5779639.999999995,
+    "speedup": 1.1009855285104269
+  },
+  {
+    "fn": "checkSameOrigin",
+    "cases": 108,
+    "original_ns": 22128.55158730178,
+    "rust_ns": 14236.039001122472,
+    "speedup": 1.5544036923161706
+  },
+  {
+    "fn": "checkValidateIdentity",
+    "cases": 188,
+    "original_ns": 20829.863338789102,
+    "rust_ns": 19190.00607902754,
+    "speedup": 1.085453712365091
+  }
+]

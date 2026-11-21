@@ -1,0 +1,13 @@
+[request]
+method = "POST"
+path = "/v1/%C4%B1l%C4%B1k%20%C4%B1rmak"
+
+[request.headers]
+Authorization = "Bearer $API_WRITE_TOKEN"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

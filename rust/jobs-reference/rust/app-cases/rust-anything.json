@@ -1,0 +1,9 @@
+{
+  "schema": "rust-anything/app-cases@1",
+  "name": "reference",
+  "run": [
+    "python3",
+    "reference.py"
+  ],
+  "timeout_secs": 30
+}

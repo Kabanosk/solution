@@ -1,0 +1,37 @@
+[
+  {
+    "fn": "checkDisplayCents",
+    "cases": 76,
+    "original_ns": 7566.428614640047,
+    "rust_ns": 24903.338206627683,
+    "speedup": 0.3038319020470254
+  },
+  {
+    "fn": "checkDecimalCents",
+    "cases": 66,
+    "original_ns": 11254.763888888903,
+    "rust_ns": 17489.091942148756,
+    "speedup": 0.6435304889537972
+  },
+  {
+    "fn": "checkFinancePeriod",
+    "cases": 61,
+    "original_ns": 22013.935720448637,
+    "rust_ns": 24852.244908097353,
+    "speedup": 0.8857926437573477
+  },
+  {
+    "fn": "checkQuarterSpend",
+    "cases": 100,
+    "original_ns": 14510.798285714274,
+    "rust_ns": 16348.948064516127,
+    "speedup": 0.8875677033440833
+  },
+  {
+    "fn": "checkInvoice",
+    "cases": 96,
+    "original_ns": 14984.521726190469,
+    "rust_ns": 45656.2109375,
+    "speedup": 0.3282033576264833
+  }
+]

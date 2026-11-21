@@ -1,0 +1,1 @@
+{"items":[{"id":1,"ts":"2026-11-01T10:00:00+00:00","task_id":"SC-100","actor":"agent","requester":null,"role":null,"action":"read","target":"fixture","resource":"files","decision":"ALLOW","policy":null,"reason":null}]}

@@ -37,3 +37,7 @@ mlflow.db
 
 # T066 external validation data (never commit)
 /notebooks/external_data/
+
+# Rust migration build products
+/rust/**/target/
+/rust/**/__pycache__/

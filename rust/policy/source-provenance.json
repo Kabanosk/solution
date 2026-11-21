@@ -1,0 +1,7 @@
+{
+  "backend/scout/policy.py": "a1b657ff7d53c06c1ca880be6aa57c3a7225f56caeb853f9dc60b0beffd24370",
+  "backend/cfo/domain.py": "5dc2baf3eddb49f7e148ea1328047b217158c8f09a1a3c722120e2c05a04e3a8",
+  "rust/policy-reference/contract/policy.py": "afe6bf646fcdad60d3dff13df20b059de7d49b1a5d5bd4bb70edce3f3d16c325",
+  "rust/policy-reference/contract/original_policy.py": "075d36a77d60a3daf5b90b996b484aaef7df93c8c59919c8014fad64e9185e26",
+  "rust/policy/unicode-casefold.json": "f5bbd123d49b0688f627a5fcf32e1e3ba2fd0393a157b94ae22d3bc5332aafe2"
+}

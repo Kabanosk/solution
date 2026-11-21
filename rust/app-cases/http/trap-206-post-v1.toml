@@ -1,0 +1,14 @@
+[request]
+method = "POST"
+path = "/v1/sim:start"
+body = '{"n":9007199254740993,"f":1e21,"t":0.1,"neg":-7}'
+
+[request.headers]
+Content-Type = "application/json"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

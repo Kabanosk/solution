@@ -1,0 +1,114 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/pawel/hackatons/collabothon2026/solution/rust/finance-reference",
+  "unit": "bindings.ts",
+  "language": "ts",
+  "kind": "wasm",
+  "crate_name": "scout-finance-rs",
+  "exports": [
+    {
+      "name": "checkDisplayCents",
+      "file": "bindings.ts",
+      "line": 32,
+      "params": [
+        {
+          "name": "cents",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "number",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkDecimalCents",
+      "file": "bindings.ts",
+      "line": 36,
+      "params": [
+        {
+          "name": "amount",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkFinancePeriod",
+      "file": "bindings.ts",
+      "line": 40,
+      "params": [
+        {
+          "name": "rows",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkQuarterSpend",
+      "file": "bindings.ts",
+      "line": 44,
+      "params": [
+        {
+          "name": "start",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "through",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "rows",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "checkInvoice",
+      "file": "bindings.ts",
+      "line": 48,
+      "params": [
+        {
+          "name": "value",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

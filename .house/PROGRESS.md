@@ -86,3 +86,12 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-21: Naprawiono dostęp do ustawień Strategy na produkcji: dodano brakującą tabelę, dołączono instrumentation.ts do paczki wdrożeniowej i włączono harmonogram; konto właściciela zapisało prompt i wykonało zadanie SC-316 (done, 4 źródła).
 
 - 2026-11-21: Wyniki pętli Strategy korzystają ze wspólnego renderera Markdown (nagłówki, listy, wyróżnienia i linki), z zachowaniem bezpiecznego renderowania tekstu; typecheck i testy Markdown zaliczone.
+
+- 2026-11-21: Rust — pomoc dashboardu przeszła gate i 216/216 nagranych przypadków; oryginalny interfejs pozostaje referencją.
+- 2026-11-21: Rust — polityka autonomii i kontekst transakcji: 1615/1615 przypadków, gate zielony, bez zmiany progów ani reguł CEO.
+- 2026-11-21: Rust — prymitywy uwierzytelniania: 801/801 przypadków i gate, w tym scrypt oraz nietypowe ciągi UTF-16.
+- 2026-11-21: Rust — modele finansowe i parser faktur: 399/399 przypadków i gate, z zachowaniem semantyki BigInt i zaokrągleń.
+- 2026-11-21: Rust — izolacja organizacji i sesje: 142 porównania z oryginałem oraz testy rzeczywistej lokalnej bazy PostgreSQL.
+- 2026-11-21: Rust — kolejka: 8/8 replayów i testy współbieżnych claimów, deduplikacji, fencing oraz opóźnień 5/30/120 sekund.
+- 2026-11-21: Rust — repozytorium endpointów Scouta: 36/36 porównań handlerów i testy akceptacji, logów oraz faktur; integracja HTTP jest w toku.
+- 2026-11-21: Rust — jądra prognoz: 1102/1102 przypadków, identyczne bity float64, gate zielony; ładowanie i wykonywanie modelu są kolejnym etapem.

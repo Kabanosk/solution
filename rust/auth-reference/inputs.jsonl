@@ -1,0 +1,237 @@
+{"fn":"checkValidSlug","args":[""]}
+{"fn":"checkValidSlug","args":["ab"]}
+{"fn":"checkValidSlug","args":["abc"]}
+{"fn":"checkValidSlug","args":["a-b"]}
+{"fn":"checkValidSlug","args":["a--b"]}
+{"fn":"checkValidSlug","args":["-abc"]}
+{"fn":"checkValidSlug","args":["abc-"]}
+{"fn":"checkValidSlug","args":["A-b"]}
+{"fn":"checkValidSlug","args":["123"]}
+{"fn":"checkValidSlug","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+{"fn":"checkValidSlug","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+{"fn":"checkValidSlug","args":["scout"]}
+{"fn":"checkValidSlug","args":["tenant-one"]}
+{"fn":"checkValidSlug","args":["api"]}
+{"fn":"checkValidSlug","args":["admin"]}
+{"fn":"checkValidSlug","args":["healthz"]}
+{"fn":"checkValidSlug","args":["tasks"]}
+{"fn":"checkValidSlug","args":["inbox"]}
+{"fn":"checkValidSlug","args":["audit"]}
+{"fn":"checkValidSlug","args":["connections"]}
+{"fn":"checkValidSlug","args":["login"]}
+{"fn":"checkValidSlug","args":["logout"]}
+{"fn":"checkValidSlug","args":["register"]}
+{"fn":"checkValidSlug","args":["new"]}
+{"fn":"checkValidSlug","args":["auth"]}
+{"fn":"checkValidSlug","args":["scout-icon"]}
+{"fn":"checkValidSlug","args":["favicon"]}
+{"fn":"checkValidSlug","args":["join"]}
+{"fn":"checkValidSlug","args":["école"]}
+{"fn":"checkValidSlug","args":["😀😀"]}
+{"fn":"checkValidSlug","args":["a\nb"]}
+{"fn":"checkValidSlug","args":["abc\n"]}
+{"fn":"checkValidSlug","args":["abc "]}
+{"fn":"checkValidSlug","args":["abc\u0000"]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","public",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","tenant_00000000000040008000000000000001",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","public",false]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","tenant_00000000000040008000000000000001",false]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-4000-8000-000000000001","wrong",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","public",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","tenant_12345678123412341234123456789abc",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","public",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","tenant_12345678123412341234123456789abc",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abc","wrong",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","public",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","tenant_12345678123412341234123456789ABC",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","public",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","tenant_12345678123412341234123456789ABC",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789ABC","wrong",false]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","public",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","tenant_00000000000000000000000000000000",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","public",false]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","tenant_00000000000000000000000000000000",false]}
+{"fn":"checkRegisteredSchema","args":["00000000-0000-0000-0000-000000000000","wrong",false]}
+{"fn":"checkRegisteredSchema","args":["abc","public",true]}
+{"fn":"checkRegisteredSchema","args":["abc","tenant_abc",true]}
+{"fn":"checkRegisteredSchema","args":["abc","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["abc","public",false]}
+{"fn":"checkRegisteredSchema","args":["abc","tenant_abc",false]}
+{"fn":"checkRegisteredSchema","args":["abc","wrong",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","public",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","tenant_12345678123412341234123456789abx",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","wrong",true]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","public",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","tenant_12345678123412341234123456789abx",false]}
+{"fn":"checkRegisteredSchema","args":["12345678-1234-1234-1234-123456789abx","wrong",false]}
+{"fn":"checkTokenHash","args":[""]}
+{"fn":"checkTokenHash","args":["ascii-token"]}
+{"fn":"checkTokenHash","args":["😀"]}
+{"fn":"checkTokenHash","args":["Zażółć gęślą jaźń"]}
+{"fn":"checkTokenHash","args":["﻿hello"]}
+{"fn":"checkTokenHash","args":["nul\u0000inside"]}
+{"fn":"checkTokenHash","args":["ΟΣ"]}
+{"fn":"checkTokenHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+{"fn":"checkNewToken","args":["0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkNewToken","args":["0000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkNewToken","args":["ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"]}
+{"fn":"checkNewToken","args":["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]}
+{"fn":"checkNewToken","args":[""]}
+{"fn":"checkNewToken","args":["FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"]}
+{"fn":"checkNewToken","args":["000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkNewToken","args":["gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"]}
+{"fn":"checkPasswordHash","args":["","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["short","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["Zażółć gęślą jaźń","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","0707070707070707070707070707070707070707070707070707070707070707"]}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"]}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]}
+{"fn":"checkPasswordHash","args":["correct horse battery staple","invalid"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$bad$bad"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple",""]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["correct horse battery staple","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"]}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["wrong password","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"]}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$bad$bad"]}
+{"fn":"checkVerifyPassword","args":["wrong password",""]}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"]}
+{"fn":"checkVerifyPassword","args":["wrong password","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["wrong password","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"]}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"]}
+{"fn":"checkVerifyPassword","args":["","scrypt$bad$bad"]}
+{"fn":"checkVerifyPassword","args":["",""]}
+{"fn":"checkVerifyPassword","args":["","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"]}
+{"fn":"checkVerifyPassword","args":["","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","SCRYPT$07070707070707070707070707070707$C3C2C3E576082C27E89EA07EF20A513439EE28A74525072552B0AFF9ECF9CC0440F5B856E395DF71DB91471373EBC714863C6C9EAE9BAF3CBB798A65D6DD4048"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$bad$bad"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",""]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$00000000000000000000000000000000$00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048\n"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","argon$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048"]}
+{"fn":"checkVerifyPassword","args":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scrypt$07070707070707070707070707070707$c3c2c3e576082c27e89ea07ef20a513439ee28a74525072552b0aff9ecf9cc0440f5b856e395df71db91471373ebc714863c6c9eae9baf3cbb798a65d6dd4048$x"]}
+{"fn":"checkSameOrigin","args":["null","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://EXAMPLE.com:443/path"]}
+{"fn":"checkSameOrigin","args":["\"https://EXAMPLE.com\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com:443\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com/\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com:444"]}
+{"fn":"checkSameOrigin","args":["\"http://127.0.0.1:3000\"","http://127.0.0.1:3000"]}
+{"fn":"checkSameOrigin","args":["\"null\"","file:///a"]}
+{"fn":"checkSameOrigin","args":["\"ftp://example.com\"","ftp://example.com/a"]}
+{"fn":"checkSameOrigin","args":["\"ws://example.com\"","ws://example.com/a"]}
+{"fn":"checkSameOrigin","args":["\"blob:https://example.com/id\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://xn--bcher-kva.de\"","https://bücher.de/path"]}
+{"fn":"checkSameOrigin","args":["\"https://[::1]\"","https://[::1]:443"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://user:pass@example.com/path"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","garbage"]}
+{"fn":"checkSameOrigin","args":["\" https://example.com\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https:example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com?hello"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\"","https://example.com#hello"]}
+{"fn":"checkSameOrigin","args":["","https://example.com"]}
+{"fn":"checkSameOrigin","args":["{","https://example.com"]}
+{"fn":"checkSameOrigin","args":["[]","https://example.com"]}
+{"fn":"checkSameOrigin","args":["{}","https://example.com"]}
+{"fn":"checkSameOrigin","args":["1","https://example.com"]}
+{"fn":"checkSameOrigin","args":["true","https://example.com"]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"ΟΣ@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"İ@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"ab@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a﻿b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b.c.d\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@@b.c\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@.c\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b.\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a@b..c\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"evil\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":[\"client\"],\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"bad\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":1,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689600,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689599,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":\"1735689601\",\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":1,\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":null}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["[]","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["null","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["true","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\udfff\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\udfff@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"x\\ud800y\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"x\\ud800y@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800\\ud800\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800\\ud800@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\udfff\\udfff\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\udfff\\udfff@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"😀\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"😀@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"Σ\\ud800Σ\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"Σ\\ud800Σ@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\ud800Σ\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\ud800Σ@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"\\u0000\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"\\u0000@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"line\\nnext\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"line\\nnext@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\" \",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\" @EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"quote\\\"backslash\\\\\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"quote\\\"backslash\\\\@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\",\"\\ud800\":{\"nested\":\"\\ud800\"}}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1e999,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":-1e999,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1.735689601e9,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"USER@EXAMPLE.COM\",\"sub\":\"last wins\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"AB@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"A᠎B@EXAMPLE.COM\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\tb@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\u000bb@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a\\fb@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a　b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkValidateIdentity","args":["{\"iss\":\"https://accounts.google.com\",\"aud\":\"client\",\"nonce\":\"nonce\",\"email_verified\":true,\"exp\":1735689601,\"sub\":\"subject\",\"email\":\"a﻿b@example.com\"}","client","nonce",1735689600000]}
+{"fn":"checkSameOrigin","args":["\"\\ud800\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://\\ud800\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com/\\ud800\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com\\udfff\"","https://example.com"]}
+{"fn":"checkSameOrigin","args":["\"https://example.com?x=\\ud800\"","https://example.com"]}

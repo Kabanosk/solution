@@ -1,0 +1,14 @@
+[request]
+method = "POST"
+path = "/v1/%E6%97%A5%E6%9C%AC%E8%AA%9E"
+body = '{"speed": 3600}'
+
+[request.headers]
+Content-Type = "application/json"
+
+[response]
+status = 401
+
+[response.headers]
+content-type = "application/json"
+www-authenticate = "Bearer"

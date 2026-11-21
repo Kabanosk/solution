@@ -79,7 +79,7 @@ would break the URL; keep it alphanumeric or percent-encode it.
 
 ## Scout worker
 
-`scout-worker` polls the bank mock (`BANK_API_URL`) and the mailbox, runs the job queue with `SCOUT_WORKERS` threads
+`scout-worker` polls the bank explicitly connected through organization setup and the mailbox, and runs the job queue with `SCOUT_WORKERS` threads
 and holds the Slack socket. Without the Slack tokens it logs the DMs instead of sending them
 (`oc logs deploy/scout-worker`). The API only enqueues jobs (approve/reject); it runs no agent code.
 
@@ -91,3 +91,11 @@ and holds the Slack socket. Without the Slack tokens it logs the DMs instead of 
   empty until the seed Job has run.
 - Requests are small (single node, the GPU belongs to the model): api 100m/384Mi, scout-worker 100m/256Mi, bank-mock 50m/128Mi,
   MCP servers 50m/128Mi each.
+
+### Bank connector selection
+
+The legacy integration opt-in does not select a bank by itself. The worker uses the enabled, connected bunq sandbox connection saved through setup, including for Amalfi. If none is available, bank polling returns no transactions. `BANK_API_URL` is not a fallback bank for a normal worker.
+
+Stored simulated transactions require all three: the explicit legacy organization opt-in, `SCOUT_DEMO=1`, and an enabled/connected `revolut_mock` bank row. This demo adapter reads the organization-bound `bank_mock_transactions` table directly; it does not call the mock HTTP API with a missing browser session. The mock HTTP API retains organization authentication.
+
+Repeated `401` responses from `BankWatcher.poll` to `bank-mock:8010` on older images came from unconditional mock selection in the legacy registry plus an unauthenticated HTTP request. Deploy the corrected backend and restart the worker; keep `SCOUT_DEMO=0` for normal operation. A bank must then be connected through setup to import new transactions. No database migration is needed for this fix.

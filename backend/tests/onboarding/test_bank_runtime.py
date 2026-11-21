@@ -53,3 +53,16 @@ def test_old_refresh_callback_cannot_restore_a_disconnected_bank(build, db_url, 
     admin(db_url).execute(f'DELETE FROM "{org.schema}".connections WHERE id=\'bank\'')
     bank._on_refresh(stored_blob(session_token="must-not-be-restored"))
     assert tenant_rows(db_url, org, "SELECT 1 FROM connection_credentials WHERE connection_id='bank'") == []
+
+
+def test_old_refresh_callback_cannot_update_a_disabled_bank(build, db_url, org):
+    from onboarding_helpers import admin
+    from scout.connectors.crypto import derive_key, open_
+
+    store(db_url, org, "bank", {"mode": "sandbox"}, json.dumps(stored_blob(session_token="original")))
+    bank = build()[0].bank
+    admin(db_url).execute(f'UPDATE "{org.schema}".connections SET enabled=false WHERE id=\'bank\'')
+    bank._on_refresh(stored_blob(session_token="must-not-be-saved"))
+    [row] = tenant_rows(db_url, org, "SELECT ciphertext FROM connection_credentials WHERE connection_id='bank'")
+    saved = json.loads(open_(row["ciphertext"], derive_key(MASTER_KEY, org.id, "bank")))
+    assert saved["session_token"] == "original"

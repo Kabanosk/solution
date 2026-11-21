@@ -1,4 +1,4 @@
-"""Build the enabled connectors from the `connections` table (one company per deployment)."""
+"""Build enabled, organization-owned connectors from the connections table."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 from scout.audit import Audit
 from scout.config import REPO_ROOT, ScoutSettings
-from scout.connectors.bank import BankConnector, RevolutMockBank
+from scout.connectors.bank import BankConnector, StoredDemoBank
 from scout.connectors.chat import ChatConnector, NoChat, SlackChat
 from scout.connectors.crypto import derive_key, open_, seal
 from scout.connectors.files import FilesConnector, WorkstationFiles
@@ -95,11 +95,17 @@ def build(conn_factory: ConnFactory, settings: ScoutSettings, slack_client: Any 
     if not legacy_connectors_enabled():
         return build_tenant(conn_factory, settings, audit, current_tenant(required=False))
     rows = _rows(conn_factory)
+    bank = build_bank(conn_factory, settings, current_tenant(), rows)
+    row = rows.get("bank") or {}
+    if (settings.scout_demo and row.get("provider") == "revolut_mock"
+            and row.get("status") == "connected" and row.get("enabled")
+            and (row.get("config") or {}).get("managed_by") != "onboarding"):
+        bank = StoredDemoBank(conn_factory)
     chat: ChatConnector = NoChat()
     if slack_client is not None and "slack" in rows:
         chat = SlackChat(slack_client, (rows["slack"]["config"] or {}).get("channels") or settings.chat_channels, audit)
     return Connectors(
-        bank=RevolutMockBank(settings.bank_api_url),
+        bank=bank,
         invoicing=PostgresInvoicing(conn_factory, audit),
         files=WorkstationFiles(_path(settings.workstations_root), audit),
         mail=build_mail(rows, settings, audit),
@@ -115,6 +121,40 @@ def _authorized_rows(conn_factory: ConnFactory) -> dict[str, dict[str, Any]]:
             "SELECT c.*, cc.ciphertext FROM connections c LEFT JOIN connection_credentials cc ON cc.connection_id = c.id "
             "WHERE c.enabled AND c.status = 'connected' AND c.config->>'managed_by' = 'onboarding'").fetchall()
     return {r["id"]: r for r in rows}
+
+
+def build_bank(conn_factory: ConnFactory, settings: ScoutSettings, tenant: Any,
+               rows: dict[str, dict[str, Any]]) -> BankConnector:
+    """Legacy opt-in never overrides a saved bank or turns a missing connection into demo data."""
+    from scout.onboarding.catalog import CONNECTION
+    row = rows.get("bank") or {}
+    if (tenant is None or not row.get("enabled") or row.get("status") != "connected"
+            or row.get("provider") != CONNECTION["bank"][2]
+            or (row.get("config") or {}).get("managed_by") != "onboarding"
+            or not row.get("ciphertext")):
+        return UnavailableBank()
+    try:
+        from scout.connectors.bunq import BunqSandboxBank
+        secret = open_(row["ciphertext"], derive_key(settings.connections_key, tenant.id, "bank"))
+        bank_cipher = row["ciphertext"]
+
+        def on_bank_refresh(blob: dict[str, Any]) -> None:
+            nonlocal bank_cipher
+            renewed = seal(json.dumps(blob), derive_key(settings.connections_key, tenant.id, "bank"))
+            with conn_factory() as conn:
+                changed = conn.execute(
+                    "UPDATE connection_credentials cc SET ciphertext=%s FROM connections c "
+                    "WHERE cc.connection_id='bank' AND cc.ciphertext=%s AND c.id=cc.connection_id "
+                    "AND c.enabled AND c.status='connected' AND c.provider=%s "
+                    "AND c.config->>'managed_by'='onboarding' RETURNING cc.connection_id",
+                    (renewed, bank_cipher, CONNECTION["bank"][2])).fetchone()
+            if changed:
+                bank_cipher = renewed
+
+        return BunqSandboxBank(json.loads(secret), on_refresh=on_bank_refresh)
+    except Exception:  # noqa: BLE001 - corrupt/revoked credentials never select a demo fallback
+        log.warning("organization bank connection unusable")
+        return UnavailableBank()
 
 
 def build_tenant(conn_factory: ConnFactory, settings: ScoutSettings, audit: Audit, tenant: Any) -> Connectors:
@@ -145,26 +185,7 @@ def build_tenant(conn_factory: ConnFactory, settings: ScoutSettings, audit: Audi
             log.warning("tenant %s credential for %s cannot be opened", tenant.id, cid)
             return None
 
-    if (found := usable("bank")) and found[1]:
-        bank_cipher = found[0]["ciphertext"]
-
-        def on_bank_refresh(blob: dict[str, Any]) -> None:
-            nonlocal bank_cipher
-            renewed = seal(json.dumps(blob), derive_key(settings.connections_key, tenant.id, "bank"))
-            with conn_factory() as conn:
-                changed = conn.execute(
-                    "UPDATE connection_credentials cc SET ciphertext=%s FROM connections c "
-                    "WHERE cc.connection_id='bank' AND cc.ciphertext=%s AND c.id=cc.connection_id "
-                    "AND c.status='connected' AND c.config->>'managed_by'='onboarding' RETURNING cc.connection_id",
-                    (renewed, bank_cipher)).fetchone()
-            if changed:
-                bank_cipher = renewed
-
-        try:
-            from scout.connectors.bunq import BunqSandboxBank
-            closed.bank = BunqSandboxBank(json.loads(found[1]), on_refresh=on_bank_refresh)
-        except Exception:  # noqa: BLE001
-            log.warning("bunq sandbox connection unusable")
+    closed.bank = build_bank(conn_factory, settings, tenant, rows)
     if (found := usable("email")) and found[1]:
         cfg = found[0]["config"] or {}
         mail_cipher = found[0]["ciphertext"]

@@ -278,7 +278,7 @@ def revoke_google(secret: str) -> None:
 SLACK_MESSAGES = {
     "unavailable": "Slack could not be reached. Try again later.",
     "denied": "Slack authorization could not be completed.",
-    "scope_missing": "Slack did not grant the required read permissions. Install again and allow them.",
+    "scope_missing": "Slack did not grant the required channel and direct-message permissions. Install again and allow them.",
     "identity_mismatch": "Slack workspace identity could not be verified. Nothing was connected.",
     "unexpected": "Slack returned an unexpected response.",
 }
@@ -328,11 +328,11 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
     channels = joined["channels"]
     upsert_connection(conn, "slack", "Slack",
                       {"team": found["team"], "team_id": found["team_id"], "channels": channels, "scopes": found["scopes"],
-                       "bot_user_id": found["bot_user_id"], "read_only": True, "authorized": True},
+                       "bot_user_id": found["bot_user_id"], "read_only": False, "authorized": True},
                       seal_secret(s, actor.tenant.id, "slack", found["token"]),
                       status="connected" if channels else "disconnected")
     audit(conn, "connect", "chat:slack",
-          f"Slack workspace {found['team_id']}: bot joined {len(channels)} channel(s), {joined['private']} private")
+          f"Slack workspace {found['team_id']}: bot joined {len(channels)} channel(s), {joined['private']} private; DM permissions granted")
     state.record(conn, actor.tenant.id, "slack")
     return {}
 

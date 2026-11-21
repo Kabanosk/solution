@@ -1,6 +1,7 @@
 """Slack tenant installation (OAuth v2), one click: identity verification with `auth.test`, then the bot joins every
 public channel itself and is invited into the installer's private channels with a short-lived user token that is
-revoked right after. No message is ever sent and no global Socket Mode credential is involved."""
+revoked right after. Bot scopes also permit sending and reading its own DMs. No message is sent as a connection
+test and no global Socket Mode credential is involved."""
 
 from __future__ import annotations
 
@@ -11,7 +12,8 @@ import httpx
 
 from scout.onboarding import http as provider_http
 
-SCOPES = ["channels:read", "channels:history", "channels:join", "groups:read", "groups:history", "users:read"]
+SCOPES = ["channels:read", "channels:history", "channels:join", "groups:read", "groups:history", "users:read",
+          "chat:write", "im:write", "im:read", "im:history"]
 # Installer (user) scopes, used once to invite the bot into the installer's private channels, then revoked.
 USER_SCOPES = ["groups:read", "groups:write"]
 MAX_CHANNELS = 100

@@ -12,7 +12,7 @@ from onboarding_helpers import APP_ORIGIN, MASTER_KEY, admin, dump, step, tenant
 
 REDIRECT = APP_ORIGIN + "/api/onboarding/callback/slack"
 BOT = "xoxb-secret-bot-token"
-SCOPES = "channels:read,channels:history,channels:join,groups:read,groups:history,users:read"
+SCOPES = "channels:read,channels:history,channels:join,groups:read,groups:history,users:read,chat:write,im:write,im:read,im:history"
 USER = "xoxp-secret-installer-token"
 USER_SCOPES = "groups:read,groups:write"
 
@@ -85,14 +85,15 @@ def begin(api, org, fakes, **script):
     return parse_qs(urlparse(response.json()["url"]).query)["state"][0], response.json()["url"]
 
 
-def test_start_builds_a_read_only_install_url_bound_to_the_session(api, org, fakes, db_url):
+def test_start_builds_a_channel_and_dm_install_url_bound_to_the_session(api, org, fakes, db_url):
     response = start(api, org)
     url = urlparse(response.json()["url"])
     assert (url.scheme, url.netloc, url.path) == ("https", "slack.com", "/oauth/v2/authorize")
     q = {k: v[0] for k, v in parse_qs(url.query).items()}
     assert q["client_id"] == "slack-client-id" and q["redirect_uri"] == REDIRECT
     assert set(q["scope"].split(",")) == set(SCOPES.split(",")) and q["user_scope"] == USER_SCOPES
-    assert not any(s in q["scope"] for s in ("chat:write", "im:write", "files:write"))
+    assert {"chat:write", "im:write", "im:read", "im:history"} <= set(q["scope"].split(","))
+    assert "files:write" not in q["scope"].split(",")
     assert fakes.calls == []
     with admin(db_url) as conn:
         [row] = conn.execute("SELECT * FROM scout_auth.setup_oauth_states WHERE organization_id=%s", (org.id,)).fetchall()
@@ -363,3 +364,20 @@ def test_without_installer_scopes_only_public_channels_are_joined(api, org, fake
     assert not [r for r in fakes.calls if r.url.path == "/api/conversations.invite"]
     [row] = tenant_rows(db_url, org, "SELECT config FROM connections WHERE id='slack'")
     assert row["config"]["channels"] == [C1]
+
+
+def test_oauth_url_requests_dm_permissions_without_contacting_slack():
+    from scout.onboarding import slack_oauth
+    query = parse_qs(urlparse(slack_oauth.authorize_url("client", REDIRECT, "state")).query)
+    assert {"chat:write", "im:write", "im:read", "im:history"} <= set(query["scope"][0].split(","))
+    assert set(query["user_scope"][0].split(",")) == set(USER_SCOPES.split(","))
+
+
+@pytest.mark.parametrize("missing", ["chat:write", "im:write", "im:read", "im:history"])
+def test_install_rejects_missing_dm_permission(fakes, missing):
+    from scout.onboarding import slack_oauth
+    script_slack(fakes, scope=",".join(s for s in SCOPES.split(",") if s != missing))
+    with pytest.raises(slack_oauth.SlackAuthError) as caught:
+        slack_oauth.install("slack-client-id", "slack-client-secret", "good-code", REDIRECT)
+    assert caught.value.code == "scope_missing" and caught.value.token == BOT
+    assert [r.url.path for r in fakes.calls] == ["/api/oauth.v2.access"]

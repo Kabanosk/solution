@@ -81,7 +81,10 @@ def _history(ctx: JobContext, task: Task) -> list[dict[str, str]]:
 
 # -- answering questions with tools ----------------------------------------------------------------------
 def _system(ctx: JobContext, sender: str | None, role: str) -> str:
-    return (f"You are Scout, the finance agent of Pizzeria Amalfi (Frankfurt). Today is {ctx.now():%A %d %B %Y}. "
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    company = "Pizzeria Amalfi (Frankfurt)" if tenant is None or tenant.legacy else "your organization"
+    return (f"You are Scout, the finance agent of {company}. Today is {ctx.now():%A %d %B %Y}. "
             f"You are answering {ctx.hr.name(sender)} ({role.replace('_', ' ')}). Use the tools to look things up "
             "before you answer; call several tools if needed, one step at a time. Answer only from tool results, "
             "with exact amounts and dates; if a tool says access_denied, say that you can't share it and why. "
@@ -388,7 +391,13 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                           detail={"reply": reply[:MSG_CHARS]})
         return _finish(ctx, task, p, reply)
     ctx.recorder.step(task.id, "answered", "Sent the help text", source="scout")
-    return _finish(ctx, task, p, HELP)
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    help_text = HELP if tenant is None or tenant.legacy else (
+        "I'm Scout, your organization's finance agent. I can answer questions from your own company database "
+        "and explain the available records. External bank, mail, Slack and file integrations are not configured. "
+        "Background forecasts and approvals require an organization-bound worker; queued work is not completion.")
+    return _finish(ctx, task, p, help_text)
 
 
 HANDLERS = {"dm": on_dm}

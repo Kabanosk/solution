@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fillBuckets, formatUsageCost, type LlmUsageData } from "@/lib/llm-usage-model";
 import { cn } from "@/lib/utils";
+import { scopeKey, tenantFetch } from "@/lib/tenant-browser";
 
 const RANGES = [1, 7, 30] as const;
 type Range = (typeof RANGES)[number];
@@ -33,28 +34,28 @@ const latencyConfig = {
 const actionConfig = { cost: { label: "Cost per action", color: "var(--chart-forecast)" } } satisfies ChartConfig;
 
 // Responses per range survive view switches, so coming back to LLM usage shows numbers at once and refreshes quietly.
-const cache = new Map<Range, LlmUsageData>();
-const inflight = new Map<Range, Promise<LlmUsageData>>();
+const cache = new Map<string, LlmUsageData>();
+const inflight = new Map<string, Promise<LlmUsageData>>();
 function fetchUsage(days: Range, signal?: AbortSignal): Promise<LlmUsageData> {
-  const running = inflight.get(days);
+  const running = inflight.get(scopeKey(String(days)));
   if (running && !signal) return running;
-  const request = fetch(`/api/llm-usage?days=${days}`, { signal, cache: "no-store" })
+  const request = tenantFetch(`/api/llm-usage?days=${days}`, { signal, cache: "no-store" })
     .then(response => response.json() as Promise<LlmUsageData>)
-    .then(body => { cache.set(days, body); return body; })
-    .finally(() => { if (inflight.get(days) === request) inflight.delete(days); });
-  if (!signal) inflight.set(days, request);
+    .then(body => { cache.set(scopeKey(String(days)), body); return body; })
+    .finally(() => { if (inflight.get(scopeKey(String(days))) === request) inflight.delete(scopeKey(String(days))); });
+  if (!signal) inflight.set(scopeKey(String(days)), request);
   return request;
 }
 
 /** Warm the default range while the browser is idle, so the view opens with numbers. */
 export function prefetchLlmUsage(days: Range) {
-  if (!cache.has(days) && !inflight.has(days)) fetchUsage(days).catch(() => {});
+  if (!cache.has(scopeKey(String(days))) && !inflight.has(scopeKey(String(days)))) fetchUsage(days).catch(() => {});
 }
 
 /** Model telemetry from GET /api/llm-usage (the CFO API's /v1/llm/usage endpoints, read server-side). */
 export function LlmUsage({ active }: { active: boolean }) {
   const [days, setDays] = useState<Range>(7);
-  const [data, setData] = useState<LlmUsageData | null>(() => cache.get(7) ?? null);
+  const [data, setData] = useState<LlmUsageData | null>(() => cache.get(scopeKey("7")) ?? null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [reload, setReload] = useState(0);
@@ -62,8 +63,8 @@ export function LlmUsage({ active }: { active: boolean }) {
     if (!active) return;
     const controller = new AbortController();
     setFailed(false); setLoading(true);
-    setData(cache.get(days) ?? null);
-    (inflight.get(days) ?? fetchUsage(days, controller.signal)).then(body => { if (!controller.signal.aborted) setData(body); })
+    setData(cache.get(scopeKey(String(days))) ?? null);
+    (inflight.get(scopeKey(String(days))) ?? fetchUsage(days, controller.signal)).then(body => { if (!controller.signal.aborted) setData(body); })
       .catch(() => { if (!controller.signal.aborted) setFailed(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();

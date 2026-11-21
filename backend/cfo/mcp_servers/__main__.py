@@ -29,8 +29,16 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--host", default="127.0.0.1", help="streamable-http only (use 0.0.0.0 in the cluster)")
     p.add_argument("--port", type=int, default=None, help="streamable-http only; default per server 8001/8002/8003")
     args = p.parse_args(argv)
-    server = _factories()[args.server](host=args.host, port=args.port or DEFAULT_PORTS[args.server])
-    server.run(transport=args.transport)
+    if args.transport != "stdio":
+        p.error("MCP HTTP transport is disabled; use the authenticated backend API")
+    from cfo.config import get_settings
+    from cfo.tenancy import bind_tenant, legacy_connectors_enabled, worker_tenant
+    tenant = worker_tenant(get_settings().database_url)
+    with bind_tenant(tenant):
+        if args.server == "workstations" and not legacy_connectors_enabled():
+            p.error("Workstation integration is not configured for this organization")
+        server = _factories()[args.server](host=args.host, port=args.port or DEFAULT_PORTS[args.server])
+        server.run(transport=args.transport)
 
 
 if __name__ == "__main__":

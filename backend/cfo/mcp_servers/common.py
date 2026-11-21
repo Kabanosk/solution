@@ -15,12 +15,11 @@ def make_repo_factory(database_url: str | None = None, schema: str | None = None
 
     `schema` pins `search_path` (tests use an isolated schema in the compose Postgres).
     """
-    url = database_url or get_settings().database_url
-    if schema:
-        url += ("&" if "?" in url else "?") + "options=" + quote(f"-csearch_path={schema}")
+    from scout.db import factory as connection_factory
+    cf = connection_factory(database_url or get_settings().database_url, schema)
 
     def factory() -> Repository:
-        return Repository.connect(url)
+        return Repository(cf())
 
     return factory
 

@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 import pytest
 from cryptography import x509
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 from lxml import etree
 
 from cfo.db.repo import Repository
@@ -183,7 +183,7 @@ def test_connect_failure_ends_in_error_with_reason(company):
     assert "Nieprawidłowy podpis" in row["last_error"] and row["config"]["steps"][-1]["ok"] is False
 
 
-def test_api_connect_enqueues_a_job_and_refuses_a_second_run(company, monkeypatch):
+def test_api_connection_mutation_cannot_enqueue_jobs(company, monkeypatch):
     from cfo.api.app import create_app
     from scout import api as scout_api
 
@@ -198,13 +198,10 @@ def test_api_connect_enqueues_a_job_and_refuses_a_second_run(company, monkeypatc
     app.dependency_overrides[scout_api.get_conn] = conn_dep
     client = TestClient(app)
     r = client.post("/v1/connections/ksef:connect", json={})
-    assert r.status_code == 202, r.text
-    assert r.json()["connection"]["id"] == "ksef" and r.json()["job_id"]
-    assert r.json()["connection"]["config"]["phase"] == "running"
+    assert r.status_code == 403, r.text
     with company() as conn:
-        assert conn.execute("SELECT kind FROM agent_jobs WHERE id = %s", (r.json()["job_id"],)).fetchone()["kind"] \
-            == "ksef_connect"
-    assert client.post("/v1/connections/ksef:connect", json={}).status_code == 409
+        assert conn.execute("SELECT kind FROM agent_jobs").fetchone() is None
+    assert client.post("/v1/connections/ksef:connect", json={}).status_code == 403
 
 
 def test_invoicing_loop_finds_the_invoice_in_ksef(conn_factory, tmp_path):

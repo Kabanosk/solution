@@ -72,7 +72,8 @@ class Repository:
 
     @classmethod
     def connect(cls, database_url: str | None = None) -> Self:
-        return cls(psycopg.connect(database_url or get_settings().database_url, row_factory=dict_row))
+        from cfo.tenancy import connect
+        return cls(connect(database_url or get_settings().database_url))
 
     def __enter__(self) -> Self:
         return self

@@ -62,6 +62,8 @@ class ChatRequest(BaseModel):
 def build_context(settings: ScoutSettings) -> JobContext:
     from cfo.llm import get_llm
 
+    from scout.config import tenant_settings
+    settings = tenant_settings(settings)
     cf = scout_db.factory(settings.database_url)
     audit = Audit(cf)
     from scout.worker import parse_user_map
@@ -179,7 +181,9 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
         finally:
             events.put(None)
 
-    threading.Thread(target=run, name=f"chat-{task.id}", daemon=True).start()
+    from contextvars import copy_context
+    bound_context = copy_context()
+    threading.Thread(target=bound_context.run, args=(run,), name=f"chat-{task.id}", daemon=True).start()
 
     def stream() -> Iterator[str]:
         while True:

@@ -1,13 +1,15 @@
 // A colleague's reply to a message Scout sent shows up in the open chat and is acknowledged only while the chat is
-// visible. Needs a local DASHBOARD_PREVIEW=1 server; /api/chat, /api/tasks and /api/chat/ack are controlled, so no
+// visible. Needs a local authenticated organization server; /api/chat, /api/tasks and /api/chat/ack are controlled, so no
 // Scout, model or Slack call is made.
 const { chromium } = require('playwright-core');
+const { authenticatedFixture } = require("./authenticated-browser.cjs");
+let fixture;
 const assert = require('node:assert/strict');
-const base = process.env.BASE_URL || 'http://127.0.0.1:3000';
+let base = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const reply = 'Grazyna replied to your message “Is the Asimex invoice filed?”: Yes, filed this morning.';
 
 async function open(browser, { replyAfterMs, failAckCount = 0, hideOnFailure = false }) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+  const page = await fixture.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
   const acks = [];
   let polls = 0;
   const started = Date.now();
@@ -41,6 +43,8 @@ async function open(browser, { replyAfterMs, failAckCount = 0, hideOnFailure = f
 (async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
+    fixture = await authenticatedFixture(browser);
+    base = fixture.base;
     // 1. The chat is open and visible when the reply arrives: it is shown as an update and acknowledged exactly once.
     const open_ = await open(browser, { replyAfterMs: 0 });
     await open_.page.getByText('filed this morning', { exact: false }).waitFor({ timeout: 15000 });

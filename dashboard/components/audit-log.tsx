@@ -29,7 +29,7 @@ export function AuditTable({ rows, compact = false }: { rows: AuditRow[]; compac
       <TableCell className="max-w-48 truncate">{row.resource}</TableCell>
       <TableCell><DecisionBadge decision={row.decision} /></TableCell>
       <TableCell className="font-mono text-xs text-muted-foreground">{row.policy ?? "—"}</TableCell>
-      {!compact && <TableCell>{row.taskId ? <Link href={`/#task/${encodeURIComponent(row.taskId)}`} className="font-mono text-xs underline-offset-2 hover:underline">{row.taskId}</Link> : "—"}</TableCell>}
+      {!compact && <TableCell>{row.taskId ? <Link href={`#task/${encodeURIComponent(row.taskId)}`} className="font-mono text-xs underline-offset-2 hover:underline">{row.taskId}</Link> : "—"}</TableCell>}
     </TableRow>)}</TableBody>
   </Table>;
 }

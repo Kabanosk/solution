@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
   try {
     const response = await apiFetch(`/v1/approvals/${encodeURIComponent(body.id)}:${body.action}`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answered_by: process.env.SCOUT_CEO_ID ?? "vincenzo" }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
     });
     return Response.json(await response.json().catch(() => ({})), { status: response.ok ? 200 : 502, headers: noStore });
   } catch {

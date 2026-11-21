@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tenantFetch } from "@/lib/tenant-browser";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, CircleCheck, Database, FileText, Folder, Landmark, LineChart, Loader2, Mail, MessageSquare, MessagesSquare, Send, type LucideIcon } from "lucide-react";
@@ -49,7 +50,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   async function answer(action: "approve" | "reject") {
     if (!approval) return;
     setMessage(null); setAnswering(action);
-    const response = await fetch("/api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: approval.id, action }) })
+    const response = await tenantFetch("/api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: approval.id, action }) })
       .catch(() => null);
     setAnswering(null);
     if (!response?.ok) { setMessage("Scout could not record the answer. Try again in a moment."); return; }
@@ -59,7 +60,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
 
   return <div className="space-y-5">
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
+      <Link href="#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
     </nav>
     <header className="space-y-1">
       <h1 className="text-2xl font-medium tracking-tight">{task.counterparty ?? task.title}</h1>
@@ -129,7 +130,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
 export function TaskDetailSkeleton({ id }: { id: string }) {
   return <div className="space-y-5" role="status" aria-label={`Loading ${id}`}>
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{id}</span>
+      <Link href="#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{id}</span>
     </nav>
     <div className="space-y-2"><Skeleton className="h-7 w-72" /><Skeleton className="h-4 w-96 max-w-full" /><Skeleton className="h-3 w-48" /></div>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">

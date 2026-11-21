@@ -1,100 +1,96 @@
 # Scout dashboard
 
-Next.js, React, TypeScript and shadcn/ui dashboard for the CFO agent. Company records are loaded on the server at request time from the existing Postgres service. No statement, employee directory, salary fixture or balance is bundled into the application image or browser JavaScript.
+Next.js 16, React, TypeScript and shadcn/ui. The calm Linear-like interface uses the existing semantic theme tokens and local Inter/Geist fonts. Company records are loaded server-side at request time; no company statement, employee directory, salary fixture or balance is bundled into the application image or browser JavaScript.
 
-## Data sources
+## Organizations and access
 
-- Balance: sum of all bank bookings, using Postgres NUMERIC arithmetic.
-- Year and Q4 expenses/inflows: bank transactions in the latest booking year; Q4 starts in October. All recorded inflows/outflows count, including partner investments.
-- Directory: `employees` joined to `teams`. Each salary is the sum of the latest recorded salary month matched by employee name. Missing matches display **Not recorded**.
-- Payroll and social contributions: latest month with salary bookings. These are historical records, not a future schedule.
-- Agent tasks (`agent_tasks`, grouped by status), task detail at `/tasks/SC-123` (activity log from `agent_task_steps`, approvals, audit rows), Audit log, Connections and Access policies; see `backend/scout/schema.sql`. The old `#investigations` hash opens Agent tasks.
-- Approve / Reject, Connect Google and the dev demo panel (`SCOUT_DEMO=1`) call the API server-side through `/api/approve`, `/api/google` and `/api/demo` with `API_WRITE_TOKEN`; the token never reaches the browser.
-- **Connect KSeF** (Connections page) posts to `/api/ksef` -> `POST ${CFO_API_URL}/v1/connections/ksef:connect` (write token server-side, not gated by `SCOUT_DEMO`) and polls the `ksef` connection row (`config.phase`, steps, invoices) while it runs.
-- `/scout-icon.svg` and `/scout-icon.png` (512×512) are public, for the Slack bot avatar.
-- Liquidity forecast: the documented `GET /v1/forecast/liquidity` on the internal CFO API. If unavailable, the chart shows a message; no invented forecast is substituted.
+Start at `/` to find or create an organization. `/<organization-slug>` is that organization's sign-in page and, after authentication, opens **Scout chat** by default. Choose **Overview** in the sidebar or open `/<organization-slug>#overview` for financial records and forecasts. A new organization shows clean empty/unavailable states, not Amalfi records or invented forecasts. `/<organization-slug>#chat` and the old `#llm` alias also open chat.
 
-Database queries use a repeatable-read, read-only transaction, a bounded connection pool and statement timeouts. Money remains integer cents until conversion for display/charting. The dashboard never writes company records. **Refresh records** loads current values from the server.
+The dashboard and Python API both verify opaque organization-bound sessions and current membership. Company queries run in a read-only repeatable-read transaction with a registered, tenant-only PostgreSQL search path. API calls carry the real member's session, not a shared write token. An organization URL/header is a selector, never authorization. There is no anonymous data-access bypass.
+
+**Read [the complete authentication/migration guide](../docs/scout-auth.md) before running this version against existing data.** The opt-in migration registers Pizzeria Amalfi without granting it to any visitor. An operator must explicitly enroll the intended verified owner. Google OAuth setup, exact callback URLs, secret configuration, worker binding, database-role limitations and backup/dry-run/rollback requirements are in that guide. The application database has not been migrated and this version has not been deployed yet.
 
 ## Local development
 
-Requires Node.js 22.18+. For a UI preview without database or cluster access, create `dashboard/.env.local` containing `DASHBOARD_PREVIEW=1`, then run from the repository root:
+Requires Node 22.18+, the Python backend and an isolated migrated PostgreSQL database. Copy `.env.example` to gitignored `.env.local`; configure the exact `SCOUT_APP_ORIGIN`, database connection and internal `CFO_API_URL`. Never use `NEXT_PUBLIC_` for credentials. Do not point development tests at a live database.
 
-```sh
+Run these commands from the repository root:
+
+```bash
 npm --prefix dashboard ci
+```
+
+```bash
 npm --prefix dashboard run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Next.js Fast Refresh updates the page as you edit files. Preview mode displays a sample-data banner and uses invented records, including Pizzeria Amalfi agent tasks, activity logs, audit rows, connections and LLM usage; Scout chat still calls the real Scout API. It works only in development; production always requires configured authentication and real services.
+The default browser origin is [http://127.0.0.1:3000](http://127.0.0.1:3000). Use that same origin in `SCOUT_APP_ORIGIN`; changing between localhost and 127.0.0.1 changes cookie/Origin/OAuth behavior. Create a disposable organization through `/` rather than using an anonymous preview.
 
-Light is the default theme. Use the theme button in the top bar to switch between light and dark; your choice is saved in this browser and restored before the page paints.
+Google sign-in is disabled until `SCOUT_GOOGLE_CLIENT_ID` and `SCOUT_GOOGLE_CLIENT_SECRET` are configured. These are identity-only credentials, separate from any mailbox connector. Existing password accounts must explicitly **Link Google sign-in** while authenticated before using Google login; email matching never implicitly links an account or grants membership.
 
-The cash forecast supports drag-to-pan on both axes. Hover over the plot and hold Ctrl while scrolling up/down to zoom in/out around the pointer; no click is needed. Click or tab into the chart, then use Ctrl + / Ctrl − to zoom and arrow keys to pan. Double-click, Ctrl 0 or **Reset** fits the full forecast. Zoom and pan buttons provide the same controls without dragging; browser shortcuts outside the forecast keep working normally. On narrow screens, the surrounding scrollbars let you reach the whole chart.
+The minimal Google registration flow starts from a new organization draft (name and URL slug), verifies Google, and creates only a **new empty organization** with its owner, without requiring a password. It does not join an existing organization. An existing email account is reusable only when the verified Google subject is already explicitly linked; otherwise sign in and link first. Real-browser Google signup with a previously unregistered identity has been verified locally, separately from the completed linking/login checks; production checks must repeat after rollout. Invites, Team management and Resend email delivery are later work, not part of this change.
 
-For real records, copy `.env.example` to `.env.local`, keep `DASHBOARD_PREVIEW=0`, and fill the server-only Postgres connection fields, `CFO_API_URL` and dashboard login. Never use `NEXT_PUBLIC_` for these values or commit credentials. Enter the configured login in the browser. For access to the shared cluster services, run each port-forward in its own terminal:
+Light is the default theme. The theme control supports dark mode and saves that cosmetic preference in the browser. Organization-specific task-seen state and company-data caches are scoped to the rendered organization and user.
 
-```sh
-oc port-forward svc/postgres 5432:5432
-oc port-forward svc/api 8000:8000
-```
+## Data sources and Overview
 
-See `docs/cluster-setup.md` for the existing Postgres Secret. Passwords are separate connection parameters, so URL-special characters are handled correctly.
+- Balance is the sum of signed bank bookings, using PostgreSQL NUMERIC/integer-cent arithmetic. Year/Q4 inflows and outflows use the latest booking year, with Q4 starting in October; all recorded flows, including partner investments, count.
+- Directory data joins employees to teams in the member's company schema. Salaries use the latest recorded salary month matched by employee name; missing matches show **Not recorded**. Payroll/social contributions are historical records, not a future payment schedule.
+- Tasks, steps, approvals, audit rows, invoice documents and connection status use the same tenant boundary. Open a task through `/<organization-slug>#task/SC-123`; `#investigations` remains an alias for Tasks.
+- Forecasts come from the authenticated Python API. Missing data/services produce an honest unavailable/empty state, never an invented forecast. **Refresh records** loads current server values.
+- The forecast supports drag-to-pan, Ctrl-scroll zoom around the pointer, and keyboard zoom/pan after focusing the chart. Double-click, Ctrl 0 or **Reset** fits the full forecast; buttons provide the same controls without dragging.
+- Approvals require the membership's mapped employee to be the named approver. Queued work requires a worker explicitly configured for that organization; signup does not deploy one.
 
-## Verification and production
+## Scout chat and dashboard help
 
-```sh
-npm --prefix dashboard test
-npm --prefix dashboard run typecheck
-npm --prefix dashboard run build
-npm --prefix dashboard start
-```
+Send with Enter, use Shift+Enter for a new line, stop or retry a response, and choose **New chat** to clear it. The conversation stays in page memory across view switches and is discarded on reload/sign-out or organization change. This does not delete tenant-local backend tasks/history/checkpoints.
 
-Browser regression checks run against the local development preview in a separate terminal. Install Chromium once:
+Authenticated `POST /api/chat` accepts the selected Granite model, alternating user/assistant messages (optionally preceded by Scout's compacted summary) and an optional conversation ID. Validation limits are 64 messages, 16,000 characters per message, 120,000 total and a 512 KiB body. The server proxies to `${CFO_API_URL}/v1/chat` with the member's session and organization context, not a shared token. Private/no-store NDJSON carries validated tool steps, answer deltas and completion/error events, with task, compaction or file information when available. Tool steps appear above answers, and **Open SC-123** opens recorded work. Generation times out after 120 seconds; stop cancels the browser's upstream request. `GET /api/chat` returns the authenticated model list.
 
-```bash
-npx --prefix dashboard playwright install chromium
-```
+Ask **How do I use this dashboard?**, also available as a suggested prompt, for navigation help. Scout's read-only `dashboard_help` tool retrieves one short topic at a time: getting started, chat, overview, tasks, transactions, connections, audit, policies or LLM usage. No full guide or new authentication instructions are inserted into every system prompt. Regression limits keep the tool schema under 650 characters and each topic response at most 1,600 characters. This requires the updated backend or a controlled test fixture, not a fabricated chat response.
 
-With `DASHBOARD_PREVIEW=1` enabled on the running dev server:
-
-```bash
-npm --prefix dashboard run test:e2e
-```
-
-Set `BASE_URL` for a non-default port, or `CHROMIUM_PATH` to reuse an installed browser. The suite covers navigation, chat prompts, draft reset, a controlled streamed reply, conversation persistence, usage ranges, hydration, icon/axis styling, and overflow in both themes at desktop, phone and landscape sizes. It saves screenshots under `artifacts/ui-cleanup/` (gitignored). It does not verify live Scout model/backend connectivity.
-
-Builds require no database, credentials or company data. The home page and `/api/dashboard` render dynamically; responses use `Cache-Control: private, no-store`. Both require authentication, including server-rendered React requests. Missing login configuration fails closed. `/healthz` returns only process health and is available for cluster probes.
-
-`Containerfile` packages Next.js standalone output with local fonts and static assets. It supports OpenShift's arbitrary non-root UID and a read-only root filesystem. See `deploy/openshift/dashboard/README.md` for deployment.
-
-## Scout chat
-
-The dashboard opens **Scout chat** by default at `/`; `/#chat` and the old `/#llm` still work. Choose **Overview** in the sidebar or open `/#overview` for the financial overview. Send with Enter, Shift+Enter for a new line, stop or retry a response, **New chat** to clear it. The conversation stays in memory while you switch pages and is cleared by a reload; it is not stored by the dashboard.
-
-Authenticated `POST /api/chat` accepts `{ "model": "modelcar-granite-4-0-h-tiny", "messages": [{ "role": "user", "content": "hi" }] }`, validates it (alternating user/assistant roles, 64 messages, 16,000 characters per message, 64,000 total, 256 KiB body) and proxies it server-side to the Scout API's `POST ${CFO_API_URL}/v1/chat` with `API_WRITE_TOKEN`. Scout answers with its tools (missing invoices, forecast, tasks, costs). The response is private/no-store NDJSON: zero or more `{"type":"step","text":"…"}` tool lines, then `delta`, then `done` (optionally with `task_id`) or `error`. Events are validated before they reach the browser. The page shows the tool lines live above each answer and an **Open SC-123** link when Scout recorded a task. Generation has a 120-second timeout and stopping cancels the upstream request. `GET /api/chat` returns the model list (one Granite entry).
-
-Ask **How do I use this dashboard?** (also available as a suggested prompt) for navigation help. Scout's read-only `dashboard_help` tool retrieves one short topic at a time: getting started, chat, overview, tasks, transactions, connections, audit, policies or LLM usage. No full guide is added to every system prompt; the tool schema is under 650 characters and each response is capped by regression tests at 1,600 characters. Dashboard links in answers open in the current tab so the conversation survives navigation. This tool requires the updated backend; preview chat still needs a real API or a controlled test fixture.
+Help answers may contain generic `/#chat`, `/#overview` or other `/#…` links. The frontend Markdown parser/renderer normalizes those to same-organization fragments (`#chat`, `#overview`, etc.) and opens them in the current tab, preserving the conversation. Visiting `/` itself still opens organization find/create; it is not the authenticated chat route.
 
 ## Connections
 
-`/#connections` uses a compact integrations list with shared theme tokens and Lucide SVG icons. Each row shows status and last sync; chevrons expand KSeF sync results, Slack scopes, and Google Workspace setup instructions. KSeF and Google actions retain their existing API flows. Failed OAuth callbacks and failed syncs are announced as errors and remain retryable. E2E tests use controlled error responses and never trigger live connector writes.
+Open `/<organization-slug>#connections` for a compact integrations list using shared theme tokens and Lucide SVG icons. Rows show status and last sync. Chevrons expand historical KSeF progress/results and matched invoices, recorded Slack granted/missing scopes, or Google Workspace setup information. Display metadata is explicitly allowlisted; arbitrary connector config/credentials are not serialized to the browser.
+
+These are **read-only historical details, not working Connect flows** in this version. Mailbox authorization, KSeF sync, connection enable/disable and other mutation routes are closed; the relevant buttons are disabled. Google **sign-in** is separate and does not authorize Gmail. New organizations inherit no environment-level bank, Slack, mail, Google or workstation connectors/credentials. Legacy connector use requires explicit operator authorization for the registered legacy organization. Do not interpret a historical connected status or setup instructions as permission to connect another tenant.
 
 ## Replies to delegated Slack messages
 
-When Scout sends a message on your behalf, it labels it **MESSAGE**, tracks the returned Slack thread and leaves the conversation task waiting. A reply from the intended recipient in that exact thread becomes an attributed chat update, without going through the generic smalltalk or invoice classifier. Repeated Slack events reuse the stored reply/step; several requests retain their own recipients and question previews.
+For an organization with explicitly authorized Slack and its worker, Scout labels a message sent on your behalf **MESSAGE**, tracks the returned Slack thread and leaves the conversation task waiting. A reply from the intended recipient in that exact thread becomes an attributed chat update without passing through the generic smalltalk/invoice classifier. Repeated Slack events reuse the stored reply/step; multiple requests retain their own recipients and question previews.
 
-An active, visible dashboard chat acknowledges displayed replies through the private `/api/chat/ack` proxy. Failed acknowledgments retry while visible, and restoring a hidden tab retries them too. If no receipt arrives within about 12 seconds, a queued worker job sends the response to the original requester on Slack instead. New chat does not acknowledge the discarded conversation. Stale worker claims are recoverable; exhausted delivery attempts escalate the original task rather than disappearing silently.
+An active, visible chat acknowledges displayed replies through the private, member-authenticated `/api/chat/ack` proxy. Failed acknowledgments retry while visible, including when a hidden tab becomes visible again. If no receipt arrives within about 12 seconds, a queued worker job sends the reply to the original requester on Slack instead. **New chat** does not acknowledge the discarded conversation. Stale worker claims are recoverable; exhausted delivery attempts escalate the original task rather than silently disappearing.
 
-This requires the backend's `dm_requests` and `dm_replies` tables (including `claimed_at`), updated API and worker, and a dashboard rebuild. Existing threads sent before tracking was installed are not retroactively correlated. Slack/network delivery is retry-based, not a strict exactly-once guarantee: a crash after Slack accepts a message but before the database marks it delivered can produce a repeated notification. Tests use isolated local Postgres schemas and fake Slack/model services, not real employee messages.
+This requires tenant-local `dm_requests` and `dm_replies` tables (including `claimed_at`), the updated API/worker and a dashboard rebuild. The operator migration's `--check`/`--migrate` includes the packaged additive upgrade for registered, initialized Scout schemas; do not replay the full schema against existing data. See the migration guide first. Old untracked threads are not retroactively correlated. Slack/network delivery is retry-based, not strictly exactly-once: a crash after Slack accepts a message but before recording delivery can repeat a notification. Tests use isolated schemas and fake Slack/model services, not employee messages.
 
 ## LLM usage
 
-Open `/#llm-usage` (Workspace › **LLM usage**) for requests, tokens, latency and estimated cost of the self-hosted model over 24 hours, 7 or 30 days, plus a live model snapshot. The page reads `GET /api/llm-usage?days=1|7|30`, which calls the CFO API's `/v1/llm/usage` and `/v1/llm/usage/live` server-side with the optional `CFO_API_TOKEN`.
+Open `/<organization-slug>#llm-usage` (Workspace → **LLM usage**) for requests, tokens, latency and estimated cost over 24 hours, 7 or 30 days. `GET /api/llm-usage?days=1|7|30` calls the authenticated Python usage endpoints with the real member's session. Reports use the same organization boundary; shared host telemetry/live model measurements are not exposed as a new tenant's private usage. Missing telemetry is unavailable, not fabricated. Estimates are telemetry, not billing invoices.
 
-## Access scope
+## Verification and production
 
-The TLS dashboard route uses a shared HTTP Basic login supplied by Secret `dashboard-auth`. It is a read-only workspace login, not per-employee IAM. Displayed company data is necessarily transmitted to the authenticated viewer. Do not publish screenshots or exports containing confidential records.
+```bash
+npm --prefix dashboard test
+```
 
-The backend API has a separate existing Route and its own access policy; dashboard authentication does not protect that Route. Database and source-file services remain internal.
+```bash
+npm --prefix dashboard run typecheck
+```
 
-See `THIRD_PARTY_NOTICES.md` and the font licenses under `assets/fonts/`.
+```bash
+npm --prefix dashboard run build
+```
+
+Real database tests additionally require `SCOUT_AUTH_TEST_DATABASE_URL` pointing at an isolated migrated test database. Without it those cases are explicitly skipped.
+
+The real-browser authentication suite is `tests/organization-auth.e2e.cjs`. It requires a running local server, the same isolated database, `BASE_URL` and optionally `CHROMIUM_PATH`. Its acceptance coverage includes signup, private empty workspaces, logout/login, two-tenant object access, forged organization headers, anonymous/CSRF rejection, invalid OAuth callbacks and responsive light/dark login. Screenshots are gitignored under `artifacts/organization-auth/`. Simulated callback tests do not prove live Google success.
+
+The inherited `tests/ui-cleanup.e2e.cjs`, `tests/connections.e2e.cjs` and `tests/dm-reply.e2e.cjs` now use authenticated, isolated browser fixtures. All three passed locally after integration, including light/dark responsive layouts, historical KSeF/Slack details, disabled connection mutations, same-organization help links and delegated-reply acknowledgment/retry/visibility. Require the matching disposable local server/database and `SCOUT_AUTH_TEST_DATABASE_URL`; model/Slack responses remain controlled. No real connector writes are performed. Screenshot/artifact directories are gitignored.
+
+Real-browser Google linking of the selected owner, logout and fresh Google-only login have already succeeded with actual credentials; a second nonmember Google account was denied without an account/session being created. A previously unregistered Google identity also completed new-organization signup without a password; database checks confirmed only its new owner membership, with no Amalfi access. Repeat production OAuth checks after rollout; neither local success nor the existing cluster Secret establishes deployment or migration.
+
+Builds require no database or credentials. `/healthz` exposes only process health. Business responses are private/no-store and require membership, including server-rendered React requests. `Containerfile` packages standalone Next output for OpenShift's arbitrary non-root UID and read-only filesystem; deployment settings are in `deploy/openshift/dashboard/`.
+
+See `THIRD_PARTY_NOTICES.md` and `assets/fonts/` for licenses. Never publish screenshots or exports containing confidential records.

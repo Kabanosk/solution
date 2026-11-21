@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api.errors import install_error_handlers
 from cfo.api.settings import get_api_settings
@@ -71,7 +71,7 @@ def test_approve_requires_token(client, conn_factory, db):
     db.execute("INSERT INTO approvals (id, task_id, approver_id, question) VALUES ('apr_x', %s, 'vincenzo', 'q')",
                (t.id,))
     db.commit()
-    assert client.post("/v1/approvals/apr_x:approve").status_code == 401
+    assert client.post("/v1/approvals/apr_x:approve", headers={"Authorization": ""}).status_code == 401
     r = client.post("/v1/approvals/apr_x:approve", headers=AUTH)
     assert r.status_code == 200 and r.json()["status"] == "queued"
     job = db.execute("SELECT kind, payload FROM agent_jobs").fetchone()
@@ -79,17 +79,17 @@ def test_approve_requires_token(client, conn_factory, db):
 
 
 def test_oauth_state_tamper_rejected(client):
-    url = client.get("/v1/connections/google/start", headers=AUTH).json()["url"]
-    assert url.startswith("https://accounts.google.com/") and "gmail.readonly" in url
+    assert client.get("/v1/connections/google/start", headers=AUTH).status_code == 403
     state = scout_api.make_state(SECRET)
     bad = state[:-2] + ("AA" if not state.endswith("AA") else "BB")
     r = client.get(f"/v1/connections/google/callback?code=c&state={bad}", follow_redirects=False)
-    assert r.status_code == 400
+    assert r.status_code == 403
+    assert not scout_api.check_state(SECRET, bad)
     expired = scout_api.make_state(SECRET, now=0)
     assert not scout_api.check_state(SECRET, expired)
 
 
-def test_oauth_callback_stores_encrypted(client, db, monkeypatch):
+def test_disabled_oauth_callback_cannot_store_credentials(client, db, monkeypatch):
     db.execute("INSERT INTO connections (id, kind, provider, display_name) VALUES ('gmail','mail','gmail','Email')")
     db.commit()
     id_token = "h." + __import__("base64").urlsafe_b64encode(b'{"email":"office@amalfi.test"}').decode().rstrip("=") + ".s"
@@ -97,17 +97,16 @@ def test_oauth_callback_stores_encrypted(client, db, monkeypatch):
                         lambda code, s: {"refresh_token": "1//refresh-secret", "id_token": id_token})
     r = client.get(f"/v1/connections/google/callback?code=c&state={scout_api.make_state(SECRET)}",
                    follow_redirects=False)
-    assert r.status_code == 302 and r.headers["location"] == "https://dash.test/connections?google=connected"
-    ct = bytes(db.execute("SELECT ciphertext FROM connection_credentials").fetchone()["ciphertext"])
-    assert b"refresh-secret" not in ct and open_(ct, client.key) == "1//refresh-secret"
+    assert r.status_code == 403
+    assert db.execute("SELECT ciphertext FROM connection_credentials").fetchone() is None
     row = db.execute("SELECT status, config FROM connections WHERE id='gmail'").fetchone()
-    assert row["status"] == "connected" and row["config"]["email"] == "office@amalfi.test"
+    assert row["status"] == "disconnected" and row["config"] == {}
     conns = client.get("/v1/connections").json()["items"]
-    assert conns[0]["has_credentials"] is True and "ciphertext" not in conns[0]
+    assert conns[0]["has_credentials"] is False and "ciphertext" not in conns[0]
 
 
-def test_demo_disabled_404(client):
-    assert client.post("/v1/demo/play/files", headers=AUTH).status_code == 404
+def test_demo_mutations_are_disabled(client):
+    assert client.post("/v1/demo/play/files", headers=AUTH).status_code == 403
 
 
 def test_audit_filters(client, conn_factory):

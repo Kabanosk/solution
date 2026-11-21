@@ -60,67 +60,23 @@ function ConnectionRow({ id, title, description, icon: Icon, connection, action,
 }
 
 const POLL_MS = 1500;
-const POLL_LIMIT_MS = 120_000;
 const MAX_ROWS = 8;
-const errorMessage = (payload: unknown, fallback: string) => {
-  if (typeof payload !== "object" || payload === null || !("error" in payload)) return fallback;
-  const error = payload.error;
-  if (typeof error === "string") return error;
-  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") return error.message;
-  return fallback;
-};
 
 function KsefConnection({ connection }: { connection: Connection | undefined }) {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
-  const [waiting, setWaiting] = useState<{ since: number; baseline: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const config = parseKsefConfig(connection?.config);
-  const signature = `${connection?.lastSyncAt ?? ""}|${config.steps.length}|${config.phase}`;
-  const status = statusOf(connection);
   const running = config.phase === "running";
-  const polling = running || waiting !== null;
-
   useEffect(() => {
-    if (!waiting) return;
-    if (running || (config.phase !== "idle" && signature !== waiting.baseline) || Date.now() - waiting.since > POLL_LIMIT_MS) setWaiting(null);
-  }, [waiting, running, config.phase, signature]);
-
-  useEffect(() => {
-    if (!polling) return;
+    if (!running) return;
     const timer = setInterval(() => router.refresh(), POLL_MS);
     return () => clearInterval(timer);
-  }, [polling, router]);
-
-  async function connect() {
-    setSubmitting(true); setError(null);
-    try {
-      const response = await fetch("/api/ksef", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      const payload: unknown = await response.json().catch(() => null);
-      const conflict = response.status === 409;
-      if (!response.ok && !conflict) setError(errorMessage(payload, "KSeF could not be reached. Try again."));
-      else {
-        if (conflict) setError(errorMessage(payload, "A KSeF run is already in progress."));
-        setWaiting({ since: Date.now(), baseline: signature });
-        router.refresh();
-      }
-    } catch {
-      setError("KSeF could not be reached. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const busy = submitting || polling;
+  }, [running, router]);
   const host = apiHost(config.api);
   const rows = config.invoices.slice(0, MAX_ROWS);
-  return <ConnectionRow id="ksef" title="KSeF" description="National e-invoice system · test environment" icon={FileCheck2} connection={connection} attention={busy || Boolean(error)}
-    action={<Button id="ksef-connect" variant="outline" size="sm" className="h-8 shadow-none" disabled={busy} onClick={connect}>
-      {busy && <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}
-      {busy ? "Syncing…" : status === "connected" ? "Sync again" : "Connect KSeF"}</Button>}>
+  return <ConnectionRow id="ksef" title="KSeF" description="National e-invoice system · test environment" icon={FileCheck2} connection={connection} attention={running}
+    action={<Button id="ksef-connect" variant="outline" size="sm" className="h-8 shadow-none" disabled>Sync unavailable</Button>}>
     <div className="min-w-0 space-y-3">
       {(config.nip || host) && <p id="ksef-target" className="break-words">{config.nip && <>NIP <span className="font-mono">{config.nip}</span></>}{config.nip && host && " · "}{host && <span className="font-mono">{host}</span>}</p>}
-      {error && <p id="ksef-error" role="alert" className="text-danger">{error}</p>}
       {config.steps.length > 0 && <ol id="ksef-steps" aria-label="KSeF sync steps" className="space-y-2">
         {config.steps.map((entry, index) => <li id={`ksef-step-${index}`} key={`${index}-${entry.at ?? ""}`} className="flex items-start gap-2">
           {index === config.steps.length - 1 && running ? <LoaderCircle className="mt-0.5 size-3.5 shrink-0 motion-safe:animate-spin" aria-label="In progress" />
@@ -148,12 +104,6 @@ function KsefConnection({ connection }: { connection: Connection | undefined }) 
 
 export function Connections({ connections }: { connections: Connection[] }) {
   const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  useEffect(() => {
-    const reset = () => setConnecting(false);
-    window.addEventListener("pageshow", reset);
-    return () => window.removeEventListener("pageshow", reset);
-  }, []);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const google = params.get("google");
@@ -185,9 +135,7 @@ export function Connections({ connections }: { connections: Connection[] }) {
         const missing = strings(connection?.config.missing_scopes);
         const details = kind === "chat" && (granted.length > 0 || missing.length > 0);
         const row = <ConnectionRow key={id} id={id} title={title} description={description} icon={icon} connection={connection}
-          action={kind === "mail" ? <Button asChild variant="outline" size="sm" className="h-8 shadow-none"><a id="scout-connect-google" href="/api/google" aria-busy={connecting} aria-disabled={connecting}
-            onClick={event => { if (connecting) { event.preventDefault(); return; } setConnecting(true); }} className={connecting ? "pointer-events-none opacity-80" : undefined}>
-            {connecting && <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}{connecting ? "Opening Google…" : "Connect Google"}</a></Button> : undefined}>
+          action={kind === "mail" ? <Button id="scout-connect-google" disabled variant="outline" size="sm" className="h-8 shadow-none">Mailbox connections unavailable</Button> : undefined}>
           {kind === "mail" ? <details id="scout-google-admin" className="min-w-0">
             <summary className="cursor-pointer font-medium text-foreground">Google Workspace (admin)</summary>
             <ol className="mt-3 list-decimal space-y-2 pl-4 [overflow-wrap:anywhere]">

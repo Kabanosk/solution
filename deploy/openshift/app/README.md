@@ -2,6 +2,8 @@
 
 Part of `oc apply -k deploy/` (the root kustomization lists this directory). Uses the selected OpenShift project.
 
+**Organization auth:** first follow [the migration and owner-enrollment guide](../../../docs/scout-auth.md). Deploy matching API/dashboard versions only after a tested backup. Workers require an explicit enrolled organization; legacy connectors require a separate explicit opt-in. Unscoped MCP HTTP deployments remain at zero replicas; the scoped in-process tools are retained.
+
 | File | What |
 |---|---|
 | `imagestream.yaml`, `buildconfig.yaml` | Image `cfo-backend:latest`, built in the cluster from `https://github.com/Kabanosk/solution` (`main`, `Containerfile`) |
@@ -46,25 +48,9 @@ oc create secret generic slack \
 oc rollout restart deploy/scout-worker deploy/api
 ```
 
-### Write token for the API (`API_WRITE_TOKEN`)
+### API access
 
-Without it the API is open: anyone who can reach the Route can approve as the CEO. With it,
-approve/reject, connection changes and `POST /v1/demo/play/...` need `Authorization: Bearer <token>`; reads stay open and Slack
-approvals are unaffected (`docs/api.md`, "Write protection"). The token goes into the Secret **`slack`** (not `cfo-secrets`, which no manifest reads): that is the only Secret the
-api and worker Deployments import with `envFrom` (`api.yaml`, `scout-worker.yaml`, optional), so every key in it,
-`API_WRITE_TOKEN` included, becomes an environment variable. No manifest change is needed; add the key and restart:
-
-```sh
-# Secret `slack` exists already (see above): add the key
-oc patch secret slack --type merge -p "{\"stringData\": {\"API_WRITE_TOKEN\": \"$(openssl rand -hex 24)\"}}"
-# or, if you have not created `slack` yet: oc create secret generic slack --from-literal=API_WRITE_TOKEN="$(openssl rand -hex 24)"
-oc rollout restart deploy/api deploy/scout-worker
-oc get secret slack -o jsonpath='{.data.API_WRITE_TOKEN}' | base64 -d   # give it to the dashboard team
-oc exec deploy/api -- env | grep -c API_WRITE_TOKEN                     # 1 = the api pod sees it
-```
-
-Check that it protects: `curl -s -o /dev/null -w '%{http_code}' -X POST https://<api-host>/v1/approvals/x:approve` must print 401.
-Surrounding whitespace in the value (a trailing newline) is ignored.
+All data routes, docs, streams and mutations require a valid organization-bound opaque member session plus `X-Scout-Organization`. The API independently revalidates membership. A shared `API_WRITE_TOKEN` no longer grants access. Only process health at `/healthz` is public. Do not distribute bearer sessions or log credentials. See the organization-auth guide for deployment checks and data-preserving rollback.
 
 The vLLM endpoint needs no API key (LLM_API_KEY defaults to EMPTY). Where the Slack tokens come from: `docs/slack-setup.md`.
 

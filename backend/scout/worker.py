@@ -91,12 +91,21 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
 
 class Worker:
     def __init__(self, ctx: JobContext, n_threads: int = 4, *, watchers: list[tuple[float, Callable[[], Any]]] = ()):
+        from cfo.tenancy import current_tenant
+        self.tenant = current_tenant(required=False)
         self.ctx, self.n = ctx, n_threads
         self.watchers = list(watchers)
         self._id = f"{socket.gethostname()}"
 
     def run_one(self, worker_id: str = "w") -> bool:
         """Claim and run one job. False when the queue had nothing ready."""
+        if self.tenant is not None:
+            from cfo.tenancy import bind_tenant
+            with bind_tenant(self.tenant):
+                return self._run_one(worker_id)
+        return self._run_one(worker_id)
+
+    def _run_one(self, worker_id: str) -> bool:
         job = self.ctx.jobs.claim(f"{self._id}:{worker_id}")
         if job is None:
             return False
@@ -137,6 +146,13 @@ class Worker:
                 stop.wait(2)
 
     def _watch(self, stop: threading.Event) -> None:
+        if self.tenant is not None:
+            from cfo.tenancy import bind_tenant
+            with bind_tenant(self.tenant):
+                return self._watch_bound(stop)
+        return self._watch_bound(stop)
+
+    def _watch_bound(self, stop: threading.Event) -> None:
         last = [0.0] * len(self.watchers)
         while not stop.is_set():
             now = time.monotonic()
@@ -165,11 +181,18 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     """Everything wired from the environment. Returns the worker and the Slack socket handler (or None)."""
     from cfo.llm import get_llm
 
+    from cfo.tenancy import bind_tenant, worker_tenant
     s = settings or get_scout_settings()
+    tenant = worker_tenant(s.database_url)
+    with bind_tenant(tenant):
+        return _build(s)
+
+
+def _build(s: ScoutSettings) -> tuple[Worker, Any]:
+    from cfo.llm import get_llm
+    from scout.config import tenant_settings
+    s = tenant_settings(s)
     cf = scout_db.factory(s.database_url)
-    conn = cf()
-    scout_db.apply_schema(conn)
-    conn.close()
     audit, recorder, jobs = Audit(cf), TaskRecorder(cf), JobQueue(cf)
     user_map = parse_user_map(s.slack_user_map)
     slack_client, socket_handler, notifier, names = None, None, LogNotifier(), {}

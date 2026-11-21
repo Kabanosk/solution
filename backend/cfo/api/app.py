@@ -13,7 +13,6 @@ from cfo.api.errors import install_error_handlers
 from cfo.api.routers import cost_metrics, costs, forecast, kpis, llm_usage
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
-from cfo.observability import init_tracing
 from scout.api import router as scout_router
 from scout.chat_api import router as scout_chat_router
 from scout.ksef_api import router as ksef_router
@@ -49,7 +48,7 @@ TAGS = [
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """The API runs no agent code: Scout's worker pool (`python -m scout.worker`) does."""
-    init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
+    # Global MLflow autologging is not tenant aware; do not enable it in the multi-tenant API.
     yield
 
 
@@ -63,6 +62,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Stub"],
     )
+    from cfo.api.auth import OrganizationAuthMiddleware
+    app.add_middleware(OrganizationAuthMiddleware)
     install_error_handlers(app)
     for module in (kpis, forecast, costs, cost_metrics, llm_usage):
         app.include_router(module.router)
@@ -78,6 +79,19 @@ def create_app() -> FastAPI:
     def index() -> RedirectResponse:
         return RedirectResponse("/docs")
 
+    original_openapi = app.openapi
+
+    def authenticated_openapi():
+        document = original_openapi()
+        document.setdefault("components", {}).setdefault("securitySchemes", {}).update({
+            "SessionToken": {"type": "http", "scheme": "bearer", "description": "Opaque DB-backed session token."},
+            "Organization": {"type": "apiKey", "in": "header", "name": "X-Scout-Organization"},
+        })
+        document["security"] = [{"SessionToken": [], "Organization": []}]
+        document["paths"]["/healthz"]["get"]["security"] = []
+        return document
+
+    app.openapi = authenticated_openapi
     return app
 
 

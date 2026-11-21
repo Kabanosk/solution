@@ -38,6 +38,24 @@ class Connectors:
     ksef: KsefLookup | None = None  # set when the KSeF connection is connected (it has a NIP)
 
 
+class UnavailableBank:
+    name = "not_configured"
+    label = "Bank not configured"
+
+    def list_transactions(self, since):
+        return []
+
+
+class UnavailableFiles:
+    name = "not_configured"
+
+    def search(self, owner, terms, *, task_id=None):
+        return []
+
+    def read(self, owner, path, *, task_id=None):
+        return None
+
+
 def _path(p: str) -> Path:
     return Path(p) if Path(p).is_absolute() else REPO_ROOT / p
 
@@ -72,7 +90,11 @@ def build_mail(rows: dict[str, dict[str, Any]], settings: ScoutSettings, audit: 
 
 def build(conn_factory: ConnFactory, settings: ScoutSettings, slack_client: Any = None,
           audit: Audit | None = None) -> Connectors:
+    from cfo.tenancy import legacy_connectors_enabled
     audit = audit or Audit(conn_factory)
+    if not legacy_connectors_enabled():
+        return Connectors(bank=UnavailableBank(), invoicing=PostgresInvoicing(conn_factory, audit),
+                          files=UnavailableFiles(), mail=UnavailableMail(), chat=NoChat())
     rows = _rows(conn_factory)
     chat: ChatConnector = NoChat()
     if slack_client is not None and "slack" in rows:

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import os
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
 
 from cfo.config import get_settings
@@ -21,7 +22,7 @@ def repo():
         pytest.skip("Postgres not reachable")
     conn.close()
     schema = f"t001_test_{os.getpid()}"
-    r = Repository.connect(url)
+    r = operator_repository(url)
     r.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     r.conn.execute(f"CREATE SCHEMA {schema}")
     r.conn.execute(f"SET search_path TO {schema}")

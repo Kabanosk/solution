@@ -7,7 +7,7 @@ import json
 import re
 
 import pytest
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo

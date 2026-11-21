@@ -40,6 +40,9 @@ class ScoutSettings(BaseSettings):
     slack_user_map: str = ""
     api_write_token: str = ""
     scout_demo: bool = False
+    guardrails_url: str = ""  # NeMo Guardrails check service; empty = safety checks off (D-029)
+    guardrails_token: str = ""
+    compliance_contact: str = ""  # employee id or Slack user id told about repeated blocked prompts; empty = the CEO
     ksef_api_url: str = "https://api-test.ksef.mf.gov.pl/v2"  # KSeF test environment (self-signed seals allowed)
 
     @field_validator("chat_channels", mode="before")

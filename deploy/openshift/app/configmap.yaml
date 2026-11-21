@@ -33,3 +33,7 @@ data:
   # LLM usage and cost (T032): vLLM Prometheus metrics, scraped by Deployment usage-sampler.
   VLLM_METRICS_URL: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics"
   VLLM_METRICS_VERIFY: "/etc/llm-ca/service-ca.crt"
+  # NeMo Guardrails check service (T051 CR `scout-guardrails`, D-029): Scout calls POST /v1/guardrail/checks at three points.
+  # Empty = safety checks off. VERIFY the Service name/port/scheme with `oc get svc | grep guardrails` (docs/guardrails.md,
+  # "App wiring"). GUARDRAILS_TOKEN comes from Secret `guardrails`, COMPLIANCE_CONTACT from Secret `slack`.
+  GUARDRAILS_URL: "http://scout-guardrails:8000"

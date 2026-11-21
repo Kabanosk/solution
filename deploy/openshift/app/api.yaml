@@ -28,6 +28,7 @@ spec:
           envFrom:
             - configMapRef: {name: cfo-config}
             - secretRef: {name: slack, optional: true}   # SLACK_* for the Slack connection status (team Secret, not in git)
+            - secretRef: {name: guardrails, optional: true}   # GUARDRAILS_TOKEN (bearer token of the NeMo check service)
           env:
             # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);
             # $(VAR) is expanded by Kubernetes, so these three must stay above it. If the password

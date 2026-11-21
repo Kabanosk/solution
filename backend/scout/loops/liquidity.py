@@ -136,7 +136,11 @@ def _after_answer(ctx: JobContext, task_id: str, approval_id: str, approved: boo
     task = ctx.recorder.get(task_id)
     proposal = next((s.detail for s in reversed(ctx.recorder.steps(task_id)) if s.kind == "proposed"), {})
     who = ctx.hr.name(by)
-    if approved:
+    if proposal.get("flagged_invoice"):  # a flagged invoice (guardrails): approving files it
+        from scout.loops import invoicing
+
+        invoicing.decide_flagged(ctx, task, proposal, approved, who)
+    elif approved:
         ctx.recorder.step(task_id, "approved", f"{who} approved", source="approval")
         what = proposal.get("summary") or task.title
         outcome = f"Resolved · {what} (SIMULATED: no money moved, the bank request is prepared for {who})"

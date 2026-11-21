@@ -17,6 +17,8 @@ from collections.abc import Callable
 from typing import Any
 
 from scout import db as scout_db
+from scout import guardrails
+from cfo.observability import span
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
@@ -94,7 +96,8 @@ class Worker:
         if job is None:
             return False
         try:
-            result = HANDLERS[job.kind](self.ctx, job)
+            with span(f"scout.{job.kind}", inputs={"job": job.id, "kind": job.kind}):  # one trace per job
+                result = HANDLERS[job.kind](self.ctx, job)
         except Exception as e:  # noqa: BLE001
             log.exception("job %s (%s) failed", job.id, job.kind)
             final = self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}")
@@ -155,7 +158,9 @@ class Worker:
 def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     """Everything wired from the environment. Returns the worker and the Slack socket handler (or None)."""
     from cfo.llm import get_llm
+    from cfo.observability import init_tracing, traced_llm
 
+    init_tracing()  # MLflow traces of Scout's LLM calls and guardrail checks; a no-op without MLFLOW_TRACKING_URI
     s = settings or get_scout_settings()
     cf = scout_db.factory(s.database_url)
     conn = cf()
@@ -181,8 +186,8 @@ def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
         if s.slack_app_token:
             socket_handler = SocketModeHandler(app, s.slack_app_token)
     connectors = registry.build(cf, s, slack_client, audit)
-    ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=get_llm(),
-                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names),
+    ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=traced_llm(get_llm()),
+                     notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names), guard=guardrails.from_settings(s),
                      checkpointer=scout_db.postgres_checkpointer(s.database_url))
     try:
         ctx.hr.link_slack(user_map, names)

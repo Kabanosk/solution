@@ -22,6 +22,7 @@ from typing import Any
 from cfo.data.invoices import invoice_pdf
 from cfo.domain import Invoice, InvoiceLine
 from cfo.llm import ToolSpec
+from scout import guardrails
 from scout.audit import check as access_check
 from scout.documents import document_text
 from scout.loops.context import JobContext, eur, invoice_number_in
@@ -121,6 +122,7 @@ class Toolbox:
     def __init__(self, ctx: JobContext, requester: str, role: str, task: Task, question: str = ""):
         self.ctx, self.requester, self.role, self.task = ctx, requester, role, task
         self.question = question
+        self.blocked_reply: str | None = None  # set when the output rails stop a message Scout was to send
 
     def _from_question(self) -> str | None:
         """Small models often call a search with empty arguments: use the invoice number the user named."""
@@ -421,6 +423,10 @@ class Toolbox:
         if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
             return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
         body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
+        if guardrails.screen_output(self.ctx, self.task.id, body, requester=self.requester,
+                                    source="send_dm") == guardrails.OUTPUT_REPLY:
+            self.blocked_reply = guardrails.OUTPUT_REPLY
+            return {"error": "blocked_by_safety_policy", "sent": False}
         self.ctx.notifier.dm(who, body, "NOTIFY", task_id=self.task.id)
         self.ctx.audit.record("agent", "send_dm", f"slack:{who}", text[:200], task_id=self.task.id,
                               requester=self.requester, role=self.role)

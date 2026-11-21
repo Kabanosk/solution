@@ -117,7 +117,7 @@ def build_invoice(txn: Transaction, rng: random.Random, *, transaction_id: str |
     )
 
 
-def invoice_pdf(inv: Invoice, address: str = "", title_prefix: str = "INVOICE") -> bytes:
+def invoice_pdf(inv: Invoice, address: str = "", title_prefix: str = "INVOICE", notes: tuple[str, ...] = ()) -> bytes:
     items: list[TextItem] = [
         (50, 790, 16, True, inv.supplier),
         (50, 774, 9, False, address),
@@ -139,6 +139,7 @@ def invoice_pdf(inv: Invoice, address: str = "", title_prefix: str = "INVOICE") 
     items += [(385, y, 11, True, "Total (EUR)"), (480, y, 11, True, f"{inv.total:.2f}")]
     items += [(50, 80, 8, False, f"Payment: bank transfer, reference {inv.number}. Thank you for your business."),
               (50, 68, 8, False, f"{inv.supplier} - {address}")]
+    items += [(50, 120 - 12 * i, 8, False, line) for i, line in enumerate(notes)]  # free text under the totals
     return render_pdf(items, title=f"{title_prefix} {inv.number}")
 
 

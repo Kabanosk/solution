@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from cfo.api.auth import require_write_token
 from cfo.api.errors import ApiError
 from scout import db as scout_db
+from scout import guardrails
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
@@ -55,6 +56,7 @@ class ChatRequest(BaseModel):
 
 def build_context(settings: ScoutSettings) -> JobContext:
     from cfo.llm import get_llm
+    from cfo.observability import traced_llm
 
     cf = scout_db.factory(settings.database_url)
     audit = Audit(cf)
@@ -151,11 +153,19 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                                   source="scout")
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
-            reply = chat.answer(ctx, task, question, asker, ctx.hr.role(asker), history=turns[:-1],
-                                on_compact=compacted)
-            ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
-            ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
-                                    level="AUTO")
+            role = ctx.hr.role(asker)
+            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id)
+            if reply is not None:  # blocked by the safety policy: no model call at all
+                ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
+                                  source="guardrails")
+                ctx.recorder.set_status(task.id, "cancelled", outcome=reply[:300], resolved_via="auto",
+                                        level="NOTIFY")
+            else:
+                reply = chat.answer(ctx, task, question, asker, role, history=turns[:-1], on_compact=compacted)
+                reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply")
+                ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
+                ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
+                                        level="AUTO")
             for f in files:  # sent before the answer that mentions them
                 events.put(f)
             events.put({"type": "delta", "text": reply})

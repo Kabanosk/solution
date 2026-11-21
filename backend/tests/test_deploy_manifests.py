@@ -124,3 +124,15 @@ def test_seed_job_deadline_covers_image_build(docs):
     # The Job starts together with the first image build (ImagePullBackOff until the ImageStream tag exists).
     job = _by_kind(docs, "Job")["cfo-seed"]
     assert job["spec"]["activeDeadlineSeconds"] >= 3600
+
+
+def test_scout_reaches_the_guardrails_service(docs):
+    """T052: GUARDRAILS_URL in the shared ConfigMap, the token from Secret `guardrails`, for api (dashboard chat) and worker."""
+    config = _by_kind(docs, "ConfigMap")["cfo-config"]["data"]
+    assert config["GUARDRAILS_URL"].startswith("http")
+    deployments = _by_kind(docs, "Deployment")
+    for name, container in (("api", "api"), ("scout-worker", "worker")):
+        env_from = _container(deployments[name], container)["envFrom"]
+        assert {"name": "cfo-config"} == next(e["configMapRef"] for e in env_from if "configMapRef" in e)
+        guard = next(e["secretRef"] for e in env_from if e.get("secretRef", {}).get("name") == "guardrails")
+        assert guard.get("optional") is True  # the service is optional: without the Secret Scout runs unauthenticated

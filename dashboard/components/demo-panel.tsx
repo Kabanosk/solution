@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 const SCENARIOS: [string, string][] = [
   ["files", "Invoice in files"], ["email", "Invoice in email"], ["chat_refund", "Explained in chat"],
   ["nowhere", "Nowhere → ask on Slack"], ["overspend_chat", "Overspend approved in chat"],
-  ["ksef", "Invoice only in KSeF"],
+  ["ksef", "Invoice only in KSeF"], ["poisoned", "Poisoned invoice (guardrails)"],
 ];
 
 /** Dev-only (SCOUT_DEMO=1): posts scenario payments to the bank mock through the API. */

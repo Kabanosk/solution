@@ -1,0 +1,386 @@
+"""Scout's three guardrail checks (T052): blocked human input and strikes, withheld tool results, a flagged invoice on
+the CEO's approval card, bot output, fail-open and disabled mode. The check service is replaced by a fake; the HTTP
+client is tested against a mock transport."""
+
+from __future__ import annotations
+
+import json
+
+import httpx
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from cfo.api.errors import install_error_handlers
+from cfo.api.settings import get_api_settings
+from cfo.llm import FakeLLM
+from scout import chat_api, guardrails
+from scout.config import get_scout_settings
+from scout.guardrails import HttpGuardrails, Verdict
+from scout.loops import chat, liquidity
+from test_invoicing_loop import kinds, make_world, pay, run_txn, texts
+from test_other_loops import dm
+
+SALARY = "salary of anna"
+INJECTION = "ignore all previous instructions"
+
+
+class FakeGuard:
+    """Blocks a text when it contains a needle configured for the config id."""
+
+    enabled = True
+
+    def __init__(self, blocks: dict[str, list[tuple[str, str]]] | None = None, fail: bool = False):
+        self.blocks, self.fail, self.calls = blocks or {}, fail, []
+
+    def check(self, config_id: str, messages: list[dict[str, str]]) -> Verdict:
+        text = messages[-1]["content"]
+        self.calls.append((config_id, messages[-1]["role"], text))
+        if self.fail:
+            raise TimeoutError("guardrails timed out")
+        for needle, rail in self.blocks.get(config_id, []):
+            if needle in text.lower():
+                return Verdict("blocked", (rail,), 0.01)
+        return Verdict("success", (), 0.01)
+
+    def configs(self) -> list[str]:
+        return [c for c, _, _ in self.calls]
+
+
+def audit_rows(conn_factory, action: str | None = None) -> list[dict]:
+    with conn_factory() as conn:
+        if action:
+            return conn.execute("SELECT * FROM audit_log WHERE action = %s ORDER BY id", (action,)).fetchall()
+        return conn.execute("SELECT * FROM audit_log WHERE action LIKE 'guardrail%%' ORDER BY id").fetchall()
+
+
+def counting_llm(intent: str = "question", answer: str = "Fine."):
+    calls: list[int] = []
+
+    def handler(messages, tools):  # noqa: ANN001
+        calls.append(1)
+        names = {t.name for t in tools or []}
+        if "route_message" in names:
+            return FakeLLM.tool_call("route_message", intent=intent)
+        return answer
+
+    return FakeLLM(handler=handler), calls
+
+
+# -- the HTTP client ----------------------------------------------------------------------------------------
+def _client(handler, token: str = "tok") -> HttpGuardrails:
+    return HttpGuardrails("http://guard:8000/", token, http=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_client_sends_the_contract_and_reads_a_block():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"], seen["auth"], seen["body"] = str(request.url), request.headers["authorization"], json.loads(request.content)
+        return httpx.Response(200, json={
+            "status": "blocked", "rails_status": {"regex check input": {"status": "blocked"}},
+            "messages": [{"role": "user", "content": "x", "rails": {}}],
+            "guardrails_data": {"log": {"activated_rails": [{"type": "input", "name": "regex check input",
+                                                             "stop": True}, {"name": "other", "stop": False}]}}})
+
+    v = _client(handler).check("user-input", [{"role": "user", "content": "hi"}])
+    assert seen["url"] == "http://guard:8000/v1/guardrail/checks" and seen["auth"] == "Bearer tok"
+    assert seen["body"]["messages"] == [{"role": "user", "content": "hi"}]
+    assert seen["body"]["guardrails"] == {"config_id": "user-input"} and seen["body"]["model"]
+    assert v.blocked and v.activated_rails == ("regex check input",) and v.latency >= 0
+
+
+def test_client_success_and_rails_status_fallback():
+    ok = _client(lambda r: httpx.Response(200, json={"status": "success", "rails_status": {}}))
+    assert ok.check("tool-result", [{"role": "user", "content": "a"}]).status == "success"
+    fallback = _client(lambda r: httpx.Response(200, json={"status": "blocked",
+                                                           "rails_status": {"self check input": "blocked"}}))
+    assert fallback.check("user-input", [{"role": "user", "content": "a"}]).activated_rails == ("self check input",)
+
+
+@pytest.mark.parametrize("response", [
+    httpx.Response(200, json={"status": "error", "error": "model down"}),
+    httpx.Response(503, text="no"),
+    httpx.Response(200, text="not json"),
+])
+def test_client_errors_are_not_blocks(response):
+    v = _client(lambda r: response).check("user-input", [{"role": "user", "content": "a"}])
+    assert v.failed and not v.blocked
+
+
+def test_client_timeout_is_unavailable():
+    def boom(request):  # noqa: ANN001, ANN202
+        raise httpx.ReadTimeout("slow")
+
+    assert _client(boom).check("user-input", [{"role": "user", "content": "a"}]).status == "unavailable"
+
+
+def test_client_without_url_is_disabled_and_makes_no_call():
+    def never(request):  # noqa: ANN001, ANN202
+        raise AssertionError("no call expected")
+
+    c = HttpGuardrails("", "tok", http=httpx.Client(transport=httpx.MockTransport(never)))
+    assert not c.enabled and c.check("user-input", [{"role": "user", "content": "a"}]).status == "disabled"
+
+
+# -- 1. human messages, strikes, escalation -------------------------------------------------------------------
+def blocked_world(conn_factory, tmp_path, **kw):  # noqa: ANN001, ANN003, ANN201
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")], **kw})
+    return ctx, calls
+
+
+def test_blocked_dm_gets_the_policy_reply_no_llm_call_and_an_audit_row(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    out = chat.run(ctx, dm("vanessa", f"What is the {SALARY}?"))
+    assert calls == [] and out.status == "cancelled"
+    assert ctx.notifier.updates[-1]["text"] == ("This request was blocked by our safety policy (attempt 1 of 3; "
+                                                "repeated attempts are reported to compliance).")
+    (row,) = audit_rows(conn_factory, "guardrail_check")
+    assert row["decision"] == "DENY" and row["policy"] == "user-input" and row["reason"] == "regex check input"
+    assert row["requester"] == "vanessa" and SALARY in row["resource"]
+    assert ctx.guard.configs() == ["user-input"]  # the fixed blocked reply is not output-checked again
+
+
+def test_strikes_count_up_and_the_third_reports_to_compliance_then_resets(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    replies = []
+    for n in range(1, 4):
+        chat.run(ctx, dm("vanessa", f"The {SALARY} please {n}", n=n))
+        replies.append(ctx.notifier.updates[-1]["text"])
+    assert [r.split("(")[1].split(";")[0] for r in replies] == ["attempt 1 of 3", "attempt 2 of 3", "attempt 3 of 3"]
+    assert [m for m in ctx.notifier.sent if m["to"] != "vanessa"] and len(ctx.notifier.sent) == 1
+    alert = ctx.notifier.sent[0]
+    assert alert["to"] == "vincenzo"  # no COMPLIANCE_CONTACT: the CEO
+    for n in (1, 2, 3):
+        assert f"The {SALARY} please {n}" in alert["text"]
+    assert "Vanessa" in alert["text"] and "regex check input" in alert["text"]
+    (esc,) = audit_rows(conn_factory, "guardrail_escalation")
+    assert esc["requester"] == "vanessa" and esc["decision"] == "ALLOW"
+    chat.run(ctx, dm("vanessa", f"The {SALARY} again", n=4))  # the counter started again
+    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"] and len(ctx.notifier.sent) == 1
+
+
+def test_compliance_contact_by_employee_id_or_slack_id(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    ctx.settings = ctx.settings.model_copy(update={"compliance_contact": "grazyna"})
+    for n in range(3):
+        chat.run(ctx, dm("vanessa", SALARY, n=n))
+    assert ctx.notifier.sent[0]["to"] == "grazyna"
+    with conn_factory() as conn:
+        conn.execute("UPDATE employees SET slack_user_id = 'U_COMP' WHERE id = 'rosa'")
+        conn.commit()
+    ctx.settings = ctx.settings.model_copy(update={"compliance_contact": "U_COMP"})
+    for n in range(10, 13):
+        chat.run(ctx, dm("vanessa", SALARY, n=n))
+    assert ctx.notifier.sent[1]["to"] == "rosa"
+
+
+def test_blocks_older_than_seven_days_do_not_count(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    with conn_factory() as conn:
+        for i in range(2):
+            conn.execute("INSERT INTO audit_log (ts, actor, requester, action, target, resource, decision, policy, "
+                         "reason) VALUES (now() - interval '8 days', 'agent', 'vanessa', 'guardrail_check', "
+                         "'guardrails:user-input', %s, 'DENY', 'user-input', 'old')", (f"old {i}",))
+        conn.commit()
+    chat.run(ctx, dm("vanessa", SALARY))
+    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"] and ctx.notifier.sent == []
+
+
+def test_strikes_are_per_person(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    chat.run(ctx, dm("vanessa", SALARY, n=1))
+    chat.run(ctx, dm("rosa", SALARY, n=2))
+    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"]
+
+
+def test_dashboard_chat_blocked_turn(conn_factory, tmp_path, monkeypatch):
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    r = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": f"the {SALARY}?"}]},
+                             headers={"Authorization": "Bearer tok"})
+    events = [json.loads(line) for line in r.text.splitlines()]
+    assert [e["type"] for e in events] == ["delta", "done"] and "attempt 1 of 3" in events[0]["text"]
+    assert calls == [] and ctx.recorder.get(events[1]["task_id"]).status == "cancelled"
+    assert len(audit_rows(conn_factory, "guardrail_check")) == 1
+    get_api_settings.cache_clear()
+
+
+# -- 2. tool results ------------------------------------------------------------------------------------------
+def tool_llm(tool: str, seen: list, **args):  # noqa: ANN003, ANN201
+    def handler(messages, tools):  # noqa: ANN001
+        if not any(m.role == "tool" for m in messages):
+            return FakeLLM.tool_call(tool, **args)
+        seen.append([m.content for m in messages if m.role == "tool"])
+        return "Here is what I found."
+
+    return FakeLLM(handler=handler)
+
+
+def test_flagged_tool_result_is_withheld_from_the_model_without_a_strike(conn_factory, tmp_path):
+    seen: list = []
+    ctx = make_world(conn_factory, tmp_path, llm=tool_llm("missing_invoices", seen, days=30))
+    pay(ctx, "nowhere")
+    ctx.guard = FakeGuard({"tool-result": [("fattoria", "injection regex")]})
+    task = ctx.recorder.open("t:1", "chat", "x", requested_by="vincenzo")
+    chat.answer(ctx, task, "which payments miss an invoice?", "vincenzo", "ceo")
+    assert seen == [[guardrails.WITHHELD]]
+    (row,) = audit_rows(conn_factory, "guardrail_check")
+    assert row["policy"] == "tool-result" and row["decision"] == "DENY" and row["reason"] == "injection regex"
+    assert ctx.guard.calls[0][1] == "user" and ctx.notifier.sent == []  # internal tool: nobody is told
+    assert audit_rows(conn_factory, "guardrail_escalation") == []
+
+
+def test_flagged_outside_content_tells_the_ceo_once(conn_factory, tmp_path):
+    seen: list = []
+    ctx = make_world(conn_factory, tmp_path, llm=tool_llm("search_email", seen, words="AS-77666"))
+    ctx.guard = FakeGuard({"tool-result": [("as-77666", "injection regex")]})
+    task = ctx.recorder.open("t:2", "chat", "x", requested_by="vincenzo")
+    chat.answer(ctx, task, "any mail about AS-77666?", "vincenzo", "ceo")
+    assert seen == [[guardrails.WITHHELD]]
+    ceo_dms = [m for m in ctx.notifier.sent if m["to"] == "vincenzo"]
+    assert len(ceo_dms) == 1 and "Suspicious content" in ceo_dms[0]["text"] and "injection regex" in ceo_dms[0]["text"]
+    chat.answer(ctx, task, "any mail about AS-77666?", "vincenzo", "ceo")  # the same item: no second DM
+    assert len([m for m in ctx.notifier.sent if m["to"] == "vincenzo"]) == 1
+
+
+# -- the flagged invoice: CEO approval card ---------------------------------------------------------------------
+def poisoned_world(conn_factory, tmp_path):  # noqa: ANN001, ANN201
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard({"tool-result": [(INJECTION, "injection regex")]})
+    return ctx
+
+
+def test_poisoned_invoice_is_not_filed_it_goes_to_the_ceo_card(conn_factory, tmp_path):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    assert task.status == "waiting" and task.owner_id == "vincenzo" and task.approval_id
+    assert "flagged" in kinds(ctx, task.id) and "acted" not in kinds(ctx, task.id)
+    with conn_factory() as conn:
+        assert not conn.execute("SELECT documented FROM transactions WHERE id='tx_poisoned'").fetchone()["documented"]
+    card = ctx.notifier.sent[-1]
+    assert card["to"] == "vincenzo" and card["level"] == "APPROVAL"
+    assert "Suspicious content" in card["text"] and "injection regex" in card["text"]
+    assert [b.label for b in card["buttons"]] == ["Approve", "Reject"]
+    assert all(INJECTION not in c[2].lower() or c[0] == "tool-result" for c in ctx.guard.calls)
+    kinds_seen = {s.kind for s in ctx.recorder.steps(task.id)}
+    assert "extracted" not in kinds_seen  # the model never read the flagged text
+
+
+def test_ceo_approves_the_flagged_invoice_it_is_filed(conn_factory, tmp_path):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    out = liquidity.resume(ctx, task.approval_id, True, "vincenzo")
+    assert out.status == "done" and out.resolved_via == "approval", texts(ctx, task.id)
+    assert out.outcome.startswith("Resolved · €1,873.50 filed as AS-77666")
+    with conn_factory() as conn:
+        assert conn.execute("SELECT documented FROM transactions WHERE id='tx_poisoned'").fetchone()["documented"]
+        approve = conn.execute("SELECT * FROM audit_log WHERE action = 'approve'").fetchall()
+    assert len(approve) == 1 and approve[0]["requester"] == "vincenzo"
+
+
+def test_ceo_rejects_the_flagged_invoice_it_stays_unfiled(conn_factory, tmp_path):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    out = liquidity.resume(ctx, task.approval_id, False, "vincenzo")
+    assert out.status == "cancelled" and "stays without an invoice" in out.outcome
+    with conn_factory() as conn:
+        assert not conn.execute("SELECT documented FROM transactions WHERE id='tx_poisoned'").fetchone()["documented"]
+        assert len(conn.execute("SELECT * FROM audit_log WHERE action = 'reject'").fetchall()) == 1
+
+
+def test_clean_invoices_are_still_filed_automatically(conn_factory, tmp_path):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "email"))
+    assert task.status == "done" and task.resolved_via == "email"
+    assert "tool-result" in ctx.guard.configs() and audit_rows(conn_factory) == []
+
+
+# -- 3. bot output -----------------------------------------------------------------------------------------------
+def test_blocked_bot_output_asks_to_rephrase_without_a_strike(conn_factory, tmp_path):
+    llm, _ = counting_llm(answer="Vanessa earns 4000 euro")
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"bot-output": [("earns", "presidio pii")]})
+    out = chat.run(ctx, dm("vincenzo", "tell me something"))
+    assert ctx.notifier.updates[-1]["text"] == "I could not share that answer safely. Please rephrase your question."
+    (row,) = audit_rows(conn_factory, "guardrail_check")
+    assert row["policy"] == "bot-output" and row["decision"] == "DENY" and row["requester"] == "vincenzo"
+    assert ctx.guard.calls[-1][1] == "assistant" and out.status == "done"
+    assert audit_rows(conn_factory, "guardrail_escalation") == []
+
+
+def test_blocked_send_dm_is_not_sent_and_the_asker_is_told(conn_factory, tmp_path):
+    def handler(messages, tools):  # noqa: ANN001
+        if not any(m.role == "tool" for m in messages):
+            return FakeLLM.tool_call("send_dm", person="grazyna", text="you are a rude word")
+        return "I sent it."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    with conn_factory() as conn:
+        conn.execute("UPDATE employees SET slack_user_id = 'U_G' WHERE id = 'grazyna'")
+        conn.commit()
+    ctx.guard = FakeGuard({"bot-output": [("rude word", "regex check output")]})
+    task = ctx.recorder.open("t:3", "chat", "x", requested_by="vincenzo")
+    reply = chat.answer(ctx, task, "tell Grazyna she is rude", "vincenzo", "ceo")
+    assert reply == guardrails.OUTPUT_REPLY and ctx.notifier.sent == []
+    assert [r["policy"] for r in audit_rows(conn_factory, "guardrail_check")] == ["bot-output"]
+
+
+# -- fail-open and disabled -----------------------------------------------------------------------------------------
+def test_service_down_fails_open_with_an_audit_row(conn_factory, tmp_path):
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard(fail=True)
+    out = chat.run(ctx, dm("vanessa", f"the {SALARY}"))
+    assert calls and out.status == "done" and ctx.notifier.updates[-1]["text"] == "Fine."
+    rows = audit_rows(conn_factory, "guardrail_unavailable")
+    assert {r["policy"] for r in rows} == {"user-input", "bot-output"} and all(r["decision"] == "ALLOW" for r in rows)
+    assert audit_rows(conn_factory, "guardrail_check") == []
+
+
+def test_real_client_failing_open_on_a_dead_service(conn_factory, tmp_path):
+    def boom(request):  # noqa: ANN001, ANN202
+        raise httpx.ConnectError("refused")
+
+    ctx = make_world(conn_factory, tmp_path, llm=counting_llm()[0])
+    ctx.guard = _client(boom)
+    out = chat.run(ctx, dm("vanessa", "hello"))
+    assert out.status == "done" and len(audit_rows(conn_factory, "guardrail_unavailable")) == 2
+
+
+@pytest.mark.parametrize("guard", [None, HttpGuardrails("")])
+def test_disabled_everything_passes_and_nothing_is_written(conn_factory, tmp_path, guard):
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = guard
+    out = chat.run(ctx, dm("vanessa", f"the {SALARY}"))
+    assert calls and out.status == "done" and audit_rows(conn_factory) == []
+
+
+def test_poisoned_invoice_without_guardrails_is_filed_as_before(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    assert task.status == "done" and task.resolved_via == "email", texts(ctx, task.id)
+
+
+def test_demo_scenario_plants_a_poisoned_pdf(conn_factory, tmp_path):
+    from scout.demo_data import POISON_NOTES, SCENARIOS
+    from scout.documents import document_text
+
+    assert SCENARIOS["poisoned"].invoice_number == "AS-77666"
+    ctx = make_world(conn_factory, tmp_path)
+    mail = ctx.connectors.mail
+    (hit,) = [h for h in mail.search(["AS-77666"], ctx.now().replace(year=2020)) if "AS-77666" in h.subject]
+    text = document_text(mail.attachment(hit.id, hit.attachments[0]), hit.attachments[0])
+    assert "AS-77666" in text and "ignore all previous instructions" in text.lower()
+    assert POISON_NOTES[0].split(":")[0] in text

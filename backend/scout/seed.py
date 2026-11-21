@@ -29,7 +29,7 @@ from cfo.db.repo import Repository
 from cfo.domain import CostMetric, Employee, Invoice, Transaction, Vacation
 from scout import db as scout_db
 from scout.config import REPO_ROOT, get_scout_settings
-from scout.demo_data import LIVE_INVOICE_NUMBERS, SCENARIOS
+from scout.demo_data import LIVE_INVOICE_NUMBERS, POISON_NOTES, SCENARIOS
 from scout.mock_bank.store import BankStore, week_shift
 
 COMPANY_TABLES = ["audit_log", "agent_task_steps", "approvals", "expected_cash_events", "agent_jobs", "agent_tasks",
@@ -113,6 +113,15 @@ def plant_demo_evidence(data_dir: Path, today: date, seed: int = 42) -> dict[str
     box.mkdir(parents=True, exist_ok=True)
     (box / f"001-invoice-{email.invoice_number}.eml").write_bytes(invoice_eml(inv, pdf, 1))
     placed["email"] = f"mailbox/001-invoice-{email.invoice_number}.eml"
+
+    poisoned = SCENARIOS["poisoned"]  # a supplier invoice mail whose PDF carries an instruction for the agent
+    sup = supplier_of(poisoned.invoice_number)
+    txn = Transaction(id="tmp", booking_date=today, type="transfer", reference=poisoned.invoice_number,
+                      counterparty=sup["name"], amount=poisoned.amount, invoice_number=poisoned.invoice_number)
+    inv = build_invoice(txn, random.Random(f"{seed}:demo:{poisoned.invoice_number}"), transaction_id=None)
+    pdf = invoice_pdf(inv, sup["address"], notes=POISON_NOTES)
+    (box / f"002-invoice-{poisoned.invoice_number}.eml").write_bytes(invoice_eml(inv, pdf, 2))
+    placed["poisoned"] = f"mailbox/002-invoice-{poisoned.invoice_number}.eml"
 
     nowhere = SCENARIOS["nowhere"]
     _, pdf = _pdf(nowhere.invoice_number, nowhere.amount, today, seed)

@@ -1,3 +1,5 @@
+import { parseExternalConfig, type ExternalConfig } from "./external-model.ts";
+
 export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 4.0 H Tiny" }] as const;
 export const MAX_MESSAGE_LENGTH = 16000;
 export type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -66,10 +68,15 @@ const CONVERSATION_ID = /^[A-Za-z0-9_-]{8,64}$/;
 /** One dashboard conversation = one Scout chat task; "New chat" starts a new id. */
 export function newConversationId(): string { return crypto.randomUUID().replace(/-/g, ""); }
 
-export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[]; conversationId?: string } {
+export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[]; conversationId?: string; external?: ExternalConfig } {
   if (!value || typeof value !== "object") throw new ChatInputError("Invalid chat request.");
   const row = value as Record<string, unknown>;
-  if (!CHAT_MODELS.some(model => model.id === row.model)) throw new ChatInputError("Select an available model.");
+  if (row.model !== "external" && !CHAT_MODELS.some(model => model.id === row.model)) throw new ChatInputError("Select an available model.");
+  let external: ExternalConfig | undefined;
+  if (row.model === "external") {
+    try { external = parseExternalConfig(row.external); }
+    catch (error) { throw new ChatInputError((error as Error).message); }
+  } else if (row.external !== undefined) throw new ChatInputError("External credentials are only accepted for external models.");
   if (!Array.isArray(row.messages) || !row.messages.length || row.messages.length > 64) throw new ChatInputError("Start a new chat to continue.");
   let length = 0;
   // A compacted conversation starts with Scout's summary of the earlier turns; user/assistant alternate after it.
@@ -88,7 +95,7 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
   if (messages.at(-1)?.role !== "user") throw new ChatInputError("Write a message to continue.");
   if (row.conversationId !== undefined && (typeof row.conversationId !== "string" || !CONVERSATION_ID.test(row.conversationId)))
     throw new ChatInputError("Invalid conversation. Start a new chat.");
-  return row.conversationId ? { model: row.model as string, messages, conversationId: row.conversationId } : { model: row.model as string, messages };
+  return { model: row.model as string, messages, ...(row.conversationId ? { conversationId: row.conversationId as string } : {}), ...(external ? { external } : {}) };
 }
 
 // Unanswered/failed exchanges remain visible but do not become invented model

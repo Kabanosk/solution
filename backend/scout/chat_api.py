@@ -26,18 +26,19 @@ import threading
 from collections.abc import Callable, Iterator
 from typing import Annotated, Any
 
+from cfo.api.auth import require_write_token
+from cfo.api.errors import ApiError
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from cfo.api.auth import require_write_token
-from cfo.api.errors import ApiError
 from scout import db as scout_db
 from scout import dm_replies, guardrails
 from scout.api import Conn, WriteAuth
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
+from scout.forecast_bridge import ForecastBridgeError, ForecastRequest
 from scout.jobs import JobQueue
 from scout.loops import chat
 from scout.loops.context import HR, JobContext, LogNotifier
@@ -212,6 +213,75 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
             if ev is None:
                 return
             yield _line(ev)
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "private, no-store", "X-Accel-Buffering": "no"})
+
+
+@router.post("/chat/forecast", summary="Hand a structured forecast intent to on-premise Granite; results stay local")
+def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(require_write_token)],
+                      settings: Annotated[ScoutSettings, Depends(get_scout_settings)],
+                      make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]) -> StreamingResponse:
+    from scout import forecast_bridge
+    from scout.audit import EXEC_ROLES
+
+    try:
+        ctx = make_ctx(settings)
+    except Exception:  # noqa: BLE001
+        log.exception("could not build the forecast context")
+        raise ApiError(503, "scout_unavailable", "Scout could not start the local forecast.") from None
+    requester = by or settings.ceo_id
+    role = ctx.hr.role(requester)
+    allowed = role in EXEC_ROLES
+    ctx.audit.record("agent", "access_check", "bank", "external-chat forecast handoff",
+                     "ALLOW" if allowed else "DENY", requester=requester, role=role,
+                     policy="forecast-bridge: owner-only")
+    if not allowed:
+        raise ApiError(403, "forbidden", "Only the company owner may request this forecast.")
+
+    conversation = body.conversation_id or secrets.token_hex(8)
+    task = ctx.recorder.open(f"web-forecast:{requester}:{conversation}", "chat", "Dashboard chat: local forecast",
+                             requested_by=requester, owner_id=requester)
+    ctx.recorder.set_status(task.id, "in_progress")
+    ctx.recorder.step(task.id, "picked_up", "Received a structured forecast request from the external chat",
+                      source="dashboard")
+    events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def run() -> None:
+        try:
+            reply = forecast_bridge.run(ctx, task, body.intent(), requester,
+                                        lambda text: events.put({"type": "step", "text": text}))
+            reply = guardrails.screen_output(ctx, task.id, reply, requester=requester,
+                                             source="local forecast reply", role=role)
+            ctx.recorder.step(task.id, "answered", "Returned forecast results directly to the dashboard",
+                              source="granite")
+            ctx.recorder.set_status(task.id, "done", outcome="Local forecast completed", resolved_via="forecast",
+                                    level="AUTO")
+            events.put({"type": "delta", "text": reply})
+            events.put({"type": "done", "truncated": False, "task_id": task.id})
+        except Exception as error:  # noqa: BLE001
+            log.exception("local forecast handoff failed")
+            ctx.recorder.step(task.id, "error", f"Local forecast failed: {type(error).__name__}", source="granite")
+            ctx.recorder.set_status(task.id, "cancelled", outcome="Local forecast failed")
+            events.put({"type": "error", "message": str(error) if isinstance(error, ForecastBridgeError)
+                        else "The local forecast could not run. Check the scenario date and try again."})
+        finally:
+            events.put(None)
+
+    from contextvars import copy_context
+    bound_context = copy_context()
+    threading.Thread(target=bound_context.run, args=(run,), name=f"forecast-{task.id}", daemon=True).start()
+
+    def stream() -> Iterator[str]:
+        while True:
+            try:
+                event = events.get(timeout=TIMEOUT_S)
+            except queue.Empty:
+                yield _line({"type": "error", "message": "The local forecast took too long. Try again."})
+                return
+            if event is None:
+                return
+            yield _line(event)
 
     return StreamingResponse(stream(), media_type="application/x-ndjson",
                              headers={"Cache-Control": "private, no-store", "X-Accel-Buffering": "no"})

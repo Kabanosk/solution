@@ -19,7 +19,7 @@ const setupWith = (id: string, state: string) => ({ version: 1, status: "in_prog
 test("Slack channel updates validate a bounded list rather than forwarding arbitrary config", () => {
   assert.deepEqual(parseSlackChannels({ channels: ["C12345678", "C12345678"], token: "DROP" }), { ok: true, value: { channels: ["C12345678"] } });
   assert.deepEqual(parseSlackChannels({ channels: [] }), { ok: true, value: { channels: [] } });
-  for (const channels of [undefined, "C12345678", ["#general"], Array(21).fill("C12345678")]) assert.equal(parseSlackChannels({ channels }).ok, false);
+  for (const channels of [undefined, "C12345678", ["#general"], Array(101).fill("C12345678")]) assert.equal(parseSlackChannels({ channels }).ok, false);
 });
 
 test("a Slack grant awaiting channels is a successful authorization but not a connected service", async () => {

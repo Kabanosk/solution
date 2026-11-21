@@ -82,7 +82,7 @@ def connect(provider: Provider, body: dict[str, Any], conn: Conn, settings: Sett
 
 class SlackChannels(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    channels: list[Annotated[str, StringConstraints(pattern=r"^[CG][A-Z0-9]{8,14}$")]] = Field(max_length=20)
+    channels: list[Annotated[str, StringConstraints(pattern=r"^[CG][A-Z0-9]{8,14}$")]] = Field(max_length=100)
 
 
 @router.put("/slack/channels", dependencies=[NoStore], summary="Choose the Slack channels Scout may read (owner only)")

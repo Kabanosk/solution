@@ -26,6 +26,9 @@ test("Slack channel choices are bounded IDs and use the authenticated JSON write
   assert.equal(parseSlackChannelIds("#general"), null);
   assert.equal(parseSlackChannelIds("https://other.example/channel"), null);
   assert.equal(parseSlackChannelIds("C123"), null);
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `C${String(i).padStart(9, "0")}`).join(", ");
+  assert.equal(parseSlackChannelIds(ids(100))?.length, 100, "one-click can join up to 100 channels");
+  assert.equal(parseSlackChannelIds(ids(101)), null);
   const { calls, fetcher } = recorder(json(setup({}, { slack: "connected" })));
   await saveSlackChannels(fetcher, ["C12345678"]);
   assert.equal(calls[0].path, "/api/onboarding/slack/channels");

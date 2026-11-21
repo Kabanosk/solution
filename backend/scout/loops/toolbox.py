@@ -59,9 +59,12 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="search_payments", description="Bank payments. Filter by counterparty, amount in EUR, days back, "
              "or only those without an invoice.",
              parameters=_p(counterparty=S, amount_eur=S, days=I, undocumented_only={"type": "boolean"})),
-    ToolSpec(name="search_invoices", description="Invoices on file, by invoice number or supplier, plus what the "
-             "team said about them in Slack channels.",
-             parameters=_p(number=S, supplier=S)),
+    ToolSpec(name="search_invoices", description="Invoices on file (by number or supplier, or the newest when empty), "
+             "plus invoice PDFs found in email and Slack mentions.",
+             parameters=_p(number=S, supplier=S, days=I)),
+    ToolSpec(name="email_invoices", description="Invoice PDFs received by email: sender, subject, date, file names. "
+             "words: supplier or invoice number, or empty for all. Use for any invoice question.",
+             parameters=_p(words=S, days=I)),
     ToolSpec(name="cash_position", description="Current bank balance, money in and out in the last 30 days, and "
              "expected refunds or payments.", parameters=_p()),
     ToolSpec(name="cost_trends", description="Monthly costs vs business metrics (food cost vs orders, ads vs new "
@@ -81,8 +84,8 @@ SPECS: list[ToolSpec] = [
              parameters=_p(words=S, days=I)),
     ToolSpec(name="search_chat", description="Search the authorized Slack channels for a supplier, invoice number "
              "or amount.", parameters=_p(supplier=S, invoice_number=S, amount_eur=S, days=I)),
-    ToolSpec(name="send_invoices", description="Send the asker the invoice PDFs in Slack (and here), newest first, "
-             "max 10. Optional: number, supplier, days back (default 90), unpaid_only.",
+    ToolSpec(name="send_invoices", description="Send the asker invoice PDFs (on file or from email) in Slack and here, "
+             "newest first, max 10. Always call it when asked for invoices. Optional: number, supplier, days.",
              parameters=_p(number=S, supplier=S, days=I, unpaid_only=B)),
     ToolSpec(name="send_dm", description="Send a colleague a short work message on Slack for the asker (signed "
              "with the asker's name). Work messages only.", parameters=_p(person=S, text=S)),
@@ -328,15 +331,46 @@ class Toolbox:
                 r.pop(k)
         return {"payments_without_invoice": _rows(rows), "more": len(rows) > MAX_ROWS}
 
-    def t_search_invoices(self, number: str = "", supplier: str = "", **_: Any) -> dict[str, Any]:
+    def _email_invoices(self, words: list[str], days: int) -> list[dict[str, Any]]:
+        """Invoice mails with their PDFs (newest first); empty when email is not connected or not allowed."""
+        from scout.connectors.mail import _is_pdf, invoice_mails
+
+        mail = self.ctx.connectors.mail
+        if not mail.available() or not self._allowed("mail:company", "mailbox")[0]:
+            return []
+        since = self.ctx.now() - timedelta(days=min(max(int(days or 90), 1), 3650))
+        try:
+            hits = invoice_mails(mail, since, words, task_id=self.task.id)
+        except Exception:  # noqa: BLE001 - the mailbox failing must not break the answer
+            log.warning("invoice mail search failed", exc_info=True)
+            return []
+        return [{"id": h.id, "from": h.sender, "subject": h.subject, "date": str(h.date)[:10] if h.date else None,
+                 "pdfs": [a for a in h.attachments if _is_pdf(a)]} for h in hits]
+
+    def t_email_invoices(self, words: str = "", days: int = 90, **_: Any) -> dict[str, Any]:
+        ok, policy = self._allowed("mail:company", "mailbox")
+        if not ok:
+            return {"error": "access_denied", "policy": policy}
+        if not self.ctx.connectors.mail.available():
+            return {"error": "email_not_connected", "hint": "Connect Gmail in Connections to find invoice PDFs."}
+        terms = [w for w in (words or "").split() if len(w) >= 2][:4]
+        found = self._email_invoices(terms, days)
+        out: dict[str, Any] = {"invoice_mails": [{k: v for k, v in m.items() if k != "id"} for m in found[:MAX_ROWS * 2]],
+                               "count": len(found)}
+        if not found:
+            out["note"] = "No invoice PDFs in email for that; say so, do not guess suppliers."
+        return out
+
+    def t_search_invoices(self, number: str = "", supplier: str = "", days: int = 90, **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("invoicing", "invoices")
         if not ok:
             return {"error": "access_denied", "policy": policy}
         number = number or ("" if supplier else (self._from_question() or ""))
-        if not number and not supplier:
-            return {"error": "missing_arguments", "hint": "Call again with number (e.g. AS-77012) or supplier."}
         sql, a = ("SELECT number, supplier, issue_date, total, transaction_id IS NOT NULL AS linked_to_payment "
                   "FROM invoices WHERE TRUE"), []
+        if not number and not supplier:  # nothing named: the newest ones
+            sql += " AND issue_date >= %s"
+            a.append((self.ctx.now() - timedelta(days=min(max(int(days or 90), 1), 3650))).date())
         if number:
             sql += " AND upper(number) = upper(%s)"
             a.append(number)
@@ -345,6 +379,11 @@ class Toolbox:
             a.append(f"%{supplier}%")
         found = self._q(sql + " ORDER BY issue_date DESC LIMIT 10", a)
         out: dict[str, Any] = {"rows": _rows(found)}
+        if not found:  # nothing on file: the invoices that arrived by email
+            mails = self._email_invoices([w for w in (number, supplier) if w], days)
+            out["email_invoices"] = [{k: v for k, v in m.items() if k != "id"} for m in mails[:MAX_ROWS]]
+            if not mails:
+                out["note"] = "No invoices on file or in email for that. Do not guess supplier names."
         talk = self._chat_about(number, found)  # by default: what the team said about it on Slack
         if talk:
             out["slack_messages"] = talk
@@ -544,8 +583,8 @@ class Toolbox:
         if str(unpaid_only).casefold() in ("true", "1", "yes"):
             sql += " AND transaction_id IS NULL"
         rows = self._q(sql + f" ORDER BY issue_date DESC, number LIMIT {MAX_PDFS + 1}", a)
-        if not rows:
-            return {"invoices": 0, "note": "No invoices match; nothing was sent."}
+        if not rows:  # nothing on file: send the PDFs that arrived by email
+            return self._send_email_invoices([w for w in (number, supplier) if w], days)
         more, rows = len(rows) > MAX_PDFS, rows[:MAX_PDFS]
         originals = self._original_pdfs([r["number"] for r in rows])
         files, listed = [], []
@@ -573,6 +612,40 @@ class Toolbox:
                                            "data_b64": base64.b64encode(data).decode()})
         return {"invoices": len(rows), "total": eur(total), "sent_to_slack": bool(link), "files": listed,
                 "more_not_sent": more}
+
+    def _send_email_invoices(self, words: list[str], days: int) -> dict[str, Any]:
+        mails = self._email_invoices(words, days)
+        files: list[tuple[str, bytes]] = []
+        listed: list[dict[str, Any]] = []
+        for m in mails:
+            for name in m["pdfs"]:
+                if len(files) >= MAX_PDFS:
+                    break
+                try:
+                    data = self.ctx.connectors.mail.attachment(m["id"], name, task_id=self.task.id)
+                except Exception:  # noqa: BLE001
+                    log.warning("could not download %s", name, exc_info=True)
+                    data = None
+                if data:
+                    files.append((name, data))
+                    listed.append({"file": name, "from": m["from"], "subject": m["subject"], "date": m["date"],
+                                   "source": "email attachment"})
+        if not files:
+            mail_on = self.ctx.connectors.mail.available()
+            return {"invoices": 0, "note": "No invoices on file" + (" or as PDFs in email" if mail_on else
+                    "; email is not connected (Connections) so no invoice PDFs could be fetched") + ". Nothing sent."}
+        comment = f"{len(files)} invoice PDF(s) from email" + (f" for {' '.join(words)}" if words else "") + "."
+        try:
+            link = self.ctx.notifier.upload(self.requester, files, comment)
+        except Exception:  # noqa: BLE001 - the PDFs still reach the dashboard chat
+            link = None
+        for (name, data), item in zip(files, listed, strict=True):
+            self.ctx.recorder.step(self.task.id, "sent_file", f"Sent {name} (from email)"
+                                   + (" to Slack" if link else ""), source="scout",
+                                   detail={"name": name, "mime": "application/pdf", "sent_to_slack": bool(link),
+                                           "data_b64": base64.b64encode(data).decode()})
+        return {"invoices": len(files), "sent_to_slack": bool(link), "files": listed,
+                "more_not_sent": sum(len(m["pdfs"]) for m in mails) > len(files)}
 
     def _original_pdfs(self, numbers: list[str]) -> dict[str, tuple[bytes, str]]:
         """Invoice number -> (the original PDF, where it was found), from company folders the asker may see and

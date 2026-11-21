@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 20
+    assert len(SPECS) == 21
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -153,7 +153,7 @@ def test_send_invoices_attaches_the_pdfs(conn_factory, tmp_path):
     assert [s.detail["name"] for s in sent] == ["Invoice_CLD-2026-11.pdf", "Invoice_AS-77012.pdf"]
     assert sent[0].detail["mime"] == "application/pdf" and base64.b64decode(sent[0].detail["data_b64"])[:5] == b"%PDF-"
     assert b.call("send_invoices", {"number": "AS-77012"})["invoices"] == 1
-    assert box(ctx, "vanessa").call("send_invoices", {})["error"] == "access_denied"
+    assert "error" not in box(ctx, "vanessa").call("send_invoices", {})  # invoices are open to every member
 
 
 def test_send_dm_messages_a_colleague_on_slack_with_attribution(conn_factory, tmp_path):

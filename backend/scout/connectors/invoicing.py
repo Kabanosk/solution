@@ -53,11 +53,11 @@ class PostgresInvoicing:
         self._audit.record("agent", "search", "invoicing", f"number={number} supplier={supplier} amount={amount}",
                            task_id=task_id)
         return [InvoiceDoc(number=r["number"], supplier=r["supplier"], issue_date=r["issue_date"], total=r["total"],
-                           source="db", invoice_id=r["id"], transaction_id=r["transaction_id"]) for r in rows]
+                           currency=r["currency"], source="db", invoice_id=r["id"], transaction_id=r["transaction_id"]) for r in rows]
 
     def file(self, doc: InvoiceDoc, transaction_id: str, *, task_id: str | None = None) -> tuple[bool, str]:
-        """Store the invoice and link it to the payment. Errors: amount_mismatch | already_documented |
-        linked_elsewhere | unknown_transaction."""
+        """Store the invoice and link it to the payment. Errors: currency_mismatch | amount_mismatch |
+        already_documented | linked_elsewhere | unknown_transaction."""
         conn = self._cf()
         repo = Repository(conn)
         try:
@@ -68,6 +68,10 @@ class PostgresInvoicing:
                     return False, "unknown_transaction"
                 if txn.documented:
                     return False, "already_documented"
+                txn_currency = (txn.currency or "EUR").upper()
+                currency = (doc.currency or txn_currency).upper()  # a document that names no currency is the payment's
+                if currency != txn_currency:
+                    return False, "currency_mismatch"  # 1,000 PLN is not 1,000 EUR (no FX reconciliation here)
                 if abs(txn.amount) != doc.total:
                     return False, "amount_mismatch"
                 existing = repo.get_invoice_by_number(doc.number)
@@ -76,7 +80,7 @@ class PostgresInvoicing:
                 inv = Invoice(
                     id=existing.id if existing else "inv_" + doc.number.replace("-", "").lower(),
                     number=doc.number, supplier=doc.supplier, issue_date=doc.issue_date, total=doc.total,
-                    transaction_id=transaction_id, source=doc.source.split(":", 1)[0], category=txn.category,
+                    currency=currency, transaction_id=transaction_id, source=doc.source.split(":", 1)[0], category=txn.category,
                     team_id=txn.team_id,
                     lines=[InvoiceLine(**ln) for ln in doc.lines] if doc.lines else (existing.lines if existing else []),
                 )

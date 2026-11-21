@@ -254,7 +254,8 @@ def _rung_ksef(ctx: JobContext, task: Task, number: str | None) -> tuple[bool, I
     mismatch = None
     for doc, ksef_number in exact:
         inv = InvoiceDoc(number=number, supplier=(doc["supplier"] or task.counterparty or "?")[:200],
-                         issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
+                         issue_date=doc["issue_date"], total=doc["total"], currency=doc["currency"][:3],
+                         source=f"ksef:{ksef_number}",
                          lines=[{"description": (ln["description"] or "-")[:300], "quantity": ln["quantity"],
                                  "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"][:200]])
         ctx.recorder.step(task.id, "checked_system",

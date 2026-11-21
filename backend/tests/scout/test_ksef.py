@@ -220,6 +220,166 @@ def test_start_commits_only_when_asked(company):
         assert ksef_sync.start(conn)
 
 
+def test_api_connect_without_a_job_does_not_stay_running(company):
+    """The job insert fails after the phase was set: nothing is committed, so the next click starts a run (no 409
+    forever with no job to run it)."""
+    from scout import ksef_api
+
+    class NoJobs:
+        def __init__(self, conn: Any):
+            self._conn = conn
+
+        def execute(self, sql: str, *a: Any, **kw: Any) -> Any:
+            if "INSERT INTO agent_jobs" in sql:
+                raise RuntimeError("database blip")
+            return self._conn.execute(sql, *a, **kw)
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._conn, name)
+
+    conn = company()
+    try:
+        with pytest.raises(RuntimeError):
+            ksef_api.ksef_connect(NoJobs(conn), "vincenzo")
+    finally:
+        conn.close()
+    row = _row(company)
+    assert row is None or (row["config"] or {}).get("phase") != "running"
+    conn = company()
+    try:
+        assert ksef_api.ksef_connect(conn, "vincenzo")["job_id"]
+    finally:
+        conn.close()
+    conn = company()
+    try:
+        with pytest.raises(Exception) as e:
+            ksef_api.ksef_connect(conn, "vincenzo")
+    finally:
+        conn.close()
+    assert getattr(e.value, "status_code", None) == 409
+
+
+def _doc(nip: str, **over: Any) -> dict[str, Any]:
+    return {"number": "AS-12345", "total": Decimal("623.48"), "currency": "EUR", "supplier": "Asimex Wholesale Ltd",
+            "seller_nip": ksef_sync.supplier_nip(nip, "AS"), "buyer_nip": nip, "issue_date": dt.date(2025, 3, 9),
+            "due_date": None, "lines": [], **over}
+
+
+def test_sync_never_links_an_invoice_in_another_currency(company):
+    """A trusted supplier's PLN 623.48 invoice with the number of the open EUR 623.48 debit is not that payment."""
+    nip = random_nip()
+    sellers = ksef_sync.known_sellers(nip)
+    with company() as conn:
+        repo = Repository(conn)
+        outcome, linked = ksef_sync._import(repo, _doc(nip, currency="PLN"), "kn-1", our_nip=nip, sellers=sellers)
+        documented, inv = repo.get_transaction("t_open").documented, repo.get_invoice_by_number("AS-12345")
+    assert outcome != "linked" and linked == 0 and not documented
+    assert inv is None or (inv.transaction_id is None and inv.currency == "PLN")
+    with company() as conn:  # the same document in the payment's currency still links
+        outcome, linked = ksef_sync._import(Repository(conn), _doc(nip), "kn-2", our_nip=nip, sellers=sellers)
+    assert outcome == "linked" and linked == Decimal("623.48")
+
+
+def test_sync_never_links_a_known_invoice_to_a_payment_in_another_currency(company):
+    nip = random_nip()
+    sellers = ksef_sync.known_sellers(nip)
+    with company() as conn:
+        conn.execute("UPDATE transactions SET currency = 'PLN' WHERE id = 't_open'")
+        conn.commit()
+        Repository(conn).add_invoice(Invoice(id="inv_as12345", number="AS-12345", supplier="Asimex Wholesale Ltd",
+                                             issue_date=dt.date(2025, 3, 9), total=Decimal("623.48")))
+    with company() as conn:  # EUR invoice on file, PLN payment: no link
+        outcome, linked = ksef_sync._import(Repository(conn), _doc(nip), "kn-1", our_nip=nip, sellers=sellers)
+        txn = Repository(conn).get_transaction("t_open")
+    assert outcome != "linked" and linked == 0 and not txn.documented
+
+
+def test_invoicing_loop_does_not_file_a_pln_invoice_for_a_eur_payment(conn_factory, tmp_path):
+    FakeKsef.reset()
+    ctx = make_world(conn_factory, tmp_path)
+    nip = random_nip()
+    s = SCENARIOS["ksef"]
+    seller = Party(ksef_sync.supplier_nip(nip, s.invoice_number.split("-")[0]), s.counterparty, "ul. Magazynowa 5",
+                   "02-235 Warszawa")
+    buyer = Party(nip, "Pizzeria Amalfi Sp. z o.o.", "ul. Neapolitańska 7", "00-001 Warszawa")
+    xml = fa3_xml(s.invoice_number, dt.date(2026, 11, 18), seller, buyer, lines_for_gross(-s.amount, "Maka", 8),
+                  currency="PLN")
+    assert parse_fa3(xml)["currency"] == "PLN" and parse_fa3(xml)["total"] == -s.amount
+    FakeKsef().send(f"tok:{seller.nip}", [xml])
+    ctx.connectors.ksef = KsefLookup(nip, "Pizzeria Amalfi", ctx.audit, client_factory=FakeKsef, sleep=lambda s: None)
+    task = run_txn(ctx, pay(ctx, "ksef"))
+    assert task.resolved_via != "invoicing"
+    with conn_factory() as conn:
+        inv = Repository(conn).get_invoice_by_number(s.invoice_number)
+    assert inv is None or inv.currency == "PLN"
+
+
+def test_filing_keeps_the_invoice_currency_and_refuses_another_currency(conn_factory):
+    from scout.connectors.invoicing import PostgresInvoicing
+    from scout.models import InvoiceDoc
+
+    with conn_factory() as conn:
+        repo = Repository(conn)
+        with repo.transaction():
+            repo.add_transaction(Transaction(id="t_eur", booking_date=dt.date(2026, 11, 1), type="transfer",
+                                             reference="Invoice X-1", counterparty="Supplier",
+                                             amount=Decimal("-50.00"), invoice_number="X-1"))
+            repo.add_transaction(Transaction(id="t_pln", booking_date=dt.date(2026, 11, 1), type="transfer",
+                                             reference="Invoice X-2", counterparty="Supplier",
+                                             amount=Decimal("-50.00"), currency="PLN", invoice_number="X-2"))
+    inv = PostgresInvoicing(conn_factory, Audit(conn_factory))
+    pln = dict(supplier="Supplier", issue_date=dt.date(2026, 11, 1), total=Decimal("50.00"), currency="PLN")
+    assert inv.file(InvoiceDoc(number="X-1", **pln), "t_eur") == (False, "currency_mismatch")
+    ok, _ = inv.file(InvoiceDoc(number="X-2", **pln), "t_pln")
+    assert ok
+    with conn_factory() as conn:
+        stored = Repository(conn).get_invoice_by_number("X-2")
+    assert stored.currency == "PLN"
+    assert inv.find(number="X-2")[0].currency == "PLN"
+
+
+def test_ksef_does_not_link_a_payment_another_invoice_just_claimed(company, monkeypatch):
+    """KSeF read the payment as open, then a worker filed another invoice for it before KSeF wrote: KSeF must see
+    the fresh row, so the payment keeps one invoice."""
+    nip = random_nip()
+    sellers = ksef_sync.known_sellers(nip)
+    with company() as conn:  # what KSeF read before
+        stale = Repository(conn).get_transaction("t_open")
+    with company() as conn:  # the worker files its invoice for the payment
+        Repository(conn).add_invoice(Invoice(id="inv_worker", number="AS-99999", supplier="Asimex Wholesale Ltd",
+                                             issue_date=dt.date(2025, 3, 9), total=Decimal("623.48"),
+                                             transaction_id="t_open"))
+    monkeypatch.setattr(Repository, "list_transactions", lambda self, **kw: [stale])
+    with company() as conn:
+        outcome, linked = ksef_sync._import(Repository(conn), _doc(nip), "kn-1", our_nip=nip, sellers=sellers)
+    assert outcome != "linked" and linked == 0
+    with company() as conn:
+        claims = conn.execute("SELECT id FROM invoices WHERE transaction_id = 't_open'").fetchall()
+        txn = Repository(conn).get_transaction("t_open")
+    assert [c["id"] for c in claims] == ["inv_worker"] and txn.invoice_id == "inv_worker"
+
+
+def test_ksef_does_not_link_an_existing_invoice_to_a_payment_another_invoice_just_claimed(company, monkeypatch):
+    nip = random_nip()
+    sellers = ksef_sync.known_sellers(nip)
+    with company() as conn:  # the KSeF number is on file already, without its payment
+        Repository(conn).add_invoice(Invoice(id="inv_as12345", number="AS-12345", supplier="Asimex Wholesale Ltd",
+                                             issue_date=dt.date(2025, 3, 9), total=Decimal("623.48")))
+    with company() as conn:
+        stale = Repository(conn).get_transaction("t_open")
+    with company() as conn:
+        Repository(conn).add_invoice(Invoice(id="inv_worker", number="AS-99999", supplier="Asimex Wholesale Ltd",
+                                             issue_date=dt.date(2025, 3, 9), total=Decimal("623.48"),
+                                             transaction_id="t_open"))
+    monkeypatch.setattr(Repository, "list_transactions", lambda self, **kw: [stale])
+    with company() as conn:
+        outcome, _ = ksef_sync._import(Repository(conn), _doc(nip), "kn-1", our_nip=nip, sellers=sellers)
+    assert outcome == "on_file"
+    with company() as conn:
+        claims = conn.execute("SELECT id FROM invoices WHERE transaction_id = 't_open'").fetchall()
+    assert [c["id"] for c in claims] == ["inv_worker"]
+
+
 def test_api_connection_mutation_cannot_enqueue_jobs(company, monkeypatch):
     from cfo.api.app import create_app
     from scout import api as scout_api

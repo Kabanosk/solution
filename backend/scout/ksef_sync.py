@@ -207,12 +207,18 @@ def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip:
         repo.lock_invoice_number(number)
         existing = repo.get_invoice_by_number(number)
         txn = next((t for t in repo.list_transactions(undocumented_only=True) if t.invoice_number == number), None)
+        if txn is not None:  # lock the payment and read it again: a worker may have just filed another invoice for it
+            txn = repo.lock_transaction(txn.id)
+            if txn is not None and (txn.documented or txn.invoice_id):
+                txn = None
+        same_currency = txn is not None and doc["currency"].upper() == (txn.currency or "EUR").upper()
         if existing:
-            if existing.total != total or existing.supplier != (doc["supplier"] or existing.supplier):
+            if (existing.total != total or existing.currency.upper() != doc["currency"].upper()
+                    or existing.supplier != (doc["supplier"] or existing.supplier)):
                 return "review", Decimal(0)  # same number, different document: a person decides
             if existing.transaction_id:
                 return "on_file", Decimal(0)
-            if txn is not None and -txn.amount == total and trusted_seller(doc, txn.counterparty, sellers):
+            if same_currency and -txn.amount == total and trusted_seller(doc, txn.counterparty, sellers):
                 repo.conn.execute("UPDATE invoices SET transaction_id = %s WHERE id = %s", (txn.id, existing.id))
                 repo.conn.execute("UPDATE transactions SET documented = TRUE, invoice_id = %s WHERE id = %s",
                                   (existing.id, txn.id))
@@ -222,7 +228,7 @@ def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip:
         if repo.conn.execute("SELECT 1 FROM invoices WHERE id = %s", (row_id,)).fetchone():
             return "review", Decimal(0)
         trusted = txn is not None and trusted_seller(doc, txn.counterparty, sellers)
-        link = txn.id if trusted and -txn.amount == total else None
+        link = txn.id if trusted and same_currency and -txn.amount == total else None
         inv = Invoice(id=row_id, number=number, supplier=(doc["supplier"] or "?")[:200], issue_date=doc["issue_date"],
                       total=total, due_date=doc.get("due_date"), currency=doc["currency"][:3], transaction_id=link,
                       source="ksef", category=txn.category if link else None, team_id=txn.team_id if link else None,

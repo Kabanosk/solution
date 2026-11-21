@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { externalChat } from "../lib/external-chat.ts";
 import { parseHiringProposal, parseMarketResearchQuery, parsePublicResearch, publicSourceUrl, type PublicResearch } from "../lib/market-research-model.ts";
 import { sanitizeChatEvent, type ChatEvent } from "../lib/chat-model.ts";
+import { continuePublicConversation } from "../lib/external-conversation.ts";
 
 const config = { provider: "openai" as const, model: "gpt-4.1-mini", apiKey: "fixture-key-no-provider-call" };
 const query = { role: "Cook", location: "Berlin, Germany" };
@@ -47,6 +48,52 @@ test("market analysis alone returns sourced evidence without creating a hiring t
   }));
   assert.equal(calls, 2); assert.equal(events.at(-1)?.type, "done");
   assert.ok(events.some(event => event.type === "research"));
+});
+
+test("a mistaken baseline after job-market research is corrected into a recurring Liquidity handoff", async () => {
+  let calls = 0, hiringCalls = 0;
+  const events = await collect(externalChat(config, messages, signal(), {
+    forecast: noLocal, research: async () => research,
+    hiring: async intent => {
+      hiringCalls++;
+      assert.deepEqual(intent, { ...proposal, research });
+      return new Response('{"type":"delta","text":"Queued hiring simulation SC-712 in Loops → Liquidity"}\n{"type":"done","task_id":"SC-712","truncated":false}\n');
+    },
+    providerFetch: async (_url, init) => {
+      calls++;
+      if (calls === 1) return tool("search_job_market", query);
+      if (calls === 2) return tool("request_forecast", { horizon_days: 90 });
+      const body = JSON.parse(String(init?.body));
+      assert.match(body.messages.at(-1).content, /No local action was performed/);
+      assert.match(JSON.stringify(body.messages), /Public employment statistics/);
+      assert.doesNotMatch(JSON.stringify(body.messages), /SC-712/);
+      return tool("request_hiring_scenario", proposal);
+    },
+  }));
+  assert.equal(calls, 3); assert.equal(hiringCalls, 1);
+  assert.deepEqual(events.at(-1), { type: "done", truncated: false, task_id: "SC-712" });
+});
+
+test("a hiring follow-up never executes an empty baseline when assumptions are missing", async () => {
+  let calls = 0;
+  const context = continuePublicConversation(undefined, messages[0].content, "Shall I simulate those hires?", { query, result: research });
+  const events = await collect(externalChat(config, [{ role: "user", content: "yes" }], signal(), {
+    context, forecast: noLocal, hiring: noLocal, research: async () => research,
+    providerFetch: async () => ++calls === 1 ? tool("request_forecast", {}) : Response.json({ choices: [{
+      message: { content: "What start month and duration should I use?" }, finish_reason: "stop",
+    }] }),
+  }));
+  assert.equal(calls, 2);
+  assert.ok(events.some(event => event.type === "delta" && /start month/.test(event.text)));
+});
+
+test("repeated attempts to bypass hiring research fail without any local action", async () => {
+  let calls = 0;
+  await assert.rejects(collect(externalChat(config, messages, signal(), {
+    forecast: noLocal, hiring: noLocal, research: async () => research,
+    providerFetch: async () => { calls++; return tool("request_forecast", { amount_eur: "3000", month: "2026-12" }); },
+  })), /recurring-payroll scenario/);
+  assert.equal(calls, 2);
 });
 
 test("hiring requires real public evidence from this request and matching role and location", async () => {

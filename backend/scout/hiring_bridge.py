@@ -1,8 +1,8 @@
 """Public hiring research handed to Granite, then a bound simulated Liquidity action.
 
-The external provider never receives company data. Only this local module reads the
-tenant's bank history, in a read-only transaction, using an in-memory tenant model.
-The sole writes are a simulated agent task, its evidence, and the audit trail.
+The external provider never receives company data. Granite reviews the public
+analysis and queues a Liquidity job. The worker reads tenant bank history using a
+read-only transaction and an in-memory tenant model.
 """
 
 from __future__ import annotations
@@ -121,12 +121,13 @@ class HiringRequest(HiringIntent):
 
 SPAWN_HIRING = ToolSpec(
     name="spawn_hiring_scenario",
-    description="Create the validated simulated recurring-payroll Liquidity scenario. All parameters are bound.",
+    description="Queue the validated simulated recurring-payroll job in Liquidity. All parameters are bound.",
     parameters={"type": "object", "properties": {}, "additionalProperties": False},
 )
 DISPATCH_SYSTEM = (
     "You are the on-premise Granite hiring dispatcher. The server has validated a simulated hiring scenario "
-    "and bound all parameters. Call spawn_hiring_scenario exactly once with {}. Do not supply hiring "
+    "and bound all parameters. Call spawn_hiring_scenario exactly once with {} to enqueue its Liquidity job. "
+    "The worker will execute it later; do not claim it has completed. Do not supply hiring "
     "parameters or any other arguments. No other action is available."
 )
 
@@ -248,7 +249,7 @@ def _dispatch(ctx: JobContext, intent: HiringIntent, requester: str, task_id: st
 
 def run(ctx: JobContext, intent: HiringIntent, requester: str, conversation: str,
         on_step: Callable[[str], None]) -> tuple[Task, str]:
-    """Review external evidence and create one simulated Liquidity task per economic scenario."""
+    """Review external evidence and enqueue one Liquidity job per economic scenario."""
     key = _key(intent, requester, conversation)
     lock_id = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], signed=True)
     # Serialize retries across API threads/processes without putting provider keys
@@ -256,20 +257,17 @@ def run(ctx: JobContext, intent: HiringIntent, requester: str, conversation: str
     with ctx.conn_factory() as lock:
         lock.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
         existing = ctx.recorder.by_key(key)
-        if existing is not None and existing.status == "done":
-            saved = next((step.detail.get("reply") for step in reversed(ctx.recorder.steps(existing.id))
-                          if step.kind == "hiring_result" and step.detail.get("reply")), None)
-            if not isinstance(saved, str):
-                raise HiringBridgeError("The saved hiring scenario has no forecast result. Open it in Liquidity.")
-            on_step(f"Reopened the existing hiring simulation {existing.id}; no duplicate action was created")
-            return existing, saved
+        if existing is not None and any(step.kind == "queued" for step in ctx.recorder.steps(existing.id)):
+            ctx.jobs.enqueue("hiring_scenario", {"task_id": existing.id, "intent": intent.model_dump(mode="json")}, key)
+            on_step(f"Reopened the existing hiring simulation {existing.id}; no duplicate job was created")
+            return existing, (f"Hiring simulation **{existing.id}** is available in **Loops → Liquidity**. "
+                              "Open it to see its status, research and forecast results.")
         review = _dispatch(ctx, intent, requester, existing.id if existing else None)
         on_step("Granite reviewed the public hiring research and salary estimate")
         title = (f"What if we hired {intent.headcount} people and paid them "
                  f"{_money(intent.monthly_salary_eur)} each per month?")
         task = existing or ctx.recorder.open(key, "liquidity", title, requested_by=requester, owner_id=requester,
                                             amount=-intent.monthly_payroll, currency="EUR", simulated=True)
-        ctx.recorder.set_status(task.id, "in_progress")
         ctx.recorder.step(task.id, "picked_up", f"Granite spawned a simulated hiring scenario for {intent.role} "
                           f"in {intent.location}", source="granite", detail={"tool": SPAWN_HIRING.name})
         evidence = {"label": f"Public hiring market research · {intent.research.researched_at:%Y-%m-%d}",
@@ -281,22 +279,28 @@ def run(ctx: JobContext, intent: HiringIntent, requester: str, conversation: str
         ctx.recorder.step(task.id, "research_review", review, source="granite")
         ctx.audit.record("granite", "hiring_simulation", "bank", "read-only recurring-payroll forecast",
                          task_id=task.id, requester=requester, policy="hiring-bridge: bound parameters; no HR writes")
-        on_step(f"Created {task.id} in Liquidity: {title}")
-        try:
-            base, scenario = _review(ctx, intent)
-            report = _report(task, intent, base, scenario)
-            ctx.recorder.step(task.id, "hiring_result", "Completed the recurring-payroll forecast and baseline "
-                              "comparison", source="forecast", detail={"reply": report})
-            ctx.recorder.set_status(task.id, "done", outcome=f"Simulated {intent.headcount} hires; "
-                                    f"{_money(intent.monthly_payroll)} additional monthly payroll",
-                                    resolved_via="forecast", level="AUTO")
-            on_step("Completed the local recurring-payroll forecast; results stay private")
-            return ctx.recorder.get(task.id), report
-        except Exception as error:
-            ctx.recorder.step(task.id, "error", f"Hiring forecast failed: {type(error).__name__}", source="forecast")
-            ctx.recorder.set_status(task.id, "escalated", outcome="The simulated hiring forecast could not finish",
-                                    owner_id=requester)
-            if isinstance(error, HiringBridgeError):
-                raise
-            raise HiringBridgeError(f"The forecast for {task.id} could not finish. Open the scenario in Liquidity "
-                                    "and check its dates and assumptions.") from None
+        ctx.recorder.step(task.id, "queued", "Queued recurring-payroll forecast for the Liquidity worker",
+                          source="granite")
+        ctx.jobs.enqueue("hiring_scenario", {"task_id": task.id, "intent": intent.model_dump(mode="json")}, key)
+        on_step(f"Queued {task.id} in Liquidity: {title}")
+        return task, (f"Queued hiring simulation **{task.id}** in **Loops → Liquidity** for {intent.headcount} "
+                      f"{intent.role} in {intent.location}. Additional monthly payroll: "
+                      f"**{_money(intent.monthly_payroll)}** for {intent.duration_months} months from "
+                      f"{intent.start_month}. The Liquidity worker will compare this recurring cost with the "
+                      "baseline and save the results there. No employees were hired or company records changed.")
+
+
+def complete(ctx: JobContext, task: Task, intent: HiringIntent) -> Task:
+    """Run the bound recurring-payroll scenario only when picked up by Liquidity."""
+    ctx.recorder.set_status(task.id, "in_progress")
+    ctx.recorder.step(task.id, "picked_up", "Liquidity worker started the recurring-payroll forecast",
+                      source="forecast")
+    base, scenario = _review(ctx, intent)
+    report = _report(task, intent, base, scenario)
+    report = guardrails.screen_output(ctx, task.id, report, requester=task.requested_by,
+                                     source="local hiring forecast reply", role=ctx.hr.role(task.requested_by))
+    ctx.recorder.step(task.id, "hiring_result", "Completed the recurring-payroll forecast and baseline comparison",
+                      source="forecast", detail={"reply": report})
+    return ctx.recorder.set_status(task.id, "done", outcome=f"Simulated {intent.headcount} hires; "
+                                   f"{_money(intent.monthly_payroll)} additional monthly payroll",
+                                   resolved_via="forecast", level="AUTO")

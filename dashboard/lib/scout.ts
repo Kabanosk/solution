@@ -35,10 +35,10 @@ const audit = (row: Row): AuditRow => ({
   target: row.target, resource: row.resource, decision: row.decision, policy: row.policy, reason: row.reason,
 });
 
-export async function loadScout(client: PoolClient): Promise<ScoutData> {
+export async function loadScout(client: PoolClient, canReadStrategy = false): Promise<ScoutData> {
   // The list needs no evidence (the task detail loads it): it was a third of the page payload.
   const tasks = (await client.query(`SELECT ${TASK_COLUMNS.replace("t.evidence", "'[]'::jsonb AS evidence")} FROM agent_tasks t
-    ORDER BY t.updated_at DESC LIMIT 300`)).rows.map(task);
+    WHERE ($1 OR t.loop <> 'strategy') ORDER BY t.updated_at DESC LIMIT 300`, [canReadStrategy])).rows.map(task);
   const connections: Connection[] = (await client.query(`SELECT id, kind, provider, enabled, display_name, config, status,
       ${iso("last_sync_at")} AS last_sync_at, last_error FROM connections ORDER BY id`)).rows.map(row => ({
     id: row.id, kind: row.kind, provider: row.provider, enabled: row.enabled, displayName: row.display_name,
@@ -56,9 +56,9 @@ export async function loadScout(client: PoolClient): Promise<ScoutData> {
 }
 
 /** The audit log or the latest bank bookings, loaded when their view opens. */
-export async function loadRecords<K extends keyof ScoutRecords>(client: PoolClient, kind: K): Promise<ScoutRecords[K]> {
+export async function loadRecords<K extends keyof ScoutRecords>(client: PoolClient, kind: K, canReadStrategy = false): Promise<ScoutRecords[K]> {
   if (kind === "audit") {
-    return (await client.query(`SELECT ${AUDIT_COLUMNS} FROM audit_log ORDER BY ts DESC, id DESC LIMIT 300`)).rows.map(audit) as ScoutRecords[K];
+    return (await client.query(`SELECT ${AUDIT_COLUMNS} FROM audit_log WHERE ($1 OR NOT EXISTS (SELECT 1 FROM agent_tasks t WHERE t.id = audit_log.task_id AND t.loop = 'strategy')) ORDER BY ts DESC, id DESC LIMIT 300`, [canReadStrategy])).rows.map(audit) as ScoutRecords[K];
   }
   const transactions: TransactionRow[] = (await client.query(`SELECT id, to_char(booking_date, 'YYYY-MM-DD') AS booking_date,
       counterparty, reference, ${cents("amount")} AS amount, category, invoice_number, documented
@@ -69,8 +69,8 @@ export async function loadRecords<K extends keyof ScoutRecords>(client: PoolClie
   return transactions as ScoutRecords[K];
 }
 
-export async function loadTaskDetail(client: PoolClient, id: string): Promise<TaskDetail | null> {
-  const row = (await client.query(`SELECT ${TASK_COLUMNS} FROM agent_tasks t WHERE t.id = $1`, [id])).rows[0];
+export async function loadTaskDetail(client: PoolClient, id: string, canReadStrategy = false): Promise<TaskDetail | null> {
+  const row = (await client.query(`SELECT ${TASK_COLUMNS} FROM agent_tasks t WHERE t.id = $1 AND ($2 OR t.loop <> 'strategy')`, [id, canReadStrategy])).rows[0];
   if (!row) return null;
   const steps: TaskStep[] = (await client.query(`SELECT id::int AS id, ${iso("ts")} AS ts, kind, source, result_count, text, evidence,
       CASE WHEN kind = 'hiring_result' THEN left(detail->>'reply', 16000) END AS hiring_report

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from decimal import Decimal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,10 @@ class ScoutSettings(BaseSettings):
 
     database_url: str = "postgresql://cfo:cfo@localhost:5434/cfo"
     scout_workers: int = 4
+    strategy_operating_surplus_target: Decimal | None = Field(default=None, allow_inf_nan=False)
+    strategy_owner_income_target: Decimal | None = Field(default=None, ge=0, allow_inf_nan=False)
+    strategy_currency: str = Field(default="EUR", pattern=r"^[A-Z]{3}$")
+    strategy_monthly_revenue_target: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
     reminder_after_hours: float = 24.0
     chat_lookback_days: int = 30
     chat_channels: list[str] = Field(default_factory=lambda: ["finance"])
@@ -70,6 +75,8 @@ def tenant_settings(settings: ScoutSettings) -> ScoutSettings:
         "slack_bot_token": "", "slack_app_token": "", "slack_user_map": "", "chat_channels": [],
         "google_mail_label": "", "oauth_state_secret": "",
         "bank_api_url": "", "workstations_root": "", "data_dir": "", "scout_demo": False,
+        "strategy_operating_surplus_target": None, "strategy_owner_income_target": None,
+        "strategy_monthly_revenue_target": None, "strategy_currency": "EUR",
         "ceo_id": tenant.employee_id or "", "document_owner_id": tenant.employee_id or "",
     })
 

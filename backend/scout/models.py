@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 TaskStatus = Literal["todo", "in_progress", "waiting", "escalated", "done", "cancelled"]
-Loop = Literal["invoicing", "cost_control", "liquidity", "chat", "expenses"]
+Loop = Literal["invoicing", "cost_control", "liquidity", "chat", "expenses", "strategy"]
 ResolvedVia = Literal["invoicing", "files", "email", "chat_context", "slack_dm", "approval", "auto", "forecast"]
 Level = Literal["AUTO", "NOTIFY", "APPROVAL"]
 

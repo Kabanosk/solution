@@ -44,7 +44,7 @@ const mobileNavigation: { route: Route; id: string; label: string; icon: LucideI
   { route: { view: "tasks" }, id: "tasks", label: "Tasks", icon: ListTodo },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
-const LOOPS = ["invoicing", "cost_control", "liquidity", "chat"];
+const LOOPS = ["invoicing", "cost_control", "liquidity", "strategy", "chat"];
 
 // Task details opened in this tab, so going back to a task is instant (refreshed in the background).
 const detailCache = new Map<string, TaskDetail>();

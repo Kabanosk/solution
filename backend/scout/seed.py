@@ -94,6 +94,19 @@ def _pdf(number: str, amount: Decimal, when: date, seed: int) -> tuple[Invoice, 
     return inv, invoice_pdf(inv, sup["address"])
 
 
+demo_invoice_pdf = _pdf  # (number, amount, day, seed) -> (invoice, pdf): the ordinary demo invoices, for `scout.demo_guard`
+
+
+def poisoned_invoice(today: date, seed: int = 42) -> tuple[Invoice, bytes]:
+    """The poisoned supplier invoice (scenario `poisoned`) and its PDF, footer instruction included."""
+    poisoned = SCENARIOS["poisoned"]
+    sup = supplier_of(poisoned.invoice_number)
+    txn = Transaction(id="tmp", booking_date=today, type="transfer", reference=poisoned.invoice_number,
+                      counterparty=sup["name"], amount=poisoned.amount, invoice_number=poisoned.invoice_number)
+    inv = build_invoice(txn, random.Random(f"{seed}:demo:{poisoned.invoice_number}"), transaction_id=None)
+    return inv, invoice_pdf(inv, sup["address"], notes=POISON_NOTES)
+
+
 def plant_demo_evidence(data_dir: Path, today: date, seed: int = 42) -> dict[str, str]:
     """Files for the live cases; returns what went where."""
     ws = data_dir / "workstations" / "grazyna"
@@ -115,11 +128,7 @@ def plant_demo_evidence(data_dir: Path, today: date, seed: int = 42) -> dict[str
     placed["email"] = f"mailbox/001-invoice-{email.invoice_number}.eml"
 
     poisoned = SCENARIOS["poisoned"]  # a supplier invoice mail whose PDF carries an instruction for the agent
-    sup = supplier_of(poisoned.invoice_number)
-    txn = Transaction(id="tmp", booking_date=today, type="transfer", reference=poisoned.invoice_number,
-                      counterparty=sup["name"], amount=poisoned.amount, invoice_number=poisoned.invoice_number)
-    inv = build_invoice(txn, random.Random(f"{seed}:demo:{poisoned.invoice_number}"), transaction_id=None)
-    pdf = invoice_pdf(inv, sup["address"], notes=POISON_NOTES)
+    inv, pdf = poisoned_invoice(today, seed)
     (box / f"002-invoice-{poisoned.invoice_number}.eml").write_bytes(invoice_eml(inv, pdf, 2))
     placed["poisoned"] = f"mailbox/002-invoice-{poisoned.invoice_number}.eml"
 

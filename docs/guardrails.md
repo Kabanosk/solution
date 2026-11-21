@@ -235,3 +235,9 @@ After a code change rebuild the image (`oc start-build cfo-backend`), then resta
 `python -m cfo.db.migrate --migrate` (see `docs/scout-auth.md`) once per release. The poisoned invoice demo needs its mail planted:
 re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666.eml`) and play it with
 `python -m scout.demo play poisoned` or the dashboard demo panel ("Poisoned invoice").
+
+## Live demo kit
+
+`docs/guardrails-demo.md` is the presenter's runbook (seven attack scenarios, checklist, troubleshooting). The prompts live
+in `backend/scout/demo_guard.py`; `python -m scout.demo guard-preflight` checks them against the NeMo service (no strikes,
+no audit rows), `guard-reset` returns the demo personas to "attempt 1 of 3", `plant` writes the evidence files (poisoned mail).

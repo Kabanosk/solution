@@ -240,3 +240,26 @@ def test_what_if_from_chat_reports_back_into_the_chat(conn_factory, tmp_path):
     follow = [s for s in ctx.recorder.steps(chat_task.id) if s.kind == "followup"]
     assert len(follow) == 2 and "approved" in follow[1].text and "SIMULATED" in follow[1].text
     assert follow[1].detail["task"] == t.id
+
+
+def test_a_slack_thread_is_one_conversation_with_history(conn_factory, tmp_path):
+    seen = []
+
+    def handler(messages, tools):  # noqa: ANN001
+        names = {t.name for t in tools or []}
+        if "route_message" in names:
+            return FakeLLM.tool_call("route_message", intent="question")
+        seen.append([m.content for m in messages if m.role in ("user", "assistant")])
+        return f"Answer {len(seen)}."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    first = chat.run(ctx, dm("vincenzo", "which tasks need me?", n=1, thread="D1:9.0"))
+    second = chat.run(ctx, dm("vincenzo", "mark them done", n=2, thread="D1:9.0"))
+    assert first.id == second.id and first.loop == "chat"
+    assert seen[1][:3] == ["which tasks need me?", "Answer 1.", "mark them done"]
+
+
+def test_file_requests_need_a_file_word(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path, llm=route_llm("request_files"))
+    out = chat.run(ctx, dm("vincenzo", "no i mean make them approved and done"))
+    assert "checked_files" not in kinds(ctx, out.id)

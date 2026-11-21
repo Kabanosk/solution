@@ -72,6 +72,9 @@ SPECS: list[ToolSpec] = [
              parameters=_p(number=S, supplier=S, days=I, unpaid_only=B)),
     ToolSpec(name="send_dm", description="Send a colleague a short work message on Slack for the asker (signed "
              "with the asker's name). Work messages only.", parameters=_p(person=S, text=S)),
+    ToolSpec(name="close_tasks", description="Close Scout tasks waiting on the asker, with the asker's reason (e.g. 'a "
+             "refund, no invoice'). task_ids: SC-123, SC-124 or all. Approves pending approvals.",
+             parameters=_p(task_ids=S, reason=S)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -425,6 +428,59 @@ class Toolbox:
         self.ctx.audit.record("agent", "send_dm", f"slack:{who}", text[:200], task_id=self.task.id,
                               requester=self.requester, role=self.role)
         return {"sent": True, "to": self.ctx.hr.full_name(who)}
+
+    def t_close_tasks(self, task_ids: str = "", reason: str = "", **_: Any) -> dict[str, Any]:
+        reason = (reason or "").strip()
+        if not task_ids or len(reason) < 3:
+            return {"error": "missing_arguments", "hint": "Call again with task_ids (or all) and the reason."}
+        if str(task_ids).strip().casefold() in ("all", "*", "everything"):
+            targets = [t for t in self.ctx.recorder.find_open(owner_id=self.requester) if t.loop != "chat"]
+        else:
+            ids = list(dict.fromkeys(re.findall(r"SC-\d+", str(task_ids).upper())))
+            targets = []
+            for i in ids:
+                try:
+                    targets.append(self.ctx.recorder.get(i))
+                except Exception:  # noqa: BLE001
+                    targets.append(None)
+        closed, skipped = [], []
+        who = self.ctx.hr.name(self.requester)
+        for t in targets:
+            if t is None:
+                skipped.append({"task": "?", "why": "no such task"})
+            elif t.status in ("done", "cancelled"):
+                skipped.append({"task": t.id, "why": f"already {t.status}"})
+            elif t.loop == "chat":
+                skipped.append({"task": t.id, "why": "a chat, nothing to close"})
+            elif self.requester != t.owner_id and self.role != "ceo":
+                skipped.append({"task": t.id, "why": "not yours to close"})
+                self.ctx.audit.record("agent", "close_task", f"task:{t.id}", reason[:200], "DENY", task_id=t.id,
+                                      requester=self.requester, role=self.role, policy="tasks: owner or CEO")
+            elif t.approval_id and self._approve(t):
+                closed.append(t.id)
+            else:
+                outcome = f"Closed by {who}: {reason[:200]}"
+                self.ctx.recorder.step(t.id, "closed", outcome, source="slack:dm")
+                self.ctx.recorder.set_status(t.id, "done", outcome=outcome, resolved_via="slack_dm")
+                self.ctx.audit.record(self.requester, "close_task", f"task:{t.id}", reason[:200], task_id=t.id,
+                                      requester=self.requester, role=self.role)
+                if t.slack_ref:
+                    try:
+                        self.ctx.notifier.update(t.slack_ref, f"✅ {outcome} ({t.id})", "AUTO")
+                    except Exception:  # noqa: BLE001 - the task is closed either way
+                        pass
+                closed.append(t.id)
+        return {"closed": closed, "skipped": skipped}
+
+    def _approve(self, t: Task) -> bool:
+        """A task waiting on an approval is closed by approving it (only its approver can)."""
+        from scout.loops import liquidity
+
+        try:
+            liquidity.resume(self.ctx, t.approval_id, True, self.requester)
+        except (PermissionError, KeyError):
+            return False
+        return self.ctx.recorder.get(t.id).status == "done"
 
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

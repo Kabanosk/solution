@@ -231,6 +231,7 @@ oc apply -k deploy/ && oc rollout restart deploy/api deploy/scout-worker
 ```
 
 After a code change rebuild the image (`oc start-build cfo-backend`), then restart both deployments. The schema
-(`guardrail_strikes`, `guardrail_alerts`) is applied by the worker at start. The poisoned invoice demo needs its mail planted:
+(`guardrail_strikes`, `guardrail_alerts`, `flagged_documents`, the BLOCK decision) is no longer applied at worker start: run
+`python -m cfo.db.migrate --migrate` (see `docs/scout-auth.md`) once per release. The poisoned invoice demo needs its mail planted:
 re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666.eml`) and play it with
 `python -m scout.demo play poisoned` or the dashboard demo panel ("Poisoned invoice").

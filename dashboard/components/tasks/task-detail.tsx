@@ -14,6 +14,41 @@ import { StatusIcon } from "@/components/tasks/status-icon";
 import { clock, evidenceView, fullTimestamp, LOOP_LABEL, money, RESOLVED_VIA_LABEL, shortDate, STATUS_LABEL, type Evidence, type TaskDetail } from "@/lib/scout-model";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
+import { isShort, parseRevenuePlan, type RevenuePlan } from "@/lib/revenue-plan-model";
+
+const eur0 = new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+/** The forecast_plan evidence of a Forecast-loop review, readable: target, realistic, gap, weak points, actions, sources. */
+function ForecastPlanCard({ plan, names }: { plan: RevenuePlan; names: Record<string, string> }) {
+  const short = isShort(plan);
+  const figures: [string, string, string?][] = [
+    ["Target (annual)", `${eur0.format(plan.targetAnnual)}${plan.targetSource === "default" ? " · default" : " · set by CEO"}`],
+    ["Realistic (annual)", eur0.format(plan.realisticAnnual)],
+    ["Gap", short ? `${eur0.format(Math.abs(plan.gap))} short` : `${eur0.format(plan.gap)} ahead`, short ? "text-danger" : "text-success"],
+    ...(plan.trailingRevenue !== null ? [["Last 12 months", eur0.format(plan.trailingRevenue)] as [string, string]] : []),
+  ];
+  return <section id={`forecast-plan-detail-${plan.taskId ?? "task"}`} aria-labelledby="forecast-plan-detail-title" className="rounded-xl border bg-card">
+    <h2 id="forecast-plan-detail-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Revenue forecast{plan.asOf ? ` · as of ${plan.asOf}` : ""}</h2>
+    <dl className="grid gap-px border-b bg-border sm:grid-cols-4">
+      {figures.map(([label, value, tone]) => <div key={label} className="bg-card px-4 py-2.5"><dt className="text-[11px] text-muted-foreground">{label}</dt>
+        <dd className={cn("font-mono text-[15px] font-medium tabular-nums", tone)}>{value}</dd></div>)}
+    </dl>
+    <div className="space-y-4 px-4 py-3 text-[13px]">
+      {(plan.constraints.noHiring || plan.constraints.maxNewMonthlyCost !== null) && <p className="text-muted-foreground">Constraints: {[plan.constraints.noHiring && "no new hires", plan.constraints.maxNewMonthlyCost !== null && `new costs up to ${eur0.format(plan.constraints.maxNewMonthlyCost)} a month`].filter(Boolean).join(", ")}.</p>}
+      {plan.weakPoints.length > 0 && <div><h3 className="mb-1 text-[12px] font-medium">Weakest points</h3>
+        <ul className="space-y-1.5">{plan.weakPoints.map((point, index) => <li key={index}><span className="font-medium">{point.area}</span>
+          {point.impactAnnual !== null && <span className="ml-2 font-mono text-xs text-muted-foreground">{eur0.format(point.impactAnnual)}/yr</span>}
+          {point.detail && <span className="block text-muted-foreground">{point.detail}</span>}</li>)}</ul></div>}
+      {plan.actions.length > 0 && <div><h3 className="mb-1 text-[12px] font-medium">Actions created</h3>
+        <ul className="space-y-1">{plan.actions.map(action => <li key={action.taskId}><Link href={`#task/${encodeURIComponent(action.taskId)}`} className="underline-offset-2 hover:underline">
+          <span className="mr-2 font-mono text-xs text-muted-foreground">{action.taskId}</span>{action.title}</Link>
+          {action.ownerId && <span className="ml-2 text-xs text-muted-foreground">{names[action.ownerId] ?? action.ownerId}</span>}</li>)}</ul></div>}
+      {plan.sources.length > 0 && <div><h3 className="mb-1 text-[12px] font-medium">Sources checked</h3>
+        <ul className="flex flex-wrap gap-1.5">{plan.sources.map(source => <li key={source.name} title={source.note || undefined}>
+          <Badge variant="outline" className={cn("font-normal", source.status !== "ok" && "text-muted-foreground line-through")}>{source.name} · {source.status === "ok" ? source.count : "unavailable"}</Badge></li>)}</ul></div>}
+    </div>
+  </section>;
+}
 
 const SOURCE_ICON: Record<string, LucideIcon> = {
   bank: Landmark, invoicing: Database, files: Folder, email: Mail, mail: Mail, chat: MessagesSquare, slack: Send, forecast: LineChart,
@@ -41,8 +76,10 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   const owner = task.ownerId ? names[task.ownerId] ?? task.ownerId : null;
   const running = task.status === "in_progress";
   const hiringReport = task.loop === "liquidity" ? [...steps].reverse().find(step => step.hiringReport)?.hiringReport : undefined;
-  const evidence = [...task.evidence, ...steps.flatMap(step => step.evidence ? [step.evidence] : [])]
-    .filter(item => item.kind !== "strategy_briefing")
+  const allEvidence = [...task.evidence, ...steps.flatMap(step => step.evidence ? [step.evidence] : [])];
+  const forecastPlan = parseRevenuePlan(allEvidence, task.id);
+  const evidence = allEvidence
+    .filter(item => item.kind !== "strategy_briefing" && item.kind !== "forecast_plan")
     .filter((item, index, all) => all.findIndex(other => evidenceView(other).label === evidenceView(item).label) === index);
   const subtitle = [
     transaction?.cardLast4 ? `Company card •${transaction.cardLast4}` : transaction?.id ?? task.transactionId,
@@ -76,6 +113,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
           <h2 id="strategy-brief-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Daily CEO briefing</h2>
           <Markdown source={task.outcome} className="min-w-0 px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere]" />
         </section>}
+        {forecastPlan && <ForecastPlanCard plan={forecastPlan} names={names} />}
         {hiringReport && <section id={`scout-hiring-report-${task.id}`} aria-labelledby={`scout-hiring-report-title-${task.id}`} className="rounded-xl border bg-card">
           <h2 id={`scout-hiring-report-title-${task.id}`} className="border-b px-4 py-2.5 text-[13px] font-medium">Hiring simulation</h2>
           <Markdown source={hiringReport} className="min-w-0 px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere]" />

@@ -54,6 +54,14 @@ class ScoutSettings(BaseSettings):
     guardrails_token: str = ""
     guardrails_ca: str = "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"  # OpenShift service CA
     compliance_contact: str = ""  # employee id or Slack user id told about repeated blocked prompts; empty = the CEO
+    # Outbound email for urgent CEO alerts (forecast drift). Empty host = log only, nothing is sent.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    ceo_email: str = ""  # legacy/demo organization only; real organizations use the owner's sign-in email
     ksef_api_url: str = "https://api-test.ksef.mf.gov.pl/v2"  # KSeF test environment (self-signed seals allowed)
 
     @field_validator("chat_channels", mode="before")
@@ -78,7 +86,7 @@ def tenant_settings(settings: ScoutSettings) -> ScoutSettings:
         "bank_api_url": "", "workstations_root": "", "data_dir": "", "scout_demo": False,
         "strategy_operating_surplus_target": None, "strategy_owner_income_target": None,
         "strategy_monthly_revenue_target": None, "strategy_currency": "EUR",
-        "ceo_id": tenant.employee_id or "", "document_owner_id": tenant.employee_id or "",
+        "ceo_id": tenant.employee_id or "", "ceo_email": "", "document_owner_id": tenant.employee_id or "",
     })
 
 

@@ -4,6 +4,7 @@ import { authStore, requireSession } from "./auth";
 import { apiFetch } from "./scout-api";
 import { decimalCents, displayCents, financePeriod, quarterSpend, type DashboardData, type Forecast } from "./finance-model";
 import { loadRecords, loadScout, loadTaskDetail } from "./scout";
+import { parseRevenuePlan, type RevenuePlan } from "./revenue-plan-model";
 import type { RecordKind, ScoutRecords, TaskDetail } from "./scout-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
 
@@ -48,6 +49,24 @@ async function fetchForecast(query: string): Promise<Forecast | null> {
     };
   } catch {
     // Forecast availability must not hide the actual bank records.
+    return null;
+  }
+}
+
+/** Latest forecast_plan evidence of a finished forecast review. A missing table/column (older schema) or no review
+ *  yet gives null; the savepoint keeps the surrounding read-only transaction usable either way. */
+async function loadRevenuePlan(client: PoolClient): Promise<RevenuePlan | null> {
+  await client.query("SAVEPOINT revenue_plan");
+  try {
+    const row = (await client.query(`
+      SELECT t.id, item AS plan FROM agent_tasks t
+        CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(t.evidence) = 'array' THEN t.evidence ELSE '[]'::jsonb END) item
+      WHERE t.loop = 'forecast' AND t.category = 'forecast_review' AND t.status = 'done' AND item->>'kind' = 'forecast_plan'
+      ORDER BY t.updated_at DESC, t.id DESC LIMIT 1`)).rows[0];
+    await client.query("RELEASE SAVEPOINT revenue_plan");
+    return row ? parseRevenuePlan(row.plan, row.id) : null;
+  } catch {
+    await client.query("ROLLBACK TO SAVEPOINT revenue_plan");
     return null;
   }
 }
@@ -120,6 +139,7 @@ export async function getDashboardData(slug?: string): Promise<DashboardData> {
       SELECT to_char(q.start, 'YYYY-MM-DD') AS start, to_char(q.through, 'YYYY-MM-DD') AS through, rows.*
         FROM q LEFT JOIN rows ON true`)).rows;
     const scout = { ...await loadScout(client, session.role === "owner"), ceoId: session.employeeId, demo: false };
+    const revenuePlan = await loadRevenuePlan(client);
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -127,7 +147,7 @@ export async function getDashboardData(slug?: string): Promise<DashboardData> {
       closingBalance: displayCents(summary.balance), employees,
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
-      undocumentedPayments: Number(summary.undocumented), scout, generatedAt: new Date().toISOString(),
+      undocumentedPayments: Number(summary.undocumented), scout, revenuePlan, generatedAt: new Date().toISOString(),
       quarterSpend: quarterSpend(quarter[0]?.start ?? summary.as_of, quarter[0]?.through ?? summary.as_of, quarter.filter(row => row.name !== null)),
     };
   } catch {

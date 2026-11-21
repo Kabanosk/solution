@@ -1,5 +1,6 @@
 "use client";
 import { StrategySettingsPanel } from "@/components/strategy-settings";
+import { ForecastSettingsPanel } from "@/components/forecast-settings";
 
 import Link from "next/link";
 import { useMemo } from "react";
@@ -73,7 +74,7 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0">
           <h1 className="text-[15px] font-medium">{title} <span className="ml-1 text-[13px] font-normal text-muted-foreground">{visible.length}</span></h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">{filter.loop === "strategy" ? "Company news from your external provider, every 24 hours. Each run is recorded below." : filter.scope === "inbox" ? "Waiting on or escalated to you, including pending approvals." : "Everything Scout works on, from every loop. Filter by loop, status or owner."}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{filter.loop === "strategy" ? "Company news from your external provider, every 24 hours. Each run is recorded below." : filter.loop === "forecast" ? "Your annual revenue target against Scout's realistic forecast. Daily reviews create optimisation tasks and flag actions that contradict the plan." : filter.scope === "inbox" ? "Waiting on or escalated to you, including pending approvals." : "Everything Scout works on, from every loop. Filter by loop, status or owner."}</p>
         </div>
         <div className="flex rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="Scope">
           {SCOPES.map(scope => { const active = filter.scope === scope.value; const count = scopeCount(scope.value);
@@ -85,6 +86,7 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
         </div>
       </div>
       {filter.loop === "strategy" && <StrategySettingsPanel />}
+      {filter.loop === "forecast" && <ForecastSettingsPanel />}
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter tasks">
         <select id="scout-task-filter-loop" aria-label="Loop" className={selectClass} value={filter.loop ?? ""} onChange={event => onFilter({ ...filter, loop: event.target.value || undefined })}>
           <option value="">All loops</option>

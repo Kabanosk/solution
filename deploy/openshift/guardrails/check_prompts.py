@@ -112,7 +112,9 @@ PROMPTS: list[tuple[str, str, str, list[dict], str]] = [
 
 
 def post_check(url: str, token: str, config_id: str, messages: list[dict], ctx: ssl.SSLContext | None, timeout: float) -> dict:
-    body = {"model": "check", "messages": messages, "guardrails": {"config_id": config_id}}
+    # Same model name as Scout (backend/scout/guardrails.py): the server caches rails per config_id + model, and every
+    # new name loads another Presidio/spaCy copy (~630 MiB) for bot-output.
+    body = {"model": "scout", "messages": messages, "guardrails": {"config_id": config_id}}
     req = urllib.request.Request(
         url.rstrip("/") + "/v1/guardrail/checks",
         data=json.dumps(body).encode(),

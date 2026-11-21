@@ -16,13 +16,14 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 BACKEND = REPO / "backend"
 
-pytestmark = pytest.mark.skipif(shutil.which("kubectl") is None, reason="kubectl not installed")
+KUBE_CLI = shutil.which("kubectl") or shutil.which("oc")
+pytestmark = pytest.mark.skipif(KUBE_CLI is None, reason="kubectl or oc not installed")
 
 
 @pytest.fixture(scope="module")
 def docs() -> list[dict]:
     out = subprocess.run(
-        ["kubectl", "kustomize", str(REPO / "deploy")], check=True, capture_output=True, text=True, timeout=240
+        [KUBE_CLI, "kustomize", str(REPO / "deploy")], check=True, capture_output=True, text=True, timeout=240
     ).stdout
     return [d for d in yaml.safe_load_all(out) if d]
 
@@ -50,6 +51,43 @@ def test_cfo_data_mounted_read_only_at_app_data(docs, deployment, container):
     workload = _by_kind(docs, "Deployment")[deployment]
     mounts = _mounts_of_pvc(workload, _container(workload, container), "cfo-data")
     assert [(m["mountPath"], m.get("readOnly", False)) for m in mounts] == [("/app/data", True)]
+
+
+def test_dashboard_ingress_only_allows_verified_router_on_app_port():
+    out = subprocess.run(
+        [KUBE_CLI, "kustomize", str(REPO / "deploy" / "openshift" / "dashboard")],
+        check=True, capture_output=True, text=True, timeout=240,
+    ).stdout
+    dashboard_docs = [d for d in yaml.safe_load_all(out) if d]
+    policies = _by_kind(dashboard_docs, "NetworkPolicy")
+    assert set(policies) == {"dashboard-ingress"}
+    policy = policies["dashboard-ingress"]
+    assert policy["apiVersion"] == "networking.k8s.io/v1"
+    assert policy["spec"] == {
+        "podSelector": {"matchLabels": {"app": "dashboard"}},
+        "policyTypes": ["Ingress"],
+        "ingress": [{
+            "from": [{
+                "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "openshift-ingress"}},
+                "podSelector": {"matchLabels": {
+                    "ingresscontroller.operator.openshift.io/deployment-ingresscontroller": "default",
+                }},
+            }],
+            "ports": [{"protocol": "TCP", "port": 3000}],
+        }],
+    }
+    dashboard = _by_kind(dashboard_docs, "Deployment")["dashboard"]
+    assert dashboard["spec"]["template"]["metadata"]["labels"]["app"] == "dashboard"
+    container = _container(dashboard, "dashboard")
+    assert {p["name"]: p["containerPort"] for p in container["ports"]}["http"] == 3000
+    for probe in ("startupProbe", "readinessProbe", "livenessProbe"):
+        assert container[probe]["httpGet"] == {"path": "/healthz", "port": "http"}
+
+
+def test_unscoped_mcp_http_deployments_are_disabled(docs):
+    deployments = _by_kind(docs, "Deployment")
+    for name in ("mcp-company-db", "mcp-workstations", "mcp-hr"):
+        assert deployments[name]["spec"]["replicas"] == 0
 
 
 def test_workstations_mcp_mounts_cfo_data(docs):

@@ -13,11 +13,11 @@ from cfo.api.errors import install_error_handlers
 from cfo.api.routers import cost_metrics, costs, forecast, kpis, llm_usage
 from cfo.api.schemas import Health
 from cfo.api.settings import get_api_settings
-from cfo.observability import init_tracing
 from scout.api import router as scout_router
 from scout.chat_api import router as scout_chat_router
 from scout.documents_api import router as documents_router
 from scout.ksef_api import router as ksef_router
+from scout.onboarding.api import router as onboarding_router
 
 VERSION = "0.1.0"
 
@@ -40,6 +40,7 @@ TAGS = [
     {"name": "audit", "description": "Every connector read, DM and access decision."},
     {"name": "invoices", "description": "The invoice filed for a bank booking, with line items and document text."},
     {"name": "connections", "description": "Systems Scout reads (bank, mail, files, Slack) and their status."},
+    {"name": "onboarding", "description": "Workspace setup: durable checklist and tenant-bound provider connections."},
     {"name": "demo", "description": "Demo triggers (bank mock payments)."},
     {"name": "chat", "description": "Ask Scout in the dashboard (tools, streamed steps)."},
     {"name": "llm-usage", "description": "What the LLM costs: usage per call and the vLLM server's load."},
@@ -50,7 +51,7 @@ TAGS = [
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """The API runs no agent code: Scout's worker pool (`python -m scout.worker`) does."""
-    init_tracing()  # MLflow agent tracing; a no-op unless MLFLOW_TRACKING_URI is set (never raises)
+    # Global MLflow autologging is not tenant aware; do not enable it in the multi-tenant API.
     yield
 
 
@@ -64,9 +65,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Stub"],
     )
+    from cfo.api.auth import OrganizationAuthMiddleware
+    app.add_middleware(OrganizationAuthMiddleware)
     install_error_handlers(app)
     for module in (kpis, forecast, costs, cost_metrics, llm_usage):
         app.include_router(module.router)
+    app.include_router(onboarding_router)
     app.include_router(ksef_router)  # before Scout's router: /v1/demo/play/ksef beats /v1/demo/play/{scenario}
     app.include_router(scout_router)
     app.include_router(documents_router)
@@ -80,6 +84,19 @@ def create_app() -> FastAPI:
     def index() -> RedirectResponse:
         return RedirectResponse("/docs")
 
+    original_openapi = app.openapi
+
+    def authenticated_openapi():
+        document = original_openapi()
+        document.setdefault("components", {}).setdefault("securitySchemes", {}).update({
+            "SessionToken": {"type": "http", "scheme": "bearer", "description": "Opaque DB-backed session token."},
+            "Organization": {"type": "apiKey", "in": "header", "name": "X-Scout-Organization"},
+        })
+        document["security"] = [{"SessionToken": [], "Organization": []}]
+        document["paths"]["/healthz"]["get"]["security"] = []
+        return document
+
+    app.openapi = authenticated_openapi
     return app
 
 

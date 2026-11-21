@@ -107,10 +107,16 @@ def start_background(every: float = 60.0, settings: UsageSettings | None = None)
 
     from cfo.config import get_settings
 
+    from scout.db import factory
+    from cfo.tenancy import current_tenant, legacy_connectors_enabled
+    current_tenant()
+    if not legacy_connectors_enabled():
+        raise PermissionError("Global vLLM metrics are not attributable to this organization")
+    cf = factory(get_settings().database_url)
     stop = threading.Event()
     fetch = make_fetch(s)
     threading.Thread(
-        target=run, args=(every, lambda: psycopg.connect(get_settings().database_url, connect_timeout=5), fetch),
+        target=run, args=(every, cf, fetch),
         kwargs={"stop": stop}, daemon=True, name="vllm-metrics-sampler",
     ).start()
     return stop

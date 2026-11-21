@@ -1,4 +1,5 @@
-# The three MCP servers (streamable HTTP, endpoint /mcp), internal only: no Routes.
+# Legacy MCP HTTP workloads are intentionally stopped under organization auth.
+# The application uses tenant-bound in-process tools; do not re-enable an unscoped network listener.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +8,7 @@ metadata:
   annotations:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-company-db\")].image"}]'
 spec:
-  replicas: 1
+  replicas: 0  # Unscoped HTTP transport is disabled; scoped in-process tools remain available.
   selector: {matchLabels: {app: mcp-company-db}}
   template:
     metadata: {labels: {app: mcp-company-db, app.kubernetes.io/component: mcp}}
@@ -58,7 +59,7 @@ metadata:
   annotations:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-workstations\")].image"}]'
 spec:
-  replicas: 1
+  replicas: 0  # Unscoped HTTP transport is disabled; scoped in-process tools remain available.
   strategy: {type: Recreate}
   selector: {matchLabels: {app: mcp-workstations}}
   template:
@@ -116,7 +117,7 @@ metadata:
   annotations:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"cfo-backend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"mcp-hr\")].image"}]'
 spec:
-  replicas: 1
+  replicas: 0  # Unscoped HTTP transport is disabled; scoped in-process tools remain available.
   selector: {matchLabels: {app: mcp-hr}}
   template:
     metadata: {labels: {app: mcp-hr, app.kubernetes.io/component: mcp}}

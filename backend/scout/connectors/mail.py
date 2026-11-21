@@ -10,7 +10,8 @@ from email import policy
 from email.parser import BytesParser
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Protocol
+from functools import wraps
+from typing import Any, Callable, Protocol
 
 from scout.audit import Audit
 from scout.models import MailHit
@@ -18,6 +19,37 @@ from scout.models import MailHit
 log = logging.getLogger(__name__)
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+def _notify_mail_error(callback: Callable[[], None] | None) -> None:
+    if callback:
+        try:
+            callback()
+        except Exception:  # noqa: BLE001 - preserve the original read failure without logging credential details
+            log.warning("could not record Gmail authorization failure")
+
+
+def _strict_credentials(on_error: Callable[[], None] | None = None) -> type:
+    from google.auth.exceptions import RefreshError
+    from google.oauth2.credentials import Credentials
+
+    class StrictCredentials(Credentials):
+        def _perform_refresh_token(self, request):  # noqa: ANN001
+            try:
+                super()._perform_refresh_token(request)
+                if not set(GMAIL_SCOPES) <= set(self.granted_scopes or []):
+                    raise RefreshError("The Gmail read-only scope is no longer granted")
+            except RefreshError as error:
+                self.token = None
+                if not getattr(error, "retryable", False):
+                    _notify_mail_error(on_error)
+                raise RefreshError("Gmail authorization could not be refreshed", retryable=getattr(error, "retryable", False)) from None
+
+    return StrictCredentials
+
+
+class MailLabelMissing(RuntimeError):
+    """The authorized Gmail label no longer exists. Reads stop instead of falling back to the whole mailbox."""
 
 
 class MailConnector(Protocol):
@@ -115,39 +147,70 @@ class FolderMail:
         return new, {"seen": sorted(seen | {h.id for h in new})}
 
 
+def _guard_mail_read(method):  # noqa: ANN001
+    @wraps(method)
+    def guarded(self, *args, **kwargs):  # noqa: ANN001
+        try:
+            return method(self, *args, **kwargs)
+        except Exception as error:
+            from google.auth.exceptions import RefreshError
+            from googleapiclient.errors import HttpError
+
+            failed_grant = isinstance(error, RefreshError) and not getattr(error, "retryable", False)
+            rejected = isinstance(error, HttpError) and getattr(error.resp, "status", None) in (401, 403)
+            if self._require_label and (isinstance(error, MailLabelMissing) or failed_grant or rejected):
+                _notify_mail_error(self._on_error)
+            if self._require_label and rejected:
+                raise PermissionError("Gmail read authorization is no longer available") from None
+            raise
+    return guarded
+
+
 class GmailMail:
     """Gmail API over OAuth credentials (a user who clicked Connect Google) for one mailbox."""
 
     name = "gmail"
 
     def __init__(self, creds: Any, label: str | None, audit: Audit | None = None, mailbox: str = "me",
-                 service: Any = None):
+                 service: Any = None, require_label: bool = False, on_error: Callable[[], None] | None = None):
         if service is None:
             from googleapiclient.discovery import build
+            from google_auth_httplib2 import AuthorizedHttp
+            from httplib2 import Http
 
-            service = build("gmail", "v1", credentials=creds, cache_discovery=False)
+            service = build("gmail", "v1", http=AuthorizedHttp(creds, http=Http(timeout=10)), cache_discovery=False)
         self._svc = service
+        self.credentials = creds  # kept so a refresh/revocation problem can be observed and tested
         self._audit = audit
         self.mailbox = mailbox
         self._label_name = label
         self._label_id: str | None = None
+        # Tenant mailboxes: a configured label that cannot be found must stop the read, never widen it to the mailbox.
+        self._require_label = require_label
+        self._on_error = on_error
 
     @classmethod
     def from_refresh_token(cls, refresh_token: str, client_id: str, client_secret: str, label: str | None,
-                           audit: Audit | None = None, mailbox: str = "me") -> GmailMail:
+                           audit: Audit | None = None, mailbox: str = "me", require_label: bool = False,
+                           on_error: Callable[[], None] | None = None) -> GmailMail:
         from google.oauth2.credentials import Credentials
 
-        creds = Credentials(None, refresh_token=refresh_token, token_uri=TOKEN_URI, client_id=client_id,
-                            client_secret=client_secret, scopes=GMAIL_SCOPES)
-        return cls(creds, label, audit, mailbox)
+        # Tenant mailboxes (require_label) also fail visibly if the grant lost its scope: google-auth alone only logs it.
+        credentials_class = _strict_credentials(on_error) if require_label else Credentials
+        creds = credentials_class(None, refresh_token=refresh_token, token_uri=TOKEN_URI, client_id=client_id,
+                                  client_secret=client_secret, scopes=GMAIL_SCOPES)
+        return cls(creds, label, audit, mailbox, require_label=require_label, on_error=on_error)
 
     def available(self) -> bool:
         return True
 
     def label_id(self) -> str | None:
-        if self._label_name and self._label_id is None:
+        if self._label_name and (self._require_label or self._label_id is None):
             labels = self._svc.users().labels().list(userId="me").execute().get("labels", [])
-            self._label_id = next((x["id"] for x in labels if x["name"].casefold() == self._label_name.casefold()), "")
+            found = next((x["id"] for x in labels if x["name"].casefold() == self._label_name.casefold()), None)
+            if found is None and self._require_label:
+                raise MailLabelMissing(f"Gmail label '{self._label_name}' not found")
+            self._label_id = found or ""
         return self._label_id or None
 
     def query(self, terms: list[str], since: datetime) -> str:
@@ -155,7 +218,15 @@ class GmailMail:
         after = f"after:{int(since.timestamp())}"
         return f"({quoted}) {after}" if quoted else after  # no words: the newest mails
 
+    def _assert_message_scope(self, mid: str) -> None:
+        if self._require_label:
+            label = self.label_id()
+            metadata = self._svc.users().messages().get(userId="me", id=mid, format="minimal").execute()
+            if not label or label not in metadata.get("labelIds", []):
+                raise PermissionError("Message is outside the authorized Gmail label")
+
     def _hit(self, mid: str) -> MailHit:
+        self._assert_message_scope(mid)
         m = self._svc.users().messages().get(userId="me", id=mid, format="full").execute()
         headers = {h["name"].lower(): h["value"] for h in m.get("payload", {}).get("headers", [])}
         body, names = "", []
@@ -174,6 +245,7 @@ class GmailMail:
         return MailHit(id=mid, mailbox=self.mailbox, sender=headers.get("from", ""), subject=headers.get("subject", ""),
                        date=when, snippet=m.get("snippet", ""), body=body[:4000], attachments=names)
 
+    @_guard_mail_read
     def search(self, terms, since, *, task_id=None):  # noqa: ANN001
         kwargs: dict[str, Any] = {"userId": "me", "q": self.query(terms, since), "maxResults": 10}
         if self.label_id():
@@ -184,7 +256,9 @@ class GmailMail:
                                policy=f"label:{self._label_name}" if self._label_name else None)
         return [self._hit(m["id"]) for m in res.get("messages", [])]
 
+    @_guard_mail_read
     def attachment(self, hit_id, name, *, task_id=None):  # noqa: ANN001
+        self._assert_message_scope(hit_id)
         m = self._svc.users().messages().get(userId="me", id=hit_id, format="full").execute()
         stack = [m.get("payload", {})]
         while stack:
@@ -198,7 +272,10 @@ class GmailMail:
             stack += part.get("parts", []) or []
         return None
 
+    @_guard_mail_read
     def changes(self, cursor):  # noqa: ANN001
+        if self._require_label:
+            self.label_id()
         if not cursor.get("history_id"):
             profile = self._svc.users().getProfile(userId="me").execute()
             return [], {"history_id": profile["historyId"]}

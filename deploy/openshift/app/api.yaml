@@ -27,6 +27,7 @@ spec:
           ports: [{containerPort: 8000}]
           envFrom:
             - configMapRef: {name: cfo-config}
+            - secretRef: {name: scout-onboarding, optional: true}  # server app credentials and stable CONNECTIONS_KEY only
             - secretRef: {name: slack, optional: true}   # SLACK_* for the Slack connection status (team Secret, not in git)
           env:
             # DATABASE_URL is composed from the keys of Secret `postgres` (see deploy/postgres.yaml);

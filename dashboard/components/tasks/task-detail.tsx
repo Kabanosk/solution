@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tenantFetch } from "@/lib/tenant-browser";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, CircleCheck, Database, FileText, Folder, Landmark, LineChart, Loader2, Mail, MessageSquare, MessagesSquare, Send, type LucideIcon } from "lucide-react";
@@ -49,7 +50,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   async function answer(action: "approve" | "reject") {
     if (!approval) return;
     setMessage(null); setAnswering(action);
-    const response = await fetch("/api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: approval.id, action }) })
+    const response = await tenantFetch("/api/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: approval.id, action }) })
       .catch(() => null);
     setAnswering(null);
     if (!response?.ok) { setMessage("Scout could not record the answer. Try again in a moment."); return; }
@@ -59,16 +60,15 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
 
   return <div className="space-y-5">
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
+      <Link href="#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{task.id}</span>
     </nav>
+    <header className="space-y-1">
+      <h1 className="text-2xl font-medium tracking-tight">{task.counterparty ?? task.title}</h1>
+      {task.counterparty && <p className="text-sm">{task.title}</p>}
+      {subtitle && <p className="font-mono text-xs text-muted-foreground">{subtitle}</p>}
+    </header>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-medium tracking-tight">{task.counterparty ?? task.title}</h1>
-          {task.counterparty && <p className="text-sm">{task.title}</p>}
-          {subtitle && <p className="font-mono text-xs text-muted-foreground">{subtitle}</p>}
-        </header>
-
         <section aria-labelledby="activity-title" className="rounded-xl border bg-card">
           <h2 id="activity-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Activity log</h2>
           {steps.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">No activity yet.</p> :
@@ -130,11 +130,11 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
 export function TaskDetailSkeleton({ id }: { id: string }) {
   return <div className="space-y-5" role="status" aria-label={`Loading ${id}`}>
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <Link href="/#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{id}</span>
+      <Link href="#tasks" className="hover:text-foreground">Tasks</Link><span aria-hidden="true">›</span><span className="font-mono text-foreground">{id}</span>
     </nav>
+    <div className="space-y-2"><Skeleton className="h-7 w-72" /><Skeleton className="h-4 w-96 max-w-full" /><Skeleton className="h-3 w-48" /></div>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
-        <div className="space-y-2"><Skeleton className="h-7 w-72" /><Skeleton className="h-4 w-96 max-w-full" /><Skeleton className="h-3 w-48" /></div>
         <div className="rounded-xl border bg-card"><div className="border-b px-4 py-2.5 text-[13px] font-medium">Activity log</div>
           <div className="space-y-4 px-4 py-4">{[0, 1, 2, 3].map(row => <div key={row} className="flex items-center gap-3"><Skeleton className="size-6 rounded-full" /><Skeleton className="h-4 flex-1" /><Skeleton className="h-3 w-10" /></div>)}</div>
         </div>

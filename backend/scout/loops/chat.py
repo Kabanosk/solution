@@ -16,7 +16,7 @@ from typing import Any
 from cfo.db.repo import Repository
 from cfo.llm import Message
 from cfo.usage.recorder import usage_context
-from scout import guardrails
+from scout import dm_replies, guardrails
 from scout.audit import check as access_check
 from scout.llm_tasks import route_dm
 from scout.loops import invoicing
@@ -81,7 +81,10 @@ def _history(ctx: JobContext, task: Task) -> list[dict[str, str]]:
 
 # -- answering questions with tools ----------------------------------------------------------------------
 def _system(ctx: JobContext, sender: str | None, role: str) -> str:
-    return (f"You are Scout, the finance agent of Pizzeria Amalfi (Frankfurt). Today is {ctx.now():%A %d %B %Y}. "
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    company = "Pizzeria Amalfi (Frankfurt)" if tenant is None or tenant.legacy else "your organization"
+    return (f"You are Scout, the finance agent of {company}. Today is {ctx.now():%A %d %B %Y}. "
             f"You are answering {ctx.hr.name(sender)} ({role.replace('_', ' ')}). Use the tools to look things up "
             "before you answer; call several tools if needed, one step at a time. Answer only from tool results, "
             "with exact amounts and dates; if a tool says access_denied, say that you can't share it and why. "
@@ -328,6 +331,9 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                 ctx.notifier.track(task.id, p["status_ref"])
             ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it", source="guardrails")
             return _finish(ctx, task, p, blocked, level="NOTIFY", status="cancelled", screen=False)
+    answered = dm_replies.intercept(ctx, job)  # the recipient's reply to a message Scout sent: not a new question
+    if answered is not None:
+        return answered
     has_open = bool(p.get("thread")) or bool(ctx.recorder.find_open(owner_id=sender))
     route = None
     if has_open and not p.get("files"):
@@ -405,7 +411,13 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
                           detail={"reply": reply[:MSG_CHARS]})
         return _finish(ctx, task, p, reply, screen=False)
     ctx.recorder.step(task.id, "answered", "Sent the help text", source="scout")
-    return _finish(ctx, task, p, HELP)
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    help_text = HELP if tenant is None or tenant.legacy else (
+        "I'm Scout, your organization's finance agent. I can answer questions from your own company database "
+        "and explain the available records. External bank, mail, Slack and file integrations are not configured. "
+        "Background forecasts and approvals require an organization-bound worker; queued work is not completion.")
+    return _finish(ctx, task, p, help_text)
 
 
 HANDLERS = {"dm": on_dm}

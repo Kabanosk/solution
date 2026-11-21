@@ -15,6 +15,16 @@ test("bold, italic, code and safe links", () => {
   assert.ok(parseInline("[x](javascript:alert(1))").every(node => node.type !== "link"));
 });
 
+test("dashboard help links are local navigation, not open redirects or scripts", () => {
+  assert.deepEqual(parseInline("[Connections](/#connections)"), [
+    { type: "link", href: "#connections", children: [{ type: "text", text: "Connections" }] },
+  ]);
+  assert.equal(parseInline("[Needs me](/#tasks?scope=inbox)")[0].type, "link");
+  for (const href of ["//evil.example", "/\\\\evil.example", "javascript:alert", "data:text/html,hi"]) {
+    assert.ok(parseInline(`[x](${href})`).every(node => node.type !== "link"));
+  }
+});
+
 test("html stays text", () => {
   assert.deepEqual(parseMarkdown("<b>hi</b>"), [{ type: "paragraph", children: [{ type: "text", text: "<b>hi</b>" }] }]);
 });

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { tenantFetch } from "@/lib/tenant-browser";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
-import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
+import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, unacknowledgedFollowups, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -41,7 +42,7 @@ export function LlmChat({ active }: { active: boolean }) {
     const poll = async () => {
       if (document.hidden) return;
       try {
-        const response = await fetch(`/api/tasks/${encodeURIComponent(watchedTask)}`, { cache: "no-store" });
+        const response = await tenantFetch(`/api/tasks/${encodeURIComponent(watchedTask)}`, { cache: "no-store" });
         if (!response.ok || stopped) return;
         const detail = await response.json() as { steps?: { id: number; kind: string; text: string }[] };
         if (!stopped && Array.isArray(detail.steps)) setMessages(current => mergeFollowups(current, detail.steps!));
@@ -51,6 +52,26 @@ export function LlmChat({ active }: { active: boolean }) {
     const timer = setInterval(poll, 4000);
     return () => { stopped = true; clearInterval(timer); };
   }, [watchedTask]);
+
+  // A colleague's reply to a message Scout sent is also DMed to the asker unless this chat confirms it showed it:
+  // only an active, visible chat acknowledges (through the authenticated Next route; the token stays server-side).
+  const acknowledged = useRef(new Set<number>());
+  useEffect(() => {
+    if (!active) return;
+    const acknowledge = () => {
+      if (document.hidden) return;
+      for (const { taskId, stepIds } of unacknowledgedFollowups(messages, acknowledged.current)) {
+        stepIds.forEach(id => acknowledged.current.add(id));
+        tenantFetch("/api/chat/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId, stepIds }), signal: AbortSignal.timeout(10_000) })
+          .then(response => { if (!response.ok) stepIds.forEach(id => acknowledged.current.delete(id)); })
+          .catch(() => stepIds.forEach(id => acknowledged.current.delete(id)));
+      }
+    };
+    acknowledge();
+    const timer = setInterval(acknowledge, 2000);
+    document.addEventListener("visibilitychange", acknowledge);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", acknowledge); };
+  }, [messages, active]);
 
   async function reply(history: ChatTurn[]) {
     if (request.current) return;
@@ -68,7 +89,7 @@ export function LlmChat({ active }: { active: boolean }) {
     let failure = "Could not reach Scout. Try again.";
     const request_ = requestFor(history);
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, messages: request_.messages, conversationId: conversation.current }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -129,25 +150,21 @@ export function LlmChat({ active }: { active: boolean }) {
   const retryable = last?.role === "assistant" && ["error", "stopped"].includes(last.status);
   const modelName = CHAT_MODELS.find(item => item.id === model)?.name ?? model;
 
-  return <section id="scout-llm-chat" aria-labelledby="scout-chat-title" className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
-    <header id="scout-chat-header" className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-      <ScoutMark size={22} />
-      <div className="min-w-0 flex-1 leading-tight">
-        <h1 id="scout-chat-title" className="text-[13px] font-medium">Scout chat</h1>
-        <p className="truncate text-[11px] text-muted-foreground">Answers with its tools · {modelName}</p>
-      </div>
-      <Button id="scout-chat-new" variant="ghost" size="sm" onClick={newChat} disabled={messages.length === 0 && !busy} className="h-8 gap-1.5 text-muted-foreground"><SquarePen className="size-4" aria-hidden="true" /><span>New chat</span></Button>
-    </header>
+  return <section id="scout-llm-chat" aria-label="Scout chat" className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    {messages.length > 0 && <h1 id="scout-chat-title" className="sr-only">Scout chat</h1>}
+    <div id="scout-chat-actions" className="flex shrink-0 justify-end">
+      <Button id="scout-chat-new" variant="ghost" size="sm" onClick={newChat} disabled={messages.length === 0 && !draft && !busy} className="h-9 gap-1.5 text-muted-foreground"><SquarePen className="size-4" aria-hidden="true" /><span>New chat</span></Button>
+    </div>
 
-    <div id="scout-chat-conversation" ref={viewport} role="region" aria-label="Conversation" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background/40 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" onScroll={() => {
+    <div id="scout-chat-conversation" ref={viewport} role="region" aria-label="Conversation" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" onScroll={() => {
       const element = viewport.current;
       if (element) { follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; setFollowing(follow.current); }
     }}>
-      {messages.length === 0 ? <div id="scout-chat-empty" className="flex h-full min-h-44 flex-col items-center justify-center gap-5 px-4 py-6 text-center">
+      {messages.length === 0 ? <div id="scout-chat-empty" className="flex min-h-full flex-col items-center justify-center gap-5 px-4 py-6 text-center">
         <ScoutMark size={40} />
-        <div className="space-y-1.5"><h2 className="text-xl font-medium tracking-tight">Ask Scout</h2><p className="max-w-md text-sm text-muted-foreground">Scout answers with its tools: missing invoices, cash forecast, tasks and costs.</p></div>
+        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">Scout answers with its tools: missing invoices, cash forecast, tasks and costs.</p></div>
         <div id="scout-chat-suggestions" className="flex max-w-xl flex-wrap justify-center gap-2">
-          {SUGGESTIONS.map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto rounded-full px-3 py-1.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+          {SUGGESTIONS.map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
             onClick={() => { setDraft(suggestion); input.current?.focus(); }}>{suggestion}</Button>)}
         </div>
       </div> : <ol id="scout-chat-messages" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -190,14 +207,14 @@ export function LlmChat({ active }: { active: boolean }) {
                 {turn.awaiting && turn.id === [...messages].reverse().find(item => item.awaiting)?.id && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Scout posts updates here as they happen</p>}
                 {(turn.taskId || (turn.content && turn.status !== "pending")) && <div className="flex items-center gap-1">
                   {turn.content && turn.status !== "pending" && <Button variant="ghost" size="sm" aria-label="Copy response" className="h-7 px-2 text-muted-foreground" onClick={() => void copy(turn)}>{copied === turn.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}</Button>}
-                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`/#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
+                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
                 </div>}
               </div>
             </li>)}
       </ol>}
     </div>
 
-    <div className="shrink-0 border-t bg-card px-3 pt-3 pb-2 sm:px-4">
+    <div id="scout-chat-input-area" className="shrink-0 pt-4 pb-1">
       <div className="mx-auto w-full max-w-3xl space-y-2">
         {!following && messages.length > 0 && <div className="-mt-12 flex justify-center"><Button id="scout-chat-latest" variant="outline" size="sm" className="h-8 gap-2 rounded-full shadow-sm" onClick={scrollToEnd}><ArrowDown aria-hidden="true" className="size-3.5" />Latest</Button></div>}
         {error && <p id="scout-chat-error" role="alert" className="text-sm leading-6 text-danger">{error}</p>}
@@ -233,6 +250,7 @@ const SUGGESTIONS = [
   "What does the cash forecast look like for the next 90 days?",
   "Which tasks are waiting on me?",
   "What did we spend on beverages this quarter?",
+  "How do I use this dashboard?",
 ];
 
 function FileChip({ file }: { file: ChatFile }) {

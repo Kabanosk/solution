@@ -1,72 +1,51 @@
-# Dashboard on OpenShift
+# Scout dashboard on OpenShift
 
-Deploys a separate `dashboard` pod in the selected project. It reads the existing `postgres:5432` service using keys from Secret `postgres`, and calls the internal API at `http://api:8000`. No company records or credentials are included in the build context, manifests or image layers. It does not alter the backend, seed jobs or base-service manifests.
+Deploys the separate dashboard pod, reading PostgreSQL and calling the internal Python API. **Before deploying this auth version, follow [the organization migration and secret guide](../../../docs/scout-auth.md).** It requires the matching backend version and the opt-in auth migration; mixing the old open API with the new dashboard is not a secure deployment.
 
-The **LLM** page is an interactive chat. Its server calls the supplied Granite endpoint at `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/v1`, configured by `LLM_CHAT_BASE_URL` in the deployment. The model dropdown currently allows only `modelcar-granite-4-0-h-tiny`. Optional `LLM_CHAT_API_KEY` can be supplied through the existing Secret environment if a gateway requires a bearer token. Chat is streamed through the authenticated dashboard; the browser never connects to cluster DNS directly. No conversation database or schema migration is needed. See `dashboard/README.md` for local port-forwarding and request limits.
+## Configuration
 
-All commands use the current `oc` project. Select the target using the environment variable `OPENSHIFT_PROJECT`; no project name is stored in the manifests:
+- Existing Secret `postgres` supplies the DB connection. No records or credentials are part of the image/build context.
+- `SCOUT_APP_ORIGIN` in `dashboard.yaml` must exactly match the Route origin. Update it deliberately if the Route changes.
+- Google sign-in uses optional Secret `scout-login`, keys `client-id` and `client-secret`. Create/update it from private files through your secret-management workflow, never from secret literals in shell history. Missing Google credentials leave Google visibly disabled; password sign-in still requires the migrated DB.
+- The old `dashboard-auth` Basic-login Secret is no longer used or injected. Do not delete unrelated Secrets automatically.
+- The Route replaces forwarded headers before the application trusts its single client IP. Do not expose the Service directly to callers who can spoof that header.
+- `CFO_API_URL` remains internal `http://api:8000`. All calls carry the member's opaque session and requested organization. The backend validates both independently.
+- Existing Pizzeria Amalfi stays locked until its intended existing account is explicitly enrolled by an operator. Never give it to the first Google visitor.
 
-```sh
-oc project "${OPENSHIFT_PROJECT:?Set OPENSHIFT_PROJECT to your project name}"
-```
+## Build and deploy (operator action, not performed by this change)
 
-## Login Secret
+Select the intended cluster context/namespace before running deployment commands. From the repo root:
 
-Before deploying, provide Secret `dashboard-auth` with keys `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD`. Set `DASHBOARD_CREDENTIALS_FILE` to a local file outside the repository with mode 0600. The file uses `KEY=value` lines; its path and contents are not committed.
-
-```sh
-oc create secret generic dashboard-auth --from-env-file="${DASHBOARD_CREDENTIALS_FILE:?Set DASHBOARD_CREDENTIALS_FILE to your private login file}"
-```
-
-For an existing Secret, edit it using your normal secret-management workflow, then restart the dashboard. No default credentials are present in source control. Without this Secret, the pod cannot start; without valid login values, application requests fail closed.
-
-## Build and deploy
-
-From the repository root:
-
-```sh
+```bash
 oc apply -k deploy/openshift/dashboard
+```
+
+```bash
 python3 dashboard/scripts/package-source.py /tmp/cfo-dashboard-source.tar.gz
+```
+
+```bash
 oc start-build cfo-dashboard --from-archive=/tmp/cfo-dashboard-source.tar.gz
-oc logs -f bc/cfo-dashboard
+```
+
+```bash
 oc rollout status deployment/dashboard --timeout=180s
-oc get route dashboard
 ```
 
-The packaging script allowlists source and font assets. It excludes `.env` files, records, `node_modules`, local build output and unrelated backend code. Builds are binary uploads, so deploying local changes does not require pushing the public repository. The ImageStream resolves `cfo-dashboard:latest` within the selected project; the image trigger automatically rolls out successful builds.
+The source packager allowlists source/fonts and excludes `.env` files, confidential records, dependencies and build output. The deployment uses OpenShift's arbitrary non-root UID, drops capabilities, mounts temporary scratch space, uses a read-only root filesystem and has process-only `/healthz` probes.
 
-`dashboard.yaml` defines Deployment, Service and TLS Route (HTTP redirects to HTTPS). The container uses the namespace's non-root UID, drops capabilities, has no service-account token, mounts only temporary scratch space, and sets startup/readiness/liveness probes on `/healthz`. Postgres credentials are separate environment variables, avoiding URI escaping problems.
+## Verification
 
-## Verify
+- `/` is public organization discovery/registration, **not** an HTTP Basic challenge.
+- `/<slug>` displays that organization's login when signed out.
+- Anonymous `/api/dashboard` and direct Python `/v1/tasks` return 401.
+- Valid org A sessions cannot request org B data, even with known IDs or forged org headers.
+- `/healthz` returns process health only.
+- Check sign-in, logout, membership revocation and invalid OAuth callbacks from a clean browser profile before routing real users.
+- Do not use the old Basic-login `scripts/smoke-test.py` against this version. The current browser/auth suite is `dashboard/tests/organization-auth.e2e.cjs`, run against an isolated local migrated DB.
 
-```sh
-oc get pods -l app=dashboard
-oc get route dashboard
-```
+A model outage produces unavailable forecasts/chat errors without substituting sample records. A missing backend/migration fails closed. Do not publish private records in logs or screenshots.
 
-Visit the HTTPS route and enter the dashboard login. Unauthenticated `/` and `/api/dashboard` requests must return 401. `/healthz` returns 200 without company data. An authenticated `/api/dashboard` request returns current aggregates and employee/decision records; do not save that response in the repository or print it into public logs.
+## Rollback
 
-Compare totals against Postgres using an in-pod query, without exporting the underlying statements. A reload or **Refresh records** must reflect new database bookings. Model outages leave bank data available and show a forecast-unavailable message. Database outages show a generic error with a retry button, without connection details.
-
-Automated HTTP verification (prints pass/fail only, never records):
-
-```sh
-DASHBOARD_URL="https://$(oc get route dashboard -o jsonpath='{.spec.host}')"
-python3 dashboard/scripts/smoke-test.py "${DASHBOARD_URL}" "${DASHBOARD_CREDENTIALS_FILE:?Set DASHBOARD_CREDENTIALS_FILE to your private login file}"
-```
-
-The backend API's existing Route is independently configured and currently has demo access without authentication (`docs/api.md`). This dashboard login protects only the dashboard route. For stronger isolation, the team must separately secure or remove the backend's public Route.
-
-## Update / rollback
-
-Repeat the source packaging and binary build to update only the dashboard. If needed:
-
-```sh
-oc rollout undo deployment/dashboard
-```
-
-To rotate login credentials, update Secret `dashboard-auth` and run:
-
-```sh
-oc rollout restart deployment/dashboard
-```
+Read the auth guide's data-preserving rollback section first. Application-image rollback must not re-expose the previous unauthenticated API. Preserve all tenant schemas together with auth metadata; never reset or seed a live database as rollback. Secret rotation is an operator action and normally requires an explicit pod restart to pick up changed environment variables; this change does not trigger one automatically.

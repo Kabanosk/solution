@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, ChevronRight, Inbox, LayoutGrid, ListTodo, MessageSquare, RefreshCw, Search } from "lucide-react";
+import { Bell, CalendarClock, ChevronRight, LayoutGrid, ListTodo, MessageSquare, Plug, RefreshCw, Search, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { AttentionList, TaskBoard } from "@/components/tasks/task-list";
 import { TaskDetailSkeleton, TaskDetailView } from "@/components/tasks/task-detail";
 import { AuditLog } from "@/components/audit-log";
 import { Connections } from "@/components/connections";
+import { Onboarding } from "@/components/onboarding";
+import { canEdit, fetchSetup, shouldOpenSetup } from "@/lib/onboarding-client";
 import { AccessPolicies } from "@/components/access-policies";
 import { DemoView } from "@/components/demo-panel";
 import { Transactions } from "@/components/transactions";
@@ -33,13 +35,13 @@ import { prefetchRecords, useRecords } from "@/lib/use-records";
 import { ViewSkeleton } from "@/components/view-skeletons";
 import { prefetchLlmUsage } from "@/components/llm-usage";
 import { cn } from "@/lib/utils";
+import { tenantFetch, scopeKey } from "@/lib/tenant-browser";
 
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
-const mobileNavigation: { route: Route; id: string; label: string; icon: typeof Inbox }[] = [
+const mobileNavigation: { route: Route; id: string; label: string; icon: LucideIcon }[] = [
   { route: { view: "overview" }, id: "overview", label: "Overview", icon: LayoutGrid },
-  { route: { view: "tasks", filter: { scope: "inbox" } }, id: "inbox", label: "Inbox", icon: Inbox },
+  { route: { view: "chat" }, id: "chat", label: "Scout chat", icon: MessageSquare },
   { route: { view: "tasks" }, id: "tasks", label: "Tasks", icon: ListTodo },
-  { route: { view: "chat" }, id: "chat", label: "Chat", icon: MessageSquare },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
 const LOOPS = ["invoicing", "cost_control", "liquidity", "chat"];
@@ -50,7 +52,7 @@ const detailCache = new Map<string, TaskDetail>();
 export function Dashboard({ data }: { data: DashboardData }) {
   // Assign IDs only after this client tree hydrates, rather than from the
   // layout while the streamed dashboard is still waiting to hydrate.
-  return <SidebarProvider><DashboardContent data={data} /><DomIds /></SidebarProvider>;
+  return <div id="scout-tenant-boundary" data-scout-scope={`${data.workspace?.slug}:${data.workspace?.userId}`}><SidebarProvider><DashboardContent data={data} /><DomIds /></SidebarProvider></div>;
 }
 
 /** Loads one task in place: cached copy at once, fresh copy from /api/tasks/{id}. */
@@ -61,11 +63,11 @@ function useTaskDetail(id: string | undefined, version: string | undefined, live
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
-    const load = () => fetch(`/api/tasks/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal })
+    const load = () => tenantFetch(`/api/tasks/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal })
       .then(async response => {
         if (response.status === 404) throw new Error(`Task ${id} does not exist.`);
         if (!response.ok) throw new Error("The task could not be loaded. Try again shortly.");
-        detailCache.set(id, await response.json() as TaskDetail);
+        detailCache.set(scopeKey(id), await response.json() as TaskDetail);
         setError(null); setTick(tick => tick + 1);
       })
       .catch((reason: Error) => { if (!controller.signal.aborted) setError({ id, message: reason.message }); });
@@ -73,12 +75,12 @@ function useTaskDetail(id: string | undefined, version: string | undefined, live
     const timer = live ? setInterval(load, 5000) : undefined;
     return () => { controller.abort(); if (timer) clearInterval(timer); };
   }, [id, version, live, nonce]);
-  return { detail: id ? detailCache.get(id) : undefined, error: error && error.id === id ? error.message : null, reload: useCallback(() => setNonce(n => n + 1), []) };
+  return { detail: id ? detailCache.get(scopeKey(id)) : undefined, error: error && error.id === id ? error.message : null, reload: useCallback(() => setNonce(n => n + 1), []) };
 }
 
 function DashboardContent({ data }: { data: DashboardData }) {
   const { setOpenMobile } = useSidebar();
-  const [route, setRoute] = useState<Route>({ view: "overview" });
+  const [route, setRoute] = useState<Route>({ view: "chat" });
   const page: View = route.view;
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -153,6 +155,18 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
   useEffect(() => { mainRef.current?.focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }, [page, route.taskId]);
 
+  // A new owner's pending setup opens on an ordinary load. An explicit hash (deep link, #setup, #chat) is never overridden,
+  // and a failed lookup leaves the default view alone.
+  const role = data.workspace?.role;
+  useEffect(() => {
+    if (window.location.hash || !canEdit(role)) return;
+    const controller = new AbortController();
+    fetchSetup(tenantFetch, controller.signal).then(setup => {
+      if (shouldOpenSetup({ hash: window.location.hash, role, status: setup.status })) navigateRef.current({ view: "setup" }, { replace: true });
+    }, () => undefined);
+    return () => controller.abort();
+  }, [role]);
+
   // Once the first view is on screen, warm the data of the views that load separately, so switching to them is instant.
   useEffect(() => {
     const idle = window.requestIdleCallback ?? ((callback: () => void) => window.setTimeout(callback, 1200));
@@ -201,7 +215,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
   let content: React.ReactNode;
   if (route.taskId) content = task.detail ? <TaskDetailView key={route.taskId} detail={task.detail} names={names} onChanged={task.reload} />
-    : task.error ? <div role="alert" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">{task.error} <Link href="/#tasks" className="underline underline-offset-2">Back to tasks</Link></div>
+    : task.error ? <div role="alert" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">{task.error} <Link href="#tasks" className="underline underline-offset-2">Back to tasks</Link></div>
     : <TaskDetailSkeleton id={route.taskId} />;
   else if (page === "tasks") content = <TaskBoard tasks={scout.tasks} names={names} ceo={ceo} filter={filter} seen={seen} onOpen={openTask}
       onFilter={next => navigate({ view: "tasks", filter: next }, { replace: true })} />;
@@ -209,11 +223,25 @@ function DashboardContent({ data }: { data: DashboardData }) {
     : <p role="status" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">Demo scenarios are switched off on this deployment (SCOUT_DEMO is not set).</p>;
   else if (page === "staffing") content = <Staffing data={data} onBack={() => navigate({ view: "overview" })} />;
   else if (page === "transactions") content = <TransactionsView tasks={scout.tasks} />;
-  else if (page === "connections") content = <Connections connections={scout.connections} />;
+  else if (page === "connections") content = <Connections connections={scout.connections} onOpenSetup={canEdit(role) ? () => navigate({ view: "setup" }) : undefined} />;
+  else if (page === "setup") content = <Onboarding role={data.workspace?.role} onContinue={() => navigate({ view: "chat" })} />;
   else if (page === "audit") content = <AuditView />;
   else if (page === "policies") content = <AccessPolicies />;
   else if (page === "llm-usage") content = <LlmUsage active />;
   else if (page === "chat") content = null; // Kept mounted below so the conversation survives page switches.
+  else if (data.year.transactions === 0) content = <div id="scout-empty-overview" className="space-y-6">
+    <section id="scout-empty-organization" aria-labelledby="scout-empty-title" className="flex min-h-[55dvh] flex-col items-center justify-center px-2 py-12 text-center">
+      <div className="mb-5 flex size-12 items-center justify-center rounded-xl border bg-muted/30"><LayoutGrid className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" /></div>
+      <h1 id="scout-empty-title" className="text-xl font-medium tracking-tight">Your workspace is ready</h1>
+      <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">No transactions yet. Your financial overview will appear when data is added to this organization.</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Button id="scout-empty-chat" className="h-11 gap-2" onClick={() => navigate({ view: "chat" })}><MessageSquare className="size-4" aria-hidden="true" />Ask Scout</Button>
+        <Button id="scout-empty-connections" variant="outline" className="h-11 gap-2" onClick={() => navigate({ view: "connections" })}><Plug className="size-4 text-muted-foreground" aria-hidden="true" />View connections</Button>
+      </div>
+      <p className="mt-5 max-w-sm text-xs leading-5 text-muted-foreground">A clean start. No sample records or shared connections.</p>
+    </section>
+    {attentionTasks.length > 0 && <AttentionList tasks={attentionTasks} names={names} onOpen={openTask} onShowAll={() => navigate({ view: "tasks" })} limit={5} />}
+  </div>;
   else content = <div id="scout-overview" className="space-y-4">
     <section className="flex flex-wrap items-end justify-between gap-3">
       <div><h1 className="text-xl font-medium tracking-tight">Overview</h1><p className="mt-1 text-[13px] text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {shortDate(`${data.asOf}T12:00:00Z`)} · {attention} tasks wait on people</p></div>
@@ -252,14 +280,14 @@ function DashboardContent({ data }: { data: DashboardData }) {
   return (
     <>
       <a id="scout-skip-link" href="#main-content" onClick={event=>{event.preventDefault();mainRef.current?.focus();}} className="fixed top-3 left-3 z-50 -translate-y-24 rounded-md bg-primary px-4 py-3 text-sm text-primary-foreground focus:translate-y-0">Skip to content</a>
-      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} user={{ name: ceoName, role: "CEO · dashboard login" }} demo={scout.demo} onNavigate={route => navigate(route)} onSearch={openSearch}
+      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} googleAvailable={data.workspace?.googleAvailable ?? false} organizationSlug={data.workspace?.slug ?? ""} organizationName={data.workspace?.name ?? "Organization"} user={{ name: data.workspace?.userName ?? ceoName, role: data.workspace?.role ?? "Member" }} demo={scout.demo} onNavigate={route => navigate(route)} onSearch={openSearch}
         onNewTask={() => setNotice({ title: "New task", description: "Scout opens tasks from its loops. To ask for something new, DM Scout in Slack, e.g. “what if I buy an oven for 30k in March?” — it appears here under Tasks." })} />
 
       <SidebarInset id="scout-workspace" className="min-w-0 bg-background">
         <header id="scout-topbar" className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur-sm md:px-6">
           <SidebarTrigger aria-label="Toggle navigation" />
           <div className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
-            <span className="hidden text-muted-foreground lg:inline">Pizzeria Amalfi</span><span className="hidden text-muted-foreground lg:inline" aria-hidden="true">/</span>
+            <span className="hidden text-muted-foreground lg:inline">{data.workspace?.name ?? "Organization"}</span><span className="hidden text-muted-foreground lg:inline" aria-hidden="true">/</span>
             <strong className="truncate font-medium">{title}</strong>
           </div>
           <Button id="scout-search-trigger" variant="outline" onClick={openSearch} className="hidden h-8 w-full max-w-xs justify-start gap-2 bg-card text-muted-foreground lg:flex">
@@ -273,11 +301,12 @@ function DashboardContent({ data }: { data: DashboardData }) {
         <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={title}
           className={cn("mx-auto w-full max-w-[1600px] min-w-0 px-4 outline-none md:px-8",
             chat ? "flex h-[calc(100dvh-3rem-5.5rem)] flex-col pt-4 pb-4 md:h-[calc(100dvh-3rem)] md:pt-5 md:pb-5" : "pt-6 pb-28 md:pt-7 md:pb-10")}>
+          {data.workspace?.authNotice && <p id="scout-auth-feedback" role="status" className="mb-5 rounded-md border bg-muted/40 px-4 py-3 text-sm">{data.workspace.authNotice}</p>}
           {content}
           <div hidden={!chat} className={cn(chat && "flex min-h-0 flex-1 flex-col")}><LlmChat active={chat} /></div>
         </section>
 
-        <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-4 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
+        <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-3 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
           {mobileNavigation.map(({route: target, id, label, icon: Icon})=>{ const current = (active?.id ?? null) === id && !route.taskId;
             return <Button key={id} id={`scout-mobile-${id}`} variant={current?"secondary":"ghost"} aria-current={current?"page":undefined} onClick={()=>navigate(target)} className="h-auto min-h-14 flex-col gap-1 text-[11px]"><Icon className="size-4" aria-hidden="true" />{label}</Button>; })}
         </nav>
@@ -312,7 +341,7 @@ function CashEvents({ data }: { data: DashboardData }) {
     {events.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">No expected cash events.</p> :
       <ul>{events.map(event => <li key={event.id} className="flex items-center gap-4 border-b px-4 py-2.5 text-[13px] last:border-b-0">
         <span className="w-14 shrink-0 font-mono text-xs text-muted-foreground">{shortDate(`${event.onDate}T12:00:00Z`)}</span>
-        <span className="min-w-0 flex-1 truncate">{event.label}{event.taskId && <> · <Link href={`/#task/${encodeURIComponent(event.taskId)}`} className="font-mono text-xs text-muted-foreground hover:underline">{event.taskId}</Link></>}</span>
+        <span className="min-w-0 flex-1 truncate">{event.label}{event.taskId && <> · <Link href={`#task/${encodeURIComponent(event.taskId)}`} className="font-mono text-xs text-muted-foreground hover:underline">{event.taskId}</Link></>}</span>
         <span className={`shrink-0 font-mono text-xs ${event.amount > 0 ? "text-success" : ""}`}>{event.amount > 0 ? "+" : ""}{money(event.amount)}</span>
       </li>)}</ul>}
   </section>;

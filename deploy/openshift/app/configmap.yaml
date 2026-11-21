@@ -21,13 +21,17 @@ data:
   # Scout: the mock bank the worker polls (and the API posts demo payments to), and the job-queue threads.
   BANK_API_URL: "http://bank-mock:8010"
   SCOUT_WORKERS: "4"
+  # Explicit legacy worker binding; startup still refuses until an operator enrolls the intended owner.
+  SCOUT_ORGANIZATION_ID: "00000000-0000-4000-8000-000000000001"
+  # SCOUT_LEGACY_CONNECTORS_ORGANIZATION is deliberately absent: authorize legacy integrations separately.
   DATA_DIR: "/app/data/generated"
   WORKSTATIONS_ROOT: "/app/data/generated/workstations"
   DASHBOARD_URL: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"  # task links; Slack icon at /scout-icon.png
+  SCOUT_APP_ORIGIN: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"
   GOOGLE_REDIRECT_URI: "https://api-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com/v1/connections/google/callback"
-  SCOUT_DEMO: "1"  # demo panel + POST /v1/demo/play (needs the write token anyway)
-  # Browser origins allowed by the API; `*` until the dashboard has a fixed URL.
-  CORS_ORIGINS: "*"
+  SCOUT_DEMO: "0"  # demo/connection mutation endpoints remain closed under organization auth
+  # CORS is not authorization; every data route independently verifies the session and membership.
+  CORS_ORIGINS: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
   MLFLOW_TRACKING_URI: "http://mlflow:5000"
   # LLM usage and cost (T032): vLLM Prometheus metrics, scraped by Deployment usage-sampler.

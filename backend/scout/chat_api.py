@@ -6,7 +6,11 @@ write token stands for the dashboard owner). Streams NDJSON so the page can show
     {"type": "file", "name": "invoices-2026-11-21.csv", "mime": "text/csv", "data_b64": "...", "sent_to_slack": true}
     {"type": "delta", "text": "<the answer>"}
     {"type": "done", "truncated": false, "task_id": "SC-123", "followups": false}
-        (followups: something started in this turn reports back later as a `followup` step on the task)
+        (followups: something started in this turn, or a message Scout sent that is still unanswered, reports back
+        later as a `followup` step on the task)
+
+`POST /v1/chat/followups/ack` {task_id, step_ids}: the open dashboard chat showed these followup steps (a colleague's
+reply to a message Scout sent); only then is the Slack fallback for them skipped.
     {"type": "error", "message": "..."}
 
 Each conversation turn is a `chat` task with its step log and audit trail, like any other Scout task.
@@ -29,7 +33,8 @@ from pydantic import BaseModel, Field
 from cfo.api.auth import require_write_token
 from cfo.api.errors import ApiError
 from scout import db as scout_db
-from scout import guardrails
+from scout import dm_replies, guardrails
+from scout.api import Conn, WriteAuth
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
@@ -58,6 +63,8 @@ def build_context(settings: ScoutSettings) -> JobContext:
     from cfo.llm import get_llm
     from cfo.observability import traced_llm
 
+    from scout.config import tenant_settings
+    settings = tenant_settings(settings)
     cf = scout_db.factory(settings.database_url)
     audit = Audit(cf)
     from scout.worker import parse_user_map
@@ -172,8 +179,13 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted)
                 reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
                 ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
-                ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
-                                        level="AUTO")
+                waiting_on = dm_replies.pending_count(ctx.conn_factory, task.id)
+                if waiting_on:  # a colleague still owes an answer to a message sent for this chat
+                    ctx.recorder.set_status(task.id, "waiting", outcome=reply.split("\n")[0][:300])
+                    awaiting.append(True)
+                else:
+                    ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
+                                            level="AUTO")
             for f in files:  # sent before the answer that mentions them
                 events.put(f)
             events.put({"type": "delta", "text": reply})
@@ -186,7 +198,9 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
         finally:
             events.put(None)
 
-    threading.Thread(target=run, name=f"chat-{task.id}", daemon=True).start()
+    from contextvars import copy_context
+    bound_context = copy_context()
+    threading.Thread(target=bound_context.run, args=(run,), name=f"chat-{task.id}", daemon=True).start()
 
     def stream() -> Iterator[str]:
         while True:
@@ -201,3 +215,15 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
 
     return StreamingResponse(stream(), media_type="application/x-ndjson",
                              headers={"Cache-Control": "private, no-store", "X-Accel-Buffering": "no"})
+
+
+class AckRequest(BaseModel):
+    task_id: str = Field(pattern=r"^SC-\d{1,12}$")
+    step_ids: list[int] = Field(min_length=1, max_length=50)
+
+
+@router.post("/chat/followups/ack", summary="The open dashboard chat showed these followup steps")
+def ack_followups(body: AckRequest, conn: Conn, by: WriteAuth,
+                  settings: Annotated[ScoutSettings, Depends(get_scout_settings)]) -> dict[str, Any]:
+    owner = by or settings.ceo_id
+    return {"acknowledged": dm_replies.acknowledge(conn, body.task_id, owner, body.step_ids)}

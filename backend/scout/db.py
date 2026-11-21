@@ -20,14 +20,20 @@ def connect(url: str | None = None, schema: str | None = None, *, autocommit: bo
         from scout.config import get_scout_settings
 
         url = get_scout_settings().database_url
-    kwargs: dict = {"row_factory": dict_row, "autocommit": autocommit}
-    if schema:
-        kwargs["options"] = f"-csearch_path={schema}"
-    return psycopg.connect(url, **kwargs)
+    from cfo.tenancy import connect as scoped_connect
+    return scoped_connect(url, schema=schema, autocommit=autocommit)
 
 
 def factory(url: str | None = None, schema: str | None = None) -> ConnFactory:
-    return lambda: connect(url, schema)
+    from cfo.tenancy import bind_tenant, current_tenant, scoped_schema
+    bound, name = current_tenant(required=False), scoped_schema(schema)
+    # Capture at construction, not at invocation: chat/worker threads may have a different context.
+    def open_connection():
+        if bound is not None:
+            with bind_tenant(bound):
+                return connect(url, name)
+        return connect(url, name)
+    return open_connection
 
 
 def apply_schema(conn: psycopg.Connection) -> None:
@@ -38,13 +44,12 @@ def apply_schema(conn: psycopg.Connection) -> None:
 
 
 def notify(conn: psycopg.Connection, channel: str, payload: str) -> None:
-    conn.execute("SELECT pg_notify(%s, %s)", (channel, payload))
+    conn.execute("SELECT pg_notify(%s || '_' || current_schema(), %s)", (channel, payload))
 
 
 def postgres_checkpointer(url: str | None = None, schema: str | None = None):  # noqa: ANN201
     """LangGraph Postgres saver: a pending approval survives a worker restart (thread id = task id)."""
     from langgraph.checkpoint.postgres import PostgresSaver
 
-    saver = PostgresSaver(connect(url, schema, autocommit=True))
-    saver.setup()
-    return saver
+    # Tables are installed by opt-in provisioning, not by worker startup.
+    return PostgresSaver(connect(url, schema, autocommit=True))

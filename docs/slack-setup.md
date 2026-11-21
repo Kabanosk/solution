@@ -4,9 +4,10 @@ The bot uses Slack **Socket Mode**: it opens an outgoing websocket to Slack, so 
 OpenShift route is needed. Setup takes about 10 minutes. You need to be able to install apps in the workspace
 (the owner of a fresh workspace can).
 
-What the bot does in Slack: DMs employees (every message starts with its level label `[AUTO]`, `[NOTIFY]`,
-`[APPROVAL]` or `[SIMULATED]`), shows Approve / Reject buttons to the CEO, and answers free-text DMs from known
-employees. Code: `backend/cfo/channels/` (`base.py` is the interface, `slack.py` the Slack adapter).
+What Scout does in Slack: DMs employees (messages start with a level label such as `[AUTO]`, `[NOTIFY]`,
+`[MESSAGE]`, `[APPROVAL]` or `[SIMULATED]`), shows approval buttons, answers known employees' DMs, and continues
+channel conversations in the thread where someone mentioned Scout. Code: `backend/scout/slack_ui.py` and
+`backend/scout/worker.py`.
 
 ## 1. Create a workspace
 
@@ -57,34 +58,35 @@ slugs of the HR sheet). This is the supported way; the HR sheet carries no Slack
 SLACK_USER_MAP=vincenzo=U01AAAAAAA,grazyna=U02BBBBBBB,rosa=U03CCCCCCC
 ```
 
-Answers to `@Autonomous CFO` mentions in a channel never appear in the channel: the bot sends them to the asker as a
-DM and shows only an ephemeral "I answered you in a DM" in the channel (visible to the asker alone). The bot has to
-be a member of the channel to see the mention. Every bot message, including those ephemeral notes, starts with a
-level label.
+Mention `@Scout` in a channel to start a conversation. Scout answers in that same thread; later replies there
+continue it without another mention and retain its earlier context. Unrelated channel messages and threads are
+ignored. Scout must be a member of the channel, and its Slack app must subscribe to `app_mention`,
+`message.channels` and `message.groups` (alongside `message.im` for DMs). These channel-message events are needed
+even when `app_mention` is already enabled: Slack does not emit another mention event for an ordinary thread reply.
+
+For an existing app, apply the updated manifest in **App Manifest**, or enable these events in **Event Subscriptions**.
+A code rollout alone cannot change Slack's event subscriptions. Existing `channels:history` and `groups:history`
+scopes are listed in the manifest; reinstall the app if Slack requests newly granted scopes.
 
 Messages from people who are not mapped are never passed to the agent (the bot replies that it only talks to
 registered people), and their button clicks are ignored.
 
 ## 5. Check it works
 
-1. Start the backend as usual (it calls `SlackNotifier.from_settings(employees).start()`), or try it from a shell:
+1. Start the configured Scout worker (the API serves dashboard requests; the worker owns Slack Socket Mode):
+
+   ```bash
+   uv run --project backend python -m scout.worker
    ```
-   uv run --project backend python -c "
-   from cfo.channels.base import approval_actions
-   from cfo.channels.slack import SlackNotifier
-   from cfo.domain import Employee, PolicyLevel
-   ceo = Employee(id='vincenzo', name='Vincenzo', role='CEO', slack_user_id='U01AAAAAAA')
-   n = SlackNotifier.from_settings([ceo])
-   n.on_approval(print)
-   n.start()
-   n.send_dm(ceo, 'Test: request a EUR 30,000 credit line?', PolicyLevel.APPROVAL, approval_actions('apr_test'))
-   import time; time.sleep(120)
-   "
-   ```
-2. In Slack, open the **Autonomous CFO** app (under Apps in the sidebar, tab **Messages**). A message labelled
-   `[APPROVAL]` with **Approve** and **Reject** buttons arrives. Clicking one prints an `ApprovalAnswer` in the
-   shell and replaces the buttons with "Approved by Vincenzo".
-3. Type a sentence into the same DM: it reaches the chat handler registered with `on_chat`.
+
+2. From a mapped Slack account, mention Scout in a channel it belongs to. Confirm its answer is in the mention's
+   thread, then reply there **without another mention**. Confirm the next answer stays in the same thread and
+   understands the previous question. A normal message elsewhere in the channel must not trigger Scout.
+3. Ask Scout in dashboard chat to message another mapped employee. Reply in that employee's exact message thread.
+   With the dashboard chat active, confirm the reply appears as an attributed update. With that chat closed or a
+   different dashboard page active, confirm the requester receives a `[MESSAGE]` Slack fallback after about 12 seconds.
+4. Automated regression tests use FakeSlack/FakeLLM and isolated local Postgres schemas; they do not message real
+   people. Live checks like steps 2–3 are deliberate employee messages and should be performed only when authorized.
 
 ## Troubleshooting
 

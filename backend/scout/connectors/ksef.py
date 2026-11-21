@@ -60,6 +60,14 @@ def random_nip(rng: random.Random | None = None) -> str:
             return "".join(map(str, digits)) + str(check)
 
 
+def valid_nip(nip: str) -> bool:
+    """Ten digits with the official NIP check digit."""
+    if len(nip) != 10 or not nip.isdigit():
+        return False
+    check = sum(int(a) * b for a, b in zip(nip[:9], (6, 5, 7, 2, 3, 4, 5, 6, 7))) % 11
+    return check != 10 and check == int(nip[9])
+
+
 def seal_certificate(nip: str, name: str) -> tuple[rsa.RSAPrivateKey, x509.Certificate]:
     """Self-signed equivalent of a qualified company seal: organizationIdentifier VATPL-<NIP> (TE only)."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -326,6 +334,13 @@ class KsefClient:
             if not page.get("hasMore"):
                 return out
             offset += 1
+
+    def verify_read(self, token: str, since: dt.datetime) -> int:
+        """One read-only metadata query (first page only): proves the access token works. Returns the page size."""
+        body = {"subjectType": "Subject2", "dateRange": {"dateType": "PermanentStorage", "from": since.isoformat()}}
+        page = self._call("POST", "/invoices/query/metadata", token, json=body,
+                          params={"pageSize": 10, "pageOffset": 0, "sortOrder": "Asc"}).json()
+        return len(page.get("invoices", []))
 
     def download(self, token: str, ksef_number: str) -> bytes:
         return self._call("GET", f"/invoices/ksef/{ksef_number}", token).content

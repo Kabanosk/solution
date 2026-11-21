@@ -1,8 +1,7 @@
 import "server-only";
-import { headers } from "next/headers";
 import { Pool, type PoolClient } from "pg";
-import { authorized } from "./auth";
-import { isDevelopmentPreview } from "./development-preview";
+import { requireSession } from "./auth";
+import { apiFetch } from "./scout-api";
 import { decimalCents, displayCents, financePeriod, quarterSpend, type DashboardData, type Forecast } from "./finance-model";
 import { loadRecords, loadScout, loadTaskDetail } from "./scout";
 import type { RecordKind, ScoutRecords, TaskDetail } from "./scout-model";
@@ -12,6 +11,7 @@ let pool: Pool | undefined;
 function database() {
   if (pool) return pool;
   pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
     host: process.env.PGHOST, port: Number(process.env.PGPORT ?? 5432),
     database: process.env.PGDATABASE, user: process.env.PGUSER, password: process.env.PGPASSWORD,
     max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 30000,
@@ -21,38 +21,17 @@ function database() {
   return pool;
 }
 
-// The forecast is the same for every viewer and only moves when bookings change, but the API runs the model on
-// every call (100-250 ms). Cache it in-process: fresh for 60 s, then served stale while one refresh runs.
-const FORECAST_FRESH_MS = 60_000;
-const FORECAST_STALE_MS = 15 * 60_000;
+// Forecast responses are request-local. Never share a tenant-trained forecast across sessions.
 /** The two runs the overview shows: 90 days by day and 12 months by week. */
 const HORIZONS = { quarter: "horizon_days=90&granularity=day", year: "horizon_days=365&granularity=week" } as const;
 type Horizon = keyof typeof HORIZONS;
-const forecastCache = new Map<Horizon, { value: Forecast | null; at: number }>();
-const forecastInFlight = new Map<Horizon, Promise<Forecast | null>>();
-
-function forecast(horizon: Horizon): Promise<Forecast | null> {
-  const cached = forecastCache.get(horizon);
-  const age = cached ? Date.now() - cached.at : Infinity;
-  if (cached && age < FORECAST_FRESH_MS) return Promise.resolve(cached.value);
-  let inFlight = forecastInFlight.get(horizon);
-  if (!inFlight) {
-    inFlight = fetchForecast(HORIZONS[horizon]).then(value => {
-      // A failed refresh keeps the last good forecast until it is too old to show.
-      const previous = forecastCache.get(horizon);
-      if (value || !previous || Date.now() - previous.at > FORECAST_STALE_MS) forecastCache.set(horizon, { value, at: Date.now() });
-      return forecastCache.get(horizon)?.value ?? value;
-    }).finally(() => { forecastInFlight.delete(horizon); });
-    forecastInFlight.set(horizon, inFlight);
-  }
-  return age < FORECAST_STALE_MS && cached?.value ? Promise.resolve(cached.value) : inFlight;
-}
+function forecast(horizon: Horizon): Promise<Forecast | null> { return fetchForecast(HORIZONS[horizon]); }
 
 const money = (value: { amount: string }) => displayCents(decimalCents(value.amount));
 
 async function fetchForecast(query: string): Promise<Forecast | null> {
   try {
-    const response = await fetch(`${process.env.CFO_API_URL ?? "http://api:8000"}/v1/forecast/liquidity?${query}`, {
+    const response = await apiFetch(`/v1/forecast/liquidity?${query}`, {
       cache: "no-store", signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) return null;
@@ -73,10 +52,9 @@ async function fetchForecast(query: string): Promise<Forecast | null> {
   }
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(slug?: string): Promise<DashboardData> {
   // Enforce access at the data boundary too, including RSC and route requests.
-  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
-  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewData();
+  const session = await requireSession(slug);
   // The forecast comes from the API, the rest from Postgres: run both at once instead of one after the other.
   const forecastPromises = [forecast("quarter"), forecast("year")] as const;
   const client = await database().connect().catch(() => {
@@ -85,12 +63,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   let result: Omit<DashboardData, "forecast" | "forecastYear">;
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query("SELECT set_config('search_path',$1,true)", [session.schema]);
     const summary = (await client.query(`
       SELECT to_char(max(booking_date), 'YYYY-MM-DD') AS as_of,
         coalesce((sum(amount) * 100)::bigint, 0)::text AS balance,
         count(*) FILTER (WHERE amount < 0 AND invoice_number IS NOT NULL AND NOT documented)::text AS undocumented
       FROM transactions`)).rows[0];
-    if (!summary.as_of) throw new Error("No company transactions available");
+    summary.as_of ??= new Date().toISOString().slice(0, 10);
     const periods = (await client.query(`
       SELECT CASE WHEN extract(month FROM booking_date) >= 10 THEN 'q4' ELSE 'earlier' END AS period,
         category, count(*)::text AS count,
@@ -140,7 +119,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       )
       SELECT to_char(q.start, 'YYYY-MM-DD') AS start, to_char(q.through, 'YYYY-MM-DD') AS through, rows.*
         FROM q LEFT JOIN rows ON true`)).rows;
-    const scout = await loadScout(client);
+    const scout = { ...await loadScout(client), ceoId: session.employeeId, demo: false };
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -149,7 +128,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
       undocumentedPayments: Number(summary.undocumented), scout, generatedAt: new Date().toISOString(),
-      quarterSpend: quarterSpend(quarter[0]?.start ?? null, quarter[0]?.through ?? null, quarter.filter(row => row.name !== null)),
+      quarterSpend: quarterSpend(quarter[0]?.start ?? summary.as_of, quarter[0]?.through ?? summary.as_of, quarter.filter(row => row.name !== null)),
     };
   } catch {
     await client.query("ROLLBACK").catch(() => {});
@@ -159,16 +138,18 @@ export async function getDashboardData(): Promise<DashboardData> {
     client.release();
   }
   const [quarterForecast, yearForecast] = await Promise.all(forecastPromises);
-  return { ...result, forecast: quarterForecast, forecastYear: yearForecast };
+  return { ...result, workspace: { slug: session.slug, name: session.organizationName, userId: session.userId, userName: session.name, role: session.role, googleAvailable: Boolean(process.env.SCOUT_GOOGLE_CLIENT_ID && process.env.SCOUT_GOOGLE_CLIENT_SECRET) }, forecast: quarterForecast, forecastYear: yearForecast };
 }
 
 /** Runs read-only queries in one REPEATABLE READ transaction; errors never expose SQL or connection details. */
 async function readOnly<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const session = await requireSession();
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query("SELECT set_config('search_path',$1,true)", [session.schema]);
     const value = await work(client);
     await client.query("COMMIT");
     return value;
@@ -182,14 +163,12 @@ async function readOnly<T>(work: (client: PoolClient) => Promise<T>): Promise<T>
 
 /** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
 export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
-  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
-  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewTask(id);
+  await requireSession();
   return readOnly(client => loadTaskDetail(client, id));
 }
 
 /** The audit log or the transaction list, for the views that show them. */
 export async function getRecords<K extends RecordKind>(kind: K): Promise<ScoutRecords[K]> {
-  if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
-  if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewRecords()[kind];
+  await requireSession();
   return readOnly(client => loadRecords(client, kind));
 }

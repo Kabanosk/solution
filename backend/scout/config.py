@@ -29,6 +29,10 @@ class ScoutSettings(BaseSettings):
     google_mail_label: str = "Amalfi"
     connections_key: str = ""  # Fernet key (urlsafe base64, 32 bytes)
     oauth_state_secret: str = ""
+    # Dedicated provider app registrations for workspace onboarding (server-side only; never identity sign-in credentials).
+    scout_app_origin: str = ""  # same public origin as the dashboard; OAuth redirects must equal it + /api/onboarding/callback/<provider>
+    slack_client_id: str = ""
+    slack_client_secret: str = ""
     dashboard_url: str = "http://127.0.0.1:3000"
     scout_icon_url: str = ""  # public PNG for the Slack avatar; default: <dashboard_url>/scout-icon.png on https
     ceo_id: str = "vincenzo"
@@ -52,6 +56,22 @@ class ScoutSettings(BaseSettings):
         if isinstance(v, str) and not v.strip().startswith("["):
             return [c.strip().lstrip("#") for c in v.split(",") if c.strip()]
         return v
+
+
+def tenant_settings(settings: ScoutSettings) -> ScoutSettings:
+    """Never hand global integration credentials or seeded identities to a new organization."""
+    from cfo.tenancy import current_tenant, legacy_connectors_enabled
+    tenant = current_tenant()
+    if legacy_connectors_enabled(tenant):
+        return settings
+    # Kept: the server's OAuth app registrations and sealing master secret (app-level, no tenant data). Everything that
+    # is a global bot token, channel, mailbox label, file root or seeded identity is still removed.
+    return settings.model_copy(update={
+        "slack_bot_token": "", "slack_app_token": "", "slack_user_map": "", "chat_channels": [],
+        "google_mail_label": "", "oauth_state_secret": "",
+        "bank_api_url": "", "workstations_root": "", "data_dir": "", "scout_demo": False,
+        "ceo_id": tenant.employee_id or "", "document_owner_id": tenant.employee_id or "",
+    })
 
 
 @lru_cache

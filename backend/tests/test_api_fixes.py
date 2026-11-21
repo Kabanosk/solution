@@ -12,8 +12,9 @@ from datetime import date
 from decimal import Decimal
 
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api.app import create_app
 from cfo.api.deps import get_repo
@@ -51,7 +52,7 @@ def db_url():
 
 @pytest.fixture
 def repo(db_url):
-    r = Repository.connect(db_url)
+    r = operator_repository(db_url)
     yield r
     r.conn.close()
 
@@ -60,7 +61,7 @@ def make_client(db_url: str) -> TestClient:
     app = create_app()
 
     def repo_override():
-        with Repository.connect(db_url) as r:
+        with operator_repository(db_url) as r:
             yield r
 
     app.dependency_overrides[get_repo] = repo_override
@@ -70,12 +71,12 @@ def make_client(db_url: str) -> TestClient:
 # --- (22) write token --------------------------------------------------------------------------------------
 
 
-def test_openapi_declares_the_bearer_scheme_on_writes():
+def test_openapi_requires_session_and_organization_for_all_data():
     spec = create_app().openapi()
-    assert spec["components"]["securitySchemes"]["WriteToken"]["scheme"] == "bearer"
-    for path in WRITE_PATHS:
-        assert {"WriteToken": []} in spec["paths"][path]["post"]["security"], path
-    assert "security" not in spec["paths"]["/v1/approvals"]["get"]
+    assert spec["components"]["securitySchemes"]["SessionToken"]["scheme"] == "bearer"
+    assert spec["components"]["securitySchemes"]["Organization"]["name"] == "X-Scout-Organization"
+    assert spec["security"] == [{"SessionToken": [], "Organization": []}]
+    assert spec["paths"]["/healthz"]["get"]["security"] == []
 
 
 def test_token_with_a_trailing_newline_still_protects(monkeypatch):
@@ -83,8 +84,8 @@ def test_token_with_a_trailing_newline_still_protects(monkeypatch):
     get_api_settings.cache_clear()
     try:
         client = TestClient(create_app(), raise_server_exceptions=False)
-        assert client.post("/v1/demo/play/nope").status_code == 401
-        assert client.post("/v1/demo/play/nope", headers=AUTH).status_code != 401
+        assert client.post("/v1/demo/play/nope", headers={"Authorization": ""}).status_code == 401
+        assert client.post("/v1/demo/play/nope", headers=AUTH).status_code == 401
     finally:
         monkeypatch.delenv("API_WRITE_TOKEN")
         get_api_settings.cache_clear()

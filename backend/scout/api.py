@@ -86,10 +86,13 @@ def list_tasks(conn: Conn, status: str | None = None, loop: str | None = None, o
 
 @router.get("/tasks/stream", tags=["tasks"], summary="Server-Sent Events: `task` with the id of a changed task")
 def task_stream(settings: Settings) -> StreamingResponse:
+    from cfo.tenancy import current_tenant
+    from psycopg import sql
+    tenant = current_tenant()
     def events() -> Iterator[str]:
-        conn = scout_db.connect(settings.database_url, autocommit=True)
+        conn = scout_db.connect(settings.database_url, tenant.schema_name, autocommit=True)
         try:
-            conn.execute("LISTEN scout_tasks")
+            conn.execute(sql.SQL("LISTEN {}").format(sql.Identifier("scout_tasks_" + tenant.schema_name)))
             yield "retry: 3000\n\n"
             while True:
                 got = False
@@ -138,7 +141,7 @@ def _answer(approval_id: str, approved: bool, conn: Any, by: str | None, setting
     conn.execute("INSERT INTO agent_jobs (kind, payload, dedupe_key) VALUES ('approval', %s, %s) "
                  "ON CONFLICT (dedupe_key) DO NOTHING",
                  (Jsonb({"approval_id": approval_id, "approved": approved, "by": who}), f"approval:{approval_id}"))
-    conn.execute("SELECT pg_notify('scout_jobs', 'approval')")
+    scout_db.notify(conn, "scout_jobs", "approval")
     conn.commit()
     return {"status": "queued", "approval_id": approval_id, "task_id": apr["task_id"], "approved": approved}
 
@@ -228,7 +231,10 @@ def slack_scopes(token: str) -> list[str] | None:
 def connections(conn: Conn, settings: Settings) -> dict[str, Any]:
     rows = conn.execute("SELECT c.*, (cc.connection_id IS NOT NULL) AS has_credentials FROM connections c "
                         "LEFT JOIN connection_credentials cc ON cc.connection_id = c.id ORDER BY c.kind, c.id").fetchall()
+    from cfo.tenancy import legacy_connectors_enabled
     items = [_jsonable(r) for r in rows]
+    if not legacy_connectors_enabled():
+        return {"items": items}
     for it in items:
         if it["id"] == "slack":
             granted = slack_scopes(settings.slack_bot_token)

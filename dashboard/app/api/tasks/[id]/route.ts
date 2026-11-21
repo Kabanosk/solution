@@ -1,4 +1,4 @@
-import { authorized } from "@/lib/auth";
+import { currentSession } from "@/lib/auth";
 import { getTaskDetail } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ const privateHeaders = { "Cache-Control": "private, no-store" };
 
 /** One task with steps, approval and audit, so the dashboard can open it in place without a page load. */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!authorized(request.headers.get("authorization"))) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+  if (!await currentSession()) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
   const { id } = await params;
   try {
     const detail = await getTaskDetail(decodeURIComponent(id));

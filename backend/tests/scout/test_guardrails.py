@@ -9,7 +9,7 @@ import json
 import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api.errors import install_error_handlers
 from cfo.api.settings import get_api_settings
@@ -432,12 +432,16 @@ def test_default_chat_context_has_guardrails_and_tracing(conn_factory, monkeypat
     from cfo.observability import _TracedLLM
     from scout.config import ScoutSettings
 
+    from cfo.tenancy import LEGACY_ID, LEGACY_SLUG, Tenant, bind_tenant
+
     monkeypatch.setattr(chat_api.scout_db, "factory", lambda url=None, schema=None: conn_factory)
-    ctx = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x",
-                                               guardrails_url="https://guard.example", guardrails_token="t"))
-    assert ctx.guard.enabled and isinstance(ctx.llm, _TracedLLM)
-    off = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x"))
-    assert not off.guard.enabled
+    legacy = Tenant(id=LEGACY_ID, slug=LEGACY_SLUG, schema_name="public", employee_id=None, role="owner", legacy=True)
+    with bind_tenant(legacy):  # the dashboard chat always runs for a verified organization
+        ctx = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x",
+                                                   guardrails_url="https://guard.example", guardrails_token="t"))
+        assert ctx.guard.enabled and isinstance(ctx.llm, _TracedLLM)
+        off = chat_api.build_context(ScoutSettings(database_url="postgresql://unused@localhost/x"))
+        assert not off.guard.enabled
 
 
 def _chat_client(ctx, monkeypatch):  # noqa: ANN001, ANN202
@@ -588,9 +592,9 @@ def test_documents_are_off_without_a_token_and_after_a_rejection_and_every_downl
     task = run_txn(ctx, pay(ctx, "poisoned"))
     doc_id = _keep(conn_factory, task.id)
     off = _documents_client(conn_factory, monkeypatch, token=None)
-    assert off.get(f"/v1/documents/{doc_id}").status_code == 503  # unset token: closed, never open
+    assert off.get(f"/v1/documents/{doc_id}", headers={"Authorization": ""}).status_code in (401, 503)  # unset token: closed, never open (the organization auth middleware answers first)
     c = _documents_client(conn_factory, monkeypatch)
-    assert c.get(f"/v1/documents/{doc_id}").status_code == 401
+    assert c.get(f"/v1/documents/{doc_id}", headers={"Authorization": ""}).status_code == 401
     assert c.get(f"/v1/documents/{doc_id}", headers={"Authorization": "Bearer tok"}).status_code == 200  # pending
     liquidity.resume(ctx, task.approval_id, False, "vincenzo")
     assert c.get(f"/v1/documents/{doc_id}", headers={"Authorization": "Bearer tok"}).status_code == 403
@@ -843,7 +847,7 @@ def test_approved_flagged_document_is_kept_and_served_with_the_write_token(conn_
     get_api_settings.cache_clear()
     c = TestClient(app)
     url = f"/v1/documents/{ev['document_id']}"
-    assert c.get(url).status_code == 401
+    assert c.get(url, headers={"Authorization": ""}).status_code == 401
     r = c.get(url, headers={"Authorization": "Bearer tok"})
     assert r.status_code == 200 and r.content == bytes(row["content"])
     assert "attachment" in r.headers["content-disposition"] and r.headers["x-content-type-options"] == "nosniff"

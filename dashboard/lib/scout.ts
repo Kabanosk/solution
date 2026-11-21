@@ -1,6 +1,7 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { displayCents } from "./finance-model";
+import { connectionDisplayConfig } from "./connection-display";
 import type { AgentTask, AuditRow, CashEvent, Connection, ScoutData, ScoutRecords, TaskDetail, TaskStep, TransactionInfo, TransactionRow } from "./scout-model";
 
 // Read-only queries over the Scout tables (backend/scout/schema.sql). Timestamps are rendered as UTC ISO strings
@@ -41,7 +42,7 @@ export async function loadScout(client: PoolClient): Promise<ScoutData> {
   const connections: Connection[] = (await client.query(`SELECT id, kind, provider, enabled, display_name, config, status,
       ${iso("last_sync_at")} AS last_sync_at, last_error FROM connections ORDER BY id`)).rows.map(row => ({
     id: row.id, kind: row.kind, provider: row.provider, enabled: row.enabled, displayName: row.display_name,
-    config: row.config ?? {}, status: row.status, lastSyncAt: row.last_sync_at, lastError: row.last_error,
+    config: connectionDisplayConfig(row.id, row.config), status: row.status, lastSyncAt: row.last_sync_at, lastError: row.last_error,
   }));
   const cashEvents: CashEvent[] = (await client.query(`SELECT id::int AS id, to_char(on_date, 'YYYY-MM-DD') AS on_date,
       ${cents("amount")} AS amount, label, task_id FROM expected_cash_events

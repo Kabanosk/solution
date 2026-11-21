@@ -1,4 +1,4 @@
-import { authorized } from "@/lib/auth";
+import { currentSession } from "@/lib/auth";
 import { CHAT_MODELS, ChatInputError, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatEvent } from "@/lib/chat-model";
 import { apiFetch } from "@/lib/scout-api";
 
@@ -7,14 +7,14 @@ export const runtime = "nodejs";
 const privateHeaders = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: Request) {
-  if (!authorized(request.headers.get("authorization"))) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+  if (!await currentSession()) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
   return Response.json({ models: CHAT_MODELS }, { headers: privateHeaders });
 }
 
 // Scout chat: proxies to the Scout API's POST /v1/chat (which runs Scout's tools) with the server-only write token,
 // and passes its NDJSON events (step, delta, done, error) through to the browser after validation.
 export async function POST(request: Request) {
-  if (!authorized(request.headers.get("authorization"))) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
+  if (!await currentSession()) return Response.json({ error: "Access denied" }, { status: 401, headers: privateHeaders });
   let input: ReturnType<typeof parseChatRequest>;
   try { input = parseChatRequest(await readChatBody(request)); }
   catch (error) { return Response.json({ error: error instanceof ChatInputError ? error.message : "Invalid chat request." }, { status: 400, headers: privateHeaders }); }

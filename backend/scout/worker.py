@@ -17,12 +17,13 @@ from collections.abc import Callable
 from typing import Any
 
 from scout import db as scout_db
+from scout import dm_replies
 from scout import guardrails
 from cfo.observability import span
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
-from scout.jobs import JobQueue
+from scout.jobs import MAX_ATTEMPTS, JobQueue
 from scout.loops import chat, cost_control, invoicing, liquidity
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
@@ -54,6 +55,7 @@ HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "cost_check": cost_control.run,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,
     "dm": chat.run,
+    "dm_reply_notify": dm_replies.notify,
     "approval": _approval,
 }
 
@@ -74,6 +76,11 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
     p = job.payload
     if p.get("task_id"):
         return p["task_id"]
+    if job.kind == "dm_reply_notify":  # the chat that asked: a notification that could not be sent must be seen
+        with ctx.conn_factory() as conn:
+            row = conn.execute("SELECT r.task_id FROM dm_replies p JOIN dm_requests r ON r.id = p.request_id "
+                               "WHERE p.id = %s", (p.get("reply_id"),)).fetchone()
+        return row["task_id"] if row else None
     if job.kind == "bank_txn":
         t = ctx.recorder.by_key(f"txn:{p['txn']['id']}")
         return t.id if t else None
@@ -86,16 +93,27 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
 
 class Worker:
     def __init__(self, ctx: JobContext, n_threads: int = 4, *, watchers: list[tuple[float, Callable[[], Any]]] = ()):
+        from cfo.tenancy import current_tenant
+        self.tenant = current_tenant(required=False)
         self.ctx, self.n = ctx, n_threads
         self.watchers = list(watchers)
         self._id = f"{socket.gethostname()}"
 
     def run_one(self, worker_id: str = "w") -> bool:
         """Claim and run one job. False when the queue had nothing ready."""
+        if self.tenant is not None:
+            from cfo.tenancy import bind_tenant
+            with bind_tenant(self.tenant):
+                return self._run_one(worker_id)
+        return self._run_one(worker_id)
+
+    def _run_one(self, worker_id: str) -> bool:
         job = self.ctx.jobs.claim(f"{self._id}:{worker_id}")
         if job is None:
             return False
         try:
+            if job.attempts > MAX_ATTEMPTS:
+                raise RuntimeError("Retry limit reached after an interrupted worker")
             with span(f"scout.{job.kind}", inputs={"job": job.id, "kind": job.kind}):  # one trace per job
                 result = HANDLERS[job.kind](self.ctx, job)
         except Exception as e:  # noqa: BLE001
@@ -131,6 +149,13 @@ class Worker:
                 stop.wait(2)
 
     def _watch(self, stop: threading.Event) -> None:
+        if self.tenant is not None:
+            from cfo.tenancy import bind_tenant
+            with bind_tenant(self.tenant):
+                return self._watch_bound(stop)
+        return self._watch_bound(stop)
+
+    def _watch_bound(self, stop: threading.Event) -> None:
         last = [0.0] * len(self.watchers)
         while not stop.is_set():
             now = time.monotonic()
@@ -158,14 +183,23 @@ class Worker:
 def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
     """Everything wired from the environment. Returns the worker and the Slack socket handler (or None)."""
     from cfo.llm import get_llm
-    from cfo.observability import init_tracing, traced_llm
+    from cfo.observability import init_tracing
+
+    from cfo.tenancy import bind_tenant, worker_tenant
 
     init_tracing()  # MLflow traces of Scout's LLM calls and guardrail checks; a no-op without MLFLOW_TRACKING_URI
     s = settings or get_scout_settings()
+    tenant = worker_tenant(s.database_url)
+    with bind_tenant(tenant):
+        return _build(s)
+
+
+def _build(s: ScoutSettings) -> tuple[Worker, Any]:
+    from cfo.llm import get_llm
+    from cfo.observability import traced_llm
+    from scout.config import tenant_settings
+    s = tenant_settings(s)
     cf = scout_db.factory(s.database_url)
-    conn = cf()
-    scout_db.apply_schema(conn)
-    conn.close()
     audit, recorder, jobs = Audit(cf), TaskRecorder(cf), JobQueue(cf)
     user_map = parse_user_map(s.slack_user_map)
     slack_client, socket_handler, notifier, names = None, None, LogNotifier(), {}

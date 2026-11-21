@@ -1,5 +1,5 @@
 // A small Markdown subset for chat answers: headings, paragraphs, bullet / numbered lists, fenced code, bold,
-// italic, inline code and http(s) links. It produces plain data; the React renderer never injects raw HTML.
+// italic, inline code, http(s) links and same-dashboard hash links. It produces plain data; the React renderer never injects raw HTML.
 
 export type Inline =
   | { type: "text"; text: string }
@@ -14,7 +14,7 @@ export type Block =
   | { type: "list"; ordered: boolean; start: number; items: Inline[][] }
   | { type: "code"; text: string };
 
-const SAFE_HREF = /^https?:\/\//i;
+const SAFE_HREF = /^(?:https?:\/\/|\/#[a-z0-9][a-z0-9/?=&%_-]*$)/i;
 
 export function parseInline(source: string): Inline[] {
   const out: Inline[] = [];
@@ -31,7 +31,7 @@ export function parseInline(source: string): Inline[] {
       if (rest[0] === "*" || !before || !/[A-Za-z0-9]/.test(before)) { flush(); out.push({ type: "em", children: parseInline(match[1]) }); i += match[0].length; continue; }
     }
     if ((match = /^\[([^\]\n]+)\]\(([^)\s]+)\)/.exec(rest)) && SAFE_HREF.test(match[2])) {
-      flush(); out.push({ type: "link", href: match[2], children: parseInline(match[1]) }); i += match[0].length; continue;
+      flush(); out.push({ type: "link", href: match[2].startsWith("/#") ? match[2].slice(1) : match[2], children: parseInline(match[1]) }); i += match[0].length; continue;
     }
     text += source[i];
     i += 1;

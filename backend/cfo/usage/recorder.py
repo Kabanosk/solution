@@ -102,7 +102,7 @@ class DbSink:
         self._connect = connect or self._default_connect
         self._clock = clock
         self._cooldown = cooldown
-        self._blocked_until = 0.0
+        self._blocked_until: dict[tuple[str, str] | None, float] = {}
 
     @staticmethod
     def _default_connect() -> Any:
@@ -110,10 +110,14 @@ class DbSink:
 
         from cfo.config import get_settings
 
-        return psycopg.connect(get_settings().database_url, connect_timeout=3)
+        from cfo.tenancy import connect
+        return connect(get_settings().database_url, connect_timeout=3)
 
     def _run(self, work: Callable[[Any], None]) -> None:
-        if self._clock() < self._blocked_until:
+        from cfo.tenancy import current_tenant
+        tenant = current_tenant(required=False)
+        key = (tenant.id, tenant.schema_name) if tenant else None
+        if self._clock() < self._blocked_until.get(key, 0.0):
             return
         try:
             conn = self._connect()
@@ -123,7 +127,7 @@ class DbSink:
             finally:
                 conn.close()
         except Exception as exc:  # noqa: BLE001 - recording is best-effort by contract
-            self._blocked_until = self._clock() + self._cooldown
+            self._blocked_until[key] = self._clock() + self._cooldown
             log.warning("llm usage not recorded (database skipped for %.0f s): %s", self._cooldown, exc)
 
     def write(self, record: UsageRecord) -> None:

@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS agent_jobs (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS agent_jobs_ready_idx ON agent_jobs (run_after) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS agent_jobs_scout_thread_idx ON agent_jobs ((payload->>'thread'))
+    WHERE kind = 'dm' AND payload->>'mention' = 'true';
 
 CREATE TABLE IF NOT EXISTS approvals (
     id           TEXT PRIMARY KEY,
@@ -178,3 +180,33 @@ CREATE TABLE IF NOT EXISTS guardrail_alerts (
 -- BLOCK = a guardrail verdict (T052). MASK = salary rows folded into one payroll total for the office manager (T050); older databases allowed only ALLOW/DENY.
 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_decision_check;
 ALTER TABLE audit_log ADD CONSTRAINT audit_log_decision_check CHECK (decision IN ('ALLOW', 'DENY', 'MASK', 'BLOCK'));
+-- A work message Scout sent for someone (a dashboard chat or a Slack DM) and is waiting on. The Slack thread of the
+-- sent message is the key: a reply there from the recipient is the answer to it, never a new question for Scout.
+CREATE TABLE IF NOT EXISTS dm_requests (
+    id            BIGSERIAL PRIMARY KEY,
+    task_id       TEXT NOT NULL REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    requester_id  TEXT NOT NULL,
+    recipient_id  TEXT NOT NULL,
+    thread_ref    TEXT NOT NULL UNIQUE,
+    origin        TEXT NOT NULL DEFAULT 'dashboard' CHECK (origin IN ('dashboard', 'slack')),
+    text          TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS dm_requests_task_idx ON dm_requests (task_id);
+
+-- One row per Slack reply event (event_key = the DM job's key, so a retried or duplicated event is stored once).
+-- pending: not yet acknowledged; acked: the open dashboard chat rendered it; slacking: leased by a worker;
+-- slacked: delivered to the requester's Slack DM. The lease recovers crashed workers; delivery is not exactly-once.
+CREATE TABLE IF NOT EXISTS dm_replies (
+    id           BIGSERIAL PRIMARY KEY,
+    request_id   BIGINT NOT NULL REFERENCES dm_requests(id) ON DELETE CASCADE,
+    event_key    TEXT NOT NULL UNIQUE,
+    sender_id    TEXT NOT NULL,
+    text         TEXT NOT NULL,
+    step_id      BIGINT,
+    status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'acked', 'slacking', 'slacked')),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    notified_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS dm_replies_step_idx ON dm_replies (step_id);
+ALTER TABLE dm_replies ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;  -- lease of the Slack fallback sender

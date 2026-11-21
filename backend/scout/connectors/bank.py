@@ -46,3 +46,20 @@ class RevolutMockBank:
         r = self._http.get("/api/1.0/transactions", params={"from": since.isoformat(), "count": 1000})
         r.raise_for_status()
         return [from_revolut(i) for i in r.json() if i.get("state", "completed") == "completed"]
+
+
+class StoredDemoBank:
+    """Explicit legacy demo only; reads the tenant-bound mock ledger without a browser-session HTTP hop."""
+
+    name = "revolut_mock"
+    label = "Demo bank (stored transactions)"
+
+    def __init__(self, conn_factory):
+        from scout.mock_bank.store import BankStore
+        self._store = BankStore(conn_factory)
+
+    def list_transactions(self, since: datetime) -> list[BankTxn]:
+        from cfo.tenancy import legacy_connectors_enabled
+        if not legacy_connectors_enabled():
+            raise PermissionError("Stored demo bank requires the explicitly authorized legacy organization")
+        return self._store.list(from_ts=since)

@@ -24,7 +24,7 @@ from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
 from scout.jobs import MAX_ATTEMPTS, JobQueue, lease_seconds
-from scout.loops import chat, cost_control, invoicing, liquidity
+from scout.loops import chat, cost_control, invoicing, liquidity, strategy
 from scout.loops.context import HR, JobContext, LogNotifier
 from scout.models import Job
 from scout.tasks import TaskRecorder
@@ -63,6 +63,7 @@ HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "ksef_connect": _ksef_connect,
     "bank_txn": invoicing.run, "reminder": invoicing.run, "reply": invoicing.run,
     "cost_check": cost_control.run,
+    "strategy_review": strategy.run,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,
     "chat_forecast": liquidity.run, "hiring_scenario": liquidity.run,
     "dm": chat.run,
@@ -138,6 +139,9 @@ def _task_of(ctx: JobContext, job: Job) -> str | None:
             row = conn.execute("SELECT r.task_id FROM dm_replies p JOIN dm_requests r ON r.id = p.request_id "
                                "WHERE p.id = %s", (p.get("reply_id"),)).fetchone()
         return row["task_id"] if row else None
+    if job.kind == "strategy_review":
+        t = ctx.recorder.by_key(job.dedupe_key)
+        return t.id if t else None
     if job.kind == "bank_txn":
         t = ctx.recorder.by_key(f"txn:{p['txn']['id']}")
         return t.id if t else None

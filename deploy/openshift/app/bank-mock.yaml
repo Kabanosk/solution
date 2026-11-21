@@ -1,5 +1,5 @@
-# Mock bank API for the demo (`cfo bank-mock` -> python -m scout.mock_bank on port 8010). The worker polls it
-# (BANK_API_URL) and the API posts demo payments to it (POST /v1/demo/play/...). Its transactions live in
+# Mock bank HTTP API for explicit demos (`cfo bank-mock` -> python -m scout.mock_bank on port 8010).
+# Workers do not poll this API; explicit legacy demo workers read its stored transactions directly. Data lives in
 # Postgres (table bank_mock_transactions), so a restart loses nothing.
 apiVersion: apps/v1
 kind: Deployment

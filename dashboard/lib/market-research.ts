@@ -129,12 +129,20 @@ export async function researchJobMarket(config: ExternalConfig, query: MarketRes
   try { config = parseExternalConfig(config); query = parseMarketResearchQuery(query); }
   catch { throw new MarketResearchError("Specify a valid external provider, job role and location for research."); }
   if (!supportsMarketResearch(config.provider)) throw new MarketResearchError("Live job-market research is available with OpenAI or Mistral. Groq's hosted web-search service has been retired.");
-  const provider = config.provider as keyof typeof ENDPOINTS;
   const prompt = `Research date: ${new Date().toISOString().slice(0, 10)}. Public job criteria: ${JSON.stringify(query)}`;
+  return researchPublicNews(config, INSTRUCTIONS, prompt, signal, providerFetch);
+}
+
+/** Shared native web-search transport; never falls back to model memory. */
+export async function researchPublicNews(config: ExternalConfig, instructions: string, prompt: string, signal: AbortSignal,
+  providerFetch: typeof fetch = fetch): Promise<PublicResearch> {
+  config = parseExternalConfig(config);
+  if (!supportsMarketResearch(config.provider)) throw new MarketResearchError("Live news research requires OpenAI or Mistral with web-search access.");
+  const provider = config.provider as keyof typeof ENDPOINTS;
   const body = provider === "openai"
-    ? { model: config.model, instructions: INSTRUCTIONS, input: prompt, tools: [{ type: "web_search" }], tool_choice: "required",
+    ? { model: config.model, instructions, input: prompt, tools: [{ type: "web_search" }], tool_choice: "required",
       max_tool_calls: 4, max_output_tokens: 1800, store: false, stream: false }
-    : { model: config.model, instructions: INSTRUCTIONS, inputs: prompt, tools: [{ type: "web_search" }],
+    : { model: config.model, instructions, inputs: prompt, tools: [{ type: "web_search" }],
       completion_args: { max_tokens: 1800 }, store: false, stream: false };
   let response: Response;
   try {
@@ -155,6 +163,6 @@ export async function researchJobMarket(config: ExternalConfig, query: MarketRes
     return parsePublicResearch({ ...result, researched_at: new Date().toISOString() });
   } catch (error) {
     if (error instanceof MarketResearchError) throw error;
-    throw new MarketResearchError("The provider returned incomplete public research or no valid public citations. Try a narrower role and location.");
+    throw new MarketResearchError("The provider returned incomplete public research or no valid public citations. Try a narrower research scope.");
   }
 }

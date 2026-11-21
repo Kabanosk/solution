@@ -235,3 +235,6 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
 - **Kto:** coordinator
 - **Data:** 2026-11-21 01:09
+
+## 2026-11-21 — Codzienna pętla strategiczna CEO
+Na podstawie feedbacku jury dodajemy pętlę strategy z notatką dzienną, publicznymi feedami ECB/Eurostat i jawnymi scenariuszami wzrostu z historii wpływów sprzedażowych. Mieszany scorecard obejmuje sprzedaż, nadwyżkę operacyjną, dochód właściciela i ekspansję; brak danych lub celów oznacza unknown. Bez automatycznych wiadomości i decyzji finansowych. Migracja i wdrożenie produkcyjne pozostają osobnym krokiem. Kanoniczny HOUSE_DIR niedostępny na tej maszynie; użyto lokalnej kopii .house.

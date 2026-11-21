@@ -44,7 +44,7 @@ const mobileNavigation: { route: Route; id: string; label: string; icon: LucideI
   { route: { view: "tasks" }, id: "tasks", label: "Tasks", icon: ListTodo },
 ];
 const LIVE = (task: AgentTask) => task.status === "in_progress" || task.status === "waiting";
-const LOOPS = ["invoicing", "cost_control", "liquidity", "chat"];
+const LOOPS = ["invoicing", "cost_control", "liquidity", "strategy", "chat"];
 
 // Task details opened in this tab, so going back to a task is instant (refreshed in the background).
 const detailCache = new Map<string, TaskDetail>();
@@ -187,7 +187,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
   // Tasks visible in the current view; poll while any of them is still moving.
   const filter: TaskFilter = route.filter ?? {};
   const visibleTasks = route.taskId ? [] : page === "tasks" ? scout.tasks.filter(item => !filter.loop || item.loop === filter.loop) : page === "overview" ? openTasks : [];
-  const live = visibleTasks.some(LIVE);
+  const live = visibleTasks.some(LIVE) || (page === "tasks" && filter.loop === "strategy");
   useEffect(() => {
     if (!live) return;
     const timer = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 5000);

@@ -84,3 +84,16 @@ CREATE INDEX IF NOT EXISTS setup_oauth_states_org_idx ON scout_auth.setup_oauth_
 INSERT INTO scout_auth.organizations(id,slug,name,schema_name,legacy)
 VALUES ('00000000-0000-4000-8000-000000000001','pizzeria-amalfi','Pizzeria Amalfi','public',true)
 ON CONFLICT (id) DO NOTHING;
+
+-- Encrypted workspace provider, shared by chat registration and the dashboard strategy scheduler.
+CREATE TABLE IF NOT EXISTS scout_auth.strategy_settings (
+    organization_id UUID PRIMARY KEY REFERENCES scout_auth.organizations(id) ON DELETE CASCADE,
+    provider_ciphertext TEXT,
+    provider TEXT,
+    model TEXT,
+    company_context TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT 'Find current world news relevant to our company, explain likely implications and suggest next steps.',
+    enabled BOOLEAN NOT NULL DEFAULT false,
+    next_run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

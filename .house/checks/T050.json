@@ -4,23 +4,23 @@
     "criteria": [
       {
         "id": "AC-1",
-        "kind": "manual",
-        "run": null,
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/scout/test_salary_access.py backend/tests/scout/test_task_log_access.py",
         "expect": null,
-        "text": "reports/T050.md answers every question in the Objective with evidence (commands + output)",
-        "timeout": 600
+        "text": null,
+        "timeout": 900
       },
       {
         "id": "AC-2",
-        "kind": "manual",
-        "run": null,
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/scout",
         "expect": null,
-        "text": "Decision logged by Wojtek as a D-### in DECISIONS.md: go / no-go, deployment path, model(s) per rail",
-        "timeout": 600
+        "text": null,
+        "timeout": 1800
       }
     ],
     "protected": {}
   },
-  "frozen_at": "2026-11-20T16:59:31+01:00",
+  "frozen_at": "2026-11-21T01:09:06+01:00",
   "results": {}
 }

@@ -114,7 +114,8 @@ class HR:
         """The whole name: the linked Slack person's, else the HR record's."""
         if self._slack_names.get(employee_id):
             return self._slack_names[employee_id]
-        return (self.employee(employee_id) or {}).get("name") or employee_id
+        e = self.employee(employee_id) or {}
+        return e.get("slack_name") or e.get("name") or employee_id
 
     def role(self, employee_id: str) -> str:
         text = ((self.employee(employee_id) or {}).get("role") or "").casefold()

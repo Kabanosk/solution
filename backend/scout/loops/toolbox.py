@@ -271,11 +271,15 @@ class Toolbox:
         row = self._q("SELECT coalesce(sum(amount),0) AS balance, coalesce(sum(amount) FILTER (WHERE booking_date >= %s "
                       "AND amount > 0),0) AS in_30d, coalesce(sum(amount) FILTER (WHERE booking_date >= %s AND "
                       "amount < 0),0) AS out_30d FROM transactions", [since, since])[0]
-        if not self._is_exec():  # the exact totals include every salary row: one audit row each
-            for r in self._q(f"SELECT id FROM transactions WHERE {salary_sql()} ORDER BY booking_date", []):
-                self.ctx.audit.record("agent", "salary_filter", "bank", f"transaction {r['id']}", "MASK",
-                                      task_id=self.task.id, requester=self.requester, role=self.role,
-                                      policy="cash-position: payroll included in totals")
+        if not self._is_exec():  # one audit row per salary outflow of the 30-day window, one for the all-time balance
+            def mask(resource: str, policy: str) -> None:
+                self.ctx.audit.record("agent", "salary_filter", "bank", resource, "MASK", task_id=self.task.id,
+                                      requester=self.requester, role=self.role, policy=policy)
+
+            for r in self._q("SELECT id FROM transactions WHERE booking_date >= %s AND amount < 0 AND "
+                             f"{salary_sql()} ORDER BY booking_date", [since]):
+                mask(f"transaction {r['id']}", "cash-position: payroll included in totals")
+            mask("balance (all-time)", "cash-position: balance includes payroll")
         expected = self._q("SELECT on_date, amount, label FROM expected_cash_events WHERE status = 'expected' "
                            "ORDER BY on_date LIMIT 10", [])
         return {"balance": eur(row["balance"]) if row["balance"] >= 0 else "-" + eur(row["balance"]),

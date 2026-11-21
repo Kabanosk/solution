@@ -329,11 +329,21 @@ def test_cash_position_audits_that_payroll_is_in_the_totals(conn_factory, db, tm
     assert audit_rows(db) == []  # the CEO may see everything: nothing to record
     out = box(ctx, "grazyna").call("cash_position", {})
     assert out["balance"] == ceo["balance"] and out["money_out_30d"] == ceo["money_out_30d"]  # real numbers
-    log = audit_rows(db)  # one row per salary row inside the totals
-    assert len(log) == len(SALARIES) and {r["decision"] for r in log} == {"MASK"}
+    log = audit_rows(db)  # one row per salary outflow in the 30-day window, one for the all-time balance
+    assert len(log) == len(SALARIES) + 1 and {r["decision"] for r in log} == {"MASK"}
     assert {r["requester"] for r in log} == {"grazyna"}
-    assert {r["policy"] for r in log} == {"cash-position: payroll included in totals"}
-    assert {r["resource"] for r in log} == {f"transaction {t[0]}" for t in SALARIES}
+    rows = [r for r in log if r["resource"].startswith("transaction ")]
+    assert {r["resource"] for r in rows} == {f"transaction {t[0]}" for t in SALARIES}
+    assert {r["policy"] for r in rows} == {"cash-position: payroll included in totals"}
+    (bal,) = [r for r in log if r["resource"] == "balance (all-time)"]
+    assert bal["policy"] == "cash-position: balance includes payroll"
+
+
+def test_cash_position_audit_leaves_out_salaries_older_than_30_days(conn_factory, db, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    add_salary(ctx, "old", "Rosa Pavese", TODAY - timedelta(days=45), "-2100")
+    box(ctx, "grazyna").call("cash_position", {})
+    assert [r["resource"] for r in audit_rows(db)] == ["balance (all-time)"]
 
 
 def test_team_budgets_and_payroll_summary_cover_the_same_rows(conn_factory, db, tmp_path):

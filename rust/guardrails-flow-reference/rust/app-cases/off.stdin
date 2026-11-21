@@ -1,0 +1,1 @@
+{"switch": false, "responses": [{"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}], "calls": [{"op": "human", "person": "person", "text": "test"}, {"op": "output", "text": "abc@example.com"}, {"op": "active"}]}

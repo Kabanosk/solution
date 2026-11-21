@@ -1,0 +1,9 @@
+{
+  "reference": "../hr-reference/provenance.json",
+  "production_crate": "hr",
+  "shared_source": "hr-characterization/src/port/native.rs",
+  "native_sha256": "5f07d32aa50c2beb918218b18e752cc03e1b9411173f63d0be8e08c6349c26ab",
+  "characterization_feature": "memory data adapter only; disabled in production HR",
+  "cases": 411,
+  "database_test": "hr/tests/database.rs passed; two isolated schemas removed"
+}

@@ -1,0 +1,4 @@
+{
+  "backend/scout/audit.py": "dc7641d5e0fba5a9c850f94a50457eb14cf677c375788cacc58a5d1084752c2b",
+  "rust/audit-reference/contract/original_audit.py": "a95d5c65f5bdd47b6313faa1c52d02168b634f03ea4f01a9b5fa788f46a56a59"
+}

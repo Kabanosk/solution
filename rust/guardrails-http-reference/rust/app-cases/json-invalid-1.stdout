@@ -1,0 +1,1 @@
+{"requests":[{"authorization":"Bearer test-token","body":{"guardrails":{"config_id":"user-input"},"messages":[],"model":"scout-test"},"path":"/v1/guardrail/checks"}],"values":[{"activated_rails":[],"detail":"JSONDecodeError: Expecting value: line 1 column 1 (char 0)","status":"unavailable"}]}

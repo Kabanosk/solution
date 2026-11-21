@@ -1,0 +1,1 @@
+{"responses": [{"status": 302, "headers": {"Location": "/other"}}], "calls": [{"op": "check"}]}

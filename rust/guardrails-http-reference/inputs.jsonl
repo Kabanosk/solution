@@ -1,0 +1,16 @@
+{"name": "http-302", "stdin": "{\"responses\": [{\"status\": 302, \"json\": {}}], \"calls\": [{\"op\": \"check\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}]}]}"}
+{"name": "http-400", "stdin": "{\"responses\": [{\"status\": 400, \"json\": {}}], \"calls\": [{\"op\": \"check\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}]}]}"}
+{"name": "http-401", "stdin": "{\"responses\": [{\"status\": 401, \"json\": {}}], \"calls\": [{\"op\": \"check\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}]}]}"}
+{"name": "http-404", "stdin": "{\"responses\": [{\"status\": 404, \"json\": {}}], \"calls\": [{\"op\": \"check\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}]}]}"}
+{"name": "http-503", "stdin": "{\"responses\": [{\"status\": 503, \"json\": {}}], \"calls\": [{\"op\": \"check\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}]}]}"}
+{"name": "redirect-location", "stdin": "{\"responses\": [{\"status\": 302, \"headers\": {\"Location\": \"/other\"}}], \"calls\": [{\"op\": \"check\"}]}"}
+{"name": "json-0", "stdin": "{\"token\": \"\", \"responses\": [{\"json\": {\"status\": \"success\"}}], \"calls\": [{\"op\": \"check\", \"config\": \"tool-result\", \"messages\": [{\"role\": \"tool\", \"content\": \"hello\", \"tool_call_id\": \"scout-1\"}]}]}"}
+{"name": "json-1", "stdin": "{\"token\": \"\", \"responses\": [{\"json\": {\"status\": \"blocked\", \"rails_status\": {\"injection\": \"blocked\"}}}], \"calls\": [{\"op\": \"check\", \"config\": \"tool-result\", \"messages\": [{\"role\": \"tool\", \"content\": \"hello\", \"tool_call_id\": \"scout-1\"}]}]}"}
+{"name": "json-2", "stdin": "{\"token\": \"\", \"responses\": [{\"json\": {\"status\": \"error\", \"error\": \"test\"}}], \"calls\": [{\"op\": \"check\", \"config\": \"tool-result\", \"messages\": [{\"role\": \"tool\", \"content\": \"hello\", \"tool_call_id\": \"scout-1\"}]}]}"}
+{"name": "json-3", "stdin": "{\"token\": \"\", \"responses\": [{\"json\": {\"status\": \"unknown\"}}], \"calls\": [{\"op\": \"check\", \"config\": \"tool-result\", \"messages\": [{\"role\": \"tool\", \"content\": \"hello\", \"tool_call_id\": \"scout-1\"}]}]}"}
+{"name": "json-4", "stdin": "{\"token\": \"\", \"responses\": [{\"json\": {}}], \"calls\": [{\"op\": \"check\", \"config\": \"tool-result\", \"messages\": [{\"role\": \"tool\", \"content\": \"hello\", \"tool_call_id\": \"scout-1\"}]}]}"}
+{"name": "json-invalid-0", "stdin": "{\"responses\": [{\"text\": \"\"}], \"calls\": [{\"op\": \"check\"}]}"}
+{"name": "json-invalid-1", "stdin": "{\"responses\": [{\"text\": \"not json\"}], \"calls\": [{\"op\": \"check\"}]}"}
+{"name": "json-invalid-2", "stdin": "{\"responses\": [{\"text\": \" \"}], \"calls\": [{\"op\": \"check\"}]}"}
+{"name": "warm-four", "stdin": "{\"responses\": [{\"json\": {\"status\": \"blocked\"}}], \"calls\": [{\"op\": \"warm\"}]}"}
+{"name": "disabled", "stdin": "{\"disabled\": true, \"calls\": [{\"op\": \"check\"}, {\"op\": \"warm\"}]}"}

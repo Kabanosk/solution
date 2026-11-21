@@ -95,3 +95,8 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 - 2026-11-21: Rust — kolejka: 8/8 replayów i testy współbieżnych claimów, deduplikacji, fencing oraz opóźnień 5/30/120 sekund.
 - 2026-11-21: Rust — repozytorium endpointów Scouta: 36/36 porównań handlerów i testy akceptacji, logów oraz faktur; integracja HTTP jest w toku.
 - 2026-11-21: Rust — jądra prognoz: 1102/1102 przypadków, identyczne bity float64, gate zielony; ładowanie i wykonywanie modelu są kolejnym etapem.
+- 2026-11-21: Finly — poprawiono połączenia płetw z tułowiem i nasadę ruchomego ogona; sprawdzono trzy sylwetki z czterech stron, animację oraz jasny i ciemny motyw przy szerokościach 375 i 1600 px.
+
+- 2026-11-21: Uzupełniono kartę PDF Scout: nazwa, opis od użytkownika, stos potwierdzony w GitHub i link do repozytorium; sprawdzono czytelność oraz zapis pól formularza.
+
+- Rust: konfiguracja trzech usług i izolacja ustawień organizacji — 301/301 porównań z oryginałem; bez odczytu rzeczywistych sekretów w testach.

@@ -1,0 +1,30 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/pawel/hackatons/collabothon2026/solution/rust/hr-reference",
+  "unit": "contract/",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "scout-hr-characterization",
+  "exports": [
+    {
+      "name": "evaluate",
+      "file": "contract/adapter.py",
+      "line": 22,
+      "params": [
+        {
+          "name": "payload",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

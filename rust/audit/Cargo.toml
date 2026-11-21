@@ -1,0 +1,18 @@
+[package]
+name="scout-audit"
+version="0.1.0"
+edition="2024"
+rust-version="1.97"
+publish=false
+
+[lib]
+path="../audit-characterization/src/port/native.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+async-trait = "0.1"
+scout-domain = { path = "../domain" }
+scout-decimal = { path = "../decimal" }
+scout-platform = { path = "../platform" }
+tokio-postgres = "0.7"
+

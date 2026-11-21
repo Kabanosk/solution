@@ -1,0 +1,1 @@
+{"token": "", "responses": [{"json": {}}], "calls": [{"op": "check", "config": "tool-result", "messages": [{"role": "tool", "content": "hello", "tool_call_id": "scout-1"}]}]}

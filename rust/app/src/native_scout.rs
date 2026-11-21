@@ -8,6 +8,7 @@ use axum::{
 };
 use scout_api::{AuditOptions, ConnectionSettings, ScoutApi, TaskListOptions};
 use scout_platform::{Database, Tenant};
+use scout_finance_api::{FinanceApi, FinanceOptions};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -167,7 +168,7 @@ pub async fn dispatch(State(original): State<Original>, request: Request) -> Res
     let known_read = method == "GET"
         && (matches!(
             path.as_ref(),
-            "/v1/tasks" | "/v1/approvals" | "/v1/audit" | "/v1/connections"
+            "/v1/tasks" | "/v1/approvals" | "/v1/audit" | "/v1/connections" | "/v1/kpis" | "/v1/forecast/liquidity" | "/v1/costs/by-team" | "/v1/cost-metrics"
         ) || task_id.is_some()
             || invoice_id.is_some());
     let known_write = method == "POST" && (approval.is_some() || path == "/v1/strategy/review");
@@ -184,8 +185,36 @@ pub async fn dispatch(State(original): State<Original>, request: Request) -> Res
     let database_url = std::env::var("SCOUT_RUST_TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| "postgresql://cfo:cfo@localhost:5433/cfo".into());
-    let api = ScoutApi::new(Database::new(database_url), tenant);
+    let database=Database::new(database_url);
+    let api = ScoutApi::new(database.clone(), tenant.clone());
     let parameters = query(&request);
+    if matches!(path.as_ref(),"/v1/kpis" | "/v1/forecast/liquidity" | "/v1/costs/by-team" | "/v1/cost-metrics") {
+        let mut validation=crate::validation::Validation::default();
+        let mut horizon=90;
+        let mut granularity="week";
+        let mut from=None;
+        let mut to=None;
+        let mut kind=None;
+        match path.as_ref() {
+            "/v1/forecast/liquidity"=>{horizon=validation.integer(&parameters,"horizon_days",90,7,365);granularity=validation.choice(&parameters,"granularity",&["day","week"],true).unwrap_or("week");},
+            "/v1/costs/by-team"=>{from=validation.date(&parameters,"from");to=validation.date(&parameters,"to");},
+            "/v1/cost-metrics"=>{kind=validation.choice(&parameters,"kind",&["food_cost","ads_cac","cloud_per_order"],false);},
+            _=>{}
+        }
+        if let Some(error)=validation.envelope(){return cors(&request,(StatusCode::UNPROCESSABLE_ENTITY,Json(error)).into_response());}
+        let mut options=FinanceOptions::default();
+        if let Ok(path)=std::env::var("FORECAST_MODEL_PATH") && !path.is_empty(){options.model_path=path.into();}
+        options.safety_buffer_eur=std::env::var("SAFETY_BUFFER_EUR").ok().filter(|value|!value.is_empty());
+        let finance=FinanceApi::new(database,tenant,options);
+        let result=match path.as_ref(){
+            "/v1/kpis"=>finance.kpis().await,
+            "/v1/forecast/liquidity"=>finance.forecast(horizon as usize,granularity).await,
+            "/v1/costs/by-team"=>finance.costs_by_team(from,to).await,
+            "/v1/cost-metrics"=>finance.cost_metrics(kind).await,
+            _=>unreachable!(),
+        };
+        return cors(&request,api_response(result));
+    }
     let result = if known_write {
         if let Some((id, approved)) = approval {
             api.answer_approval(id, approved).await

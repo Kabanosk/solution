@@ -1,0 +1,19 @@
+[package]
+name = "scout-liquidity-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[lib]
+path = "../liquidity/src/port/native.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+chrono = "0.4"
+bigdecimal = "0.4.11"
+num-traits = "0.2"
+scout-decimal = { path = "../decimal" }
+scout-policy-core = { path = "../policy-core" }
+scout-forecast-kernel = { path = "../forecast-kernel" }
+scout-forecast-model-native = { path = "../forecast-model-native" }

@@ -1,0 +1,1 @@
+{"alerts":[],"audit":[],"events":[],"requests":[{"config":"bot-output-finance","messages":[{"content":"abc@example.com http://dashboard.svc.cluster.local/org","role":"assistant"}]}],"strikes":[],"values":["abc@example.com https://scout.example.invalid/org"]}

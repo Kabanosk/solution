@@ -1,0 +1,1 @@
+{"requests":[{"authorization":null,"body":{"guardrails":{"config_id":"tool-result"},"messages":[{"content":"hello","role":"tool","tool_call_id":"scout-1"}],"model":"scout-test"},"path":"/v1/guardrail/checks"}],"values":[{"activated_rails":[],"detail":"error","status":"error"}]}

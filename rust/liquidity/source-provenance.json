@@ -1,0 +1,16 @@
+{
+  "implementation": {
+    "bridge": "liquidity/src/port/native.rs",
+    "production_crate": "liquidity-native",
+    "shared_source": true
+  },
+  "hashes": {
+    "liquidity/src/port/native.rs": "4a2cbf843d31df862705b4eef66f7609c1cd49fa4083182b215a04d65cc096ba",
+    "finance-api/src/decimal.rs": "a184c470f0015d84d6ff15ff27955c5bd076fbf21dd91825164027c40e691769",
+    "policy/src/port.rs": "8972548fbb4ea7bf98883d557743fc4ba01b636e685d51ff942338306e0e9316",
+    "forecast-model/src/port/native.rs": "e74b3a70c4a598b235636b3b5dbacf183618a3dda6c9b388b57bcc508d8b9995"
+  },
+  "reference_provenance": "../liquidity-reference/provenance.json",
+  "float_tolerance": 0,
+  "model_selection": "explicit caller-supplied tenant model"
+}

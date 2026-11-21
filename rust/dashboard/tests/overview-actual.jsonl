@@ -1,0 +1,138 @@
+[-25.0,0.0,25.0,50.0,75.0,100.0,125.0]
+[-25000.0,0.0,25000.0,50000.0,75000.0,100000.0]
+[2.75,3.0,3.25]
+[-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25]
+[-0.25,0.0,0.25]
+[0.0,100000000.0,200000000.0,300000000.0,400000000.0,500000000.0]
+"below"
+"-2.0×"
+"below"
+"0.0×"
+"below"
+"1.0×"
+"tight"
+"1.0×"
+"tight"
+"1.5×"
+"healthy"
+"1.5×"
+"healthy"
+"2.0×"
+"healthy"
+"10.0×"
+"healthy"
+"10×"
+"healthy"
+"12×"
+"below"
+"below"
+"below"
+"below"
+"below"
+"below"
+"below"
+"tight"
+"tight"
+"below"
+"tight"
+"tight"
+"below"
+"tight"
+"healthy"
+"below"
+"tight"
+"healthy"
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"asked"
+"alone"
+"asked"
+"asked"
+"alone"
+"told"
+"asked"
+"asked"
+"told"
+"asked"
+"asked"
+"asked"
+"asked"
+null
+"asked"
+"asked"
+null
+null
+"asked"
+"asked"
+null
+"asked"
+"asked"
+"asked"
+"asked"
+{"counts":{"alone":2,"told":2,"asked":28},"total":32,"running":36}
+{"counts":{"alone":2,"told":2,"asked":28},"total":32,"running":36}
+[{"id":"SC-49","loop":"invoicing","title":"Invoice","status":"done","level":"AUTO","resolvedVia":null,"createdAt":"2026-11-01","updatedAt":"2026-11-02","closedAt":null,"outcome":"Done · Invoice filed","how":"alone"},{"id":"SC-50","loop":"invoicing","title":"Invoice","status":"done","level":"AUTO","resolvedVia":"approval","createdAt":"2026-11-01","updatedAt":"2026-11-02","closedAt":null,"outcome":"Done · Invoice filed","how":"asked"},{"id":"SC-51","loop":"invoicing","title":"Invoice","status":"done","level":"AUTO","resolvedVia":"slack_dm","createdAt":"2026-11-01","updatedAt":"2026-11-02","closedAt":null,"outcome":"Done · Invoice filed","how":"asked"}]
+"Invoice FLV-42026 filed · €1,840 (simulated)"
+"Invoice FLV-42026 filed · €1,840 (simulated)"
+"Credit line €30,000 approved (simulated)"
+"Credit line €30,000 proposed (simulated)"
+"Sent invoice"
+"Sent invoice"
+"Matched and filed invoice"
+"Matched and filed invoice"
+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+"Zażółć 😀 invoice"
+"Zażółć 😀 invoice"
+{"taskId":"SC-1","label":"new oven €30,000.00 in March 2027","what":"new oven","amount":30000.0,"on":"2027-03-01"}
+{"taskId":"SC-1","label":"supply in november 2028","what":"supply","amount":30000.0,"on":"2028-11-01"}
+null
+{"taskId":"SC-1","label":"€1.00 in May 2027","what":"the purchase","amount":30000.0,"on":"2027-05-01"}
+{"taskId":"SC-1","label":"Fridge in April 2027   ","what":"Fridge","amount":30000.0,"on":"2027-04-01"}
+[{"day":0,"date":"2026-11-21","balance":102.32},{"day":1,"date":"2027-03-01","balance":-20000.0}]
+[]

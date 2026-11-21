@@ -1,0 +1,1 @@
+{"calls": [{"op": "active"}, {"op": "set_switch", "enabled": false}, {"op": "set_switch", "enabled": false}, {"op": "active"}, {"op": "set_switch", "enabled": true}, {"op": "active"}]}

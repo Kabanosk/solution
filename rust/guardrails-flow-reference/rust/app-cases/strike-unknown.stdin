@@ -1,0 +1,1 @@
+{"responses": [{"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}], "calls": [{"op": "human", "text": "bad"}]}

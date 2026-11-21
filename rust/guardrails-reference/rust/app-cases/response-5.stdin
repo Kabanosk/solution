@@ -1,0 +1,1 @@
+{"op": "response", "body": {"status": "blocked", "guardrails_data": {"log": {"activated_rails": ["a", "a", "", {"name": "b"}, {"name": "c", "stop": false}, {"name": "d", "stop": null}, 4]}}, "rails_status": {"z": "blocked"}}}

@@ -1,0 +1,1 @@
+{"responses": [{"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}, {"status": "success"}, {"status": "unavailable"}, {"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}], "calls": [{"op": "history", "turns": [{"role": "assistant", "content": "a"}, {"role": "assistant", "content": "b"}, {"role": "user", "content": "c"}], "requester": "person"}]}

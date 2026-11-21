@@ -1,0 +1,1 @@
+{"responses": [{"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}, {"status": "success"}, {"status": "blocked", "activated_rails": ["rail-a", "rail-b"]}], "calls": [{"op": "tool", "tool": "search_files", "text": "a,b", "result": {"files": ["a", "b"]}}]}

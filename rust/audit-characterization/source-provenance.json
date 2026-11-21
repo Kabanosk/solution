@@ -1,0 +1,11 @@
+{
+  "reference": "../audit-reference/provenance.json",
+  "native_sha256": "2efd7e29546724971a3630ed9d9907aa6ac0fc1e3f86fe0c0900937f882d68f1",
+  "shared_source": "audit-characterization/src/port/native.rs",
+  "production_crate": "audit",
+  "unicode_version": "Python 3.12 unicodedata 15.0.0",
+  "nfkd_ascii_sha256": "720b225f5ddb85d95b71bbb62a0eab31fbf7e84335b246e8e292380bb663b1a3",
+  "casefold_sha256": "f5bbd123d49b0688f627a5fcf32e1e3ba2fd0393a157b94ae22d3bc5332aafe2",
+  "pure_cases": 479,
+  "database_tests": "hr/tests/database.rs passed; two isolated schemas removed"
+}

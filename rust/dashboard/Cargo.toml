@@ -1,0 +1,43 @@
+[package]
+name = "scout-dashboard"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "scout-dashboard"
+path = "src/main.rs"
+required-features = ["ssr"]
+
+[features]
+default = []
+ssr = ["leptos/ssr", "dep:axum", "dep:tokio", "dep:tower-http", "dep:reqwest"]
+hydrate = ["leptos/hydrate", "dep:console_error_panic_hook"]
+
+[dependencies]
+leptos = "=0.8.23"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "Document", "Storage", "Event", "EventTarget", "KeyboardEvent", "HtmlElement", "HtmlInputElement", "HtmlFormElement", "HtmlDialogElement", "DomTokenList", "FormData", "Location", "History", "Url", "UrlSearchParams", "NodeList", "Element", "HtmlCollection", "HtmlMetaElement", "MutationObserver", "MutationObserverInit", "MutationRecord", "AbortController", "AbortSignal", "TextDecoder", "TextDecodeOptions", "ReadableStreamDefaultReader", "HtmlTextAreaElement", "CssStyleDeclaration", "Navigator", "Clipboard", "Crypto", "Blob", "BlobPropertyBag", "HtmlAnchorElement", "DomRect", "StorageEvent", "VisibilityState", "ResizeObserver"] }
+js-sys = "0.3"
+gloo-net = { version = "0.6", features = ["http", "json"] }
+unicode-normalization = "0.1"
+url = "2.5"
+percent-encoding = "2"
+fancy-regex = "0.16"
+ryu-js = "1"
+gloo-timers = { version = "0.3", features = ["futures"] }
+console_error_panic_hook = { version = "0.1", optional = true }
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"], optional = true }
+tower-http = { version = "0.6", features = ["fs"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -109,6 +109,14 @@ const clay = () => new THREE.MeshPhysicalMaterial({ color: CLAY.clone(), roughne
 
 // ---------- dolphin builder (faces +x, length ~2.7) ----------
 const PROFILE = [[0, 0.04], [0.3, 0.17], [0.8, 0.4], [1.3, 0.56], [1.7, 0.6], [2.0, 0.54], [2.2, 0.42], [2.32, 0.26], [2.45, 0.17], [2.6, 0.13], [2.7, 0.07], [2.73, 0]];
+function bodyRadiusAt(x, fat) {
+  const u = x + 1.35;
+  for (let i = 1; i < PROFILE.length; i++) {
+    const [u0, r0] = PROFILE[i - 1], [u1, r1] = PROFILE[i];
+    if (u <= u1) return THREE.MathUtils.lerp(r0, r1, THREE.MathUtils.clamp((u - u0) / (u1 - u0), 0, 1)) * fat;
+  }
+  return 0;
+}
 function makeDolphin(o) {
   const d = new THREE.Group();                 // position + heading
   const pitch = new THREE.Group(); d.add(pitch); // nose up/down while jumping
@@ -128,18 +136,29 @@ function makeDolphin(o) {
   fin.moveTo(0.22, 0); fin.quadraticCurveTo(0.12, 0.42, -0.26, 0.56); fin.quadraticCurveTo(-0.16, 0.22, -0.4, 0); fin.closePath();
   const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 4 });
   finGeo.translate(0, 0, -0.03);
-  const dorsal = add(new THREE.Mesh(finGeo, mat)); dorsal.position.set(-0.3, 0.48 * fat, 0); dorsal.scale.setScalar(0.85);
+  finGeo.scale(0.85, 0.85, 0.85);
+  finGeo.translate(-0.3, 0, 0);
+  // Follow the sloping back along the entire root, with overlap into the body.
+  const finPos = finGeo.attributes.position;
+  for (let i = 0; i < finPos.count; i++) {
+    finPos.setY(i, finPos.getY(i) + bodyRadiusAt(finPos.getX(i), fat) - 0.06 * fat);
+  }
+  finGeo.computeVertexNormals();
+  add(new THREE.Mesh(finGeo, mat));
 
   // pectoral fins
   for (const s of [-1, 1]) {
     const p = add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat));
-    p.scale.set(0.3, 0.05, 0.13); p.position.set(0.45, -0.3 * fat, s * 0.44 * fat); p.rotation.set(s * 0.5, s * 0.5, -0.35);
+    p.scale.set(0.3, 0.07, 0.2); p.position.set(0.45, -0.25 * fat, s * 0.38 * fat); p.rotation.set(s * 0.5, s * 0.5, -0.35);
   }
   // tail flukes on a pivot so they can beat
-  const tail = new THREE.Group(); tail.position.set(-1.33, 0, 0); roll.add(tail);
+  const tail = new THREE.Group(); tail.position.set(-1.2, 0, 0); roll.add(tail);
+  // A thick root stays inside the body even at the extremes of the tail beat.
+  const tailRoot = add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat), tail);
+  tailRoot.scale.set(0.24, 0.1 * fat, 0.1 * fat); tailRoot.position.x = -0.08;
   for (const s of [-1, 1]) {
     const f = add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat), tail);
-    f.scale.set(0.24, 0.045, 0.2); f.position.set(-0.12, 0, s * 0.2); f.rotation.y = s * 0.7;
+    f.scale.set(0.25, 0.055, 0.24); f.position.set(-0.22, 0, s * 0.17); f.rotation.y = s * 0.55;
   }
   // eyes on both sides of the head (raycast onto the body so they sit on the surface)
   body.updateMatrixWorld(true);

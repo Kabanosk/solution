@@ -1,0 +1,11 @@
+{
+  "build": [
+    "/home/pawel/hackatons/collabothon2026/solution/rust/guardrails-flow-reference/native.sh"
+  ],
+  "passed": 28,
+  "total": 28,
+  "skipped": 0,
+  "failures": [],
+  "fallback": null,
+  "report": "/home/pawel/hackatons/collabothon2026/solution/rust/guardrails-flow-reference/rust/app-cases/replay-report.md"
+}

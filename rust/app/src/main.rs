@@ -2,6 +2,7 @@ mod auth;
 mod native_scout;
 mod original;
 mod units;
+mod validation;
 
 use std::net::SocketAddr;
 

@@ -1,0 +1,1 @@
+{"op": "outside", "tool": "search_chat", "result": {"messages": [{"channel": "C", "from": "bob", "text": "hello"}, {"channel": null}]}}

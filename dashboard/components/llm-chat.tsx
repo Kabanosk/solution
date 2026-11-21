@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { tenantFetch } from "@/lib/tenant-browser";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Settings2, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
 import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, unacknowledgedFollowups, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ExternalProviderDialog } from "@/components/external-provider-dialog";
+import { EXTERNAL_PROVIDERS, type ExternalConfig } from "@/lib/external-model";
 
 export function LlmChat({ active }: { active: boolean }) {
   const [model, setModel] = useState<string>(CHAT_MODELS[0].id);
+  const [external, setExternal] = useState<ExternalConfig | null>(null);
+  const [providerDialog, setProviderDialog] = useState(false);
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,7 +94,8 @@ export function LlmChat({ active }: { active: boolean }) {
     const request_ = requestFor(history);
     try {
       const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: request_.messages, conversationId: conversation.current }), signal: controller.signal });
+        body: JSON.stringify({ model, messages: model === "external" ? request_.messages.slice(-1) : request_.messages,
+          conversationId: conversation.current, ...(model === "external" ? { external } : {}) }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         if (typeof body?.error === "string") failure = body.error;
@@ -141,6 +146,12 @@ export function LlmChat({ active }: { active: boolean }) {
     input.current?.focus({ preventScroll: true });
   }
 
+  function selectModel(value: string) {
+    if (value === model) return;
+    newChat(); setModel(value);
+    setNotice("Model changed. A new chat has started.");
+  }
+
   async function copy(turn: ChatTurn) {
     try { await navigator.clipboard.writeText(turn.content); setCopied(turn.id); setNotice("Response copied."); }
     catch { setNotice("Could not copy the response."); }
@@ -148,9 +159,12 @@ export function LlmChat({ active }: { active: boolean }) {
 
   const last = messages.at(-1);
   const retryable = last?.role === "assistant" && ["error", "stopped"].includes(last.status);
-  const modelName = CHAT_MODELS.find(item => item.id === model)?.name ?? model;
+  const modelName = model === "external" && external ? `${EXTERNAL_PROVIDERS.find(item => item.id === external.provider)?.name} · ${external.model}` : CHAT_MODELS.find(item => item.id === model)?.name ?? model;
 
   return <section id="scout-llm-chat" aria-label="Scout chat" className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    {providerDialog && <ExternalProviderDialog config={external} onClose={() => setProviderDialog(false)} onSave={value => {
+      newChat(); setExternal(value); setModel("external"); setProviderDialog(false); setNotice("Provider configured for this tab. A new chat has started.");
+    }} onRemove={() => { newChat(); setExternal(null); setModel(CHAT_MODELS[0].id); setProviderDialog(false); setNotice("External provider removed."); }} />}
     {messages.length > 0 && <h1 id="scout-chat-title" className="sr-only">Scout chat</h1>}
     <div id="scout-chat-actions" className="flex shrink-0 justify-end">
       <Button id="scout-chat-new" variant="ghost" size="sm" onClick={newChat} disabled={messages.length === 0 && !draft && !busy} className="h-9 gap-1.5 text-muted-foreground"><SquarePen className="size-4" aria-hidden="true" /><span>New chat</span></Button>
@@ -162,9 +176,9 @@ export function LlmChat({ active }: { active: boolean }) {
     }}>
       {messages.length === 0 ? <div id="scout-chat-empty" className="flex min-h-full flex-col items-center justify-center gap-5 px-4 py-6 text-center">
         <ScoutMark size={40} />
-        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">Scout answers with its tools: missing invoices, cash forecast, tasks and costs.</p></div>
+        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">{model === "external" ? "Chat with your provider or ask for a cash forecast. Granite runs forecasts privately on premise." : "Scout answers with its tools: missing invoices, cash forecast, tasks and costs."}</p></div>
         <div id="scout-chat-suggestions" className="flex max-w-xl flex-wrap justify-center gap-2">
-          {SUGGESTIONS.map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
+          {(model === "external" ? EXTERNAL_SUGGESTIONS : SUGGESTIONS).map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
             onClick={() => { setDraft(suggestion); input.current?.focus(); }}>{suggestion}</Button>)}
         </div>
       </div> : <ol id="scout-chat-messages" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -223,7 +237,7 @@ export function LlmChat({ active }: { active: boolean }) {
         <form id="scout-chat-composer" className="rounded-xl border bg-background p-1.5 shadow-xs focus-within:border-ring" onSubmit={event => { event.preventDefault(); send(); }}>
           <label className="sr-only" htmlFor="scout-chat-input">Message Scout</label>
           <div className="flex items-end gap-2">
-            <Textarea id="scout-chat-input" ref={input} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder="Ask Scout, e.g. which payments are missing invoices?" className="max-h-40 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+            <Textarea id="scout-chat-input" ref={input} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder={model === "external" ? "Ask for a forecast, e.g. cash flow for the next 90 days" : "Ask Scout, e.g. which payments are missing invoices?"} className="max-h-40 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
             }} />
             {busy ? <Button id="scout-chat-stop" type="button" size="icon" variant="secondary" className="size-9 shrink-0 rounded-lg" aria-label="Stop response" onClick={() => request.current?.abort()}><Square aria-hidden="true" className="size-3.5 fill-current" /></Button>
@@ -234,11 +248,16 @@ export function LlmChat({ active }: { active: boolean }) {
           <DropdownMenu><DropdownMenuTrigger asChild><Button id="scout-chat-model" type="button" variant="ghost" size="sm" aria-label="Select model" className="h-7 min-w-0 gap-1.5 px-2 text-[11px] font-normal text-muted-foreground" disabled={busy}><span className="truncate">{modelName}</span><ChevronDown aria-hidden="true" className="size-3" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent id="scout-chat-model-menu" side="top" align="start" className="max-w-[calc(100vw-2rem)]">
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Available models</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={model} onValueChange={setModel}>{CHAT_MODELS.map(item => <DropdownMenuRadioItem id={`scout-chat-model-${item.id}`} key={item.id} value={item.id} className="min-h-9"><span className="min-w-0 break-all text-xs">{item.id}</span></DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+              <DropdownMenuRadioGroup value={model} onValueChange={selectModel}>{CHAT_MODELS.map(item => <DropdownMenuRadioItem id={`scout-chat-model-${item.id}`} key={item.id} value={item.id} className="min-h-11"><span className="min-w-0 break-all text-xs">{item.name} · On premise</span></DropdownMenuRadioItem>)}
+                {external && <DropdownMenuRadioItem id="scout-chat-model-external" value="external" className="min-h-11"><span className="min-w-0 break-all text-xs">{EXTERNAL_PROVIDERS.find(item => item.id === external.provider)?.name} · {external.model}</span></DropdownMenuRadioItem>}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem id="scout-chat-configure-provider" className="min-h-11 text-xs" onSelect={() => setProviderDialog(true)}><Settings2 className="size-3.5" aria-hidden="true" />{external ? "Manage external provider…" : "Set up external provider…"}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <p className="truncate text-[11px] text-muted-foreground">{busy ? "Scout is working…" : <><span className="hidden sm:inline">Enter to send · Shift + Enter for a new line · </span>Stays in this tab</>}</p>
         </div>
+        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your current message goes to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. History and company data stay private. Forecast results come from Granite.</p>}
         <p role="status" className="sr-only">{notice}</p>
       </div>
     </div>
@@ -252,6 +271,8 @@ const SUGGESTIONS = [
   "What did we spend on beverages this quarter?",
   "How do I use this dashboard?",
 ];
+
+const EXTERNAL_SUGGESTIONS = ["Forecast cash flow for the next 90 days", "What if we spend €30,000 in March?", "How does cash forecasting work?"];
 
 function FileChip({ file }: { file: ChatFile }) {
   const size = Math.floor(file.dataB64.length * 3 / 4) - (file.dataB64.endsWith("==") ? 2 : file.dataB64.endsWith("=") ? 1 : 0);

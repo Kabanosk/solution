@@ -281,6 +281,11 @@ SLACK_MESSAGES = {
     "scope_missing": "Slack did not grant the required channel, direct-message and file permissions. Install again and allow them.",
     "identity_mismatch": "Slack workspace or installer identity could not be verified. Nothing was connected.",
     "unexpected": "Slack returned an unexpected response.",
+    "team_joined": "This Slack workspace is already connected to the {name} organization in Scout, so it stays "
+                   "there and you were added to {name}. Switch to it in the workspace menu (top left).",
+    "team_taken": "This Slack workspace is already connected to the {name} organization in Scout. One Slack workspace "
+                  "belongs to one organization, so nothing was connected here. Scout will DM you a link to join "
+                  "{name}; it then shows up in your workspace switcher next to this one.",
 }
 
 
@@ -312,6 +317,30 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
                 log.warning("could not revoke an unused Slack installation")
         log.warning("slack installation failed: %s", exc.code)
         return fail(conn, actor, "slack", SLACK_MESSAGES[exc.code], exc.code)
+    # One Slack workspace belongs to one organization: a second organization never takes it over (that silenced Scout
+    # for everyone). The bot token is NOT revoked: Slack may hand out the same token the first organization uses.
+    from scout.slack_runtime import join_organization, team_owner
+    try:
+        owner = team_owner(s.database_url, found["team_id"], actor.tenant.id)
+    except Exception:  # noqa: BLE001
+        log.exception("could not check who owns Slack team %s", found["team_id"])
+        owner = {"slug": "", "name": "another"}
+    if owner:
+        joined = False
+        if owner.get("id"):  # merge: the person connecting joins the organization that owns this Slack workspace
+            try:
+                joined = join_organization(s.database_url, owner, actor.session_hash, found.get("installer_user_id"))
+            except Exception:  # noqa: BLE001
+                log.exception("could not add the installer to %s", owner.get("slug"))
+        if found.get("user_token"):
+            try:
+                slack_oauth.revoke(found["user_token"])  # the installer's own token, used for nothing now
+            except Exception:  # noqa: BLE001
+                log.warning("could not revoke the Slack installer token")
+        log.warning("Slack team %s is already connected to %s; refused for %s", found["team_id"], owner["slug"],
+                    actor.tenant.slug)
+        key = "team_joined" if joined else "team_taken"
+        return fail(conn, actor, "slack", SLACK_MESSAGES[key].format(name=owner["name"]), key)
     # One click: the bot joins every public channel and is invited into the installer's private channels. The
     # installer's user token is only used for those invites and is revoked right after, whatever happened.
     # A fresh installation never inherits an old channel list, so a different workspace starts clean.

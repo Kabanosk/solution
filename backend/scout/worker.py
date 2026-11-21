@@ -16,10 +16,10 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from scout import db as scout_db
-from scout import dm_replies
-from scout import guardrails
 from cfo.observability import span
+
+from scout import db as scout_db
+from scout import dm_replies, guardrails
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
@@ -70,6 +70,26 @@ def parse_user_map(raw: str) -> dict[str, str]:
     return out
 
 
+def tenant_user_map(cf: Any, installation: Any) -> dict[str, str]:
+    """Only explicit Slack IDs are trusted; never infer an employee from a display name."""
+    with cf() as conn:
+        rows = conn.execute("SELECT id, slack_user_id FROM employees WHERE slack_user_id IS NOT NULL").fetchall()
+    links = {r["id"]: r["slack_user_id"] for r in rows}
+    installer = installation.config.get("installer_user_id")
+    employee = installation.config.get("installer_employee_id")
+    if installer and employee:
+        with cf() as conn:
+            owner = conn.execute("SELECT 1 FROM scout_auth.memberships WHERE organization_id=%s "
+                                 "AND employee_id=%s AND role='owner'", (installation.tenant.id, employee)).fetchone()
+            exists = conn.execute("SELECT 1 FROM employees WHERE id=%s", (employee,)).fetchone()
+        if owner and exists:
+            links[employee] = installer
+    counts: dict[str, int] = {}
+    for uid in links.values():
+        counts[uid] = counts.get(uid, 0) + 1
+    return {employee_id: uid for employee_id, uid in links.items() if counts[uid] == 1}
+
+
 def _task_of(ctx: JobContext, job: Job) -> str | None:
     if job.task_id:
         return job.task_id
@@ -111,12 +131,19 @@ class Worker:
         job = self.ctx.jobs.claim(f"{self._id}:{worker_id}")
         if job is None:
             return False
+        installation = getattr(self, "installation", None)
+        if installation is not None and job.kind in ("dm", "approval", "dm_reply_notify"):
+            from scout.slack_runtime import installation_current
+            generation = job.payload.get("_slack_generation")
+            if (generation and generation != installation.generation) or not installation_current(installation, self.ctx.settings):
+                self.ctx.jobs.done(job.id)
+                return True  # revoked/replaced installation: never execute an old Slack job
         try:
             if job.attempts > MAX_ATTEMPTS:
                 raise RuntimeError("Retry limit reached after an interrupted worker")
             with span(f"scout.{job.kind}", inputs={"job": job.id, "kind": job.kind}):  # one trace per job
                 result = HANDLERS[job.kind](self.ctx, job)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("job %s (%s) failed", job.id, job.kind)
             final = self.ctx.jobs.fail(job.id, f"{type(e).__name__}: {e}")
             if final:
@@ -136,7 +163,7 @@ class Worker:
             if job.payload.get("status_ref"):
                 self.ctx.notifier.update(job.payload["status_ref"], "Sorry, something went wrong on my side. "
                                                                     "I've flagged it for a person.", "NOTIFY")
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("could not record the failure of job %s", job.id)
 
     def _loop(self, i: int, stop: threading.Event) -> None:
@@ -144,7 +171,7 @@ class Worker:
             try:
                 if not self.run_one(str(i)):
                     stop.wait(IDLE_SLEEP)
-            except Exception:  # noqa: BLE001 - a database blip must not kill the thread
+            except Exception:
                 log.exception("worker %s loop error", i)
                 stop.wait(2)
 
@@ -164,7 +191,7 @@ class Worker:
                     last[k] = now
                     try:
                         fn()
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         log.exception("watcher %s failed", getattr(fn, "__qualname__", fn))
             stop.wait(0.25)
 
@@ -180,30 +207,41 @@ class Worker:
             t.join(timeout=5)
 
 
-def build(settings: ScoutSettings | None = None) -> tuple[Worker, Any]:
+def build(settings: ScoutSettings | None = None, *, socket_enabled: bool = True) -> tuple[Worker, Any]:
     """Everything wired from the environment. Returns the worker and the Slack socket handler (or None)."""
-    from cfo.llm import get_llm
     from cfo.observability import init_tracing
-
     from cfo.tenancy import bind_tenant, worker_tenant
 
     init_tracing()  # MLflow traces of Scout's LLM calls and guardrail checks; a no-op without MLFLOW_TRACKING_URI
     s = settings or get_scout_settings()
     tenant = worker_tenant(s.database_url)
     with bind_tenant(tenant):
-        return _build(s)
+        return _build(s, socket_enabled=socket_enabled)
 
 
-def _build(s: ScoutSettings) -> tuple[Worker, Any]:
+def _build(s: ScoutSettings, *, installation: Any = None, socket_enabled: bool = True) -> tuple[Worker, Any]:
     from cfo.llm import get_llm
     from cfo.observability import traced_llm
+
     from scout.config import tenant_settings
     s = tenant_settings(s)
     cf = scout_db.factory(s.database_url)
     audit, recorder, jobs = Audit(cf), TaskRecorder(cf), JobQueue(cf)
     user_map = parse_user_map(s.slack_user_map)
     slack_client, socket_handler, notifier, names = None, None, LogNotifier(), {}
-    if s.slack_bot_token:
+    if installation is not None:
+        from scout.slack_runtime import GuardedSlackClient, installation_current
+        from scout.slack_ui import SlackUI, slack_names
+        slack_client = GuardedSlackClient(installation, s)
+        user_map = tenant_user_map(cf, installation)
+        names = slack_names(slack_client, user_map)
+        icon = s.scout_icon_url or (f"{s.dashboard_url.rstrip('/')}/scout-icon.png"
+                                    if s.dashboard_url.startswith("https://") else None)
+        notifier = SlackUI(slack_client, user_map, jobs, recorder, conn_factory=cf, audit=audit,
+                           bot_token=installation.token, dashboard_url=s.dashboard_url, icon_url=icon, names=names,
+                           generation=installation.generation,
+                           installation_valid=lambda: installation_current(installation, s))
+    elif s.slack_bot_token:
         from slack_bolt import App
         from slack_bolt.adapter.socket_mode import SocketModeHandler
 
@@ -217,16 +255,18 @@ def _build(s: ScoutSettings) -> tuple[Worker, Any]:
         notifier = SlackUI(slack_client, user_map, jobs, recorder, conn_factory=cf, audit=audit,
                            bot_token=s.slack_bot_token, dashboard_url=s.dashboard_url, icon_url=icon, names=names)
         notifier.register(app)
-        if s.slack_app_token:
+        if s.slack_app_token and socket_enabled:
             socket_handler = SocketModeHandler(app, s.slack_app_token)
     connectors = registry.build(cf, s, slack_client, audit)
     ctx = JobContext(conn_factory=cf, recorder=recorder, audit=audit, connectors=connectors, llm=traced_llm(get_llm()),
                      notifier=notifier, jobs=jobs, settings=s, hr=HR(cf, user_map, names), guard=guardrails.from_settings(s),
                      checkpointer=scout_db.postgres_checkpointer(s.database_url))
-    try:
-        ctx.hr.link_slack(user_map, names)
-    except Exception:  # noqa: BLE001 - the dashboard keeps the HR names; Scout itself works either way
-        log.warning("could not write the Slack names to HR", exc_info=True)
+    from cfo.tenancy import legacy_connectors_enabled
+    if legacy_connectors_enabled():
+        try:
+            ctx.hr.link_slack(user_map, names)
+        except Exception:
+            log.warning("could not write the Slack names to HR", exc_info=True)
     if ctx.guard.enabled:  # the first check after a NeMo restart is slow: warm it up without blocking the start
         threading.Thread(target=ctx.guard.warm_up, name="guardrails-warmup", daemon=True).start()
     bank = BankWatcher(cf, connectors, jobs)
@@ -241,24 +281,58 @@ def _build(s: ScoutSettings) -> tuple[Worker, Any]:
         (30.0, Scheduler(jobs).tick), (60.0, refresh_connectors)]
     if hasattr(notifier, "flush"):
         watchers.append((0.5, notifier.flush))
-    return Worker(ctx, s.scout_workers, watchers=watchers), socket_handler
+    worker = Worker(ctx, s.scout_workers, watchers=watchers)
+    worker.installation = installation
+    return worker, socket_handler
+
+
+def should_run_primary(tenant: Any, app_token: str) -> bool:
+    """Never run a second log-only executor against a tenant already managed by the Slack supervisor."""
+    return bool(tenant and tenant.legacy) or not app_token
 
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # the bank poll every 5 s is not news
-    worker, socket_handler = build()
+    settings = get_scout_settings()
+    worker, socket_handler = build(settings, socket_enabled=not bool(settings.slack_app_token))
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
-    if socket_handler is not None:
+    supervisor = None
+    if settings.slack_app_token:
+        from slack_bolt.adapter.socket_mode import SocketModeHandler
+
+        from scout.slack_runtime import SlackSupervisor
+        supervisor = SlackSupervisor(settings)
+        supervisor.reconcile()
+        # A single Socket Mode client receives events for every installed workspace; never create one per tenant.
+        socket_handler = SocketModeHandler(supervisor.bolt_app(), settings.slack_app_token)
+        socket_handler.connect()
+        log.info("Slack Socket Mode connected for tenant routing")
+    elif socket_handler is not None:
         socket_handler.connect()
         log.info("Slack Socket Mode connected")
     else:
-        log.warning("Slack is not configured: messages go to the log")
-    worker.run(stop)
-    if socket_handler is not None:
-        socket_handler.close()
+        log.warning("Slack Socket Mode is not configured: messages go to the log")
+    poller = None
+    if supervisor is not None:
+        poller = threading.Thread(target=supervisor.run, args=(stop,), name="scout-slack-supervisor", daemon=True)
+        poller.start()
+    try:
+        if should_run_primary(worker.tenant, settings.slack_app_token):
+            worker.run(stop)
+        else:
+            log.info("Tenant jobs run in isolated installation workers, not the configured primary worker")
+            stop.wait()
+    finally:
+        stop.set()
+        if socket_handler is not None:
+            socket_handler.close()
+        if poller is not None:
+            poller.join(timeout=5)
+        if supervisor is not None:
+            supervisor.close()
     return 0
 
 

@@ -72,11 +72,35 @@ def build_context(settings: ScoutSettings) -> JobContext:
 
     slack, user_map = None, parse_user_map(settings.slack_user_map)
     names: dict[str, str] = {}
-    if settings.slack_bot_token:
+    bot_token = settings.slack_bot_token
+    generation = None
+    if bot_token:
         from slack_sdk import WebClient
 
-        slack = WebClient(token=settings.slack_bot_token, timeout=10)
+        slack = WebClient(token=bot_token, timeout=10)
         names = _names(slack, settings.slack_user_map, user_map)
+    else:
+        from cfo.tenancy import current_tenant
+
+        from scout.slack_runtime import (
+            GuardedSlackClient,
+            installation_current,
+            load_installations,
+            select_installation,
+        )
+        from scout.slack_ui import slack_names
+        from scout.worker import tenant_user_map
+
+        tenant = current_tenant(required=False)
+        if tenant is not None:
+            installs = load_installations(settings)
+            active = next((i for i in installs if i.tenant.id == tenant.id and
+                           select_installation(installs, i.team_id) is i), None)
+            if active is not None:
+                slack = GuardedSlackClient(active, settings)
+                user_map = tenant_user_map(cf, active)
+                names = slack_names(slack, user_map)
+                bot_token, generation = active.token, active.generation
     recorder, jobs = TaskRecorder(cf), JobQueue(cf)
     notifier: Any = LogNotifier()
     if slack is not None:  # files and messages Scout sends from the dashboard chat land in the asker's Slack DM
@@ -85,8 +109,9 @@ def build_context(settings: ScoutSettings) -> JobContext:
         icon = settings.scout_icon_url or (f"{settings.dashboard_url.rstrip('/')}/scout-icon.png"
                                            if settings.dashboard_url.startswith("https://") else None)
         notifier = SlackUI(slack, user_map, jobs, recorder, conn_factory=cf, audit=audit,
-                           bot_token=settings.slack_bot_token, dashboard_url=settings.dashboard_url, icon_url=icon,
-                           names=names)
+                           bot_token=bot_token, dashboard_url=settings.dashboard_url, icon_url=icon,
+                           names=names, generation=generation,
+                           installation_valid=(lambda: installation_current(active, settings)) if generation else None)
     return JobContext(conn_factory=cf, recorder=recorder, audit=audit,
                       connectors=registry.build(cf, settings, slack, audit), llm=traced_llm(get_llm()), notifier=notifier,
                       jobs=jobs, settings=settings, hr=HR(cf, user_map, names),
@@ -126,7 +151,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
         raise ApiError(400, "bad_conversation", "The last message must be the user's.")
     try:
         ctx = make_ctx(settings)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("could not build the chat context")
         raise ApiError(503, "scout_unavailable", f"Scout could not start: {type(e).__name__}") from None
     asker = by or settings.ceo_id
@@ -191,7 +216,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 events.put(f)
             events.put({"type": "delta", "text": reply})
             events.put({"type": "done", "truncated": False, "task_id": task.id, "followups": bool(awaiting)})
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("dashboard chat failed")
             ctx.recorder.step(task.id, "error", f"Something went wrong: {type(e).__name__}")
             ctx.recorder.set_status(task.id, "cancelled", outcome="Chat failed")
@@ -227,7 +252,7 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
 
     try:
         ctx = make_ctx(settings)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("could not build the forecast context")
         raise ApiError(503, "scout_unavailable", "Scout could not start the local forecast.") from None
     requester = by or settings.ceo_id
@@ -259,7 +284,7 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
                                     level="AUTO")
             events.put({"type": "delta", "text": reply})
             events.put({"type": "done", "truncated": False, "task_id": task.id})
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             log.exception("local forecast handoff failed")
             ctx.recorder.step(task.id, "error", f"Local forecast failed: {type(error).__name__}", source="granite")
             ctx.recorder.set_status(task.id, "cancelled", outcome="Local forecast failed")

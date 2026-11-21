@@ -278,8 +278,8 @@ def revoke_google(secret: str) -> None:
 SLACK_MESSAGES = {
     "unavailable": "Slack could not be reached. Try again later.",
     "denied": "Slack authorization could not be completed.",
-    "scope_missing": "Slack did not grant the required channel and direct-message permissions. Install again and allow them.",
-    "identity_mismatch": "Slack workspace identity could not be verified. Nothing was connected.",
+    "scope_missing": "Slack did not grant the required channel, direct-message and file permissions. Install again and allow them.",
+    "identity_mismatch": "Slack workspace or installer identity could not be verified. Nothing was connected.",
     "unexpected": "Slack returned an unexpected response.",
 }
 
@@ -300,6 +300,8 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
         return needs_configuration(conn, actor, "slack", state.missing_config("slack", s))
     if has_credential(conn, "slack"):  # connected after this state was issued: exchange nothing, revoke nothing
         return {}
+    if not actor.tenant.employee_id:
+        return fail(conn, actor, "slack", SLACK_MESSAGES["identity_mismatch"], "identity_mismatch")
     try:
         found = slack_oauth.install(s.slack_client_id, s.slack_client_secret, body.code, body.redirect_uri)
     except slack_oauth.SlackAuthError as exc:
@@ -314,8 +316,10 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
     # installer's user token is only used for those invites and is revoked right after, whatever happened.
     # A fresh installation never inherits an old channel list, so a different workspace starts clean.
     user_token = found.pop("user_token", None)
+    user_scopes_granted = found.pop("user_scopes_granted", False)
     try:
-        joined = slack_oauth.auto_join(found["token"], found["bot_user_id"], user_token)
+        joined = slack_oauth.auto_join(found["token"], found["bot_user_id"],
+                                       user_token if user_scopes_granted else None)
     except slack_oauth.SlackAuthError as exc:
         log.warning("slack auto-join failed: %s", exc.code)
         joined = {"channels": [], "private": 0, "skipped": 0}
@@ -328,9 +332,9 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
     channels = joined["channels"]
     upsert_connection(conn, "slack", "Slack",
                       {"team": found["team"], "team_id": found["team_id"], "channels": channels, "scopes": found["scopes"],
-                       "bot_user_id": found["bot_user_id"], "read_only": False, "authorized": True},
-                      seal_secret(s, actor.tenant.id, "slack", found["token"]),
-                      status="connected" if channels else "disconnected")
+                       "bot_user_id": found["bot_user_id"], "installer_user_id": found["installer_user_id"],
+                       "installer_employee_id": actor.tenant.employee_id, "read_only": False, "authorized": True},
+                      seal_secret(s, actor.tenant.id, "slack", found["token"]), status="connected")
     audit(conn, "connect", "chat:slack",
           f"Slack workspace {found['team_id']}: bot joined {len(channels)} channel(s), {joined['private']} private; DM permissions granted")
     state.record(conn, actor.tenant.id, "slack")
@@ -366,7 +370,7 @@ def set_slack_channels(conn: Any, actor: Actor, s: ScoutSettings, channels: list
             return
     config = {**(row["config"] or {}), "channels": channels}
     conn.execute("UPDATE connections SET config = %s, status = %s, last_error = NULL, last_sync_at = now() "
-                 "WHERE id = 'slack'", (Jsonb(config), "connected" if channels else "disconnected"))
+                 "WHERE id = 'slack'", (Jsonb(config), "connected"))
     audit(conn, "authorize", "chat:slack", f"{len(channels)} Slack channel(s) readable")
     state.record(conn, actor.tenant.id, "slack")
 

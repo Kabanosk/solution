@@ -22,7 +22,16 @@ channel conversations in the thread where someone mentioned Scout. Code: `backen
 3. Click **Next**, review the summary (scopes `chat:write`, `im:write`, `im:history`, `users:read`,
    `app_mentions:read`; Socket Mode on; interactivity on) and click **Create**.
 
-## 3. Install it and collect the two tokens
+## 3. Install it and collect the app-level token
+
+For Scout workspace onboarding, the **bot token comes from each owner's OAuth install** and is encrypted per workspace.
+The singleton event receiver uses only `SLACK_APP_TOKEN` as app-level transport; it does not use a global bot token for
+new organizations. `SLACK_BOT_TOKEN` and `SLACK_USER_MAP` below are legacy demo options only. The installing owner
+is linked through their verified OAuth user ID, not a copied member ID. Other colleagues need an explicit stable
+Slack user-ID link in their own tenant. Connected pre-upgrade installations must disconnect and reconnect to
+record this link and grant the new scopes.
+
+## 3a. Legacy demo setup: bot and app tokens
 
 | Token | Looks like | Where to get it | Environment variable |
 |---|---|---|---|

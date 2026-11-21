@@ -10,7 +10,7 @@ export const STEPS: { id: SetupStepId; title: string; description: string; cta: 
   { id: "invoicing", title: "Invoicing", description: "Scout's built-in invoicing for this workspace. It starts empty.", cta: "Use built-in invoicing", provider: "builtin" },
   { id: "ksef", title: "KSeF", description: "National e-invoice system, test environment only.", cta: "Set up test environment", provider: "ksef" },
   { id: "email", title: "Email", description: "Gmail / Google Workspace: Google grants read-only mailbox permission; Scout restricts reads to one label. Google sign-in alone is not mailbox consent. Disconnect or failed-setup revocation may affect other Scout workspaces using the same Google account.", cta: "Continue with Google", provider: "google" },
-  { id: "slack", title: "Slack", description: "Connect Scout to public channels and private channels you belong to, and grant permission to open, send and read its own direct messages. Setup sends no test messages.", cta: "Connect workspace", provider: "slack" },
+  { id: "slack", title: "Slack", description: "Connect Scout to public channels, your private channels, and its DMs. Your Slack account is linked automatically; other people need a verified Slack ID link. Setup sends no test messages.", cta: "Connect workspace", provider: "slack" },
   { id: "network", title: "Company network", description: "Tell us whether Scout needs private-network access. An administrator sets it up.", cta: "Answer a few questions", provider: null },
 ];
 const IDS = STEPS.map(entry => entry.id);

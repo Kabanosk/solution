@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { Pool, type PoolClient } from "pg";
 import { authorized } from "./auth";
 import { isDevelopmentPreview } from "./development-preview";
-import { decimalCents, displayCents, financePeriod, type DashboardData, type Forecast } from "./finance-model";
+import { decimalCents, displayCents, financePeriod, quarterSpend, type DashboardData, type Forecast } from "./finance-model";
 import { loadRecords, loadScout, loadTaskDetail } from "./scout";
 import type { RecordKind, ScoutRecords, TaskDetail } from "./scout-model";
 export type { DashboardData, Employee, ExpenseCategory, FinancePeriod } from "./finance-model";
@@ -25,35 +25,48 @@ function database() {
 // every call (100-250 ms). Cache it in-process: fresh for 60 s, then served stale while one refresh runs.
 const FORECAST_FRESH_MS = 60_000;
 const FORECAST_STALE_MS = 15 * 60_000;
-let forecastCache: { value: Forecast | null; at: number } | undefined;
-let forecastInFlight: Promise<Forecast | null> | undefined;
+/** The two runs the overview shows: 90 days by day and 12 months by week. */
+const HORIZONS = { quarter: "horizon_days=90&granularity=day", year: "horizon_days=365&granularity=week" } as const;
+type Horizon = keyof typeof HORIZONS;
+const forecastCache = new Map<Horizon, { value: Forecast | null; at: number }>();
+const forecastInFlight = new Map<Horizon, Promise<Forecast | null>>();
 
-function forecast(): Promise<Forecast | null> {
-  const age = forecastCache ? Date.now() - forecastCache.at : Infinity;
-  if (age < FORECAST_FRESH_MS) return Promise.resolve(forecastCache!.value);
-  forecastInFlight ??= fetchForecast().then(value => {
-    // A failed refresh keeps the last good forecast until it is too old to show.
-    if (value || !forecastCache || Date.now() - forecastCache.at > FORECAST_STALE_MS) forecastCache = { value, at: Date.now() };
-    return forecastCache?.value ?? value;
-  }).finally(() => { forecastInFlight = undefined; });
-  return age < FORECAST_STALE_MS && forecastCache?.value ? Promise.resolve(forecastCache.value) : forecastInFlight;
+function forecast(horizon: Horizon): Promise<Forecast | null> {
+  const cached = forecastCache.get(horizon);
+  const age = cached ? Date.now() - cached.at : Infinity;
+  if (cached && age < FORECAST_FRESH_MS) return Promise.resolve(cached.value);
+  let inFlight = forecastInFlight.get(horizon);
+  if (!inFlight) {
+    inFlight = fetchForecast(HORIZONS[horizon]).then(value => {
+      // A failed refresh keeps the last good forecast until it is too old to show.
+      const previous = forecastCache.get(horizon);
+      if (value || !previous || Date.now() - previous.at > FORECAST_STALE_MS) forecastCache.set(horizon, { value, at: Date.now() });
+      return forecastCache.get(horizon)?.value ?? value;
+    }).finally(() => { forecastInFlight.delete(horizon); });
+    forecastInFlight.set(horizon, inFlight);
+  }
+  return age < FORECAST_STALE_MS && cached?.value ? Promise.resolve(cached.value) : inFlight;
 }
 
-async function fetchForecast(): Promise<Forecast | null> {
+const money = (value: { amount: string }) => displayCents(decimalCents(value.amount));
+
+async function fetchForecast(query: string): Promise<Forecast | null> {
   try {
-    const response = await fetch(`${process.env.CFO_API_URL ?? "http://api:8000"}/v1/forecast/liquidity?horizon_days=90&granularity=day`, {
+    const response = await fetch(`${process.env.CFO_API_URL ?? "http://api:8000"}/v1/forecast/liquidity?${query}`, {
       cache: "no-store", signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) return null;
     const body = await response.json();
-    if (body.stub !== false || !Array.isArray(body.points) || !body.points.length) return null;
+    if (body.stub !== false || !Array.isArray(body.points) || !body.points.length || !body.lowest_point) return null;
     const start = Date.parse(body.as_of);
     const points = body.points.map((point: { date: string; balance: { amount: string } }) => ({
-      day: (Date.parse(point.date) - start) / 86400000,
-      balance: displayCents(decimalCents(point.balance.amount)),
+      day: (Date.parse(point.date) - start) / 86400000, date: point.date, balance: money(point.balance),
     }));
     if (!Number.isFinite(start) || points.some((point: { day: number }) => !Number.isFinite(point.day))) return null;
-    return { asOf: body.as_of, model: body.model.name, safetyBuffer: displayCents(decimalCents(body.safety_buffer.amount)), points };
+    return {
+      asOf: body.as_of, model: body.model.name, horizonDays: body.horizon_days, openingBalance: money(body.opening_balance),
+      safetyBuffer: money(body.safety_buffer), lowest: { date: body.lowest_point.date, balance: money(body.lowest_point.balance) }, points,
+    };
   } catch {
     // Forecast availability must not hide the actual bank records.
     return null;
@@ -65,11 +78,11 @@ export async function getDashboardData(): Promise<DashboardData> {
   if (!authorized((await headers()).get("authorization"))) throw new Error("Access denied");
   if (isDevelopmentPreview()) return (await import("./preview-data")).getPreviewData();
   // The forecast comes from the API, the rest from Postgres: run both at once instead of one after the other.
-  const forecastPromise = forecast();
+  const forecastPromises = [forecast("quarter"), forecast("year")] as const;
   const client = await database().connect().catch(() => {
     throw new Error("Company data is temporarily unavailable");
   });
-  let result: Omit<DashboardData, "forecast">;
+  let result: Omit<DashboardData, "forecast" | "forecastYear">;
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const summary = (await client.query(`
@@ -111,6 +124,22 @@ export async function getDashboardData(): Promise<DashboardData> {
       WHERE category IN ('payroll', 'social_security')
         AND date_trunc('month', booking_date) = (SELECT date_trunc('month', max(booking_date)) FROM transactions WHERE category = 'payroll')
       GROUP BY category`)).rows;
+    // Spend per team this quarter (as of the latest booking) against three monthly budgets; spend without a team
+    // (tax, social security, partner payouts) is one extra row. One round trip, under 1 ms on the seeded data.
+    const quarter = (await client.query(`
+      WITH q AS (SELECT date_trunc('quarter', max(booking_date))::date AS start, max(booking_date)::date AS through FROM transactions),
+      spend AS (
+        SELECT x.team_id, -sum(x.amount) AS spent FROM transactions x, q
+        WHERE x.amount < 0 AND x.booking_date >= q.start GROUP BY x.team_id
+      ),
+      rows AS (
+        SELECT t.id, t.name, (t.monthly_budget * 300)::bigint::text AS budget, (coalesce(s.spent, 0) * 100)::bigint::text AS spent
+          FROM teams t LEFT JOIN spend s ON s.team_id = t.id
+        UNION ALL
+        SELECT NULL, 'Unassigned', NULL, (spent * 100)::bigint::text FROM spend WHERE team_id IS NULL
+      )
+      SELECT to_char(q.start, 'YYYY-MM-DD') AS start, to_char(q.through, 'YYYY-MM-DD') AS through, rows.*
+        FROM q LEFT JOIN rows ON true`)).rows;
     const scout = await loadScout(client);
     await client.query("COMMIT");
     result = {
@@ -119,7 +148,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       closingBalance: displayCents(summary.balance), employees,
       monthlyPayroll: displayCents(payroll.find(row => row.category === "payroll")?.amount ?? "0"),
       monthlyContributions: displayCents(payroll.find(row => row.category === "social_security")?.amount ?? "0"),
-      undocumentedPayments: Number(summary.undocumented), scout,
+      undocumentedPayments: Number(summary.undocumented), scout, generatedAt: new Date().toISOString(),
+      quarterSpend: quarterSpend(quarter[0]?.start ?? null, quarter[0]?.through ?? null, quarter.filter(row => row.name !== null)),
     };
   } catch {
     await client.query("ROLLBACK").catch(() => {});
@@ -128,7 +158,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   } finally {
     client.release();
   }
-  return { ...result, forecast: await forecastPromise };
+  const [quarterForecast, yearForecast] = await Promise.all(forecastPromises);
+  return { ...result, forecast: quarterForecast, forecastYear: yearForecast };
 }
 
 /** Runs read-only queries in one REPEATABLE READ transaction; errors never expose SQL or connection details. */

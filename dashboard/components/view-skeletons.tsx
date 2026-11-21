@@ -1,13 +1,19 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Loading placeholders shaped like each view, so content replaces them without moving the layout.
-export type SkeletonView = "overview" | "tasks" | "task" | "transactions" | "staffing" | "connections" | "audit" | "llm-usage" | "chat" | "policies";
+export type SkeletonView = "overview" | "tasks" | "task" | "transactions" | "staffing" | "connections" | "audit" | "llm-usage" | "chat" | "policies" | "demo";
 
 const Title = ({ wide = false }: { wide?: boolean }) => <div className="space-y-2"><Skeleton className={wide ? "h-8 w-80 max-w-full" : "h-7 w-48"} /><Skeleton className="h-4 w-[26rem] max-w-full" /></div>;
 const Rows = ({ count, height = "h-10" }: { count: number; height?: string }) =>
   <>{Array.from({ length: count }, (_, row) => <div key={row} className={`flex ${height} items-center gap-3 border-b px-4 last:border-b-0`}>
     <Skeleton className="h-3 w-16" /><Skeleton className="h-3 flex-1" style={{ maxWidth: `${55 + ((row * 37) % 40)}%` }} /><Skeleton className="ml-auto h-3 w-20" />
   </div>)}</>;
+
+/** A bordered overview panel: title row, then a block. */
+const Panel = ({ height }: { height: string }) => <div className={`flex flex-col overflow-hidden rounded-xl border bg-card ${height}`}>
+  <div className="flex h-11 items-center border-b px-4"><Skeleton className="h-3.5 w-32" /></div>
+  <div className="flex-1 p-4"><Skeleton className="size-full" /></div>
+</div>;
 
 function TableSkeleton({ rows, header = true }: { rows: number; header?: boolean }) {
   return <div className="overflow-hidden rounded-xl border bg-card">
@@ -18,11 +24,14 @@ function TableSkeleton({ rows, header = true }: { rows: number; header?: boolean
 
 export function ViewSkeleton({ view }: { view: SkeletonView }) {
   switch (view) {
-    case "overview": return <div className="space-y-6">
-      <div className="flex items-end justify-between gap-5"><div className="space-y-3"><Skeleton className="h-3 w-48" /><Skeleton className="h-9 w-80 max-w-full" /><Skeleton className="h-4 w-[28rem] max-w-full" /></div><Skeleton className="hidden h-11 w-40 sm:block" /></div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{[0, 1, 2, 3, 4].map(card => <Skeleton key={card} className="h-[150px] rounded-xl" />)}</div>
-      <Skeleton className="h-[540px] rounded-xl" />
+    case "overview": return <div className="space-y-4">
+      <div className="flex items-end justify-between gap-3"><div className="space-y-2"><Skeleton className="h-6 w-32" /><Skeleton className="h-4 w-80 max-w-full" /></div><Skeleton className="h-8 w-24" /></div>
+      <Skeleton className="h-[260px] rounded-xl sm:h-[93px]" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><Panel height="h-[426px]" /><Panel height="h-[426px]" /></div>
+      <div className="grid gap-4 lg:grid-cols-2"><Panel height="h-[364px]" /><Panel height="h-[364px]" /></div>
+      <Panel height="h-[250px]" />
     </div>;
+    case "demo": return <div className="max-w-3xl space-y-4"><Title /><TableSkeleton rows={6} header={false} /></div>;
     case "tasks": return <div className="overflow-hidden rounded-xl border bg-card">
       <div className="space-y-3 border-b px-4 py-3">
         <div className="flex items-center gap-3"><div className="mr-auto space-y-1.5"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-72 max-w-full" /></div><Skeleton className="h-8 w-48 rounded-lg" /></div>
@@ -75,10 +84,10 @@ export function ViewSkeleton({ view }: { view: SkeletonView }) {
   }
 }
 
-export const SKELETON_VIEWS: SkeletonView[] = ["overview", "tasks", "task", "transactions", "staffing", "connections", "audit", "llm-usage", "chat", "policies"];
+export const SKELETON_VIEWS: SkeletonView[] = ["overview", "tasks", "task", "transactions", "staffing", "connections", "audit", "llm-usage", "chat", "policies", "demo"];
 
 /** Hash -> skeleton, for the first paint before React runs (mirrors lib/nav.ts routeFromHash). */
 export const SKELETON_FROM_HASH_SCRIPT = `(function(){var h=location.hash.slice(1).split("?")[0],v="overview";
 if(h.indexOf("task/")===0)v="task";else if(h==="tasks"||h==="inbox"||h==="my-tasks"||h.indexOf("loop-")===0||h==="investigations"||h.indexOf("agent-jobs")===0)v="tasks";
-else if(h==="chat"||h==="llm")v="chat";else if(["transactions","staffing","connections","audit","llm-usage","policies"].indexOf(h)>=0)v=h;
+else if(h==="chat"||h==="llm")v="chat";else if(["transactions","staffing","connections","audit","llm-usage","policies","demo"].indexOf(h)>=0)v=h;
 var s=document.currentScript;if(s&&s.parentElement)s.parentElement.setAttribute("data-view",v);})();`;

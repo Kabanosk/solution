@@ -13,10 +13,10 @@ test("channel chip mapping", () => {
   assert.equal(chip("chat_context"), "Chat context");
   assert.equal(chip("email"), "Email");
   assert.equal(chip("forecast"), "Forecast");
-  assert.equal(chip("approval"), "CFO");
+  assert.equal(chip("approval"), "Approval");
   assert.equal(chip(null, "waiting"), "Slack");
   assert.equal(chip(null, "escalated"), "Slack");
-  assert.equal(chip(null, "waiting", "vincenzo"), "CFO");
+  assert.equal(chip(null, "waiting", "vincenzo"), "Approval");
   assert.equal(chip(null, "in_progress"), null);
   assert.equal(chip(null, "todo"), null);
 });

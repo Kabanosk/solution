@@ -2,17 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowDownLeft, ArrowUpRight, Bell, CalendarClock, Inbox, LayoutGrid, ListTodo, MessageSquare, Search, ShieldCheck, Wallet } from "lucide-react";
+import { Bell, CalendarClock, ChevronRight, Inbox, LayoutGrid, ListTodo, MessageSquare, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import type { DashboardData } from "@/lib/finance";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { FinancialCharts } from "@/components/financial-charts";
+import { ForecastSection } from "@/components/overview/forecast-section";
+import { ScoutActivityRing, TeamSpendDonut } from "@/components/overview/round-charts";
 import { Staffing } from "@/components/staffing";
 import { DomIds } from "@/components/dom-ids";
 import { AppSidebar, type NavCounts } from "@/components/app-sidebar";
@@ -21,7 +19,7 @@ import { TaskDetailSkeleton, TaskDetailView } from "@/components/tasks/task-deta
 import { AuditLog } from "@/components/audit-log";
 import { Connections } from "@/components/connections";
 import { AccessPolicies } from "@/components/access-policies";
-import { DemoPanel } from "@/components/demo-panel";
+import { DemoView } from "@/components/demo-panel";
 import { Transactions } from "@/components/transactions";
 import { LlmChat } from "@/components/llm-chat";
 import { LlmUsage } from "@/components/llm-usage";
@@ -29,6 +27,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { activeItem, GO_SHORTCUTS, hashFromRoute, routeFromHash, VIEW_LABEL, type Route, type TaskFilter, type View } from "@/lib/nav";
 import { formatShare, isOpen, LOOP_LABEL, money, shortDate, type AgentTask, type TaskDetail } from "@/lib/scout-model";
 import { inInbox, loopSignal, needsReaction } from "@/lib/task-signals";
+import { latestWhatIf } from "@/lib/overview-model";
 import { useSeenTasks } from "@/lib/use-seen-tasks";
 import { prefetchRecords, useRecords } from "@/lib/use-records";
 import { ViewSkeleton } from "@/components/view-skeletons";
@@ -36,7 +35,6 @@ import { prefetchLlmUsage } from "@/components/llm-usage";
 import { cn } from "@/lib/utils";
 
 const currency = (amount: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(amount);
-const compact = (amount: number) => amount >= 1000 ? `€${(amount / 1000).toFixed(1)}k` : currency(amount);
 const mobileNavigation: { route: Route; id: string; label: string; icon: typeof Inbox }[] = [
   { route: { view: "overview" }, id: "overview", label: "Overview", icon: LayoutGrid },
   { route: { view: "tasks", filter: { scope: "inbox" } }, id: "inbox", label: "Inbox", icon: Inbox },
@@ -182,11 +180,12 @@ function DashboardContent({ data }: { data: DashboardData }) {
     { label: "Inbox", detail: `${inboxTasks.length} waiting on you`, route: { view: "tasks", filter: { scope: "inbox" } } },
     { label: "Scout chat", detail: "Ask Scout; it answers with its tools", route: { view: "chat" } },
     { label: "LLM usage", detail: "Model requests, tokens, latency and cost", route: { view: "llm-usage" } },
-    { label: "Overview", detail: "Cash balance, forecast and expense mix", route: { view: "overview" } },
+    { label: "Overview", detail: "Cash, forecast, safety buffer, team spend and what Scout did", route: { view: "overview" } },
     { label: "Transactions", detail: "Bank bookings and their invoices", route: { view: "transactions" } },
     { label: "Connections", detail: "Bank, invoicing, email, Slack and laptops", route: { view: "connections" } },
     { label: "Audit log", detail: "ALLOW / DENY decisions", route: { view: "audit" } },
     { label: "Staffing & payroll", detail: "Team, salaries and payroll export", route: { view: "staffing" } },
+    ...(scout.demo ? [{ label: "Demo scenarios", detail: "Play a payment scenario for Scout", route: { view: "demo" } as Route }] : []),
   ];
   const searchItems = [
     ...views,
@@ -197,17 +196,17 @@ function DashboardContent({ data }: { data: DashboardData }) {
   const active = activeItem(route);
   const title = route.taskId ? `Tasks › ${route.taskId}` : route.view === "tasks" ? active?.label ?? "Tasks" : VIEW_LABEL[page];
   const ceoName = names[ceo] ?? "CEO";
+  const whatIf = useMemo(() => latestWhatIf(scout.tasks), [scout.tasks]);
   const attentionTasks = [...openTasks].sort((a, b) => Number(needsReaction(b)) - Number(needsReaction(a)) || b.updatedAt.localeCompare(a.updatedAt));
 
   let content: React.ReactNode;
   if (route.taskId) content = task.detail ? <TaskDetailView key={route.taskId} detail={task.detail} names={names} onChanged={task.reload} />
     : task.error ? <div role="alert" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">{task.error} <Link href="/#tasks" className="underline underline-offset-2">Back to tasks</Link></div>
     : <TaskDetailSkeleton id={route.taskId} />;
-  else if (page === "tasks") content = <div className="space-y-4">
-    {scout.demo && <DemoPanel />}
-    <TaskBoard tasks={scout.tasks} names={names} ceo={ceo} filter={filter} seen={seen} onOpen={openTask}
-      onFilter={next => navigate({ view: "tasks", filter: next }, { replace: true })} />
-  </div>;
+  else if (page === "tasks") content = <TaskBoard tasks={scout.tasks} names={names} ceo={ceo} filter={filter} seen={seen} onOpen={openTask}
+      onFilter={next => navigate({ view: "tasks", filter: next }, { replace: true })} />;
+  else if (page === "demo") content = scout.demo ? <DemoView />
+    : <p role="status" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">Demo scenarios are switched off on this deployment (SCOUT_DEMO is not set).</p>;
   else if (page === "staffing") content = <Staffing data={data} onBack={() => navigate({ view: "overview" })} />;
   else if (page === "transactions") content = <TransactionsView tasks={scout.tasks} />;
   else if (page === "connections") content = <Connections connections={scout.connections} />;
@@ -215,56 +214,45 @@ function DashboardContent({ data }: { data: DashboardData }) {
   else if (page === "policies") content = <AccessPolicies />;
   else if (page === "llm-usage") content = <LlmUsage active />;
   else if (page === "chat") content = null; // Kept mounted below so the conversation survives page switches.
-  else content = <div id="scout-overview" className="space-y-6">
-    <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-      <div className="space-y-2"><p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Scout · Your finance agent</p><h1 className="text-3xl font-medium tracking-tight">Your finance overview</h1><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {data.asOf}. {attention} tasks wait on people. Every outcome connected to its evidence.</p></div>
-      <Button id="scout-refresh" className="min-h-11 shrink-0 gap-2" disabled={refreshing} aria-busy={refreshing} onClick={() => startRefresh(() => router.refresh())}><Activity className={cn("size-4", refreshing && "motion-safe:animate-spin")} aria-hidden="true" />Refresh records</Button>
+  else content = <div id="scout-overview" className="space-y-4">
+    <section className="flex flex-wrap items-end justify-between gap-3">
+      <div><h1 className="text-xl font-medium tracking-tight">Overview</h1><p className="mt-1 text-[13px] text-muted-foreground">{data.year.transactions.toLocaleString("en-US")} bank transactions through {shortDate(`${data.asOf}T12:00:00Z`)} · {attention} tasks wait on people</p></div>
+      <Button id="scout-refresh" variant="outline" size="sm" className="h-8 shrink-0 gap-2" disabled={refreshing} aria-busy={refreshing} onClick={() => startRefresh(() => router.refresh())}><RefreshCw className={cn("size-3.5", refreshing && "motion-safe:animate-spin")} aria-hidden="true" />Refresh</Button>
     </section>
 
-    {scout.demo && <DemoPanel />}
-
-    <section id="scout-financial-summary" aria-label="Financial summary" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <section id="scout-financial-summary" aria-label="Key figures" className="grid divide-y overflow-hidden rounded-xl border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
-        { label: "Available balance", value: currency(data.closingBalance), note: `As of ${data.asOf}`, trend: "Sum of recorded bank bookings", icon: Wallet, tone: "positive", to: { view: "transactions" } as Route },
-        { label: "Money in", value: compact(data.year.totalRevenue), note: `Recorded inflows · ${data.yearLabel}`, trend: "Company bank transactions", icon: ArrowDownLeft, tone: "neutral", to: { view: "transactions" } as Route },
-        { label: "Money out", value: compact(data.year.totalExpenses), note: `Recorded outflows · ${data.yearLabel}`, trend: `${data.year.expenses.length} categories tracked`, icon: ArrowUpRight, tone: "neutral", to: { view: "transactions" } as Route },
-        { label: "Needs attention", value: String(attention), note: "Waiting + escalated tasks", trend: `${escalated} escalated`, icon: Activity, tone: "warning", to: { view: "tasks", filter: { scope: "inbox" } } as Route },
-        { label: "Explained by Scout", value: `${scout.explained.documented}/${scout.explained.total}`, note: `${formatShare(scout.explained.documented, scout.explained.total)} of payments`, trend: "Outgoing payments with an invoice reference", icon: ShieldCheck, tone: "positive", to: { view: "transactions" } as Route },
-      ].map(({ label, value, note, trend, icon: Icon, tone, to }) => (
-        <Card key={label} className="cursor-pointer gap-3 py-5 shadow-none transition-colors hover:border-foreground/20" onClick={() => navigate(to)}>
-          <CardContent className="space-y-3 px-4">
-            <div className="flex items-center justify-between gap-3"><span className={`flex size-8 items-center justify-center rounded-md border ${tone === "positive" ? "border-success-border text-success" : tone === "warning" ? "border-warning-border text-warning" : "text-muted-foreground"}`}><Icon className="size-4" aria-hidden="true" /></span><p className="text-xs text-muted-foreground">{label}</p></div>
-            <div><strong className="block font-mono text-[1.65rem] font-medium tracking-tighter">{value}</strong><span className="mt-1 block text-[11px] text-muted-foreground">{note}</span></div>
-            <p className={`pt-1 text-[11px] ${tone === "positive" ? "text-success" : tone === "warning" ? "text-warning" : "text-muted-foreground"}`}>{trend}</p>
-          </CardContent>
-        </Card>
+        { label: "Available balance", value: currency(data.closingBalance), note: `Recorded bank bookings · ${shortDate(`${data.asOf}T12:00:00Z`)}`, to: { view: "transactions" } as Route, tone: "" },
+        { label: "Needs attention", value: String(attention), note: `${waiting} waiting · ${escalated} escalated`, to: { view: "tasks", filter: { scope: "inbox" } } as Route, tone: attention > 0 ? "text-warning" : "" },
+        { label: "Explained by Scout", value: formatShare(scout.explained.documented, scout.explained.total), note: `${scout.explained.documented} of ${scout.explained.total} payments with an invoice reference`, to: { view: "transactions" } as Route, tone: "" },
+      ].map(({ label, value, note, to, tone }) => (
+        <button key={label} type="button" onClick={() => navigate(to)} className="group px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+          <span className="flex items-center justify-between text-[12px] text-muted-foreground">{label}<ChevronRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" /></span>
+          <strong className={cn("mt-1 block font-mono text-[22px] leading-tight font-medium tracking-tight", tone)}>{value}</strong>
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{note}</span>
+        </button>
       ))}
     </section>
 
-    <FinancialCharts data={data} />
+    <ForecastSection quarter={data.forecast} year={data.forecastYear} whatIf={whatIf} />
 
-    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]" aria-label="Cash events and open tasks">
-      <CashEvents data={data} />
-      <AttentionList tasks={attentionTasks} names={names} onOpen={openTask} onShowAll={() => navigate({ view: "tasks" })} />
+    <section aria-label="Spend and Scout activity" className="grid gap-4 lg:grid-cols-2">
+      <TeamSpendDonut spend={data.quarterSpend} />
+      <ScoutActivityRing tasks={scout.tasks} now={data.generatedAt} />
     </section>
 
-    <Card id="scout-priority-inbox" aria-labelledby="priority-title" className="gap-5">
-      <CardHeader className="flex flex-row justify-between gap-4"><div className="space-y-1.5"><CardTitle id="priority-title" className="text-base font-medium">Priority inbox</CardTitle><CardDescription>What Scout could not settle on its own</CardDescription></div><Badge variant="outline" className="h-fit shrink-0 border-warning-border text-warning">{attention} open</Badge></CardHeader>
-      <CardContent className="divide-y">
-        <PriorityItem label="Escalated" title={`${escalated} escalated tasks`} description="Nobody answered Scout's questions in time; the task moved up to the CEO." action="Open inbox" tone="red" onClick={() => navigate({ view: "tasks", filter: { scope: "inbox" } })} />
-        <PriorityItem label="Waiting" title={`${waiting} tasks waiting on people`} description="Scout asked someone on Slack or is waiting for an approval." action="View tasks" tone="orange" onClick={() => navigate({ view: "tasks", filter: { status: "waiting" } })} />
-        <PriorityItem label="Documents" title={`${data.undocumentedPayments} payments without invoice documents`} description="Bank bookings with an invoice reference that are not documented yet." action="Transactions" tone="neutral" onClick={() => navigate({ view: "transactions" })} />
-      </CardContent>
-    </Card>
-
-    <Card id="scout-recorded-payroll" className="gap-4"><CardHeader><CardTitle className="text-base font-medium">Latest recorded payroll</CardTitle><CardDescription>Latest month with salary bookings</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center justify-between gap-3"><div><span className="text-xs text-muted-foreground">{data.employees.filter(employee => employee.salary !== null).length} recorded recipients</span><strong className="mt-1 block font-mono text-2xl font-medium tracking-tight">{currency(data.monthlyPayroll)}</strong></div><div className="flex -space-x-2" aria-label="Team members">{data.employees.map(employee=><Avatar key={employee.id} className="size-8 border-2 border-card"><AvatarFallback className="bg-secondary text-[10px]">{employee.initials}</AvatarFallback></Avatar>)}</div></div><Button variant="secondary" size="sm" className="min-h-10" onClick={() => navigate({ view: "staffing" })}>Review staffing</Button></CardContent></Card>
+    {/* Upcoming cash events only when there are any: the overview shows as little as it can. */}
+    <section className={cn("grid gap-4", data.scout.cashEvents.length > 0 && "lg:grid-cols-2")} aria-label={data.scout.cashEvents.length > 0 ? "Cash events and open tasks" : "Open tasks"}>
+      {data.scout.cashEvents.length > 0 && <CashEvents data={data} />}
+      <AttentionList tasks={attentionTasks} names={names} onOpen={openTask} onShowAll={() => navigate({ view: "tasks" })} limit={5} />
+    </section>
   </div>;
 
   const chat = page === "chat" && !route.taskId;
   return (
     <>
       <a id="scout-skip-link" href="#main-content" onClick={event=>{event.preventDefault();mainRef.current?.focus();}} className="fixed top-3 left-3 z-50 -translate-y-24 rounded-md bg-primary px-4 py-3 text-sm text-primary-foreground focus:translate-y-0">Skip to content</a>
-      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} user={{ name: ceoName, role: "CEO · dashboard login" }} onNavigate={route => navigate(route)} onSearch={openSearch}
+      <AppSidebar active={route.taskId ? "tasks" : active?.id ?? null} counts={counts} user={{ name: ceoName, role: "CEO · dashboard login" }} demo={scout.demo} onNavigate={route => navigate(route)} onSearch={openSearch}
         onNewTask={() => setNotice({ title: "New task", description: "Scout opens tasks from its loops. To ask for something new, DM Scout in Slack, e.g. “what if I buy an oven for 30k in March?” — it appears here under Tasks." })} />
 
       <SidebarInset id="scout-workspace" className="min-w-0 bg-background">
@@ -328,8 +316,4 @@ function CashEvents({ data }: { data: DashboardData }) {
         <span className={`shrink-0 font-mono text-xs ${event.amount > 0 ? "text-success" : ""}`}>{event.amount > 0 ? "+" : ""}{money(event.amount)}</span>
       </li>)}</ul>}
   </section>;
-}
-
-function PriorityItem({ label, title, description, action, tone, onClick }: {label:string;title:string;description:string;action:string;tone:"red"|"orange"|"neutral";onClick:()=>void}) {
-  return <article className="flex flex-col justify-between gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"><div className="space-y-2"><Badge variant="outline" className={`font-normal ${tone==="red"?"border-danger-border text-danger":tone==="orange"?"border-warning-border text-warning":"text-muted-foreground"}`}>{label}</Badge><h3 className="text-sm font-medium">{title}</h3><p className="max-w-3xl text-xs leading-6 text-muted-foreground">{description}</p></div><Button variant="outline" size="sm" className="min-h-10 w-fit shrink-0" onClick={onClick}>{action}</Button></article>;
 }

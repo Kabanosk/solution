@@ -75,6 +75,9 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="close_tasks", description="Close Scout tasks waiting on the asker, with the asker's reason (e.g. 'a "
              "refund, no invoice'). task_ids: SC-123, SC-124 or all. Approves pending approvals.",
              parameters=_p(task_ids=S, reason=S)),
+    ToolSpec(name="hand_over_task", description="Hand waiting tasks (task_id: SC-123, several, or all of the "
+             "asker's) to another person on Slack: approvals get the Approve card, invoice questions the question.",
+             parameters=_p(task_id=S, person=S)),
     ToolSpec(name="who_is", description="People: role, manager, and whether they are on vacation today.",
              parameters=_p(person=S)),
     ToolSpec(name="start_what_if", description="Start a cash forecast for a purchase: amount in EUR, month, what. "
@@ -481,6 +484,53 @@ class Toolbox:
         except (PermissionError, KeyError):
             return False
         return self.ctx.recorder.get(t.id).status == "done"
+
+    def t_hand_over_task(self, task_id: str = "", person: str = "", **_: Any) -> dict[str, Any]:
+        from scout.loops import invoicing, liquidity
+
+        raw = str(task_id or "").strip()
+        if raw.casefold() == "all":
+            targets = [t.id for t in self.ctx.recorder.find_open(owner_id=self.requester) if t.loop != "chat"]
+        else:
+            targets = list(dict.fromkeys(re.findall(r"SC-\d+", raw.upper())))
+        if not targets or not person:
+            return {"error": "missing_arguments", "hint": "Call again with task_id (SC-…, several, or all) and person."}
+        who = self._person(person)
+        if who is None:
+            return {"error": "unknown_person", "person": person}
+        handed, skipped = [], []
+        for tid in targets:
+            try:
+                t = self.ctx.recorder.get(tid)
+            except Exception:  # noqa: BLE001
+                skipped.append({"task": tid, "why": "no such task"})
+                continue
+            if t.status not in ("waiting", "escalated"):
+                skipped.append({"task": t.id, "why": f"not waiting ({t.status})"})
+                continue
+            if self.requester not in (t.owner_id, self.ctx.settings.ceo_id):
+                skipped.append({"task": t.id, "why": "access_denied"})
+                continue
+            if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
+                return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
+            try:
+                if t.approval_id and t.loop == "liquidity":
+                    liquidity.reassign(self.ctx, t.approval_id, who, self.requester, chat_task=self.task.id)
+                elif t.loop == "invoicing":
+                    invoicing.hand_over(self.ctx, t.id, who, self.requester, chat_task=self.task.id)
+                else:
+                    skipped.append({"task": t.id, "why": f"{t.loop} tasks can't be handed over"})
+                    continue
+            except PermissionError:
+                skipped.append({"task": t.id, "why": "access_denied"})
+                continue
+            except (ValueError, KeyError) as e:
+                skipped.append({"task": t.id, "why": str(e)[:80]})
+                continue
+            handed.append(t.id)
+        if not handed and skipped and all(x["why"] == "access_denied" for x in skipped):
+            return {"error": "access_denied", "policy": "tasks: the person it waits on or the owner"}
+        return {"handed": handed, "skipped": skipped, "to": self.ctx.hr.name(who)}
 
     def t_who_is(self, person: str = "", **_: Any) -> dict[str, Any]:
         who = self._person(person)

@@ -21,7 +21,8 @@ def check(requester: str, role: str, target: str, resource: str) -> tuple[bool, 
     """May `requester` (with `role`) reach `resource` on `target`? Returns (allowed, policy).
 
     Targets: `laptop:<employee>`, `mail:<mailbox>`, `files:<employee>`, `chat:<channel>`, `bank`, `invoicing`.
-    The CEO may reach anything; the office manager company files and mail; everyone else only their own laptop.
+    The CEO may reach anything; everyone may read the company mailbox and invoices; the office manager company
+    files and the bank; everyone else only their own laptop.
     """
     role = (role or "").casefold()
     if role in EXEC_ROLES:
@@ -33,7 +34,9 @@ def check(requester: str, role: str, target: str, resource: str) -> tuple[bool, 
         if role in FINANCE_ROLES and owner != "vincenzo":
             return True, "company-folders: finance"
         return False, f"{owner}-devices: owner-or-exec-only"
-    if kind in ("mail", "bank", "invoicing"):
+    if kind in ("mail", "invoicing"):  # the company mailbox and invoices are open to every member
+        return True, f"{kind}: all members"
+    if kind == "bank":
         if role in FINANCE_ROLES:
             return True, f"{kind}: finance"
         return False, f"{kind}: finance-or-exec-only"

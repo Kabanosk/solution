@@ -14,10 +14,12 @@ const POLICIES: { role: string; who: string; rules: [string, "ALLOW" | "DENY" | 
   ] },
   { role: "Team owners", who: "Designated team owners", rules: [
     ["Receives cost-control alerts and questions for her team's payments", "ALLOW"],
-    ["Payroll mail and other people's laptops", "DENY"],
+    ["Company mailbox and invoices", "ALLOW"],
+    ["Other people's laptops", "DENY"],
   ] },
   { role: "Temporary staff", who: "Restricted staff", rules: [
     ["Ask about the marketing budget she owns", "ALLOW"],
+    ["Company mailbox and invoices", "ALLOW"],
     ["Request files from another person's laptop", "DENY"],
     ["Bank or payroll data", "DENY"],
   ] },

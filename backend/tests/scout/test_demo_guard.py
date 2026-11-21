@@ -41,7 +41,7 @@ class TableGuard:
         if (config_id, text) in self.lie:
             return self.lie[(config_id, text)]
         p = self.expected[(config_id, text)]
-        return Verdict("blocked", (p.rail or "some rail",), 0.1) if p.expect == "blocked" else Verdict("success", (), 0.1)
+        return Verdict("blocked", (p.expected_rails[0] if p.expected_rails else "some rail",), 0.1) if p.expect == "blocked" else Verdict("success", (), 0.1)
 
 
 # -- the scenario table ----------------------------------------------------------------------------------
@@ -58,7 +58,7 @@ def test_every_scenario_is_complete_and_uses_real_personas():
         for p in s.probes:
             assert p.expect in ("blocked", "success") and p.config in {
                 guardrails.USER_INPUT, guardrails.TOOL_RESULT, guardrails.BOT_OUTPUT, guardrails.BOT_OUTPUT_FINANCE}
-            assert p.expect == "success" or p.rail, f"{s.key}: a blocked probe names its rail"
+            assert p.expect == "success" or p.expected_rails, f"{s.key}: a blocked probe names its rails"
         assert any(p.kind == "type" or s.key == "E" for p in s.probes), s.key
 
 
@@ -117,11 +117,25 @@ def test_preflight_flags_a_wrong_verdict_and_exits_one():
     assert "MISMATCH" in demo_guard.format_results(results)
 
 
-def test_preflight_flags_a_block_by_the_wrong_rail():
+def test_preflight_flags_a_block_by_a_rail_outside_the_expected_set():
     victim = next(p for p in demo_guard.scenario("C").probes if p.expect == "blocked")
-    guard = TableGuard({(victim.config, victim.sent_text()): Verdict("blocked", ("self check input",))})
+    guard = TableGuard({(victim.config, victim.sent_text()): Verdict("blocked", ("check tool result",))})
     (bad,) = [r for r in demo_guard.preflight(guard) if not r.ok]
     assert bad.probe is victim and "rail" in bad.why
+
+
+def test_input_attacks_may_be_caught_by_either_input_rail_but_never_pass():
+    """T081 moved jailbreaks from the judge to the regex rail: the verdict is strict, the rail is one of a set."""
+    probes = [p for s in demo_guard.SCENARIOS for p in s.probes if p.config == "user-input" and p.expect == "blocked"]
+    assert probes and all(set(p.expected_rails) == {"regex check input", "self check input"} for p in probes)
+    lies = {}
+    for i, p in enumerate(probes):
+        other = "self check input" if i % 2 else "regex check input"
+        lies[(p.config, p.sent_text())] = Verdict("blocked", (other,))
+    assert all(r.ok for r in demo_guard.preflight(TableGuard(lies)))
+    p = probes[0]
+    (bad,) = [r for r in demo_guard.preflight(TableGuard({(p.config, p.sent_text()): Verdict("success")})) if not r.ok]
+    assert bad.probe is p and "expected blocked, got success" in bad.why
 
 
 def test_preflight_treats_a_failed_service_as_a_mismatch_not_a_pass():

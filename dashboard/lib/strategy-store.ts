@@ -18,6 +18,15 @@ export const SERVER_PROVIDER_KEY = "__scout_server_provider__";
 export function defaultStrategyProvider(): ExternalConfig | null {
   return process.env.API_KEY ? parseExternalConfig({ provider: "openai", model: process.env.SCOUT_GPT_MODEL ?? "gpt-4.1-mini", apiKey: process.env.API_KEY }) : null;
 }
+/** The chat's server-side provider from the pod's environment: an xAI key (Secret `xai-key`), when one is set. */
+export function defaultChatProvider(): ExternalConfig | null {
+  return process.env.XAI_API_KEY ? parseExternalConfig({ provider: "xai", model: process.env.SCOUT_XAI_MODEL ?? "grok-4.7", apiKey: process.env.XAI_API_KEY }) : null;
+}
+/** What the dashboard chat offers owners without pasting a key: the xAI key if set, else the strategy provider.
+ *  Daily news research keeps using the strategy provider (it needs OpenAI or Mistral web search). */
+export async function configuredChatProvider(id: string): Promise<ExternalConfig | null> {
+  return defaultChatProvider() ?? configuredStrategyProvider(id);
+}
 export async function configuredStrategyProvider(id: string): Promise<ExternalConfig | null> {
   const row = (await strategyDatabase().query("SELECT provider_ciphertext FROM scout_auth.strategy_settings WHERE organization_id=$1", [id])).rows[0];
   return row?.provider_ciphertext ? openStrategyProvider(row.provider_ciphertext, id) : defaultStrategyProvider();

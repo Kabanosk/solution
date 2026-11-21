@@ -23,7 +23,9 @@ data:
   SCOUT_WORKERS: "4"
   # Explicit legacy worker binding; startup still refuses until an operator enrolls the intended owner.
   SCOUT_ORGANIZATION_ID: "00000000-0000-4000-8000-000000000001"
-  # SCOUT_LEGACY_CONNECTORS_ORGANIZATION is deliberately absent: authorize legacy integrations separately.
+  # Demo: Amalfi (the legacy organization) keeps its existing integrations (Slack, mail, files, bank mock, vLLM usage
+  # sampler). Approved by the team on 2026-11-21. New organizations never get them (tenant_settings strips them).
+  SCOUT_LEGACY_CONNECTORS_ORGANIZATION: "00000000-0000-4000-8000-000000000001"
   DATA_DIR: "/app/data/generated"
   WORKSTATIONS_ROOT: "/app/data/generated/workstations"
   DASHBOARD_URL: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"  # task links; Slack icon at /scout-icon.png

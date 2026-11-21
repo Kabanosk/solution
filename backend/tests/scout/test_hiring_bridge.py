@@ -103,7 +103,7 @@ def run_queued(context):
     context.jobs.claim.return_value = SimpleNamespace(id=1, kind=kind, payload=payload, task_id=None, attempts=1)
     assert Worker(context, 1).run_one()
     task = context.recorder.get(payload["task_id"])
-    context.jobs.done.assert_called_with(1, task.id)
+    context.jobs.done.assert_called_with(1, task.id, attempt=1)
     report = next(step.detail["reply"] for step in context.recorder.steps(task.id) if step.kind == "hiring_result")
     return task, report
 

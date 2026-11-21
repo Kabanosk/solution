@@ -87,6 +87,38 @@ def parse_amount(value: Any) -> Decimal | None:
     return amount
 
 
+_MONEY_JUNK = re.compile(r"eur|usd|pln|z\u0142|[\u20ac$]", re.IGNORECASE)
+_DOT_THOUSANDS = re.compile(r"[+-]?\d{1,3}(\.\d{3})+")  # "30.000", "1.250.000": German / Polish thousands
+_COMMA_THOUSANDS = re.compile(r"[+-]?\d{1,3}(,\d{3}){2,}")  # "1,250,000" (a single "30,000" is `parse_amount`'s)
+_SPACE_THOUSANDS = re.compile(r"[+-]?\d{1,3}([ \u00a0]\d{3})+([.,]\d+)?")  # "500 000", "1 250,50"
+_ONE_NUMBER = re.compile(r"[+-]?\d[\d.,]*")
+
+
+def parse_money(value: Any) -> Decimal | None:
+    """An amount a person (or the model, from their words) typed: "\u20ac30.000", "30,000", "642,80", "1,5k", "$2m",
+    "-500" -> a signed Decimal, or None (no number, NaN, inf, or more than one number: "100 to 200"). Formats as in
+    `parse_amount`, plus k / m suffixes; a dot that only groups thousands is thousands (nobody writes \u20ac30 as
+    "30.000"). The one parser of what-if and tool amounts."""
+    if value is None or isinstance(value, (bool, int, float, Decimal)):
+        return parse_amount(value)
+    s = _MONEY_JUNK.sub("", str(value)).strip()
+    mult = {"k": Decimal(1000), "m": Decimal(1_000_000)}.get(s[-1:].casefold(), Decimal(1))
+    if mult != 1:
+        s = s[:-1].rstrip()
+    if _SPACE_THOUSANDS.fullmatch(s):
+        s = re.sub(r"\s", "", s)
+    if _DOT_THOUSANDS.fullmatch(s):
+        s = s.replace(".", "")
+    elif _COMMA_THOUSANDS.fullmatch(s):
+        s = s.replace(",", "")
+    if not _ONE_NUMBER.fullmatch(s):
+        return None
+    amount = parse_amount(s)
+    if amount is None or abs(amount * mult) > MAX_AMOUNT:
+        return None
+    return amount * mult
+
+
 def _parse_amount(value: Any) -> Decimal | None:
     if value is None or isinstance(value, bool):
         return None

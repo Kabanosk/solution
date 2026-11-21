@@ -30,6 +30,7 @@ from scout.audit import EXEC_ROLES, can_see_task, salary_sql
 from scout.audit import check as access_check
 from scout.documents import document_text
 from scout.dashboard_help import TOPICS, dashboard_help
+from scout.llm_tasks import parse_money
 from scout.loops.context import JobContext, eur, invoice_number_in
 from scout.models import Task
 
@@ -98,15 +99,9 @@ NAMES = {s.name for s in SPECS}
 
 
 def _num(v: Any) -> Decimal | None:
-    """ "€30,000", "$500k", "500 000 EUR", "-500000" -> a positive Decimal (None when there is no number)."""
-    s = str(v if v is not None else "").casefold()
-    for junk in ("€", "$", "eur", "usd", ",", " ", "\u00a0"):
-        s = s.replace(junk, "")
-    mult = Decimal(1000) if s.endswith("k") else Decimal(1_000_000) if s.endswith("m") else Decimal(1)
-    try:
-        return abs(Decimal(s.rstrip("km"))) * mult
-    except Exception:  # noqa: BLE001
-        return None
+    """ "\u20ac30,000", "\u20ac30.000", "642,80", "$500k", "-500000" -> a positive Decimal (None when not one number)."""
+    amount = parse_money(v)
+    return None if amount is None else abs(amount)
 
 
 _PAIR = re.compile(r'"(\w+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)')

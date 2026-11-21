@@ -13,13 +13,14 @@ import re
 import secrets
 from calendar import month_name
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+from scout.llm_tasks import parse_money
 from scout.loops.context import Button, JobContext, eur
 from scout.models import Approval, Job, Task
 
@@ -69,15 +70,9 @@ def parse_month(text: str | None, today: date) -> date:
 
 
 def parse_eur(value: Any) -> Decimal | None:
-    s = str(value or "").lower()
-    for junk in ("€", "eur", "$", "usd", ",", " "):
-        s = s.replace(junk, "")
-    mult = Decimal(1000) if s.endswith("k") else Decimal(1)
-    try:
-        v = Decimal(s.rstrip("k")) * mult
-    except InvalidOperation:
-        return None
-    return v if v > 0 else None
+    """The amount of a what-if: a positive number, however a person (or the model) wrote it."""
+    v = parse_money(value)
+    return v if v is not None and v > 0 else None
 
 
 INFLOW_WORDS = re.compile(r"\b(client|customer|income|revenue|receiv\w*|incoming|inflow|pays? us|paid (to )?us|"

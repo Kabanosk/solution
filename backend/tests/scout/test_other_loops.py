@@ -119,6 +119,21 @@ def test_what_if_balances_keep_their_sign_and_explain_the_gap(conn_factory, tmp_
     assert "the purchase causes the gap" in steps["note"]
 
 
+@pytest.mark.parametrize("typed,expected", [("30.000", "30000"), ("€30.000", "30000"), ("642,80", "642.80"),
+                                             ("1.250.000", "1250000"), ("30,000", "30000"), ("30k", "30000")])
+def test_what_if_reads_a_typed_european_amount(conn_factory, tmp_path, typed, expected):
+    seen = []
+
+    def forecaster(ctx, outflows):  # noqa: ANN001
+        seen.append(outflows)
+        return fake_review(gap=False)(ctx, outflows)
+
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = forecaster
+    liquidity.run(ctx, job("what_if", {"amount": typed, "month": "March", "what": "an oven", "from_id": "vincenzo"}))
+    assert seen[0][0]["amount"] == Decimal(expected)
+
+
 def test_direction_of():
     assert liquidity.direction_of("", "new client payment") == "in"
     assert liquidity.direction_of(None, "Acme pays us") == "in"
@@ -208,6 +223,18 @@ def test_what_if_dm_enqueues_job(conn_factory, tmp_path):
     with conn_factory() as conn:
         j = conn.execute("SELECT * FROM agent_jobs WHERE kind='what_if'").fetchone()
     assert j["payload"]["amount"] == "30000" and j["payload"]["from_id"] == "vincenzo"
+
+@pytest.mark.parametrize("who", ["vanessa", "grazyna", "rosa"])
+def test_what_if_by_dm_is_owner_only(conn_factory, tmp_path, who):
+    """The forecast shows the company's balance and buffer: staff asking by DM get a denial and no job."""
+    ctx = make_world(conn_factory, tmp_path, llm=route_llm("what_if", amount_eur="30000", month="March", what="oven"))
+    out = chat.run(ctx, dm(who, "what if we buy an oven for 30k in March?"))
+    with conn_factory() as conn:
+        assert conn.execute("SELECT 1 FROM agent_jobs WHERE kind='what_if'").fetchone() is None
+        deny = conn.execute("SELECT * FROM audit_log WHERE decision='DENY' AND requester=%s AND policy LIKE 'what-if%%'",
+                            (who,)).fetchall()
+    assert len(deny) == 1 and "denied" in kinds(ctx, out.id)
+    assert "owner" in ctx.notifier.updates[-1]["text"] and "balance" not in ctx.notifier.updates[-1]["text"]
 
 
 def test_question_from_waitstaff_denied_ceo_answered(conn_factory, tmp_path):
@@ -338,6 +365,35 @@ def test_unclear_typed_answer_to_an_approval_asks_for_the_buttons(conn_factory, 
     chat.run(ctx, dm("vincenzo", "hmm what does this mean", n=32, thread=ctx.recorder.get(t.id).slack_ref))
     assert ctx.recorder.get(t.id).status == "waiting"
     assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]
+
+
+@pytest.mark.parametrize("text", ["I do not approve", "not approved", "Do NOT approve this", "never approve that",
+                                  "I cannot accept this", "nope, not ok", "I can't approve this",
+                                  "I can\u2019t approve this", "I won\u2019t accept it", "not sure yet",
+                                  "no idea, approve?", "ok but what is it", "yes no",
+                                  "tell me why first, then I approve", "nie wiem", "nie jestem pewien, ale tak"])
+def test_negated_typed_answer_never_approves(conn_factory, tmp_path, text):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "oven", "from_id": "vincenzo"}))
+    chat.run(ctx, dm("vincenzo", text, n=33, thread=ctx.recorder.get(t.id).slack_ref))
+    after = ctx.recorder.get(t.id)
+    assert after.status == "waiting", (text, after.status, after.outcome)
+    assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]
+
+
+@pytest.mark.parametrize("text,approved", [("I approve", True), ("Approved!", True), ("  yes, go ahead. ", True),
+                                           ("OK", True), ("Tak", True), ("reject", False), ("No.", False),
+                                           ("Rejected", False), ("nie", False), ("Nie zgadzam si\u0119", False),
+                                           ("nie zgadzam sie.", False), ("nie akceptuj\u0119", False)])
+def test_complete_typed_answer_decides_the_approval(conn_factory, tmp_path, text, approved):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "oven", "from_id": "vincenzo"}))
+    chat.run(ctx, dm("vincenzo", text, n=34, thread=ctx.recorder.get(t.id).slack_ref))
+    after = ctx.recorder.get(t.id)
+    assert after.status != "waiting", (text, after.status)
+    assert ("SIMULATED" in (after.outcome or "")) is approved, (text, after.outcome)
 
 
 def test_hand_over_a_waiting_invoice_question(conn_factory, tmp_path):

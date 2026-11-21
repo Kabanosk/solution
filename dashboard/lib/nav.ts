@@ -1,4 +1,5 @@
 // Sidebar navigation model and hash routing. Pure data so it can be tested without React.
+import type { SetupStepId } from "./onboarding-model";
 import type { TaskStatus } from "./scout-model";
 
 export type View =
@@ -14,7 +15,7 @@ export type TaskScope = "inbox" | "mine";
 export type TaskFilter = { scope?: TaskScope; loop?: string; status?: TaskStatus; owner?: string };
 
 /** Where the dashboard is: a view, the task list's filter and an open task. */
-export type Route = { view: View; filter?: TaskFilter; taskId?: string };
+export type Route = { view: View; filter?: TaskFilter; taskId?: string; setupStep?: SetupStepId };
 
 export type IconName =
   | "inbox" | "list-todo" | "refresh" | "layout" | "receipt" | "users"
@@ -74,7 +75,8 @@ export function hashFromRoute(route: Route): string {
   if (route.taskId) return `#task/${encodeURIComponent(route.taskId)}`;
   const params = new URLSearchParams();
   for (const key of FILTER_KEYS) { const value = route.filter?.[key]; if (value) params.set(key, value); }
-  const query = route.view === "tasks" ? params.toString() : "";
+  if (route.view === "setup" && route.setupStep) params.set("step", route.setupStep);
+  const query = route.view === "tasks" || route.view === "setup" ? params.toString() : "";
   return `#${route.view}${query ? `?${query}` : ""}`;
 }
 
@@ -93,6 +95,10 @@ export function routeFromHash(hash: string): Route {
   if (path.startsWith("loop-")) return { view: "tasks", filter: { loop: path.slice(5).replaceAll("-", "_") } };
   if (path === "investigations" || path === "agent-jobs" || path.startsWith("agent-jobs/")) return { view: "tasks" };
   if (path === "llm") return { view: "chat" };
+  if (path === "setup") {
+    const step = new URLSearchParams(query).get("step");
+    return step && ["bank", "invoicing", "ksef", "email", "slack", "network"].includes(step) ? { view: "setup", setupStep: step as SetupStepId } : { view: "setup" };
+  }
   if (path === "tasks") {
     const params = new URLSearchParams(query);
     const filter: TaskFilter = {};

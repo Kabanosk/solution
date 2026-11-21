@@ -28,6 +28,9 @@ const password = 'local onboarding acceptance password';
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${base}/${slug}#setup`);
     await page.locator('#scout-onboarding').waitFor();
+    assert.equal(await page.locator('#scout-sidebar, #scout-topbar, #scout-mobile-navigation').count(), 0, 'Onboarding is separate from dashboard navigation');
+    await page.getByText('Step 1 of 6', { exact: true }).waitFor();
+    assert.equal(await page.locator('[data-onboarding-step]').count(), 1, 'Only the current step is rendered');
     let response = await context.request.get(`${base}/api/onboarding`, { headers });
     assert.equal(response.status(), 200, await response.text());
     let setup = await response.json();
@@ -99,8 +102,8 @@ const password = 'local onboarding acceptance password';
     }});
     assert.equal(other.status(), 200, await other.text());
     assert.equal((await context.request.get(`${base}/api/onboarding`, { headers: { ...headers, 'X-Scout-Organization': slugB } })).status(), 401);
-    // Fresh state is loaded before UI actions after the API update.
-    await page.reload();
+    // Connections/setup can open a specific step; only its form is rendered.
+    await page.goto(`${base}/${slug}#setup?step=invoicing`);
     await page.locator('#scout-onboarding').waitFor();
     // Exercise the real client -> JSON/CSRF guard -> backend disconnect path, not a mocked fetcher.
     await page.locator('#scout-onboarding-disconnect-invoicing').click();
@@ -128,6 +131,7 @@ const password = 'local onboarding acceptance password';
     await page.locator('#scout-chat-input').waitFor();
     assert.equal(await page.locator('#scout-onboarding').count(), 0, 'Dismissal survives a full reload');
     await page.locator('#scout-nav-connections').click();
+    await page.locator('#connection-invoicing [data-connection-status]').getByText(/connected/i).waitFor();
     await page.locator('#scout-onboarding-reopen').click();
     await page.locator('#scout-onboarding').waitFor();
     assert.deepEqual(errors, []);

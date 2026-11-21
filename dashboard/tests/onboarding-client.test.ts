@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   STEPS, buildNetworkAnswers, canComplete, canEdit, completionAction, connectProvider, createHandoff, disconnectProvider, fetchSetup,
+  adjacentStep, callbackStep, firstUnsettledStep, isSetupStepId, nextStepAction, resolveStep, stepProgress,
   handoffFiles, OnboardingError, parseSetup, patchSetup, parseSlackChannelIds, saveSlackChannels, safeAuthorizationUrl, shouldOpenSetup, startOAuth, stepStatus, validNip,
   type Fetcher,
 } from "../lib/onboarding-client.ts";
@@ -216,6 +217,57 @@ test("handoff request and artifacts: Markdown and JSON files, Claude shortcut on
   const hostile = await createHandoff(recorder(json({ ...body, claudeUrl: "javascript:alert(1)" })).fetcher);
   assert.equal(hostile.claudeUrl, null);
   await assert.rejects(createHandoff(recorder(json({ setupUrl: 1 })).fetcher), OnboardingError);
+});
+
+test("wizard resumes at the first unsettled step; fully settled setups land on the last step", () => {
+  assert.equal(firstUnsettledStep(setup()), "bank");
+  assert.equal(firstUnsettledStep(setup({}, { bank: "sandbox_connected", invoicing: "connected", ksef: "skipped" })), "email");
+  assert.equal(firstUnsettledStep(setup({}, { bank: "skipped", invoicing: "skipped", ksef: "needs_configuration" })), "ksef", "a prerequisite is not settled");
+  assert.equal(firstUnsettledStep(setup({}, { bank: "failed" })), "bank");
+  assert.equal(firstUnsettledStep(setup({}, { network: "needs_configuration" })), "bank");
+  assert.equal(firstUnsettledStep(setup({}, Object.fromEntries(IDS.map(id => [id, "skipped"])) as Record<SetupStepId, SetupStepState>)), "network");
+});
+
+test("an explicit step wins over resume, works with unsettled earlier steps, and unknown values are ignored", () => {
+  assert.equal(resolveStep(setup(), "email"), "email");
+  assert.equal(resolveStep(setup({}, { bank: "connected" }), "bank"), "bank");
+  assert.equal(resolveStep(setup(), undefined), "bank");
+  assert.equal(resolveStep(setup({}, { bank: "skipped" }), "nope" as SetupStepId), "invoicing");
+  const partial = setup(); partial.steps = partial.steps.filter(entry => entry.id !== "bank" && entry.id !== "invoicing");
+  assert.equal(resolveStep(partial, "slack"), "slack", "preceding steps may be absent");
+  assert.equal(resolveStep(partial, "bank"), "ksef", "absent requested step falls back to the first unsettled one");
+  assert.equal(isSetupStepId("slack"), true);
+  assert.equal(isSetupStepId("dashboard"), false);
+  assert.equal(isSetupStepId(null), false);
+});
+
+test("OAuth callback outcomes map to the provider's step", () => {
+  assert.equal(callbackStep("google-connected"), "email");
+  assert.equal(callbackStep("google-failed"), "email");
+  assert.equal(callbackStep("slack-connected"), "slack");
+  assert.equal(callbackStep("slack-failed"), "slack");
+  assert.equal(callbackStep("bunq-connected"), undefined);
+  assert.equal(callbackStep(null), undefined);
+});
+
+test("step progress reports a one-based number out of six and navigation stops at both ends", () => {
+  assert.deepEqual(stepProgress("bank"), { number: 1, total: 6, label: "Step 1 of 6" });
+  assert.equal(stepProgress("network").label, "Step 6 of 6");
+  assert.equal(adjacentStep("bank", -1), null);
+  assert.equal(adjacentStep("bank", 1), "invoicing");
+  assert.equal(adjacentStep("slack", 1), "network");
+  assert.equal(adjacentStep("network", 1), null);
+  assert.equal(adjacentStep("network", -1), "slack");
+});
+
+test("Next advances settled steps and explicitly skips unresolved optional ones without overwriting saved work", () => {
+  for (const state of ["connected", "sandbox_connected", "skipped"] as const) assert.equal(nextStepAction(step("bank", state)), "advance", state);
+  for (const state of ["not_started", "failed", "needs_configuration"] as const) assert.equal(nextStepAction(step("ksef", state)), "skip", state);
+  assert.equal(nextStepAction(step("network", "needs_configuration")), "advance", "saved administrator-setup answers are kept, not replaced by a skip");
+  assert.equal(nextStepAction(step("network", "not_started")), "skip");
+  assert.equal(nextStepAction(step("slack", "needs_configuration", { display: { authorized: true } })), "advance", "authorized Slack is not discarded");
+  assert.equal(nextStepAction(step("slack", "needs_configuration")), "skip");
+  assert.equal(nextStepAction(step("email", "connecting")), "advance", "an in-flight authorization is not clobbered");
 });
 
 test("#setup is a native route and does not become a seventh navigation item", () => {

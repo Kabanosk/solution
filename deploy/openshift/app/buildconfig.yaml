@@ -22,7 +22,7 @@ spec:
   resources:
     requests: {cpu: 500m, memory: 1Gi}
     limits: {cpu: "4", memory: 6Gi}
-  successfulBuildsHistoryLimit: 3
-  failedBuildsHistoryLimit: 3
+  successfulBuildsHistoryLimit: 1   # each kept build keeps its Completed *-build pod (logs); older ones are pruned
+  failedBuildsHistoryLimit: 2
   triggers:
     - type: ConfigChange

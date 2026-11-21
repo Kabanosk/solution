@@ -165,3 +165,33 @@ def test_non_finite_line_amounts_are_skipped():
     assert ex is not None and [ln.description for ln in ex.lines] == ["ok"]
     assert parse_amount(Decimal("Infinity")) is None and parse_amount(Decimal("NaN")) is None
     assert parse_amount(float("inf")) is None and parse_amount(1e309) is None
+
+
+def test_rejected_temperature_is_dropped_and_max_tokens_renamed():
+    """OpenAI reasoning models (gpt-5, o-series) reject `temperature` and want `max_completion_tokens`."""
+    from types import SimpleNamespace
+
+    from cfo.llm import Message, OpenAICompatLLM
+
+    class Rejected(Exception):
+        status_code = 400
+
+    sent: list[dict] = []
+
+    def create(**kwargs):  # noqa: ANN003
+        sent.append(dict(kwargs))
+        if "temperature" in kwargs:
+            raise Rejected("Unsupported parameter: 'temperature' is not supported with this model.")
+        if "max_tokens" in kwargs:
+            raise Rejected("Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.")
+        msg = SimpleNamespace(content="ok", tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=None)
+
+    llm = OpenAICompatLLM.__new__(OpenAICompatLLM)
+    llm.model, llm._tools_ok, llm._unsupported = "gpt-5", None, set()
+    llm._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    assert llm.chat([Message(role="user", content="hi")], max_tokens=50).content == "ok"
+    assert "temperature" not in sent[-1] and sent[-1]["max_completion_tokens"] == 50
+    sent.clear()
+    assert llm.chat([Message(role="user", content="hi")], max_tokens=50).content == "ok"
+    assert len(sent) == 1  # remembered: no second round of rejections

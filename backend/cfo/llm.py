@@ -26,6 +26,14 @@ def _tools_rejected(error: Exception) -> bool:
     return getattr(error, "status_code", None) == 400 and "tool" in str(error).lower()
 
 
+def _rejected_param(error: Exception) -> str | None:
+    """`temperature` / `max_tokens` when an HTTP 400 says the model does not accept it (OpenAI reasoning models)."""
+    if getattr(error, "status_code", None) != 400:
+        return None
+    text = str(error)
+    return next((p for p in ("temperature", "max_tokens") if f"'{p}'" in text or f'"{p}"' in text), None)
+
+
 def _calls_from_text(content: str | None, tools: Sequence[ToolSpec]) -> list[ToolCall]:
     """The JSON object in a plain-text answer as a tool call; [] when there is none."""
     m = re.search(r"\{.*\}", content or "", re.DOTALL)
@@ -124,6 +132,7 @@ class OpenAICompatLLM:
 
         self.model = model
         self._tools_ok: bool | None = None  # None: not known yet; False: the endpoint rejects `tools`
+        self._unsupported: set[str] = set()  # request parameters this model rejected (e.g. temperature)
         self._client = OpenAI(
             base_url=base_url,
             api_key=api_key or "EMPTY",
@@ -170,7 +179,7 @@ class OpenAICompatLLM:
             kwargs["messages"] = self._json_in_text_messages(kwargs["messages"], tools)
         try:
             try:
-                completion = self._client.chat.completions.create(**kwargs)
+                completion = self._create(kwargs)
             except Exception as e:
                 if not (tools and use_tools and self._tools_ok is None and _tools_rejected(e)):
                     raise
@@ -180,7 +189,7 @@ class OpenAICompatLLM:
                 kwargs.pop("tools", None)
                 kwargs["messages"] = self._json_in_text_messages(kwargs["messages"], tools)
                 use_tools = False
-                completion = self._client.chat.completions.create(**kwargs)
+                completion = self._create(kwargs)
         except Exception:
             recorder.record_call(model=self.model, messages=messages, tools=tools, response=None, started=started,
                                  success=False)
@@ -204,6 +213,29 @@ class OpenAICompatLLM:
         response = LLMResponse(content=msg.content, tool_calls=calls, usage=usage)
         recorder.record_call(model=self.model, messages=messages, tools=tools, response=response, started=started)
         return response
+
+    def _create(self, kwargs: dict[str, Any]) -> Any:
+        """One completion; parameters the model rejects (`temperature`, `max_tokens`) are adapted and remembered."""
+        unsupported = self.__dict__.setdefault("_unsupported", set())
+        for key in unsupported:
+            self._drop(kwargs, key)
+        while True:
+            try:
+                return self._client.chat.completions.create(**kwargs)
+            except Exception as e:
+                param = _rejected_param(e)
+                if param is None or param in unsupported or param not in kwargs:
+                    raise
+                log.warning("model %s rejected `%s`; adapting the request", self.model, param)
+                unsupported.add(param)
+                self._drop(kwargs, param)
+
+    @staticmethod
+    def _drop(kwargs: dict[str, Any], key: str) -> None:
+        if key == "max_tokens" and "max_tokens" in kwargs:
+            kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+        else:
+            kwargs.pop(key, None)
 
     @staticmethod
     def _json_in_text_messages(wire: list[dict[str, Any]], tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:

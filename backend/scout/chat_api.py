@@ -55,10 +55,33 @@ class Turn(BaseModel):
     content: str = Field(min_length=1, max_length=16000)
 
 
+# The dashboard's external model choices. The base URL is fixed per provider here, never taken from the request.
+EXTERNAL_BASE_URLS = {
+    "openai": "https://api.openai.com/v1",
+    "mistral": "https://api.mistral.ai/v1",
+    "groq": "https://api.groq.com/openai/v1",
+}
+
+
+class ExternalModel(BaseModel):
+    """An external provider chosen in the dashboard chat: it runs the same agent loop and tools as Granite."""
+
+    provider: str = Field(pattern="^(openai|mistral|groq)$")
+    model: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,149}$")
+    api_key: str = Field(pattern=r"^[\x21-\x7e]{8,512}$", repr=False)
+
+    def llm(self) -> Any:
+        from cfo.llm import OpenAICompatLLM
+
+        return OpenAICompatLLM(EXTERNAL_BASE_URLS[self.provider], self.model, self.api_key)
+
+
 class ChatRequest(BaseModel):
     messages: list[Turn] = Field(min_length=1, max_length=64)
     # One dashboard conversation = one chat task; every question is a step on it. Absent: a task per question.
     conversation_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+    # Absent: the configured on-premise model (Granite). Present: this provider answers, with the same toolbox.
+    external: ExternalModel | None = None
 
 
 def build_context(settings: ScoutSettings) -> JobContext:
@@ -155,6 +178,10 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
     except Exception as e:
         log.exception("could not build the chat context")
         raise ApiError(503, "scout_unavailable", f"Scout could not start: {type(e).__name__}") from None
+    if body.external is not None:
+        from cfo.observability import traced_llm
+
+        ctx.llm = traced_llm(body.external.llm())
     asker = by or settings.ceo_id
     question = turns[-1]["content"]
     role = ctx.hr.role(asker)

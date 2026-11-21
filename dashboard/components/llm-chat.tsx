@@ -28,9 +28,6 @@ export function LlmChat({ active }: { active: boolean }) {
   const [following, setFollowing] = useState(true);
   const [truncated, setTruncated] = useState(false);
   const conversation = useRef(newConversationId());
-  // The server seals only public provider turns and research. Never rebuild
-  // external history from the mixed conversation, which includes private Granite replies.
-  const externalContext = useRef<string | null>(null);
   const latestTaskTurn = [...messages].reverse().find(turn => turn.taskId)?.id;  // the chat's task, linked once
   const request = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -106,8 +103,8 @@ export function LlmChat({ active }: { active: boolean }) {
     const request_ = requestFor(history);
     try {
       const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: model === "external" ? request_.messages.slice(-1) : request_.messages,
-          conversationId: conversation.current, ...(model === "external" ? { external, ...(externalContext.current ? { externalContext: externalContext.current } : {}) } : {}) }), signal: controller.signal });
+        body: JSON.stringify({ model, messages: request_.messages,
+          conversationId: conversation.current, ...(model === "external" ? { external } : {}) }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         if (typeof body?.error === "string") failure = body.error;
@@ -118,7 +115,6 @@ export function LlmChat({ active }: { active: boolean }) {
       for await (const event of readJsonLines(response.body)) {
         if (controller.signal.aborted) break;
         if (event.type === "step" && typeof event.text === "string") { steps.push(event.text); update({ steps: [...steps] }); }
-        else if (event.type === "external_context" && model === "external" && typeof event.token === "string") externalContext.current = event.token;
         else if (event.type === "research") update({ research: event.research });
         else if (event.type === "delta" && typeof event.text === "string") { content += event.text; update({ content }); }
         else if (event.type === "compacted") {
@@ -155,7 +151,6 @@ export function LlmChat({ active }: { active: boolean }) {
   function newChat() {
     request.current?.abort(); request.current = null;
     conversation.current = newConversationId();
-    externalContext.current = null;
     setMessages([]); setDraft(""); setBusy(false); setError(null); setNotice(""); setCopied(null); setTruncated(false);
     follow.current = true; setFollowing(true);
     input.current?.focus({ preventScroll: true });
@@ -191,9 +186,9 @@ export function LlmChat({ active }: { active: boolean }) {
     }}>
       {messages.length === 0 ? <div id="scout-chat-empty" className="flex min-h-full flex-col items-center justify-center gap-5 px-4 py-6 text-center">
         <ScoutMark size={40} />
-        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">{model === "external" ? external?.provider === "groq" ? "Chat or ask for a private forecast. Choose OpenAI or Mistral for public hiring research." : "Research hiring markets and salary ranges, then ask Granite to simulate payroll costs in Liquidity." : "Scout answers with its tools: missing invoices, cash forecast, tasks and costs."}</p></div>
+        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">Scout answers with its tools: missing invoices, cash forecast, tasks, costs, email and Slack.</p></div>
         <div id="scout-chat-suggestions" className="flex max-w-xl flex-wrap justify-center gap-2">
-          {(model === "external" ? EXTERNAL_SUGGESTIONS : SUGGESTIONS).map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
+          {SUGGESTIONS.map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
             onClick={() => { setDraft(suggestion); input.current?.focus(); }}>{suggestion}</Button>)}
         </div>
       </div> : <ol id="scout-chat-messages" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -253,7 +248,7 @@ export function LlmChat({ active }: { active: boolean }) {
         <form id="scout-chat-composer" className="rounded-xl border bg-background p-1.5 shadow-xs focus-within:border-ring" onSubmit={event => { event.preventDefault(); send(); }}>
           <label className="sr-only" htmlFor="scout-chat-input">Message Scout</label>
           <div className="flex items-end gap-2">
-            <Textarea id="scout-chat-input" ref={input} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder={model === "external" ? "Ask for a forecast, e.g. cash flow for the next 90 days" : "Ask Scout, e.g. which payments are missing invoices?"} className="max-h-40 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+            <Textarea id="scout-chat-input" ref={input} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder="Ask Scout, e.g. which payments are missing invoices?" className="max-h-40 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
             }} />
             {busy ? <Button id="scout-chat-stop" type="button" size="icon" variant="secondary" className="size-9 shrink-0 rounded-lg" aria-label="Stop response" onClick={() => request.current?.abort()}><Square aria-hidden="true" className="size-3.5 fill-current" /></Button>
@@ -273,7 +268,7 @@ export function LlmChat({ active }: { active: boolean }) {
           </DropdownMenu>
           <p className="truncate text-[11px] text-muted-foreground">{busy ? "Scout is working…" : <><span className="hidden sm:inline">Enter to send · Shift + Enter for a new line · </span>Stays in this tab</>}</p>
         </div>
-        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your public conversation and research go to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. Company data and Granite's forecast results stay private.</p>}
+        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">{EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name} answers with Scout's tools: your conversation and the company data those tools return are sent to this provider.</p>}
         <p role="status" className="sr-only">{notice}</p>
       </div>
     </div>
@@ -288,7 +283,6 @@ const SUGGESTIONS = [
   "How do I use this dashboard?",
 ];
 
-const EXTERNAL_SUGGESTIONS = ["Research hiring opportunities and monthly salary ranges for software engineers in Warsaw, Poland", "Research cooks in Berlin, then simulate hiring 2 people from next month for 6 months at a recommended monthly EUR salary", "Forecast cash flow for the next 90 days"];
 
 function ResearchEvidence({ research, id }: { research: PublicResearch; id: string }) {
   return <aside id={`scout-chat-research-${id}`} aria-label="Public hiring market research" className="space-y-2 rounded-lg border bg-background/60 p-3">

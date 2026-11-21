@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 15
+    assert len(SPECS) == 16
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())
@@ -154,3 +154,19 @@ def test_send_invoices_attaches_the_pdfs(conn_factory, tmp_path):
     assert sent[0].detail["mime"] == "application/pdf" and base64.b64decode(sent[0].detail["data_b64"])[:5] == b"%PDF-"
     assert b.call("send_invoices", {"number": "AS-77012"})["invoices"] == 1
     assert box(ctx, "vanessa").call("send_invoices", {})["error"] == "access_denied"
+
+
+def test_send_dm_messages_a_colleague_on_slack_with_attribution(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.hr.link_slack({"vincenzo": "U_VIN"}, {"vincenzo": "Wojciech Fiołka"})
+    b = box(ctx, "grazyna")
+    out = b.call("send_dm", {"person": "Wojtek", "text": "The Asimex invoice is filed."})
+    assert out == {"sent": True, "to": "Wojciech Fiołka"}
+    msg = ctx.notifier.sent[-1]
+    assert msg["to"] == "vincenzo" and msg["text"] == "Message from Grazyna via Scout: The Asimex invoice is filed."
+    with conn_factory() as conn:
+        row = conn.execute("SELECT * FROM audit_log WHERE action = 'send_dm'").fetchone()
+    assert row["requester"] == "grazyna" and row["target"] == "slack:vincenzo"
+    assert b.call("send_dm", {"person": "Rosa", "text": "hi"})["error"] == "not_on_slack"
+    assert b.call("send_dm", {"person": "Norbert", "text": "hi"})["error"] == "unknown_person"
+    assert b.call("send_dm", {"person": "Wojtek", "text": " "})["error"] == "missing_arguments"

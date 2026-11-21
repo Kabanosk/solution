@@ -95,7 +95,9 @@ def _system(ctx: JobContext, sender: str | None, role: str) -> str:
             "closed) unless a tool result in this conversation shows it; to close tasks someone explains, use "
             "close_tasks. To answer whether something was approved, answered or done, look it up with task_log "
             "or scout_tasks first. When asked for invoices (to see, audit or send), call send_invoices or "
-            "email_invoices; never refuse and never name suppliers no tool returned.")
+            "email_invoices; never refuse and never name suppliers no tool returned. Files reach people ONLY through "
+            "send_invoices (it attaches the PDFs here and in Slack; to: a colleague); send_dm cannot carry files. "
+            "Never say something is attached unless send_invoices returned attached: true.")
 
 
 TOKEN_BUDGET = 26_000  # Granite runs with 32k; the rest is tools, the answer and safety margin
@@ -163,7 +165,45 @@ CLAIMS: list[tuple[re.Pattern[str], tuple[str, ...]]] = [
     (re.compile(r"\b(I'?ve|I have|I) (sent|messaged|notified)\b", re.I), ("send_dm", "send_invoices", "hand_over_task")),
     (re.compile(r"\b(I'?ve|I have) (approved|escalated)\b", re.I), ("close_tasks", "hand_over_task")),
     (re.compile(r"\b(I'?ve|I have) started\b", re.I), ("start_what_if",)),
+    (re.compile(r"\b(attached|as (an )?attachments?|PDFs? (are|is) (here|below|attached))\b", re.I), ("send_invoices",)),
 ]
+
+# "attach them", "send me the invoices as PDF", "wyślij faktury": the user wants the files themselves
+WANTS_FILES = re.compile(r"\b(attach\w*|załącz\w*|zalacz\w*|pdfs?|download\w*|wyślij|wyslij|"
+                         r"send\b.{0,40}\b(invoices?|faktur\w*|them|these|those|files?))", re.I)
+NAMED_TO = re.compile(r"\b(?:to|dm|do)\s+([A-ZĄĆĘŁŃÓŚŹŻ][\w\-]+)")
+
+
+def ensure_files(box: Toolbox, task: Task, ctx: JobContext, text: str, reply: str,
+                 calls: list[tuple[str, dict[str, Any], dict[str, Any]]]) -> str:
+    """The user asked for the invoice files but no PDFs went out this turn: send them now (to the colleague named or
+    DM'd, else the asker) and say what really happened, instead of a reply that only lists or promises them."""
+    if not WANTS_FILES.search(text) or any(n == "send_invoices" and r.get("invoices") for n, _, r in calls):
+        return reply
+    args: dict[str, Any] = {}
+    for name, a, _ in calls:  # what the user was looking at: the last invoice search
+        if name in ("email_invoices", "search_invoices", "send_invoices"):
+            args = {"words": a.get("words") or "", "supplier": a.get("supplier") or "", "number": a.get("number") or "",
+                    "days": a.get("days") or 90}
+    to = next((a.get("person") for n, a, _ in calls if n == "send_dm" and a.get("person")), None)
+    if not to:
+        m = NAMED_TO.search(text)
+        if m and box._person(m.group(1)) not in (None, box.requester):
+            to = m.group(1)
+    if to:
+        args["to"] = to
+    args = {k: v for k, v in args.items() if v}
+    result = box.call("send_invoices", args)
+    calls.append(("send_invoices", args, result))
+    ctx.recorder.step(task.id, "looked_up", summarize("send_invoices", args, result), source="scout",
+                      detail={"tool": "send_invoices", "args": args})
+    if not result.get("invoices"):
+        return str(result.get("note") or result.get("error") or "I couldn't find invoice PDFs to attach.")
+    names = ", ".join(f["file"] for f in result.get("files", [])[:10])
+    where = (f" and sent them to {result['slack_recipient']} on Slack" if result.get("sent_to_slack") and to
+             else " and in your Slack DM" if result.get("sent_to_slack") else "")
+    more = " There are more; ask for a supplier or a shorter period for the rest." if result.get("more_not_sent") else ""
+    return f"Attached {result['invoices']} invoice PDF(s) here{where}: {names}.{more}"
 
 
 def _succeeded(name: str, result: dict[str, Any]) -> bool:
@@ -206,6 +246,11 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
                 Message(role="user", content=text[:MSG_CHARS])]
     seen: dict[str, str] = {}
     actions: list[tuple[str, dict[str, Any]]] = []
+    calls: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+
+    def done(reply: str) -> str:
+        reply = ensure_files(box, task, ctx, text, reply, calls)
+        return check_claims(reply, actions + [(n, r) for n, _, r in calls[len(actions):]])
     for _ in range(MAX_ROUNDS):
         _shrink_tool_results(messages, TOKEN_BUDGET)
         try:
@@ -215,7 +260,7 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
             log.exception("question answering failed")
             return "Sorry, my language model is not reachable right now. Try again in a minute."
         if not resp.tool_calls:
-            return check_claims((resp.content or "").strip() or "I couldn't find anything about that.", actions)
+            return done((resp.content or "").strip() or "I couldn't find anything about that.")
         messages.append(resp.as_message())
         for call in resp.tool_calls[:4]:
             key = f"{call.name}:{json.dumps(call.arguments or {}, sort_keys=True, default=str)}"
@@ -225,6 +270,7 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
                 args = repair_args(call.arguments)
                 result = box.call(call.name, args)
                 actions.append((call.name, result))
+                calls.append((call.name, args, result))
                 seen[key] = "1"
                 ctx.recorder.step(task.id, "looked_up", summarize(call.name, args, result),
                                   source="scout", detail={"tool": call.name, "args": args})
@@ -236,7 +282,7 @@ def answer(ctx: JobContext, task: Task, text: str, sender: str | None = None, ro
     try:
         with usage_context(purpose="answer_question"):
             final = ctx.llm.chat(messages)
-        return check_claims((final.content or "").strip() or "I looked but couldn't put an answer together.", actions)
+        return done((final.content or "").strip() or "I looked but couldn't put an answer together.")
     except Exception:  # noqa: BLE001
         return "I looked but couldn't put an answer together. Could you ask more specifically?"
 

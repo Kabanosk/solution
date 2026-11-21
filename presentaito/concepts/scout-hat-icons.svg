@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="420" viewBox="0 0 1120 420" role="img" aria-labelledby="title desc">
+  <title id="title">Four standalone detective hat icons</title>
+  <desc id="desc">Original monochrome vector marks with no wordmark: front-facing twin-peak cap, side-profile flat cap, soft-brim field hat, and a side-profile deerstalker. Each appears at display and app-icon sizes.</desc>
+  <defs>
+    <symbol id="hat-1" viewBox="0 0 80 64">
+      <!-- Front-view deerstalker: the side flaps and visor read as one silhouette. -->
+      <path fill="currentColor" fill-rule="evenodd" d="M11 44c1-13 10-24 24-26l3-3a3 3 0 0 1 4 0l3 3c14 2 23 13 24 26l6 4c2 1 1 4-1 4H59l-4 6a3 3 0 0 1-4 1l-4-3H33l-4 3a3 3 0 0 1-4-1l-4-6H6c-2 0-3-3-1-4l6-4Zm10 1c11 8 27 8 38 0-12 3-26 3-38 0Z"/>
+    </symbol>
+    <symbol id="hat-2" viewBox="0 0 80 64">
+      <!-- Wool flat cap: soft back, low crown, and a short projecting visor. -->
+      <path fill="currentColor" d="M8 44c1-10 9-20 25-24 13-4 29-2 36 4 4 4 3 8-2 11L44 48c-9 5-20 6-29 4-5-1-8-4-7-8Z"/>
+      <path fill="currentColor" d="m42 52 25-14 8-1c2 0 3 3 1 4L58 53c-4 3-12 4-18 3-3 0-2-2 2-4Z"/>
+    </symbol>
+    <symbol id="hat-3" viewBox="0 0 80 64">
+      <!-- A soft field hat with a kicked brim. The crown has no ribbon. -->
+      <path fill="currentColor" fill-rule="evenodd" d="M17 41l6-19c1-4 4-7 8-7 5 0 7 4 11 4s7-4 12-3c4 0 6 3 7 7l5 15 8-2c3-1 5 2 3 4-9 11-23 17-41 17-12 0-24-3-31-9-3-3-1-6 3-6l9-1Zm7 3c13 4 26 3 39-1-10 8-28 10-39 1Z"/>
+    </symbol>
+    <symbol id="hat-4" viewBox="0 0 80 64">
+      <!-- Side-view deerstalker: two peaks, one small hanging flap. -->
+      <path fill="currentColor" fill-rule="evenodd" d="M13 44c-1-11 10-23 24-26l4-3c2-1 4 0 5 2 12 2 21 10 22 20l8 6c2 2 1 5-2 5l-18 1-9 8a4 4 0 0 1-6-1l-3-6-19 1-13-2c-3 0-4-4-1-5l8 0Zm28-20c5 4 7 10 6 18l4-1c1-8-3-15-10-17Z"/>
+    </symbol>
+    <symbol id="tile" viewBox="0 0 42 42"><rect width="42" height="42" rx="9" fill="#17181C"/></symbol>
+  </defs>
+  <rect width="1120" height="420" fill="#F7F8FA"/>
+  <rect x="32.5" y="32.5" width="1055" height="355" rx="16" fill="#FFF" stroke="#E0E2E8"/>
+  <path d="M296 33v354M560 33v354M824 33v354" fill="none" stroke="#E0E2E8"/>
+  <g style="color:#17181C">
+    <use href="#hat-1" x="100" y="95" width="128" height="102.4"/>
+    <use href="#hat-2" x="364" y="95" width="128" height="102.4"/>
+    <use href="#hat-3" x="628" y="95" width="128" height="102.4"/>
+    <use href="#hat-4" x="892" y="95" width="128" height="102.4"/>
+  </g>
+  <g style="color:#FFF">
+    <use href="#tile" x="143" y="245" width="42" height="42"/><use href="#hat-1" x="151" y="254" width="26" height="21"/>
+    <use href="#tile" x="407" y="245" width="42" height="42"/><use href="#hat-2" x="415" y="254" width="26" height="21"/>
+    <use href="#tile" x="671" y="245" width="42" height="42"/><use href="#hat-3" x="679" y="254" width="26" height="21"/>
+    <use href="#tile" x="935" y="245" width="42" height="42"/><use href="#hat-4" x="943" y="254" width="26" height="21"/>
+  </g>
+  <g fill="#595D67" font-family="system-ui,-apple-system,sans-serif" font-size="16" text-anchor="middle">
+    <text x="164" y="333">1</text><text x="428" y="333">2</text><text x="692" y="333">3</text><text x="956" y="333">4</text>
+  </g>
+</svg>

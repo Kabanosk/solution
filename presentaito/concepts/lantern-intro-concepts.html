@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern Intro Concepts</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root { --ink:#0F1012; --muted:#6B6F78; --line:#E9E9EC; --amber:#F5B544; --night:#08090C; color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #fff; color: var(--ink); font-family: Inter, -apple-system, sans-serif; padding: 40px max(16px, env(safe-area-inset-left)) 80px; }
+main { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+header h1 { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; margin: 0 0 8px; }
+header p { margin: 0; color: var(--muted); font-size: 17px; line-height: 1.5; max-width: 720px; }
+.concept { display: flex; flex-direction: column; gap: 14px; }
+.meta { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.meta .tag { font: 500 13px "Geist Mono", monospace; color: var(--muted); }
+.meta h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.meta button { margin-left: auto; height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #DCDCE0; background: #fff; font: 500 14px Inter, sans-serif; cursor: pointer; }
+.meta button:hover { background: #F4F4F6; }
+.meta button:focus-visible { outline: 2px solid #2F7FD9; outline-offset: 2px; }
+.desc { margin: 0; color: var(--muted); font-size: 15.5px; line-height: 1.55; max-width: 820px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; background: var(--night); border: 1px solid #1B1D22; }
+.stage { position: absolute; left: 0; top: 0; width: 960px; height: 540px; transform-origin: 0 0; font-family: Inter, sans-serif; overflow: hidden; }
+
+/* shared item cards */
+.it { position: absolute; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; line-height: 1.35; white-space: nowrap; transform: translate(-50%, -50%); }
+.dim .it { background: #15171C; color: #2C3038; border: 1px solid #1E2128; }
+.lit .it { background: #fff; color: var(--ink); border: 1px solid #E6E6EA; box-shadow: 0 8px 24px -10px rgba(0,0,0,.5); }
+.it b { font-weight: 600; }
+.it .m { font-family: "Geist Mono", monospace; font-size: 11.5px; }
+.lit .it .m { color: #6B6F78; }
+.it .k { display: inline-block; width: 14px; height: 14px; border-radius: 99px; vertical-align: -2px; margin-right: 6px; }
+.dim .it .k { background: #23262D; }
+.lit .k.g { background: #2E9D6E; } .lit .k.a { background: #C7781B; } .lit .k.b { background: #2F7FD9; } .lit .k.x { background: #9A9EA6; }
+.found { position: absolute; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 99px; background: #2E9D6E; display: grid; place-items: center; opacity: 0; transition: opacity .3s, transform .3s; }
+.found svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.layer { position: absolute; inset: 0; }
+.glow { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+.lantern { position: absolute; width: 74px; height: 110px; transform-origin: 37px -400px; pointer-events: none; }
+.string { position: absolute; width: 1.5px; background: #3A3D45; transform-origin: top center; }
+.title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; opacity: 0; pointer-events: none; }
+.title .n { font-size: 84px; font-weight: 600; letter-spacing: -0.045em; color: var(--ink); display: flex; align-items: center; gap: 18px; }
+.title .s { font-size: 21px; color: var(--muted); letter-spacing: -0.01em; }
+.title .n.light { color: #fff; } .title .s.light { color: #B9BCC4; }
+.wash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.node { position: absolute; transform: translate(-50%, -50%); width: 168px; border-radius: 12px; padding: 11px 13px; display: flex; flex-direction: column; gap: 4px; transition: background .5s, border-color .5s, color .5s, box-shadow .5s; background: #13151A; border: 1px solid #1E2128; color: #353943; }
+.node .h { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; }
+.node .h svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.node .r { font: 11.5px "Geist Mono", monospace; opacity: 0; transition: opacity .5s .2s; }
+.node.on { background: #fff; border-color: #EBD7B0; color: var(--ink); box-shadow: 0 0 0 4px rgba(245,181,68,.12), 0 10px 30px -10px rgba(245,181,68,.45); }
+.node.on .r { opacity: 1; color: #6B6F78; }
+.node.on .r.g { color: #2E9D6E; } .node.on .r.a { color: #C7781B; }
+.row { position: absolute; left: 140px; width: 680px; height: 40px; border-radius: 9px; display: grid; grid-template-columns: 70px 1fr 120px 150px; align-items: center; padding: 0 14px; font-size: 13.5px; transform: translateY(-50%); }
+.dim .row { background: #121418; color: #2A2E36; }
+.lit .row { background: #fff; color: var(--ink); border: 1px solid #ECECEF; }
+.row .m { font-family: "Geist Mono", monospace; font-size: 12px; }
+.row .st { justify-self: end; font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 6px; }
+.dim .row .st { background: #1A1D23; color: #343841; }
+.lit .row .st.g { background: #E7F6EF; color: #2E9D6E; } .lit .row .st.x { background: #F1F1F3; color: #6B6F78; } .lit .row .st.a { background: #FDF2E3; color: #C7781B; } .lit .row .st.b { background: #E8F1FC; color: #2F7FD9; }
+.counter { position: absolute; right: 30px; top: 24px; font: 500 14px "Geist Mono", monospace; color: #8A8E97; }
+.counter b { color: #fff; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .node, .found, .node .r { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Lantern: opening slide concepts</h1>
+    <p>Three ways to open the pitch with a real lantern bringing light into the company's dark corners. Each runs about 10 seconds and loops. Pick one and it goes on the first slide and at the start of the video.</p>
+  </header>
+
+  <section class="concept" id="cA">
+    <div class="meta"><span class="tag">Concept A</span><h2>The search</h2><button type="button" data-replay="A">Replay</button></div>
+    <p class="desc">A lantern swings through a dark pile of company stuff: invoices, receipts, chats, emails, laptops. Whatever its light touches turns crisp and gets a green check. At the end the light floods the screen white and the name appears, which hands off straight into the white deck.</p>
+    <div class="frame"><div class="stage" data-stage="A"></div></div>
+  </section>
+
+  <section class="concept" id="cB">
+    <div class="meta"><span class="tag">Concept B</span><h2>Lights on across the company</h2><button type="button" data-replay="B">Replay</button></div>
+    <p class="desc">The lantern sits in the middle of a dark company map. One by one, warm beams reach the bank, the invoicing system, each laptop and Slack, and every node lights up with what Lantern found there. It shows the interconnection and the brand idea in one shot.</p>
+    <div class="frame"><div class="stage" data-stage="B"></div></div>
+  </section>
+
+  <section class="concept" id="cC">
+    <div class="meta"><span class="tag">Concept C</span><h2>The dark ledger</h2><button type="button" data-replay="C">Replay</button></div>
+    <p class="desc">A lantern lowers on a string over a ledger of unexplained payments. As it swings down the list, each row lights up and resolves: matched, cancelled, or "asked Anna". A counter climbs to 312 of 312 explained. The most finance-specific of the three.</p>
+    <div class="frame"><div class="stage" data-stage="C"></div></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const CHECK = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  const lanternSVG = (id) => `
+    <svg viewBox="0 0 74 110" width="74" height="110" aria-hidden="true">
+      <path d="M25 18 a12 12 0 0 1 24 0" fill="none" stroke="#C9CCD3" stroke-width="4" stroke-linecap="round"/>
+      <rect x="18" y="20" width="38" height="8" rx="3" fill="#D5D8DE"/>
+      <rect x="14" y="30" width="46" height="56" rx="13" fill="rgba(255,214,140,0.16)" stroke="#E3E5EA" stroke-width="4.5"/>
+      <path id="${id}" d="M37 42 C44 51 47 57 47 63 a10 10 0 0 1 -20 0 C27 57 30 51 37 42 Z" fill="#F5B544"/>
+      <path d="M37 52 C40 57 41 60 41 63 a4 4 0 0 1 -8 0 C33 60 34 57 37 52 Z" fill="#FFF3D6"/>
+      <rect x="20" y="88" width="34" height="7" rx="3.5" fill="#D5D8DE"/>
+    </svg>`;
+  const ICON = {
+    bank: '<path d="M3 22h18"/><path d="M6 18v-7"/><path d="M10 18v-7"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M12 2 20 7H4z"/>',
+    doc: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+    laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+    hash: '<path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/>',
+    mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  };
+  const ease = (x) => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------------- Concept A: the search ---------------- */
+  function buildA(stage) {
+    const items = [
+      [120, 90, '<span class="k a"></span><b>FV/2026/11/PX</b> <span class="m">€1,250.00</span>'],
+      [330, 70, '<span class="k b"></span>"Nordwind cancelled the Q4 retainer"'],
+      [560, 105, '<span class="k g"></span><b>Receipt</b> <span class="m">Lunch Lab · paper</span>'],
+      [790, 80, '<span class="k x"></span><b>anna-mbp.corp</b> <span class="m">files · email</span>'],
+      [200, 190, '<span class="k a"></span><b>Re: Semrush trial</b> <span class="m">no approval</span>'],
+      [440, 200, '<span class="k g"></span><b>−€4,800</b> <span class="m">Nordwind Studio</span>'],
+      [690, 185, '<span class="k b"></span>"Approved, go up to €2,500"'],
+      [100, 290, '<span class="k x"></span><b>q4_budget.xlsx</b>'],
+      [300, 300, '<span class="k a"></span><b>AWS</b> <span class="m">€8,940 · 2.6×</span>'],
+      [540, 310, '<span class="k g"></span><b>INV-2026-1181</b> <span class="m">Figma</span>'],
+      [800, 290, '<span class="k b"></span>"Payroll export is ready"'],
+      [170, 400, '<span class="k g"></span><b>−€2,160</b> <span class="m">Figma Inc.</span>'],
+      [410, 420, '<span class="k x"></span><b>ceo-mbp.corp</b> <span class="m">approvals</span>'],
+      [640, 410, '<span class="k a"></span><b>LinkedIn Ads</b> <span class="m">€2,400</span>'],
+      [860, 420, '<span class="k b"></span><b>#finance</b> <span class="m">1,284 msgs</span>'],
+      [280, 490, '<span class="k g"></span><b>Coworking Wola</b> <span class="m">−€2,900</span>'],
+      [700, 495, '<span class="k x"></span><b>statement_oct.csv</b>'],
+    ];
+    const html = (cls) => `<div class="layer ${cls}">${items.map(([x, y, h]) => `<div class="it" style="left:${x}px;top:${y}px">${h}</div>`).join('')}</div>`;
+    stage.innerHTML = html('dim') + html('lit') +
+      items.map(([x, y], i) => `<div class="found" data-f="${i}" style="left:${x + 0}px;top:${y - 26}px">${CHECK}</div>`).join('') +
+      `<div class="glow"></div><div class="string"></div><div class="lantern">${lanternSVG('fA')}</div>
+       <div class="wash"></div>
+       <div class="title"><div class="n">${lanternMark()}Lantern</div><div class="s">The autonomous CFO that lights up every payment.</div></div>`;
+    const lit = stage.querySelector('.lit'), glow = stage.querySelector('.glow'), lan = stage.querySelector('.lantern'),
+      str = stage.querySelector('.string'), wash = stage.querySelector('.wash'), title = stage.querySelector('.title'),
+      founds = [...stage.querySelectorAll('.found')], seen = new Set();
+    return (t) => {
+      const T = 6.5;
+      const p = clamp01(t / T);
+      const lx = 70 + 820 * ease(p) + 30 * Math.sin(t * 1.4);
+      const ly = 250 + 130 * Math.sin(t * 1.15);
+      const flood = ease((t - T) / 1.6);
+      const r = 150 + 1100 * flood;
+      const m = `radial-gradient(circle ${r}px at ${lx}px ${ly}px, #000 45%, transparent 100%)`;
+      lit.style.maskImage = lit.style.webkitMaskImage = m;
+      glow.style.background = `radial-gradient(circle ${r * 1.4}px at ${lx}px ${ly}px, rgba(245,181,68,.22), transparent 70%)`;
+      const sw = 7 * Math.sin(t * 2.6);
+      lan.style.left = (lx - 37) + 'px'; lan.style.top = (ly - 60) + 'px';
+      lan.style.transform = `rotate(${sw}deg)`;
+      lan.style.opacity = 1 - flood;
+      str.style.left = lx + 'px'; str.style.top = '0px'; str.style.height = (ly - 70) + 'px'; str.style.opacity = 1 - flood;
+      stage.querySelector('#fA').setAttribute('transform', `translate(37 63) scale(${1 + 0.06 * Math.sin(t * 13)}) translate(-37 -63)`);
+      items.forEach(([x, y], i) => {
+        if (Math.hypot(x - lx, y - ly) < 120) seen.add(i);
+        const on = seen.has(i) || flood > 0.3;
+        founds[i].style.opacity = on && flood < 0.6 ? 1 : 0;
+      });
+      wash.style.opacity = ease((t - T - 0.8) / 1.0);
+      title.style.opacity = ease((t - T - 1.4) / 0.8);
+      if (t < 0.05) seen.clear();
+    };
+  }
+
+  /* ---------------- Concept B: lights on across the company ---------------- */
+  function buildB(stage) {
+    const C = [480, 280];
+    const nodes = [
+      [150, 120, 'bank', 'Revolut Business', '312 payments read', ''],
+      [480, 70, 'doc', 'Invoicing system', '271 matched', 'g'],
+      [810, 120, 'hash', 'Slack', 'asked Anna · 1 reply', 'a'],
+      [130, 290, 'laptop', 'anna-mbp.corp', 'paper receipt found', 'g'],
+      [830, 290, 'mail', 'Email', 'Semrush: no approval', 'a'],
+      [180, 455, 'laptop', 'marek-mbp.corp', 'payroll ready', ''],
+      [480, 490, 'chat', 'Chats', 'Nordwind cancelled', 'g'],
+      [780, 455, 'laptop', 'ceo-mbp.corp', 'approval found', 'g'],
+    ];
+    stage.innerHTML = `<svg class="layer" width="960" height="540" aria-hidden="true">${nodes.map((n, i) =>
+        `<line data-l="${i}" x1="${C[0]}" y1="${C[1]}" x2="${n[0]}" y2="${n[1]}" stroke="#F5B544" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 1" pathLength="1" stroke-dashoffset="1" opacity=".9"/>`).join('')}</svg>
+      <div class="glow"></div>
+      ${nodes.map((n, i) => `<div class="node" data-n="${i}" style="left:${n[0]}px;top:${n[1]}px"><div class="h"><svg viewBox="0 0 24 24">${ICON[n[2]]}</svg>${n[3]}</div><div class="r ${n[5]}">${n[4]}</div></div>`).join('')}
+      <div class="lantern" style="left:${C[0] - 37}px;top:${C[1] - 58}px;transform-origin:37px 0">${lanternSVG('fB')}</div>
+      <div class="title" style="inset:22px auto auto 26px;display:flex;flex-direction:row;align-items:center;gap:12px;justify-content:flex-start"><svg viewBox="0 0 120 120" width="34" height="34" aria-hidden="true"><rect width="120" height="120" rx="30" fill="#fff"/><path d="M48 27 a12 12 0 0 1 24 0" fill="none" stroke="#0F1012" stroke-width="6" stroke-linecap="round"/><rect x="40" y="30" width="40" height="8" rx="4" fill="#0F1012"/><rect x="38" y="41" width="44" height="47" rx="13" fill="none" stroke="#0F1012" stroke-width="6.5"/><path d="M60 50 C66 57 69 62 69 67 a9 9 0 0 1 -18 0 C51 62 54 57 60 50 Z" fill="#F5B544"/><rect x="42" y="91" width="36" height="7" rx="3.5" fill="#0F1012"/></svg><div><div class="n light" style="font-size:22px;letter-spacing:-0.02em">Lantern</div><div class="s light" style="font-size:13px">Lights up every corner of the company.</div></div></div>`;
+    const lines = [...stage.querySelectorAll('[data-l]')], els = [...stage.querySelectorAll('.node')], glow = stage.querySelector('.glow'),
+      lan = stage.querySelector('.lantern'), title = stage.querySelector('.title');
+    return (t) => {
+      const per = 0.62, start = 0.6;
+      let litCount = 0;
+      nodes.forEach((n, i) => {
+        const k = clamp01((t - start - i * per) / 0.35);
+        lines[i].setAttribute('stroke-dashoffset', String(1 - ease(k)));
+        const on = k >= 1;
+        els[i].classList.toggle('on', on);
+        if (on) litCount++;
+      });
+      const r = 120 + litCount * 55 + 8 * Math.sin(t * 3);
+      glow.style.background = `radial-gradient(circle ${r}px at ${C[0]}px ${C[1]}px, rgba(245,181,68,.30), rgba(245,181,68,.06) 60%, transparent 80%)`;
+      lan.style.transform = `translateY(${4 * Math.sin(t * 1.8)}px)`;
+      stage.querySelector('#fB').setAttribute('transform', `translate(37 63) scale(${1 + 0.06 * Math.sin(t * 13)}) translate(-37 -63)`);
+      title.style.opacity = ease((t - (start + nodes.length * per + 0.4)) / 0.8);
+    };
+  }
+
+  /* ---------------- Concept C: the dark ledger ---------------- */
+  function buildC(stage) {
+    const rows = [
+      ['Nov 14', 'AWS EMEA', '−€3,412.60', 'g', 'Matched'],
+      ['Nov 14', 'Lunch Lab Sp. z o.o.', '−€1,250.00', 'a', 'Asked Anna'],
+      ['Nov 13', 'Figma Inc.', '−€2,160.00', 'g', 'Matched'],
+      ['Nov 12', 'Nordwind Studio', '−€4,800.00', 'x', 'Cancelled'],
+      ['Nov 12', 'Coworking Wola', '−€2,900.00', 'g', 'Matched'],
+      ['Nov 11', 'LinkedIn Ads', '−€2,400.00', 'b', 'Approval found'],
+      ['Nov 10', 'Semrush', '−€499.00', 'a', 'Asked Julia'],
+      ['Nov 10', 'Hetzner Online', '−€219.00', 'g', 'Matched'],
+    ];
+    const y0 = 120, gap = 50;
+    const html = (cls) => `<div class="layer ${cls}">${rows.map((r, i) => `<div class="row" style="top:${y0 + i * gap}px"><span class="m">${r[0]}</span><span>${r[1]}</span><span class="m">${r[2]}</span><span class="st ${cls === 'lit' ? r[3] : ''}" data-s="${i}">${cls === 'lit' ? r[4] : '?'}</span></div>`).join('')}</div>`;
+    stage.innerHTML = html('dim') + html('lit') +
+      `<div class="glow"></div><div class="counter">Explained <b data-c>0</b> / 312</div><div class="string"></div><div class="lantern">${lanternSVG('fC')}</div>
+       <div class="wash"></div>
+       <div class="title"><div class="n">${lanternMark()}Lantern</div><div class="s">Every payment explained.</div></div>`;
+    const lit = stage.querySelector('.lit'), glow = stage.querySelector('.glow'), lan = stage.querySelector('.lantern'), str = stage.querySelector('.string'),
+      cnt = stage.querySelector('[data-c]'), wash = stage.querySelector('.wash'), title = stage.querySelector('.title');
+    const seen = new Set();
+    return (t) => {
+      const drop = ease(t / 1.2);
+      const T = 6.2;
+      const p = clamp01((t - 1.0) / (T - 1.0));
+      const lx = 880 + 18 * Math.sin(t * 2.2);
+      const ly = -60 + drop * 160 + p * (rows.length - 1) * gap + (1 - drop) * 0;
+      const sw = 6 * Math.sin(t * 2.2);
+      lan.style.left = (lx - 37) + 'px'; lan.style.top = (ly - 55) + 'px'; lan.style.transform = `rotate(${sw}deg)`;
+      str.style.left = lx + 'px'; str.style.top = '0px'; str.style.height = Math.max(0, ly - 65) + 'px';
+      const flood = ease((t - T) / 1.4);
+      const r = 230 + 1100 * flood;
+      const m = `radial-gradient(ellipse ${r * 2.2}px ${r * 0.62}px at ${lx - 300}px ${ly}px, #000 40%, transparent 100%)`;
+      lit.style.maskImage = lit.style.webkitMaskImage = m;
+      glow.style.background = `radial-gradient(ellipse ${r * 2.4}px ${r * 0.8}px at ${lx - 260}px ${ly}px, rgba(245,181,68,.18), transparent 70%)`;
+      rows.forEach((_, i) => { if (Math.abs(y0 + i * gap - ly) < 30) seen.add(i); });
+      cnt.textContent = String(Math.min(312, Math.round(312 * clamp01((t - 0.8) / (T - 0.6)))));
+      stage.querySelector('#fC').setAttribute('transform', `translate(37 63) scale(${1 + 0.06 * Math.sin(t * 13)}) translate(-37 -63)`);
+      wash.style.opacity = ease((t - T - 0.6) / 1.0);
+      title.style.opacity = ease((t - T - 1.2) / 0.8);
+      lan.style.opacity = str.style.opacity = 1 - flood;
+    };
+  }
+
+  function lanternMark() {
+    return `<svg viewBox="0 0 120 120" width="84" height="84" aria-hidden="true"><rect width="120" height="120" rx="30" fill="#0F1012"/><path d="M48 27 a12 12 0 0 1 24 0" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/><rect x="40" y="30" width="40" height="8" rx="4" fill="#fff"/><rect x="38" y="41" width="44" height="47" rx="13" fill="none" stroke="#fff" stroke-width="6.5"/><path d="M60 50 C66 57 69 62 69 67 a9 9 0 0 1 -18 0 C51 62 54 57 60 50 Z" fill="#F5B544"/><rect x="42" y="91" width="36" height="7" rx="3.5" fill="#fff"/></svg>`;
+  }
+
+  const builders = {A: buildA, B: buildB, C: buildC};
+  const LOOP = {A: 11, B: 9.5, C: 10.5};
+  const runs = {};
+  const FIX = new URLSearchParams(location.search).get('t');
+  function start(key) {
+    const stage = document.querySelector(`[data-stage="${key}"]`);
+    runs[key] = {tick: builders[key](stage), t0: performance.now(), stage};
+  }
+  function fit() {
+    document.querySelectorAll('.stage').forEach((s) => { s.style.transform = `scale(${s.parentElement.clientWidth / 960})`; });
+  }
+  Object.keys(builders).forEach(start);
+  document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => start(b.dataset.replay)));
+  addEventListener('resize', fit); fit();
+  function frame(now) {
+    for (const k in runs) {
+      const r = runs[k];
+      let t = (now - r.t0) / 1000;
+      if (FIX !== null) t = Math.min(+FIX, LOOP[k] - 0.3);
+      else if (reduce) t = LOOP[k] - 0.5;
+      else if (t > LOOP[k]) { start(k); t = 0; }
+      r.tick(t);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern Logo Options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root { --ink:#0F1012; --muted:#6B6F78; --line:#E9E9EC; --surface:#FAFAFB; --amber:#F5B544; color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #fff; color: var(--ink); font-family: Inter, -apple-system, sans-serif; padding: 40px max(16px, env(safe-area-inset-left)) 72px; -webkit-font-smoothing: antialiased; }
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px; }
+header h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; margin: 0 0 8px; }
+header p { margin: 0; color: var(--muted); font-size: 16.5px; line-height: 1.5; max-width: 760px; }
+.opt { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.opt-h { display: flex; align-items: baseline; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.opt-h .tag { font: 500 13px "Geist Mono", monospace; color: var(--muted); }
+.opt-h h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.opt-h p { margin: 0; color: var(--muted); font-size: 14.5px; flex-basis: 100%; line-height: 1.5; }
+.row { display: grid; grid-template-columns: 1.1fr 1.1fr 0.8fr 1.6fr; min-height: 220px; }
+.cell { padding: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; border-right: 1px solid var(--line); min-width: 0; }
+.cell:last-child { border-right: 0; }
+.cell .cap { font: 12px "Geist Mono", monospace; color: var(--muted); }
+.cell.dark { background: #0B0C0F; }
+.cell.dark .cap { color: #7E828B; }
+.tile { width: 120px; height: 120px; border-radius: 27px; display: grid; place-items: center; }
+.tile.d { background: linear-gradient(180deg, #1B1D22 0%, #0F1012 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #24262C; }
+.tile.l { background: #fff; box-shadow: 0 0 0 1px var(--line), 0 10px 24px -14px rgba(15,16,18,.25); }
+.tile svg { width: 84px; height: 84px; }
+.sizes { display: flex; align-items: flex-end; gap: 18px; }
+.sizes .s { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.fav { border-radius: 22%; display: grid; place-items: center; background: #0F1012; }
+.lock { display: flex; align-items: center; gap: 12px; font-size: 34px; font-weight: 600; letter-spacing: -0.035em; }
+.lock svg { width: 40px; height: 40px; }
+.lock.sm { font-size: 20px; gap: 8px; letter-spacing: -0.02em; }
+.lock.sm svg { width: 24px; height: 24px; }
+.lock.inv { color: #fff; }
+.pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: #2E9D6E; background: #E7F6EF; border-radius: 6px; padding: 2px 8px; }
+@media (max-width: 760px) { .row { grid-template-columns: 1fr 1fr; } .cell { border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+
+<!-- ============ Mark definitions (64 grid) ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="metalD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9CCD3"/></linearGradient>
+    <linearGradient id="metalL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2D33"/><stop offset="1" stop-color="#0F1012"/></linearGradient>
+    <radialGradient id="glass" cx="50%" cy="58%" r="58%"><stop offset="0" stop-color="#FFE7AE"/><stop offset=".45" stop-color="#F5B544" stop-opacity=".95"/><stop offset="1" stop-color="#C7781B" stop-opacity=".9"/></radialGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD27A"/><stop offset="1" stop-color="#F08A1C"/></linearGradient>
+
+    <!-- A: Hurricane line — even 3px strokes, flame inside a clear globe -->
+    <symbol id="markA" viewBox="0 0 64 64">
+      <path d="M22.5 15 C22.5 6.5 41.5 6.5 41.5 15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M25 15 H39 L44 21 H20 Z" fill="currentColor"/>
+      <rect x="30" y="11" width="4" height="4" rx="1" fill="currentColor"/>
+      <path d="M22 21 C15.5 26.5 15.5 40.5 22 46 H42 C48.5 40.5 48.5 26.5 42 21 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M27 22.5 V44.5 M37 22.5 V44.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+      <path d="M32 27.5 C35.6 31.6 37.2 34.4 37.2 37.2 a5.2 5.2 0 0 1 -10.4 0 C26.8 34.4 28.4 31.6 32 27.5 Z" fill="var(--amber)"/>
+      <rect x="17.5" y="46" width="29" height="9" rx="3" fill="currentColor"/>
+      <path d="M21 50.5 H43" stroke="var(--cut, #fff)" stroke-width="1.4" stroke-linecap="round" opacity=".35"/>
+    </symbol>
+
+    <!-- B: Solid silhouette — one shape, flame cut as negative space -->
+    <symbol id="markB" viewBox="0 0 64 64">
+      <path d="M22.5 15 C22.5 6.5 41.5 6.5 41.5 15" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+      <path fill-rule="evenodd" fill="currentColor" d="
+        M25 14 H39 L44 20.5 C50.6 26.4 50.6 40.6 44 46.5 H46 a2.5 2.5 0 0 1 2.5 2.5 V53 a3 3 0 0 1 -3 3 H18.5 a3 3 0 0 1 -3 -3 V49 a2.5 2.5 0 0 1 2.5 -2.5 H20 C13.4 40.6 13.4 26.4 20 20.5 Z
+        M32 25.5 C36.6 30.6 38.6 34.2 38.6 37.6 a6.6 6.6 0 0 1 -13.2 0 C25.4 34.2 27.4 30.6 32 25.5 Z"/>
+      <path d="M32 31 C34.4 33.8 35.4 35.6 35.4 37.5 a3.4 3.4 0 0 1 -6.8 0 C28.6 35.6 29.6 33.8 32 31 Z" fill="var(--amber)"/>
+      <path d="M18.5 46.5 H45.5" stroke="var(--cut, #fff)" stroke-width="1.6"/>
+    </symbol>
+
+    <!-- C: Lit glass — dimensional globe glow, metal stays flat and crisp -->
+    <symbol id="markCd" viewBox="0 0 64 64">
+      <path d="M22.5 15 C22.5 6.5 41.5 6.5 41.5 15" fill="none" stroke="url(#metalD)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M22 21 C15.5 26.5 15.5 40.5 22 46 H42 C48.5 40.5 48.5 26.5 42 21 Z" fill="url(#glass)"/>
+      <path d="M20.6 26 C18.6 30 18.6 36.5 20.6 40.5" fill="none" stroke="#FFF6E0" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+      <path d="M27 22 V45 M37 22 V45" stroke="#7A4A0E" stroke-width="1.4" opacity=".55"/>
+      <path d="M32 28 C35.4 31.9 36.9 34.6 36.9 37.2 a4.9 4.9 0 0 1 -9.8 0 C27.1 34.6 28.6 31.9 32 28 Z" fill="#FFFBF0"/>
+      <path d="M25 15 H39 L44 21 H20 Z" fill="url(#metalD)"/>
+      <rect x="30" y="11" width="4" height="4" rx="1" fill="#E8EAEE"/>
+      <rect x="17.5" y="46" width="29" height="9" rx="3" fill="url(#metalD)"/>
+    </symbol>
+    <symbol id="markCl" viewBox="0 0 64 64">
+      <path d="M22.5 15 C22.5 6.5 41.5 6.5 41.5 15" fill="none" stroke="url(#metalL)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M22 21 C15.5 26.5 15.5 40.5 22 46 H42 C48.5 40.5 48.5 26.5 42 21 Z" fill="url(#glass)"/>
+      <path d="M20.6 26 C18.6 30 18.6 36.5 20.6 40.5" fill="none" stroke="#FFF6E0" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+      <path d="M27 22 V45 M37 22 V45" stroke="#7A4A0E" stroke-width="1.4" opacity=".55"/>
+      <path d="M32 28 C35.4 31.9 36.9 34.6 36.9 37.2 a4.9 4.9 0 0 1 -9.8 0 C27.1 34.6 28.6 31.9 32 28 Z" fill="#FFFBF0"/>
+      <path d="M25 15 H39 L44 21 H20 Z" fill="url(#metalL)"/>
+      <rect x="30" y="11" width="4" height="4" rx="1" fill="#2A2D33"/>
+      <rect x="17.5" y="46" width="29" height="9" rx="3" fill="url(#metalL)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<main>
+  <header>
+    <h1>Lantern: logo options</h1>
+    <p>Three takes on a real hurricane lantern, all drawn on the same 64-unit grid: a bail handle, a vented cap, a glass globe with guard wires, the flame and a fuel tank. Each is shown as an app icon on dark and light, at favicon sizes, and as a wordmark lockup.</p>
+  </header>
+
+  <section class="opt">
+    <div class="opt-h"><span class="tag">Option A</span><h2>Hurricane line</h2><span class="pick">Recommended</span>
+      <p>The most "real lantern": you can read the globe, the guard wires and the tank. Even 3-unit strokes and one amber flame keep it as crisp as a Linear icon.</p></div>
+    <div class="row">
+      <div class="cell dark"><div class="tile d"><svg style="color:#fff;--cut:#0F1012"><use href="#markA"/></svg></div><span class="cap">app icon · dark</span></div>
+      <div class="cell"><div class="tile l"><svg style="color:#0F1012"><use href="#markA"/></svg></div><span class="cap">app icon · light</span></div>
+      <div class="cell"><div class="sizes">
+        <div class="s"><div class="fav" style="width:32px;height:32px"><svg width="26" height="26" style="color:#fff;--cut:#0F1012"><use href="#markA"/></svg></div><span class="cap">32</span></div>
+        <div class="s"><div class="fav" style="width:20px;height:20px"><svg width="17" height="17" style="color:#fff;--cut:#0F1012"><use href="#markA"/></svg></div><span class="cap">20</span></div>
+        <div class="s"><svg width="16" height="16" style="color:#0F1012"><use href="#markA"/></svg><span class="cap">16</span></div>
+      </div></div>
+      <div class="cell" style="align-items:flex-start;gap:18px;padding-left:30px">
+        <div class="lock"><svg style="color:#0F1012"><use href="#markA"/></svg>Lantern</div>
+        <div class="lock sm"><svg style="color:#0F1012"><use href="#markA"/></svg>Lantern</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <div class="opt-h"><span class="tag">Option B</span><h2>Solid silhouette</h2>
+      <p>One solid shape with the flame cut out as negative space: the most "logo" of the three and the sharpest at 16 px. It reads as a lantern from its outline alone.</p></div>
+    <div class="row">
+      <div class="cell dark"><div class="tile d"><svg style="color:#fff;--cut:#0F1012"><use href="#markB"/></svg></div><span class="cap">app icon · dark</span></div>
+      <div class="cell"><div class="tile l"><svg style="color:#0F1012"><use href="#markB"/></svg></div><span class="cap">app icon · light</span></div>
+      <div class="cell"><div class="sizes">
+        <div class="s"><div class="fav" style="width:32px;height:32px"><svg width="26" height="26" style="color:#fff;--cut:#0F1012"><use href="#markB"/></svg></div><span class="cap">32</span></div>
+        <div class="s"><div class="fav" style="width:20px;height:20px"><svg width="17" height="17" style="color:#fff;--cut:#0F1012"><use href="#markB"/></svg></div><span class="cap">20</span></div>
+        <div class="s"><svg width="16" height="16" style="color:#0F1012"><use href="#markB"/></svg><span class="cap">16</span></div>
+      </div></div>
+      <div class="cell" style="align-items:flex-start;gap:18px;padding-left:30px">
+        <div class="lock"><svg style="color:#0F1012"><use href="#markB"/></svg>Lantern</div>
+        <div class="lock sm"><svg style="color:#0F1012"><use href="#markB"/></svg>Lantern</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <div class="opt-h"><span class="tag">Option C</span><h2>Lit glass</h2>
+      <p>The most realistic: the globe glows amber with a glass highlight, while the metal parts stay flat and sharp. Strongest on a dark app icon; at small sizes it turns into an amber dot.</p></div>
+    <div class="row">
+      <div class="cell dark"><div class="tile d"><svg><use href="#markCd"/></svg></div><span class="cap">app icon · dark</span></div>
+      <div class="cell"><div class="tile l"><svg><use href="#markCl"/></svg></div><span class="cap">app icon · light</span></div>
+      <div class="cell"><div class="sizes">
+        <div class="s"><div class="fav" style="width:32px;height:32px"><svg width="26" height="26"><use href="#markCd"/></svg></div><span class="cap">32</span></div>
+        <div class="s"><div class="fav" style="width:20px;height:20px"><svg width="17" height="17"><use href="#markCd"/></svg></div><span class="cap">20</span></div>
+        <div class="s"><svg width="16" height="16"><use href="#markCl"/></svg><span class="cap">16</span></div>
+      </div></div>
+      <div class="cell" style="align-items:flex-start;gap:18px;padding-left:30px">
+        <div class="lock"><svg><use href="#markCl"/></svg>Lantern</div>
+        <div class="lock sm"><svg><use href="#markCl"/></svg>Lantern</div>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

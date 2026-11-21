@@ -3,7 +3,7 @@ id: T052
 title: Scout calls NeMo checks at three points, strikes and compliance escalation, audit and MLflow
 status: todo
 owner: coder
-branch: task/T051-nemo-guardrails
+branch: task/T052-scout-guardrails
 depends_on: ["T051"]
 capabilities: []
 acceptance:
@@ -62,8 +62,8 @@ English.
   `cfo/observability.py`; demo cases `scout/demo.py`, `scout/demo_data.py`.
 - Tests use a fake guardrails client (no network): blocked input, strikes 1-2-3 + escalation + reset + 7-day
   window, tool result withheld, flagged invoice → approval card, bot-output rephrase, fail-open, disabled mode.
-- T050 (access control) is built in parallel on `task/T050-scout-access`; the coordinator merges it into this
-  branch before the PR. Do not touch salary filtering here.
+- T050 (access control, `task/T050-scout-access`) and T051 (NeMo service, `task/T051-nemo-guardrails`) are built in parallel; the coordinator merges them into one
+  PR. Do not touch salary filtering or `deploy/openshift/guardrails/` here; add your env/secret docs as a section of `docs/guardrails.md` (T051 owns the rest of that file).
 
 ## Out of scope
 New rails or policies (T051), access control (T050), Prometheus, approval for `send_invoices`.

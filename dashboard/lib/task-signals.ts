@@ -34,7 +34,7 @@ export const LOOP_SIGNAL_LABEL: Record<Exclude<LoopSignal, null>, string> = {
   attention: "Needs your reaction", result: "New result to review", running: "Working",
 };
 
-/** One dot per loop: amber needs a reaction, then green for an unseen result, then blue while working. */
+/** One dot per loop: amber needs a reaction, then green for an unseen result, then grey (pulsing) while working. */
 export function loopSignal(tasks: Task[], loop: string, seen: SeenMap): { signal: LoopSignal; attention: number; results: number; running: number } {
   const own = tasks.filter(task => task.loop === loop);
   const attention = own.filter(needsReaction).length;

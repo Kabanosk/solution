@@ -8,9 +8,9 @@ import { shortDate, type AgentTask } from "@/lib/scout-model";
 import { cn } from "@/lib/utils";
 import { day, eur, eurCents, Panel, Swatch } from "./panel";
 
-// Greens, orange and greys only (AGENTS.md palette); spend without a team is always grey.
-const TEAM_COLORS = ["var(--chart-balance)", "var(--chart-forecast)", "#42c994", "#929292", "#277757", "#626262"];
-const NO_TEAM_COLOR = "#b0b0b0";
+// The teal ramp and greys of globals.css (AGENTS.md palette); spend without a team is always grey.
+const TEAM_COLORS = ["var(--chart-balance)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--muted)"];
+const NO_TEAM_COLOR = "var(--chart-5)";
 
 function Donut({ id, data, config, label, children }: { id: string; data: { key: string; value: number; fill: string }[]; config: ChartConfig; label: string; children: React.ReactNode }) {
   return <div className="relative mx-auto size-[136px] shrink-0 xl:size-[160px]">
@@ -63,7 +63,7 @@ export function TeamSpendDonut({ spend }: { spend: QuarterSpend }) {
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const OUTCOME_COLOR: Record<ScoutOutcome, string> = { alone: "var(--chart-balance)", told: "#42c994", asked: "var(--chart-forecast)" };
+const OUTCOME_COLOR: Record<ScoutOutcome, string> = { alone: "var(--chart-balance)", told: "var(--chart-3)", asked: "var(--chart-4)" };
 const OUTCOME_HINT: Record<ScoutOutcome, string> = {
   alone: "Matched invoices from files, email or chat without anyone",
   told: "Acted, then sent you a note",

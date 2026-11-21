@@ -28,6 +28,9 @@ export function LlmChat({ active }: { active: boolean }) {
   const [following, setFollowing] = useState(true);
   const [truncated, setTruncated] = useState(false);
   const conversation = useRef(newConversationId());
+  // The server seals only public provider turns and research. Never rebuild
+  // external history from the mixed conversation, which includes private Granite replies.
+  const externalContext = useRef<string | null>(null);
   const latestTaskTurn = [...messages].reverse().find(turn => turn.taskId)?.id;  // the chat's task, linked once
   const request = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -97,7 +100,7 @@ export function LlmChat({ active }: { active: boolean }) {
     try {
       const response = await tenantFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model, messages: model === "external" ? request_.messages.slice(-1) : request_.messages,
-          conversationId: conversation.current, ...(model === "external" ? { external } : {}) }), signal: controller.signal });
+          conversationId: conversation.current, ...(model === "external" ? { external, ...(externalContext.current ? { externalContext: externalContext.current } : {}) } : {}) }), signal: controller.signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         if (typeof body?.error === "string") failure = body.error;
@@ -108,6 +111,7 @@ export function LlmChat({ active }: { active: boolean }) {
       for await (const event of readJsonLines(response.body)) {
         if (controller.signal.aborted) break;
         if (event.type === "step" && typeof event.text === "string") { steps.push(event.text); update({ steps: [...steps] }); }
+        else if (event.type === "external_context" && model === "external" && typeof event.token === "string") externalContext.current = event.token;
         else if (event.type === "research") update({ research: event.research });
         else if (event.type === "delta" && typeof event.text === "string") { content += event.text; update({ content }); }
         else if (event.type === "compacted") {
@@ -144,6 +148,7 @@ export function LlmChat({ active }: { active: boolean }) {
   function newChat() {
     request.current?.abort(); request.current = null;
     conversation.current = newConversationId();
+    externalContext.current = null;
     setMessages([]); setDraft(""); setBusy(false); setError(null); setNotice(""); setCopied(null); setTruncated(false);
     follow.current = true; setFollowing(true);
     input.current?.focus({ preventScroll: true });
@@ -261,7 +266,7 @@ export function LlmChat({ active }: { active: boolean }) {
           </DropdownMenu>
           <p className="truncate text-[11px] text-muted-foreground">{busy ? "Scout is working…" : <><span className="hidden sm:inline">Enter to send · Shift + Enter for a new line · </span>Stays in this tab</>}</p>
         </div>
-        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your message and public research go to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. History, company data and Granite's forecast results stay private.</p>}
+        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your public conversation and research go to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. Company data and Granite's forecast results stay private.</p>}
         <p role="status" className="sr-only">{notice}</p>
       </div>
     </div>

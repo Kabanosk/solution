@@ -1,5 +1,6 @@
 import { parseExternalConfig, type ExternalConfig } from "./external-model.ts";
 import { parsePublicResearch, type PublicResearch } from "./market-research-model.ts";
+import { MAX_EXTERNAL_CONTEXT_TOKEN } from "./external-conversation.ts";
 
 export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 4.0 H Tiny" }] as const;
 export const MAX_MESSAGE_LENGTH = 16000;
@@ -18,6 +19,7 @@ export type ChatEvent =
   | { type: "done"; truncated: boolean; task_id?: string; followups?: boolean }
   | { type: "error"; message: string }
   | { type: "research"; research: PublicResearch }
+  | { type: "external_context"; token: string }
   | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean }
   | { type: "compacted"; summary: string; replaced: number };
 
@@ -39,6 +41,8 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
   const event = value as Record<string, unknown>;
   const text = typeof event.text === "string" ? event.text : null;
   switch (event.type) {
+    case "external_context": return typeof event.token === "string" && event.token.length > 0 && event.token.length <= MAX_EXTERNAL_CONTEXT_TOKEN
+      ? { type: "external_context", token: event.token } : null;
     case "research": {
       try { return { type: "research", research: parsePublicResearch(event.research) }; }
       catch { return null; }
@@ -74,7 +78,7 @@ const CONVERSATION_ID = /^[A-Za-z0-9_-]{8,64}$/;
 /** One dashboard conversation = one Scout chat task; "New chat" starts a new id. */
 export function newConversationId(): string { return crypto.randomUUID().replace(/-/g, ""); }
 
-export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[]; conversationId?: string; external?: ExternalConfig } {
+export function parseChatRequest(value: unknown): { model: string; messages: ChatMessage[]; conversationId?: string; external?: ExternalConfig; externalContext?: string } {
   if (!value || typeof value !== "object") throw new ChatInputError("Invalid chat request.");
   const row = value as Record<string, unknown>;
   if (row.model !== "external" && !CHAT_MODELS.some(model => model.id === row.model)) throw new ChatInputError("Select an available model.");
@@ -83,6 +87,9 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
     try { external = parseExternalConfig(row.external); }
     catch (error) { throw new ChatInputError((error as Error).message); }
   } else if (row.external !== undefined) throw new ChatInputError("External credentials are only accepted for external models.");
+  if (row.externalContext !== undefined && (row.model !== "external" || typeof row.externalContext !== "string" || !row.externalContext
+    || row.externalContext.length > MAX_EXTERNAL_CONTEXT_TOKEN || typeof row.conversationId !== "string"))
+    throw new ChatInputError("Invalid external conversation context. Start a new chat.");
   if (!Array.isArray(row.messages) || !row.messages.length || row.messages.length > 64) throw new ChatInputError("Start a new chat to continue.");
   let length = 0;
   // A compacted conversation starts with Scout's summary of the earlier turns; user/assistant alternate after it.
@@ -101,7 +108,8 @@ export function parseChatRequest(value: unknown): { model: string; messages: Cha
   if (messages.at(-1)?.role !== "user") throw new ChatInputError("Write a message to continue.");
   if (row.conversationId !== undefined && (typeof row.conversationId !== "string" || !CONVERSATION_ID.test(row.conversationId)))
     throw new ChatInputError("Invalid conversation. Start a new chat.");
-  return { model: row.model as string, messages, ...(row.conversationId ? { conversationId: row.conversationId as string } : {}), ...(external ? { external } : {}) };
+  return { model: row.model as string, messages, ...(row.conversationId ? { conversationId: row.conversationId as string } : {}), ...(external ? { external } : {}),
+    ...(row.externalContext ? { externalContext: row.externalContext as string } : {}) };
 }
 
 // Unanswered/failed exchanges remain visible but do not become invented model

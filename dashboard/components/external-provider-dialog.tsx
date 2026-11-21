@@ -41,7 +41,7 @@ export function ExternalProviderDialog({ config, onClose, onSave, onRemove }: {
           <Input id="scout-external-key" className="h-11" type="password" autoComplete="off" spellCheck={false} value={apiKey} maxLength={512} required aria-describedby="scout-external-key-help scout-external-error" onChange={event => { setApiKey(event.target.value); setError(""); }} />
           <p id="scout-external-key-help" className="text-xs text-muted-foreground">Kept in this tab's memory. Cleared on reload or removal. Sent securely through Scout to your selected provider.</p>
         </div>
-        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Your submitted message and cited public research are shared with the provider. Do not paste private company data. Chat history, invoices and Granite's results stay private. Hiring proposals create simulated Liquidity actions on premise, without changing company records or hiring anyone.</p>
+        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Your public conversation and cited research are shared with the provider so follow-up messages keep their context. Do not paste private company data. Invoices and Granite's results stay private. Hiring proposals create simulated Liquidity actions on premise, without changing company records or hiring anyone.</p>
         {error && <p id="scout-external-error" role="alert" className="text-sm text-danger">{error}</p>}
         <DialogFooter id="scout-external-footer" className="gap-2">
           {config && <Button id="scout-external-remove" type="button" variant="ghost" className="h-11 sm:mr-auto" onClick={onRemove}>Remove provider</Button>}

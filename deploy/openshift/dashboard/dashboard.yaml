@@ -33,6 +33,9 @@ spec:
             - name: PGDATABASE
               valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
             - {name: CFO_API_URL, value: "http://api:8000"}
+            # Shared across replicas/restarts; values stay in the cluster Secret.
+            - name: SCOUT_CHAT_CONTEXT_SECRET
+              valueFrom: {secretKeyRef: {name: scout-chat-context, key: signing-key, optional: true}}
             - {name: SCOUT_APP_ORIGIN, value: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"}
             - {name: SCOUT_TRUSTED_CLIENT_IP_HEADER, value: "x-forwarded-for"}
             - name: SCOUT_GOOGLE_CLIENT_ID

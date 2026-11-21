@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Both selectors apply to the same peer: only the verified default router.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-ingress
+          podSelector:
+            matchLabels:
+              ingresscontroller.operator.openshift.io/deployment-ingresscontroller: default
+      ports:
+        - protocol: TCP
+          port: 3000
+  # Kubelet health probes originate on the pod's node; no broad node/namespace allowance.

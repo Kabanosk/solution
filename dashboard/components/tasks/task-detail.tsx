@@ -74,7 +74,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
       <div className="min-w-0 space-y-5">
         {task.loop === "strategy" && task.outcome && <section aria-labelledby="strategy-brief-title" className="rounded-xl border bg-card">
           <h2 id="strategy-brief-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Daily CEO briefing</h2>
-          <p className="whitespace-pre-wrap break-words px-4 py-3 text-sm leading-6">{task.outcome}</p>
+          <Markdown source={task.outcome} className="min-w-0 px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere]" />
         </section>}
         {hiringReport && <section id={`scout-hiring-report-${task.id}`} aria-labelledby={`scout-hiring-report-title-${task.id}`} className="rounded-xl border bg-card">
           <h2 id={`scout-hiring-report-title-${task.id}`} className="border-b px-4 py-2.5 text-[13px] font-medium">Hiring simulation</h2>

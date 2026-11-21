@@ -228,3 +228,10 @@ Format wpisu: nagłówek drugiego poziomu `D-<kolejny numer, 3 cyfry> <krótki t
 - **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
 - **Kto:** coordinator
 - **Data:** 2026-11-21 01:09
+
+## D-032 Zmiana kryteriów T052
+
+- **Decyzja:** nowe kryteria akceptacji T052: AC-1 (run), AC-2 (run), AC-3 (manual)
+- **Dlaczego:** D-029: tasks rewritten for agents after grilling with Wojtek
+- **Kto:** coordinator
+- **Data:** 2026-11-21 01:09

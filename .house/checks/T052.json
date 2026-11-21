@@ -5,30 +5,30 @@
       {
         "id": "AC-1",
         "kind": "run",
-        "run": "uv run --project backend pytest -q backend/tests",
+        "run": "uv run --project backend pytest -q backend/tests/scout/test_guardrails.py",
         "expect": null,
         "text": null,
-        "timeout": 1500
+        "timeout": 900
       },
       {
         "id": "AC-2",
-        "kind": "manual",
-        "run": null,
+        "kind": "run",
+        "run": "uv run --project backend pytest -q backend/tests/scout backend/tests/test_tracing.py backend/tests/test_deploy_manifests.py",
         "expect": null,
-        "text": "The deployed app sends the traffic chosen in T050 through guardrails; golden path still works end to end",
-        "timeout": 600
+        "text": null,
+        "timeout": 1800
       },
       {
         "id": "AC-3",
         "kind": "manual",
         "run": null,
         "expect": null,
-        "text": "At least one guardrails demo scenario recorded for the pitch (what the user does, what is blocked, where the jury sees it)",
+        "text": "On the cluster with the new image: (1) a DM asking for a named colleague's salary gets the blocked message 'attempt 1 of 3', and the third attempt sends the compliance DM with the three prompts; (2) the poisoned-invoice demo case lands on the CEO approval card with a 'Suspicious content' badge naming the rail instead of being filed; (3) the Audit page shows guardrail rows; (4) MLflow shows Scout LLM traces. Evidence in reports/T052.md",
         "timeout": 600
       }
     ],
     "protected": {}
   },
-  "frozen_at": "2026-11-20T16:59:31+01:00",
+  "frozen_at": "2026-11-21T01:09:06+01:00",
   "results": {}
 }

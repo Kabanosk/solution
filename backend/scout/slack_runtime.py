@@ -9,7 +9,8 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 import psycopg
@@ -33,16 +34,22 @@ class ActiveInstallation:
     token: str
     generation: str
     config: dict[str, Any]
+    # When this organization saved its Slack token: with two organizations on one Slack team, the first one keeps it.
+    connected_at: datetime | None = field(default=None, compare=False)
 
 
 def select_installation(
     installs: Iterable[ActiveInstallation], team_id: str | None
 ) -> ActiveInstallation | None:
-    """Never choose an arbitrary tenant if two installations claim the same Slack team."""
+    """The organization that owns a Slack team. If a second organization connected the same Slack workspace,
+    the one that connected first keeps it (deterministic: earliest token, then organization id); new duplicate
+    connections are refused at install time (`team_owner`)."""
     if not team_id:
         return None
     matches = [i for i in installs if i.team_id == team_id]
-    return matches[0] if len(matches) == 1 else None
+    if not matches:
+        return None
+    return min(matches, key=lambda i: (i.connected_at is None, i.connected_at or datetime.max, i.tenant.id))
 
 
 def dispatch(
@@ -62,7 +69,7 @@ def dispatch(
 def _row(conn_factory: Callable[..., Any]) -> dict[str, Any] | None:
     with conn_factory() as conn:
         return conn.execute(
-            "SELECT c.config, cc.ciphertext FROM connections c "
+            "SELECT c.config, cc.ciphertext, cc.updated_at FROM connections c "
             "JOIN connection_credentials cc ON cc.connection_id=c.id "
             "WHERE c.id='slack' AND c.provider='slack_oauth' AND c.enabled "
             "AND c.status='connected' AND c.config->>'managed_by'='onboarding' "
@@ -151,11 +158,81 @@ def load_installations(settings: ScoutSettings) -> list[ActiveInstallation]:
                     token,
                     hashlib.sha256(ciphertext).hexdigest(),
                     config,
+                    row.get("updated_at"),
                 )
             )
         except Exception:
             log.warning("ignoring unusable tenant Slack installation", exc_info=True)
     return installs
+
+
+def team_owner(database_url: str, team_id: str, exclude_organization: str) -> dict[str, Any] | None:
+    """The organization that owns this Slack team by the same rule as routing (a usable onboarding installation,
+    earliest token first), other than `exclude_organization`: {id, slug, name, schema_name}, or None."""
+    from psycopg import sql
+
+    found: list[tuple[Any, dict[str, Any]]] = []
+    with psycopg.connect(database_url, row_factory=dict_row, connect_timeout=5) as conn:
+        organizations = conn.execute(
+            "SELECT id::text AS id, slug, name, schema_name FROM scout_auth.organizations WHERE id <> %s",
+            (exclude_organization,)).fetchall()
+        for org in organizations:
+            try:
+                row = conn.execute(sql.SQL(
+                    "SELECT cc.updated_at FROM {s}.connections c JOIN {s}.connection_credentials cc "
+                    "ON cc.connection_id = c.id WHERE c.id='slack' AND c.enabled AND c.status='connected' "
+                    "AND c.config->>'team_id' = %s AND c.config->>'authorized' = 'true' "
+                    "AND c.config->>'installer_user_id' IS NOT NULL").format(s=sql.Identifier(org["schema_name"])),
+                    (team_id,)).fetchone()
+            except Exception:  # noqa: BLE001 - an uninitialized schema
+                conn.rollback()
+                continue
+            if row:
+                found.append((row["updated_at"], org))
+    if not found:
+        return None
+    return min(found, key=lambda f: (f[0] is None, f[0] or datetime.max, f[1]["id"]))[1]
+
+
+def join_organization(database_url: str, org: dict[str, Any], session_hash: str, slack_user_id: str | None) -> bool:
+    """Add the signed-in account (by session) to `org` as a member, with an employee linked to its Slack user.
+    True when they are a member afterwards. Used when a second organization connects an already-owned Slack team."""
+    from psycopg import sql
+
+    with psycopg.connect(database_url, row_factory=dict_row, connect_timeout=5) as conn:
+        user = conn.execute("SELECT u.id, u.name FROM scout_auth.sessions s JOIN scout_auth.users u ON u.id = s.user_id "
+                            "WHERE s.token_hash = %s AND s.expires_at > now()", (session_hash,)).fetchone()
+        if user is None:
+            return False
+        if conn.execute("SELECT 1 FROM scout_auth.memberships WHERE organization_id = %s AND user_id = %s",
+                        (org["id"], user["id"])).fetchone():
+            return True
+        schema = sql.Identifier(org["schema_name"])
+        emp = None
+        if slack_user_id:
+            row = conn.execute(sql.SQL("SELECT id FROM {}.employees WHERE slack_user_id = %s ORDER BY id LIMIT 1")
+                               .format(schema), (slack_user_id,)).fetchone()
+            emp = row["id"] if row else None
+        if emp is None:
+            emp = str(user["id"])
+            conn.execute(sql.SQL("INSERT INTO {}.employees (id, name, role, slack_user_id, slack_name) "
+                                 "VALUES (%s, %s, 'Staff', %s, %s) ON CONFLICT (id) DO NOTHING").format(schema),
+                         (emp, user["name"], slack_user_id, user["name"]))
+        conn.execute("INSERT INTO scout_auth.memberships (organization_id, user_id, role, employee_id) "
+                     "VALUES (%s, %s, 'member', %s) ON CONFLICT DO NOTHING", (org["id"], user["id"], emp))
+        if slack_user_id:
+            try:
+                conn.execute(sql.SQL("INSERT INTO {}.slack_members (slack_user_id, status, employee_id, registered_at) "
+                                     "VALUES (%s, 'registered', %s, now()) ON CONFLICT (slack_user_id) DO UPDATE SET "
+                                     "status='registered', employee_id=EXCLUDED.employee_id").format(schema),
+                             (slack_user_id, emp))
+            except Exception:  # noqa: BLE001 - table not created yet in that organization
+                conn.rollback()
+                conn.execute("INSERT INTO scout_auth.memberships (organization_id, user_id, role, employee_id) "
+                             "VALUES (%s, %s, 'member', %s) ON CONFLICT DO NOTHING", (org["id"], user["id"], emp))
+        conn.commit()
+    log.info("added a second organization's owner to %s, which owns the Slack team", org["slug"])
+    return True
 
 
 def authorize(

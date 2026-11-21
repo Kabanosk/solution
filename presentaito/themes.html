@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Lantern deck · theme options</title>
+<style>
+  body { margin: 0; padding: 32px 40px 60px; background: #ECECEE; font: 15px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #151515; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 28px; color: #555; }
+  section { margin-bottom: 40px; }
+  .hd { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
+  .hd h2 { margin: 0; font-size: 20px; }
+  .hd span { color: #666; }
+  .hd a { margin-left: auto; color: #EE0000; font-weight: 600; text-decoration: none; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .frame { aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 10px 30px -14px rgba(0,0,0,.3); }
+  iframe { width: 1600px; height: 900px; border: 0; transform-origin: 0 0; pointer-events: none; }
+</style>
+<h1>Lantern deck: theme options</h1>
+<p class="lead">The same slides (1, 3, 4 and 5) in each style. Click "Open full deck" to page through every slide in that theme.</p>
+<div id="out"></div>
+<script>
+const themes = [
+  ['vivid', 'Vivid (current default)', 'Warm white, shades of red'],
+  ['linear', 'Linear light', 'Cool neutrals, hairlines, red only on icons and highlights'],
+  ['linear-dark', 'Linear dark', 'Near-black, gradient headlines, red accents'],
+  ['redhat', 'Red Hat', 'Clean white, Red Hat fonts, one red'],
+];
+const slides = [1, 3, 4, 5];
+const out = document.getElementById('out');
+for (const [id, name, desc] of themes) {
+  const sec = document.createElement('section');
+  sec.innerHTML = `<div class="hd"><h2>${name}</h2><span>${desc}</span><a href="index.html?theme=${id}" target="_top">Open full deck →</a></div>
+    <div class="grid">${slides.map(n => `<div class="frame"><iframe loading="lazy" src="index.html?theme=${id}&embed=1#slide-${n}"></iframe></div>`).join('')}</div>`;
+  out.appendChild(sec);
+}
+const fit = () => document.querySelectorAll('.frame').forEach(f => { f.firstChild.style.transform = `scale(${f.clientWidth / 1600})`; });
+addEventListener('resize', fit); fit();
+// iframes must not overwrite the deck's remembered theme
+</script>

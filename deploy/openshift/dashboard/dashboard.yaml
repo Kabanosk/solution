@@ -78,6 +78,7 @@ metadata:
   labels: {app: dashboard}
   annotations:
     haproxy.router.openshift.io/set-forwarded-headers: replace
+    haproxy.router.openshift.io/timeout: 180s
 spec:
   to: {kind: Service, name: dashboard}
   port: {targetPort: http}

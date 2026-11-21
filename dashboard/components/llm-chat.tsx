@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { tenantFetch } from "@/lib/tenant-browser";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Settings2, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ExternalProviderDialog } from "@/components/external-provider-dialog";
 import { EXTERNAL_PROVIDERS, type ExternalConfig } from "@/lib/external-model";
+import type { PublicResearch } from "@/lib/market-research-model";
 
 export function LlmChat({ active }: { active: boolean }) {
+  const router = useRouter();
   const [model, setModel] = useState<string>(CHAT_MODELS[0].id);
   const [external, setExternal] = useState<ExternalConfig | null>(null);
   const [providerDialog, setProviderDialog] = useState(false);
@@ -106,6 +108,7 @@ export function LlmChat({ active }: { active: boolean }) {
       for await (const event of readJsonLines(response.body)) {
         if (controller.signal.aborted) break;
         if (event.type === "step" && typeof event.text === "string") { steps.push(event.text); update({ steps: [...steps] }); }
+        else if (event.type === "research") update({ research: event.research });
         else if (event.type === "delta" && typeof event.text === "string") { content += event.text; update({ content }); }
         else if (event.type === "compacted") {
           const summaryId = crypto.randomUUID();
@@ -114,7 +117,7 @@ export function LlmChat({ active }: { active: boolean }) {
         }
         else if (event.type === "file") { files.push({ name: event.name, mime: event.mime, dataB64: event.data_b64, sentToSlack: event.sent_to_slack }); update({ files: [...files] }); }
         else if (event.type === "error") { failure = event.message; throw new Error("Model stream failed"); }
-        else if (event.type === "done") { completed = true; setTruncated(event.truncated); if (event.task_id) update({ taskId: event.task_id, ...(event.followups ? { awaiting: true } : {}) }); }
+        else if (event.type === "done") { completed = true; setTruncated(event.truncated); if (event.task_id) { update({ taskId: event.task_id, ...(event.followups ? { awaiting: true } : {}) }); router.refresh(); } }
       }
       if (request.current !== controller) return;
       if (controller.signal.aborted) update({ status: "stopped" });
@@ -176,7 +179,7 @@ export function LlmChat({ active }: { active: boolean }) {
     }}>
       {messages.length === 0 ? <div id="scout-chat-empty" className="flex min-h-full flex-col items-center justify-center gap-5 px-4 py-6 text-center">
         <ScoutMark size={40} />
-        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">{model === "external" ? "Chat with your provider or ask for a cash forecast. Granite runs forecasts privately on premise." : "Scout answers with its tools: missing invoices, cash forecast, tasks and costs."}</p></div>
+        <div className="space-y-1.5"><h1 id="scout-chat-title" className="text-2xl font-medium tracking-tight">Ask Scout</h1><p className="max-w-md text-sm text-muted-foreground">{model === "external" ? external?.provider === "groq" ? "Chat or ask for a private forecast. Choose OpenAI or Mistral for public hiring research." : "Research hiring markets and salary ranges, then ask Granite to simulate payroll costs in Liquidity." : "Scout answers with its tools: missing invoices, cash forecast, tasks and costs."}</p></div>
         <div id="scout-chat-suggestions" className="flex max-w-xl flex-wrap justify-center gap-2">
           {(model === "external" ? EXTERNAL_SUGGESTIONS : SUGGESTIONS).map((suggestion, index) => <Button key={suggestion} id={`scout-chat-suggestion-${index}`} type="button" variant="outline" size="sm" className="h-auto max-w-full rounded-full px-3 py-1.5 text-xs font-normal whitespace-normal text-muted-foreground hover:text-foreground"
             onClick={() => { setDraft(suggestion); input.current?.focus(); }}>{suggestion}</Button>)}
@@ -211,6 +214,7 @@ export function LlmChat({ active }: { active: boolean }) {
                   <div className="flex flex-wrap gap-2">{turn.files.map((file, index) => <FileChip key={index} file={file} />)}</div>
                   {turn.files.some(file => file.sentToSlack) && <p className="flex items-center gap-1.5 pl-1 text-[11px] text-muted-foreground"><Send className="size-3" aria-hidden="true" />{turn.files.length === 1 ? "Also sent to your Slack DM" : `All ${turn.files.length} files also sent to your Slack DM`}</p>}
                 </div> : null}
+                {turn.research && <ResearchEvidence research={turn.research} id={turn.id} />}
                 {turn.content ? <Markdown source={turn.content} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
                   : turn.files?.length ? null : turn.status === "pending" ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />Working…</span>
                   : <span className="text-sm text-muted-foreground">No response received.</span>}
@@ -221,7 +225,7 @@ export function LlmChat({ active }: { active: boolean }) {
                 {turn.awaiting && turn.id === [...messages].reverse().find(item => item.awaiting)?.id && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Scout posts updates here as they happen</p>}
                 {(turn.taskId || (turn.content && turn.status !== "pending")) && <div className="flex items-center gap-1">
                   {turn.content && turn.status !== "pending" && <Button variant="ghost" size="sm" aria-label="Copy response" className="h-7 px-2 text-muted-foreground" onClick={() => void copy(turn)}>{copied === turn.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}</Button>}
-                  {turn.taskId && turn.id === latestTaskTurn && <Link href={`#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
+                  {turn.taskId && turn.id === latestTaskTurn && <a id={`scout-chat-open-task-${turn.id}`} href={`#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></a>}
                 </div>}
               </div>
             </li>)}
@@ -257,7 +261,7 @@ export function LlmChat({ active }: { active: boolean }) {
           </DropdownMenu>
           <p className="truncate text-[11px] text-muted-foreground">{busy ? "Scout is working…" : <><span className="hidden sm:inline">Enter to send · Shift + Enter for a new line · </span>Stays in this tab</>}</p>
         </div>
-        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your current message goes to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. History and company data stay private. Forecast results come from Granite.</p>}
+        {model === "external" && <p id="scout-chat-external-notice" className="text-xs leading-5 text-muted-foreground">Your message and public research go to {EXTERNAL_PROVIDERS.find(item => item.id === external?.provider)?.name}. History, company data and Granite's forecast results stay private.</p>}
         <p role="status" className="sr-only">{notice}</p>
       </div>
     </div>
@@ -272,7 +276,28 @@ const SUGGESTIONS = [
   "How do I use this dashboard?",
 ];
 
-const EXTERNAL_SUGGESTIONS = ["Forecast cash flow for the next 90 days", "What if we spend €30,000 in March?", "How does cash forecasting work?"];
+const EXTERNAL_SUGGESTIONS = ["Research hiring opportunities and monthly salary ranges for software engineers in Warsaw, Poland", "Research cooks in Berlin, then simulate hiring 2 people from next month for 6 months at a recommended monthly EUR salary", "Forecast cash flow for the next 90 days"];
+
+function ResearchEvidence({ research, id }: { research: PublicResearch; id: string }) {
+  return <aside id={`scout-chat-research-${id}`} aria-label="Public hiring market research" className="space-y-2 rounded-lg border bg-background/60 p-3">
+    <details id={`scout-chat-research-details-${id}`} className="group">
+      <summary id={`scout-chat-research-summary-${id}`} className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+        <span id={`scout-chat-research-title-${id}`} className="font-medium text-foreground">Public hiring research</span>
+        <span id={`scout-chat-research-date-${id}`} className="ml-auto">{research.researched_at.slice(0, 10)}</span>
+        <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
+      </summary>
+      <Markdown source={research.summary} className="min-w-0 pt-2 text-sm leading-6 [overflow-wrap:anywhere]" />
+    </details>
+    <ol id={`scout-chat-research-sources-${id}`} aria-label="Public research sources" className="space-y-1 border-t pt-2">
+      {research.sources.map((source, index) => <li id={`scout-chat-source-${id}-${index}`} key={`${source.url}-${index}`}>
+        <a id={`scout-chat-source-link-${id}-${index}`} href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-sm text-xs text-muted-foreground underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+          <span id={`scout-chat-source-title-${id}-${index}`} className="min-w-0 [overflow-wrap:anywhere]">{index + 1}. {source.title}</span><ArrowUpRight className="size-3 shrink-0" aria-hidden="true" />
+        </a>
+      </li>)}
+    </ol>
+    <p id={`scout-chat-research-caveat-${id}`} className="text-xs leading-5 text-muted-foreground">Market estimates depend on role, location and seniority. Hiring scenarios use monthly gross EUR per person and show employer-cost assumptions.</p>
+  </aside>;
+}
 
 function FileChip({ file }: { file: ChatFile }) {
   const size = Math.floor(file.dataB64.length * 3 / 4) - (file.dataB64.endsWith("==") ? 2 : file.dataB64.endsWith("=") ? 1 : 0);

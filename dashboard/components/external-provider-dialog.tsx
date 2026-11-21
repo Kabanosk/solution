@@ -17,7 +17,7 @@ export function ExternalProviderDialog({ config, onClose, onSave, onRemove }: {
     <DialogContent id="scout-external-dialog" className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
       <DialogHeader id="scout-external-heading">
         <DialogTitle id="scout-external-title">External LLM provider</DialogTitle>
-        <DialogDescription id="scout-external-description">Use your own API key to chat and ask Granite to run private forecasts.</DialogDescription>
+        <DialogDescription id="scout-external-description">Use your own API key to research hiring markets and ask Granite to run private forecasts.</DialogDescription>
       </DialogHeader>
       <form id="scout-external-form" className="space-y-4" onSubmit={event => {
         event.preventDefault();
@@ -34,14 +34,14 @@ export function ExternalProviderDialog({ config, onClose, onSave, onRemove }: {
         <div id="scout-external-model-field" className="space-y-1.5">
           <label id="scout-external-model-label" htmlFor="scout-external-model" className="text-sm font-medium">Model ID</label>
           <Input id="scout-external-model" className="h-11" value={model} maxLength={150} required aria-describedby="scout-external-model-help scout-external-error" onChange={event => { setModel(event.target.value); setError(""); }} />
-          <p id="scout-external-model-help" className="text-xs text-muted-foreground">Choose a model available to your account that supports tool calls.</p>
+          <p id="scout-external-model-help" className="text-xs text-muted-foreground">Choose a model available to your account that supports tool calls. Public hiring research is available with OpenAI and Mistral.</p>
         </div>
         <div id="scout-external-key-field" className="space-y-1.5">
           <label id="scout-external-key-label" htmlFor="scout-external-key" className="text-sm font-medium">API key</label>
           <Input id="scout-external-key" className="h-11" type="password" autoComplete="off" spellCheck={false} value={apiKey} maxLength={512} required aria-describedby="scout-external-key-help scout-external-error" onChange={event => { setApiKey(event.target.value); setError(""); }} />
           <p id="scout-external-key-help" className="text-xs text-muted-foreground">Kept in this tab's memory. Cleared on reload or removal. Sent securely through Scout to your selected provider.</p>
         </div>
-        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Only the message you submit is shared with the provider. Do not paste private company data. Chat history, invoices, company tools and Granite's results stay private. Forecast requests run on premise and cannot change company records.</p>
+        <p id="scout-external-privacy" className="rounded-md border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Your submitted message and cited public research are shared with the provider. Do not paste private company data. Chat history, invoices and Granite's results stay private. Hiring proposals create simulated Liquidity actions on premise, without changing company records or hiring anyone.</p>
         {error && <p id="scout-external-error" role="alert" className="text-sm text-danger">{error}</p>}
         <DialogFooter id="scout-external-footer" className="gap-2">
           {config && <Button id="scout-external-remove" type="button" variant="ghost" className="h-11 sm:mr-auto" onClick={onRemove}>Remove provider</Button>}

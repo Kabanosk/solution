@@ -39,6 +39,7 @@ from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
 from scout.forecast_bridge import ForecastBridgeError, ForecastRequest
+from scout.hiring_bridge import HiringBridgeError, HiringRequest
 from scout.jobs import JobQueue
 from scout.loops import chat
 from scout.loops.context import HR, JobContext, LogNotifier
@@ -303,6 +304,63 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
                 event = events.get(timeout=TIMEOUT_S)
             except queue.Empty:
                 yield _line({"type": "error", "message": "The local forecast took too long. Try again."})
+                return
+            if event is None:
+                return
+            yield _line(event)
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "private, no-store", "X-Accel-Buffering": "no"})
+
+
+@router.post("/chat/hiring", summary="Review public hiring research with Granite and simulate recurring payroll in Liquidity")
+def hiring_endpoint(body: HiringRequest, by: Annotated[str | None, Depends(require_write_token)],
+                    settings: Annotated[ScoutSettings, Depends(get_scout_settings)],
+                    make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]) -> StreamingResponse:
+    from scout import hiring_bridge
+    from scout.audit import EXEC_ROLES
+
+    try:
+        ctx = make_ctx(settings)
+    except Exception:
+        log.exception("could not build the hiring context")
+        raise ApiError(503, "scout_unavailable", "Scout could not start the hiring simulation.") from None
+    requester = by or settings.ceo_id
+    role = ctx.hr.role(requester)
+    allowed = role in EXEC_ROLES
+    ctx.audit.record("agent", "access_check", "bank", "external-chat hiring simulation",
+                     "ALLOW" if allowed else "DENY", requester=requester, role=role,
+                     policy="hiring-bridge: owner-only")
+    if not allowed:
+        raise ApiError(403, "forbidden", "Only the company owner may request a hiring simulation.")
+    conversation = body.conversation_id or secrets.token_hex(8)
+    events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def run() -> None:
+        try:
+            task, reply = hiring_bridge.run(ctx, body.intent(), requester, conversation,
+                                            lambda text: events.put({"type": "step", "text": text}))
+            reply = guardrails.screen_output(ctx, task.id, reply, requester=requester,
+                                             source="local hiring forecast reply", role=role)
+            events.put({"type": "delta", "text": reply})
+            events.put({"type": "done", "truncated": False, "task_id": task.id})
+        except Exception as error:
+            log.exception("local hiring handoff failed")
+            events.put({"type": "error", "message": str(error) if isinstance(error, HiringBridgeError)
+                        else "The hiring simulation could not run. Try again."})
+        finally:
+            events.put(None)
+
+    from contextvars import copy_context
+    bound_context = copy_context()
+    threading.Thread(target=bound_context.run, args=(run,), name="hiring-simulation", daemon=True).start()
+
+    def stream() -> Iterator[str]:
+        while True:
+            try:
+                event = events.get(timeout=TIMEOUT_S)
+            except queue.Empty:
+                yield _line({"type": "error", "message": "The hiring simulation took too long. Try again."})
                 return
             if event is None:
                 return

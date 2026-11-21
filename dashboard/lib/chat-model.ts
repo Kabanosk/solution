@@ -1,4 +1,5 @@
 import { parseExternalConfig, type ExternalConfig } from "./external-model.ts";
+import { parsePublicResearch, type PublicResearch } from "./market-research-model.ts";
 
 export const CHAT_MODELS = [{ id: "modelcar-granite-4-0-h-tiny", name: "Granite 4.0 H Tiny" }] as const;
 export const MAX_MESSAGE_LENGTH = 16000;
@@ -6,7 +7,7 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 /** steps: Scout tool-call lines for an assistant turn; taskId: the agent task Scout recorded for it.
  *  kind "summary": Scout compacted the earlier conversation into `content`; `replaced` counts the messages it stands for. */
 export type ChatTurn = ChatMessage & { id: string; status: "complete" | "pending" | "stopped" | "error"; steps?: string[]; taskId?: string; files?: ChatFile[];
-  kind?: "summary"; replaced?: number; awaiting?: boolean; followups?: ChatFollowup[] };
+  kind?: "summary"; replaced?: number; awaiting?: boolean; followups?: ChatFollowup[]; research?: PublicResearch };
 /** Something Scout started in an answer (a what-if, an approval) reporting back later: a `followup` step on the task. */
 export type ChatFollowup = { id: number; text: string };
 /** A file Scout produced for the answer (e.g. an invoice list as CSV); data is base64. */
@@ -16,6 +17,7 @@ export type ChatEvent =
   | { type: "delta"; text: string }
   | { type: "done"; truncated: boolean; task_id?: string; followups?: boolean }
   | { type: "error"; message: string }
+  | { type: "research"; research: PublicResearch }
   | { type: "file"; name: string; mime: string; data_b64: string; sent_to_slack: boolean }
   | { type: "compacted"; summary: string; replaced: number };
 
@@ -37,6 +39,10 @@ export function sanitizeChatEvent(value: unknown): ChatEvent | null {
   const event = value as Record<string, unknown>;
   const text = typeof event.text === "string" ? event.text : null;
   switch (event.type) {
+    case "research": {
+      try { return { type: "research", research: parsePublicResearch(event.research) }; }
+      catch { return null; }
+    }
     case "step": return text?.trim() ? { type: "step", text: text.slice(0, 500) } : null;
     case "delta": return text !== null ? { type: "delta", text } : null;
     case "done": return typeof event.task_id === "string" && TASK_ID.test(event.task_id)

@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Scout · Your autonomous CFO",
-  description: "Scout, your autonomous CFO: agent tasks with their evidence, bank analytics and cash forecast for Pizzeria Amalfi.",
+  title: "Scout · Your finance agent",
+  description: "Scout, your finance agent: agent tasks with their evidence, bank analytics and cash forecast for Pizzeria Amalfi.",
 };
 export const viewport: Viewport = { themeColor: "#f7f7f7" };
 

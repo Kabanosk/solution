@@ -1,5 +1,5 @@
 import "server-only";
-import { financePeriod, type DashboardData } from "./finance-model";
+import { financePeriod, quarterSpend, type DashboardData, type Forecast } from "./finance-model";
 import type { AgentTask, ScoutRecords, Approval, AuditRow, ResolvedVia, TaskDetail, TaskStatus, TaskStep, TransactionInfo } from "./scout-model";
 
 // Invented UI fixtures for Pizzeria Amalfi (deck wording), deliberately independent of private company records.
@@ -238,10 +238,16 @@ export function getPreviewData(): DashboardData {
         { id: 4, onDate: "2026-12-05", amount: -1840, label: "Fattoria La Vino · standing order", taskId: null },
       ],
     },
-    forecast: {
-      asOf: DAY, model: "Sample forecast", safetyBuffer: 18000,
-      points: Array.from({ length: 91 }, (_, day) => ({ day, balance: Math.round(38000 - day * 110 + Math.sin(day / 8) * 2300) })),
-    },
+    forecast: sampleForecast(90, 1),
+    forecastYear: sampleForecast(365, 7),
+    generatedAt: `${DAY}T12:00:00Z`,
+    quarterSpend: quarterSpend("2026-10-01", DAY, [
+      { id: "kitchen", name: "Kitchen / food", budget: "8520000", spent: "5798507" },
+      { id: "front", name: "Front of house and admin", budget: "2835000", spent: "1275000" },
+      { id: "marketing", name: "Marketing", budget: "255000", spent: "312000" },
+      { id: "it", name: "IT / online-order app", budget: "75000", spent: "0" },
+      { id: null, name: "Unassigned", budget: null, spent: "1588834" },
+    ]),
   };
 }
 
@@ -257,4 +263,15 @@ export function getPreviewRecords(): ScoutRecords {
         { id: "TX-20261116-0004", bookingDate: "2026-11-16", counterparty: "Central Wholesale Market", reference: "CWM-8812", amount: -1275.9, category: "food", invoiceNumber: "CWM-8812", documented: true },
       ],
   };
+}
+
+/** A sample forecast walked from 38k: daily or weekly points, the lowest one marked like the API does. */
+function sampleForecast(days: number, every: number): Forecast {
+  const start = Date.parse(`${DAY}T00:00:00Z`);
+  const points = Array.from({ length: Math.floor(days / every) + 1 }, (_, index) => {
+    const day = index * every;
+    return { day, date: new Date(start + day * 86_400_000).toISOString().slice(0, 10), balance: Math.round(38000 - day * 60 + Math.sin(day / 8) * 2300) };
+  });
+  const lowest = points.reduce((low, point) => point.balance < low.balance ? point : low);
+  return { asOf: DAY, model: "Sample forecast", horizonDays: days, openingBalance: 38000, safetyBuffer: 18000, lowest: { date: lowest.date, balance: lowest.balance }, points };
 }

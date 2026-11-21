@@ -92,7 +92,7 @@ export const RESOLVED_VIA_LABEL: Record<ResolvedVia, string> = {
   slack_dm: "Slack DM", approval: "CEO approval", auto: "Automatic", forecast: "Forecast",
 };
 
-export type Channel = "Slack" | "Auto" | "Files" | "Invoicing" | "Chat context" | "Email" | "Forecast" | "CFO";
+export type Channel = "Slack" | "Auto" | "Files" | "Invoicing" | "Chat context" | "Email" | "Forecast" | "Approval";
 
 /** Channel chip: resolved_via first, then the current channel of an open task. */
 export function channelChip(task: Pick<AgentTask, "resolvedVia" | "status" | "pendingApprovalFor">): Channel | null {
@@ -104,9 +104,9 @@ export function channelChip(task: Pick<AgentTask, "resolvedVia" | "status" | "pe
     case "chat_context": return "Chat context";
     case "email": return "Email";
     case "forecast": return "Forecast";
-    case "approval": return "CFO";
+    case "approval": return "Approval";
   }
-  if (task.pendingApprovalFor) return "CFO";
+  if (task.pendingApprovalFor) return "Approval";
   if (task.status === "waiting" || task.status === "escalated") return "Slack";
   return null;
 }

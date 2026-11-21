@@ -3,7 +3,7 @@ import { registeredSchema } from "./auth-crypto.ts";
 import { parseExternalConfig, type ExternalConfig } from "./external-model.ts";
 import { openStrategyProvider, sealStrategyProvider } from "./strategy-credentials.ts";
 import { DEFAULT_STRATEGY_PROMPT, parseStrategyPreferences, type StrategySettings } from "./strategy-model.ts";
-import { MarketResearchError, researchPublicNews } from "./market-research.ts";
+import { MarketResearchError, researchPublicNews, supportsMarketResearch } from "./market-research.ts";
 let pool: Pool | undefined;
 export function strategyDatabase() {
   if (!pool) {
@@ -36,7 +36,7 @@ export async function saveStrategySettings(id: string, value: Record<string, unk
     const current = (await client.query("SELECT provider FROM scout_auth.strategy_settings WHERE organization_id=$1 FOR UPDATE", [id])).rows[0];
     if (value.external) {
       const config = parseExternalConfig(value.external);
-      if (config.provider === "groq") throw new Error("Live news research requires OpenAI or Mistral.");
+      if (!supportsMarketResearch(config.provider)) throw new Error("Live news research requires OpenAI or Mistral.");
       await client.query("UPDATE scout_auth.strategy_settings SET provider=$2,model=$3,provider_ciphertext=$4,updated_at=now() WHERE organization_id=$1", [id, config.provider, config.model, sealStrategyProvider(config, id)]);
     }
     if (value.enabled !== undefined) {

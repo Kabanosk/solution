@@ -28,3 +28,8 @@ configMapGenerator:
       - config.yaml=configs/bot-output/config.yaml
       - rails.co=configs/bot-output/rails.co
       - config.py=configs/quiet_logs.py
+  - name: guard-bot-output-finance
+    files:
+      - config.yaml=configs/bot-output-finance/config.yaml
+      - rails.co=configs/bot-output-finance/rails.co
+      - config.py=configs/quiet_logs.py

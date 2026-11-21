@@ -529,11 +529,12 @@ class Toolbox:
         if not (self.ctx.hr.employee(who) or {}).get("slack_user_id"):
             return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
         body = f"Message from {self.ctx.hr.name(self.requester)} via Scout: {text[:1500]}"
-        if guardrails.screen_output(self.ctx, self.task.id, body, requester=self.requester,
-                                    source="send_dm") == guardrails.OUTPUT_REPLY:
+        safe = guardrails.screen_output(self.ctx, self.task.id, body, requester=self.requester, source="send_dm",
+                                        role=self.ctx.hr.role(who))  # judged by who receives it
+        if safe == guardrails.OUTPUT_REPLY:
             self.blocked_reply = guardrails.OUTPUT_REPLY
             return {"error": "blocked_by_safety_policy", "sent": False}
-        self.ctx.notifier.dm(who, body, "NOTIFY", task_id=self.task.id)
+        self.ctx.notifier.dm(who, safe, "NOTIFY", task_id=self.task.id)
         self.ctx.audit.record("agent", "send_dm", f"slack:{who}", text[:200], task_id=self.task.id,
                               requester=self.requester, role=self.role)
         return {"sent": True, "to": self.ctx.hr.full_name(who)}

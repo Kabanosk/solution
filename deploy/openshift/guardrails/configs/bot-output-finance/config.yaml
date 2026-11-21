@@ -1,0 +1,14 @@
+# Config `bot-output-finance`: the reply Scout sends to the owner or the office manager, who may see bank, mail and
+# payroll data anyway. Only the link allow-list is checked (no Presidio, no IBAN or card patterns): a finance reply
+# names IBANs and contacts all the time, but it must not point to a host Scout never links to (exfiltration).
+rails:
+  config:
+    regex_detection:
+      output:
+        case_insensitive: true
+        patterns:
+          # Same anchored-host rule and allow-list as `bot-output`.
+          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|localhost|127\\.0\\.0\\.1|slack\\.com|ksef\\.mf\\.gov\\.pl|ksef-test\\.mf\\.gov\\.pl)(?=[/:?#\\s)]|$))[^\\s)]+"
+  output:
+    flows:
+      - regex check output

@@ -1,6 +1,6 @@
 """Guards for the NeMo Guardrails manifests (T051): `deploy/openshift/guardrails`.
 
-Three configs behind one NemoGuardrails CR (`user-input`, `tool-result`, `bot-output`), used check-only through
+Four configs behind one NemoGuardrails CR (`user-input`, `tool-result`, `bot-output`, `bot-output-finance`), used check-only through
 POST /v1/guardrail/checks. The tests render the kustomization and check what the live service needs: config names,
 flows, Presidio entities, the auth annotation, that tool messages really reach a regex rail, and that nothing secret
 or cluster-specific is committed (the repo is public).
@@ -52,19 +52,20 @@ def _hits(patterns: list[re.Pattern], text: str) -> bool:
     return any(p.search(text) for p in patterns)
 
 
-def test_cr_has_three_named_configs_and_auth(cr):
+def test_cr_has_four_named_configs_and_auth(cr):
     assert cr["apiVersion"] == "trustyai.opendatahub.io/v1alpha1"
     assert cr["metadata"]["annotations"]["security.opendatahub.io/enable-auth"] == "true"
     configs = {c["name"]: c for c in cr["spec"]["nemoConfigs"]}
-    assert set(configs) == {"user-input", "tool-result", "bot-output"}
+    assert set(configs) == {"user-input", "tool-result", "bot-output", "bot-output-finance"}
     assert [n for n, c in configs.items() if c.get("default")] == ["user-input"]
     assert configs["user-input"]["configMaps"] == ["guard-user-input"]
     assert configs["tool-result"]["configMaps"] == ["guard-tool-result"]
     assert configs["bot-output"]["configMaps"] == ["guard-bot-output"]
+    assert configs["bot-output-finance"]["configMaps"] == ["guard-bot-output-finance"]
 
 
 def test_config_maps_exist_with_server_files(maps):
-    assert set(maps) == {"guard-user-input", "guard-tool-result", "guard-bot-output"}
+    assert set(maps) == {"guard-user-input", "guard-tool-result", "guard-bot-output", "guard-bot-output-finance"}
     for name, data in maps.items():
         assert "config.yaml" in data and "rails.co" in data, name  # the server wants a rails.co, even a comment
     assert "prompts.yml" in maps["guard-user-input"]
@@ -200,16 +201,21 @@ def test_bot_output_entities_and_flows(maps):
         "IBAN PL61109010140000071219812874",
         "Card 4111 1111 1111 1111 exp 12/28",
         "Details: https://collector.invalid/steal?x=1",
-        "https://example.com.evil.invalid/report",  # allowed domain as a prefix of the real host
-        "https://example.com@evil.invalid/report",  # allowed domain as userinfo
-        "https://notexample.com/x",
+        "https://slack.com.evil.invalid/report",  # allowed domain as a prefix of the real host
+        "https://slack.com@evil.invalid/report",  # allowed domain as userinfo
+        "https://notslack.com/x",
         "https://localhost.evil.invalid/",
-        "https://evil.invalid/example.com",
+        "https://evil.invalid/slack.com",
         "http://svc.cluster.local.evil.invalid/x",
+        "https://example.com/docs",  # nothing real uses example.com: no longer allowed
+        "https://ksef.mf.gov.pl.evil.invalid/x",
     ],
 )
-def test_bot_output_regex_blocks_leaks(maps, text):
-    assert _hits(_patterns(_config(maps, "guard-bot-output"), "output"), text)
+@pytest.mark.parametrize("config", ["guard-bot-output", "guard-bot-output-finance"])
+def test_bot_output_regex_blocks_leaks(maps, config, text):
+    if config == "guard-bot-output-finance" and not text.startswith("http"):
+        pytest.skip("finance replies may name IBANs and cards")
+    assert _hits(_patterns(_config(maps, config), "output"), text)
 
 
 @pytest.mark.parametrize(
@@ -218,11 +224,26 @@ def test_bot_output_regex_blocks_leaks(maps, text):
         "Marek Nowak approved invoice FV/2026/11/033 for 3 420 PLN; the runway is 4.2 months.",
         "Cash on 2026-11-21 is 125 400.00 PLN, forecast for January is 98 000 PLN.",
         "See http://mcp-hr.cfo-agent-uwur.svc.cluster.local:8003/mcp for the tool list.",
-        "Docs: https://www.example.com/docs, (https://example.com) and https://a.b.example.com:8443/x?y=1#z",
+        "Thread: https://acme.slack.com/archives/C01/p1, (https://slack.com) and https://a.b.slack.com:8443/x?y=1#z",
+        "E-invoice at https://api-test.ksef.mf.gov.pl/v2/invoices and https://ksef-test.mf.gov.pl/web, https://ksef.mf.gov.pl",
+        "Local: http://localhost:3000/tasks/SC-1 and http://127.0.0.1:8010/mock",
     ],
 )
-def test_bot_output_regex_lets_normal_replies_through(maps, text):
-    assert not _hits(_patterns(_config(maps, "guard-bot-output"), "output"), text)
+@pytest.mark.parametrize("config", ["guard-bot-output", "guard-bot-output-finance"])
+def test_bot_output_regex_lets_normal_replies_through(maps, config, text):
+    assert not _hits(_patterns(_config(maps, config), "output"), text)
+
+
+def test_finance_output_checks_only_the_link_allow_list(maps):
+    cfg = _config(maps, "guard-bot-output-finance")
+    assert "models" not in cfg and cfg["rails"]["output"]["flows"] == ["regex check output"]
+    assert "sensitive_data_detection" not in cfg["rails"]["config"]  # no Presidio
+    (pattern,) = cfg["rails"]["config"]["regex_detection"]["output"]["patterns"]  # no IBAN or card pattern
+    assert pattern.startswith("https?://")
+    strict = _config(maps, "guard-bot-output")["rails"]["config"]["regex_detection"]["output"]["patterns"]
+    assert strict[-1] == pattern  # the same allow-list in both
+    for text in ("PL61 1090 1014 0000 0712 1981 2874", "4111 1111 1111 1111", "jan@pizzeria-amalfi.pl"):
+        assert not _hits(_patterns(cfg, "output"), text)
 
 
 # --- repo hygiene ----------------------------------------------------------------------------------------------------
@@ -259,15 +280,16 @@ def test_reference_prompts_cover_all_configs(check_prompts):
     prompts = check_prompts.PROMPTS
     assert len(prompts) >= 20
     assert len({p[0] for p in prompts}) == len(prompts)
-    assert {p[1] for p in prompts} == {"user-input", "tool-result", "bot-output"}
+    assert {p[1] for p in prompts} == {"user-input", "tool-result", "bot-output", "bot-output-finance"}
     for pid, config_id, expected, messages, _why in prompts:
         assert expected in {"success", "blocked"}
-        assert messages[0]["role"] == {"user-input": "user", "tool-result": "tool", "bot-output": "assistant"}[config_id], pid
+        assert messages[0]["role"] == {"user-input": "user", "tool-result": "tool", "bot-output": "assistant",
+                                  "bot-output-finance": "assistant"}[config_id], pid
     blocked = [p for p in prompts if p[2] == "blocked"]
     passed = [p for p in prompts if p[2] == "success"]
     assert len(blocked) >= 12 and len(passed) >= 4  # normal finance questions must pass too
     texts = " ".join(m["content"] for p in prompts for m in p[3])
-    assert "example.com.evil" in texts and "example.com@evil" in texts  # allow-list bypass attempts
+    assert "slack.com.evil" in texts and "slack.com@evil" in texts  # allow-list bypass attempts
 
 
 def test_check_script_requires_activated_rails_in_every_response(check_prompts):
@@ -292,7 +314,7 @@ def test_docs_do_not_disable_tls_verification():
 
 def test_every_config_quiets_the_server_log(rendered, maps):
     """The server logs action parameters (the checked text) at INFO; config.py raises the level (review T051)."""
-    for name in ("guard-user-input", "guard-tool-result", "guard-bot-output"):
+    for name in ("guard-user-input", "guard-tool-result", "guard-bot-output", "guard-bot-output-finance"):
         code = maps[name]["config.py"]
         compile(code, name, "exec")
         assert "logging.WARNING" in code and "getLogger()" in code

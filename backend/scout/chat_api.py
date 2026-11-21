@@ -164,7 +164,7 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                                         level="NOTIFY")
             else:
                 reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted)
-                reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply")
+                reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
                 ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
                 ctx.recorder.set_status(task.id, "done", outcome=reply.split("\n")[0][:300], resolved_via="auto",
                                         level="AUTO")

@@ -9,7 +9,8 @@ stays intact (Red Hat's documented pattern for tool calling, D-029). NeMo only a
 |---|---|---|---|---|
 | `user-input` (default) | what an employee or the CEO typed | `user` | `regex check input`, then `self check input` (Granite as judge) | one short call |
 | `tool-result` | text returned by tools: invoice PDFs, e-mail, chat history, MCP results | `tool` | `check tool result` (regex only, custom flow) | none |
-| `bot-output` | the reply Scout is about to send | `assistant` | `detect sensitive data on output` (Presidio: IBAN_CODE, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD), `regex check output` (raw IBANs, card numbers, URLs whose host is not an allowed domain: `svc.cluster.local`, `example.com`, `localhost`, each with its subdomains) | none |
+| `bot-output` | the reply Scout is about to send | `assistant` | `detect sensitive data on output` (Presidio: IBAN_CODE, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD), `regex check output` (raw IBANs, card numbers, URLs whose host is not an allowed domain: `svc.cluster.local`, `localhost`, `127.0.0.1`, `slack.com`, `ksef.mf.gov.pl`, `ksef-test.mf.gov.pl`, each with its subdomains) | none |
+| `bot-output-finance` | the same, but for a reply to the owner or the office manager (they may see bank, mail and payroll data) | `assistant` | `regex check output` with only the URL allow-list of `bot-output` (no Presidio, no IBAN or card pattern) | none |
 
 What they are for, and what they are not:
 
@@ -114,10 +115,10 @@ Response (shortened):
 that blocked (empty list when nothing did): log it. Send `tool` text as
 `{"role": "tool", "tool_call_id": "call_1", "content": "..."}` and the reply as a single `assistant` message.
 
-## Check script (23 prompts)
+## Check script (28 prompts)
 
-`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result` and 8
-`bot-output` prompts (the last ones try to smuggle a URL past the allow-list) and prints status and `activated_rails`
+`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result`, 9 `bot-output` and 4 `bot-output-finance`
+prompts (some try to smuggle a URL past the allow-list) and prints status and `activated_rails`
 per prompt. Exit code 1 when any verdict differs or when `guardrails_data.log.activated_rails` is missing from any
 response. It always verifies the TLS certificate before it sends the token (no switch to skip that):
 
@@ -137,8 +138,8 @@ Everything is in `deploy/openshift/guardrails/configs/<config>/`:
   and `max_tokens: 3`; a small model needs the few-shot examples, remove them and it blocks ordinary payment
   requests. Add a failing prompt to `check_prompts.py` first, then tune.
 - URL allow-list: the host must be an allowed domain or a subdomain of it and end right there (`/ : ? #`, whitespace,
-  `)` or end of text), so `example.com.evil.net` and `example.com@evil.net` are blocked. Add domains to the
-  alternation in `configs/bot-output/config.yaml` and a bypass sample to the test.
+  `)` or end of text), so `slack.com.evil.net` and `slack.com@evil.net` are blocked. Add domains to the
+  alternation in `configs/bot-output/config.yaml` and `configs/bot-output-finance/config.yaml` (keep both the same) and a bypass sample to the test.
 - Regex lists: `config.yaml` under `rails.config.regex_detection.<input|output>.patterns` (YAML needs `\\` for
   one backslash; `case_insensitive: true`). `backend/tests/test_guardrails_config.py` holds attack and clean-text
   samples for every list.
@@ -164,7 +165,9 @@ Scout (`backend/scout/guardrails.py`) calls `POST {GUARDRAILS_URL}/v1/guardrail/
 |---|---|---|---|
 | A human message (Slack DM text, dashboard chat turn), before routing and before any LLM call | `user-input` | user | Reply `This request was blocked by our safety policy (attempt n of 3; repeated attempts are reported to compliance).` No LLM call. Strike. |
 | A tool result in the chat tool loop; the text of an invoice (PDF from files, mail, a reply, KSeF lines) before it is read | `tool-result` | user | The model gets `[content withheld: flagged by guardrail]`. No strike. Outside sources (mail, chat, files) also DM the owner once per item. A flagged invoice is never filed on its own: it goes to the owner's approval card with a `Suspicious content` badge and the rail; Approve files it, Reject leaves it unfiled. |
-| What Scout says: DM reply, dashboard reply, `send_dm` message | `bot-output` | assistant | The user gets `I could not share that answer safely. Please rephrase your question.` (a blocked `send_dm` is not sent). No strike. |
+| What Scout says: DM reply, dashboard reply, `send_dm` message | `bot-output-finance` for a recipient who is the owner or the office manager, else `bot-output` (the recipient's role decides, also for `send_dm`) | assistant | The user gets `I could not share that answer safely. Please rephrase your question.` (a blocked `send_dm` is not sent). No strike. |
+
+**Role-aware output.** For recipients without finance access Scout first masks IBANs (`[IBAN hidden]`), card numbers of 13-19 digits that pass the Luhn check (`[card hidden]`), e-mail addresses (`[email hidden]`) and phone numbers (`[phone hidden]`) in Python, writes an audit row `guardrail_mask` (decision `MASK`, policy `bot-output-mask`, no content), and sends the masked text to `bot-output`; success sends the masked text, a block gives the rephrase message. Links to Scout's own dashboard (`DASHBOARD_URL`) are swapped for an allow-listed placeholder host during the check and restored afterwards, so no public hostname is committed in the regex. With guardrails disabled nothing is masked.
 
 **Roles.** `user-input`: one `user` message per human turn (the dashboard sends the user turns of the client-supplied history
 too, in the same request; one request is one strike). `tool-result`: `tool` messages with a `tool_call_id`.

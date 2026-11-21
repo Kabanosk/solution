@@ -35,6 +35,9 @@ from cfo.observability import span
 log = logging.getLogger(__name__)
 
 USER_INPUT, TOOL_RESULT, BOT_OUTPUT = "user-input", "tool-result", "bot-output"
+BOT_OUTPUT_FINANCE = "bot-output-finance"  # replies to the owner and the office manager: only the link allow-list
+FINANCE_ROLES = frozenset({"ceo", "office_manager"})  # HR role codes that may see bank, mail and payroll data
+DASHBOARD_PLACEHOLDER = "http://dashboard.svc.cluster.local"  # an allow-listed host that stands for the real one
 MAX_STRIKES = 3
 WINDOW_DAYS = 7
 TIMEOUT_S = 5.0
@@ -158,7 +161,7 @@ def _messages(config_id: str, texts: list[str]) -> list[dict[str, str]]:
     chunks = [c for t in texts for c in _chunks(t)]
     if config_id == TOOL_RESULT:
         return [{"role": "tool", "tool_call_id": f"scout-{i}", "content": c} for i, c in enumerate(chunks, 1)]
-    if config_id == BOT_OUTPUT:
+    if config_id in (BOT_OUTPUT, BOT_OUTPUT_FINANCE):
         return [{"role": "assistant", "content": c} for c in chunks]
     return [{"role": "user", "content": c} for c in chunks]
 
@@ -393,11 +396,70 @@ def screen_document(ctx: Any, task_id: str | None, text: str, source: str) -> Ve
 
 
 # -- 3. what Scout says -----------------------------------------------------------------------------------
+# Masks for what a reply to a non-finance person must not carry (the NeMo `bot-output` regexes, as replacements).
+_IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b")  # upper case: "toda" is no IBAN block
+_CARD_RE = re.compile(r"\b\d(?:[ -]?\d){12,18}\b")
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE_RE = re.compile(r"\+\d[\d ()./-]{7,}\d|\b\d{3}[ -]\d{3}[ -]\d{3}\b")
+
+
+def _luhn(digits: str) -> bool:
+    total = 0
+    for i, ch in enumerate(reversed(digits)):
+        d = int(ch)
+        if i % 2:
+            d = d * 2 - 9 if d > 4 else d * 2
+        total += d
+    return total % 10 == 0
+
+
+def _mask_card(m: re.Match[str]) -> str:
+    digits = re.sub(r"\D", "", m.group())
+    return "[card hidden]" if 13 <= len(digits) <= 19 and _luhn(digits) else m.group()
+
+
+def mask_sensitive(text: str) -> tuple[str, list[str]]:
+    """`text` with IBANs, card numbers (13-19 digits that pass the Luhn check), e-mail addresses and phone numbers
+    replaced; the kinds that were found."""
+    kinds: list[str] = []
+    for kind, pattern, repl in (("iban", _IBAN_RE, "[IBAN hidden]"), ("card", _CARD_RE, _mask_card),
+                                ("email", _EMAIL_RE, "[email hidden]"), ("phone", _PHONE_RE, "[phone hidden]")):
+        text, n = pattern.subn(repl, text)
+        if kind == "card":
+            n = text.count("[card hidden]")
+        if n:
+            kinds.append(kind)
+    return text, kinds
+
+
 def screen_output(ctx: Any, task_id: str | None, text: str, *, requester: str | None = None,
-                  source: str = "reply") -> str:
-    """`text`, or the rephrase request when the output rails block it. Not a strike."""
-    v = check(ctx, BOT_OUTPUT, text, task_id=task_id, requester=requester, source=source)
-    return OUTPUT_REPLY if v.blocked else text
+                  source: str = "reply", role: str | None = None) -> str:
+    """`text`, or the rephrase request when the output rails block it. Not a strike. `role` is the RECIPIENT's HR role
+    code: the owner and the office manager get the light `bot-output-finance` check (links only); everyone else gets
+    IBANs, cards, e-mails and phone numbers masked first (audit MASK) and the masked text checked by `bot-output`.
+    Links to Scout's own dashboard are swapped for a placeholder host during the check and restored after."""
+    client = getattr(ctx, "guard", None)
+    if client is None or not getattr(client, "enabled", False):
+        return text
+    dash = (getattr(ctx.settings, "dashboard_url", "") or "").rstrip("/")
+    swap = dash.startswith("http") and dash in text
+    work = text.replace(dash, DASHBOARD_PLACEHOLDER) if swap else text
+    if role in FINANCE_ROLES:
+        config = BOT_OUTPUT_FINANCE
+    else:
+        config = BOT_OUTPUT
+        work, kinds = mask_sensitive(work)
+        if kinds:
+            try:
+                ctx.audit.record("agent", "guardrail_mask", f"guardrails:{BOT_OUTPUT}", f"masked: {', '.join(kinds)} in "
+                                 f"{source}", "MASK", task_id=task_id, requester=requester, role=role,
+                                 policy="bot-output-mask", reason=", ".join(kinds))
+            except Exception:  # noqa: BLE001
+                log.exception("could not audit the masking")
+    v = check(ctx, config, work, task_id=task_id, requester=requester, source=source)
+    if v.blocked:
+        return OUTPUT_REPLY
+    return work.replace(DASHBOARD_PLACEHOLDER, dash) if swap else work
 
 
 # -- 4. earlier turns the client sent --------------------------------------------------------------------

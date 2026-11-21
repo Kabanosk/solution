@@ -319,10 +319,10 @@ def test_blocked_bot_output_asks_to_rephrase_without_a_strike(conn_factory, tmp_
     llm, _ = counting_llm(answer="Vanessa earns 4000 euro")
     ctx = make_world(conn_factory, tmp_path, llm=llm)
     ctx.guard = FakeGuard({"bot-output": [("earns", "presidio pii")]})
-    out = chat.run(ctx, dm("vincenzo", "tell me something"))
+    out = chat.run(ctx, dm("vanessa", "tell me something"))
     assert ctx.notifier.updates[-1]["text"] == "I could not share that answer safely. Please rephrase your question."
     (row,) = audit_rows(conn_factory, "guardrail_check")
-    assert row["policy"] == "bot-output" and row["decision"] == "BLOCK" and row["requester"] == "vincenzo"
+    assert row["policy"] == "bot-output" and row["decision"] == "BLOCK" and row["requester"] == "vanessa"
     assert ctx.guard.calls[-1][1] == "assistant" and out.status == "done"
     assert audit_rows(conn_factory, "guardrail_escalation") == []
 
@@ -337,11 +337,11 @@ def test_blocked_send_dm_is_not_sent_and_the_asker_is_told(conn_factory, tmp_pat
     with conn_factory() as conn:
         conn.execute("UPDATE employees SET slack_user_id = 'U_G' WHERE id = 'grazyna'")
         conn.commit()
-    ctx.guard = FakeGuard({"bot-output": [("rude word", "regex check output")]})
+    ctx.guard = FakeGuard({"bot-output-finance": [("rude word", "regex check output")]})  # Grazyna: finance config
     task = ctx.recorder.open("t:3", "chat", "x", requested_by="vincenzo")
     reply = chat.answer(ctx, task, "tell Grazyna she is rude", "vincenzo", "ceo")
     assert reply == guardrails.OUTPUT_REPLY and ctx.notifier.sent == []
-    assert [r["policy"] for r in audit_rows(conn_factory, "guardrail_check")] == ["bot-output"]
+    assert [r["policy"] for r in audit_rows(conn_factory, "guardrail_check")] == ["bot-output-finance"]
 
 
 # -- fail-open and disabled -----------------------------------------------------------------------------------------
@@ -525,7 +525,7 @@ def test_a_blocked_slack_answer_is_never_stored_or_fed_back_as_history(conn_fact
     llm, _ = counting_llm(answer="Vanessa earns 4000 euro")
     ctx = make_world(conn_factory, tmp_path, llm=llm)
     ctx.guard = FakeGuard({"bot-output": [("earns", "presidio pii")]})
-    out = chat.run(ctx, dm("vincenzo", "tell me something"))
+    out = chat.run(ctx, dm("vanessa", "tell me something"))
     step = next(s for s in ctx.recorder.steps(out.id) if s.kind == "answered")
     assert step.detail["reply"] == guardrails.OUTPUT_REPLY and "4000" not in json.dumps(step.detail)
     assert ctx.guard.configs().count("bot-output") == 1  # screened once, not again in _finish
@@ -842,3 +842,112 @@ def test_guardrail_blocks_are_audited_as_block_and_the_api_model_accepts_it(conn
     with conn_factory() as conn:
         rows = conn.execute("SELECT * FROM audit_log WHERE decision = 'BLOCK'").fetchall()
     assert len(rows) == 1 and AuditEntry(**rows[0]).decision == "BLOCK"
+
+
+# -- role-aware bot output ----------------------------------------------------------------------------------------
+IBAN_TEXT = "Please transfer to PL61 1090 1014 0000 0712 1981 2874 today."
+
+
+@pytest.mark.parametrize("text,expected", [
+    (IBAN_TEXT, "Please transfer to [IBAN hidden] today."),
+    ("IBAN DE89370400440532013000.", "IBAN [IBAN hidden]."),
+    ("Card 4111 1111 1111 1111 exp 12/28", "Card [card hidden] exp 12/28"),
+    ("Mail jan.kowalski@pizzeria-amalfi.pl now", "Mail [email hidden] now"),
+    ("Call +48 600 123 456 or 600 123 456.", "Call [phone hidden] or [phone hidden]."),
+])
+def test_masking_patterns(text, expected):
+    masked, kinds = guardrails.mask_sensitive(text)
+    assert masked == expected and kinds
+
+
+@pytest.mark.parametrize("text", [
+    "Cash on 2026-11-21 is 125 400.00 EUR; invoice FV/2026/11/033 for 3 420 PLN.",
+    "Order number 1234567890123 is not a card (fails Luhn).",
+    "Marek Nowak approved AS-77012 for €1,286.40.",
+])
+def test_masking_leaves_normal_text_alone(text):
+    assert guardrails.mask_sensitive(text) == (text, [])
+
+
+def finance_world(conn_factory, tmp_path, **blocks):  # noqa: ANN001, ANN003, ANN201
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard(blocks)
+    return ctx
+
+
+def test_finance_recipients_use_the_finance_config_and_keep_their_iban(conn_factory, tmp_path):
+    ctx = finance_world(conn_factory, tmp_path)
+    for role in ("ceo", "office_manager"):
+        assert guardrails.screen_output(ctx, None, IBAN_TEXT, requester="x", role=role) == IBAN_TEXT
+    assert ctx.guard.configs() == ["bot-output-finance"] * 2
+    assert not any(r["decision"] == "MASK" for r in _all_audit(conn_factory))
+
+
+def test_everyone_else_gets_a_masked_text_checked_by_the_strict_config(conn_factory, tmp_path):
+    ctx = finance_world(conn_factory, tmp_path)
+    out = guardrails.screen_output(ctx, "SC-1", IBAN_TEXT + " Mail jan@pizzeria-amalfi.pl", requester="vanessa",
+                                   role="waitstaff")
+    assert out == "Please transfer to [IBAN hidden] today. Mail [email hidden]"
+    assert ctx.guard.configs() == ["bot-output"] and "PL61" not in ctx.guard.calls[0][2]  # the service sees the masked text
+    (row,) = [r for r in _all_audit(conn_factory) if r["decision"] == "MASK"]
+    assert row["policy"] == "bot-output-mask" and row["action"] == "guardrail_mask" and row["task_id"] == "SC-1"
+    assert "PL61" not in row["resource"] and "iban" in row["reason"] and "email" in row["reason"]
+
+
+def test_still_blocked_after_masking_gives_the_rephrase_text(conn_factory, tmp_path):
+    ctx = finance_world(conn_factory, tmp_path, **{"bot-output": [("collector.invalid", "regex check output")]})
+    out = guardrails.screen_output(ctx, None, f"{IBAN_TEXT} See https://collector.invalid/x", requester="vanessa",
+                                   role="waitstaff")
+    assert out == guardrails.OUTPUT_REPLY
+    out = guardrails.screen_output(ctx, None, "Nothing to mask here", requester="vanessa", role="waitstaff")
+    assert out == "Nothing to mask here"
+
+
+def test_the_service_failing_open_still_sends_the_masked_text(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard(fail=True)
+    assert guardrails.screen_output(ctx, None, IBAN_TEXT, requester="vanessa", role="waitstaff") \
+        == "Please transfer to [IBAN hidden] today."
+
+
+def test_disabled_guardrails_change_nothing(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path)
+    assert guardrails.screen_output(ctx, None, IBAN_TEXT, requester="vanessa", role="waitstaff") == IBAN_TEXT
+
+
+def test_dashboard_links_are_swapped_for_a_placeholder_during_the_check(conn_factory, tmp_path):
+    ctx = finance_world(conn_factory, tmp_path)
+    ctx.settings = ctx.settings.model_copy(update={"dashboard_url": "https://dash.public.example/"})
+    text = "Open https://dash.public.example/tasks/SC-1 for details."
+    for role in ("waitstaff", "ceo"):
+        assert guardrails.screen_output(ctx, None, text, requester="x", role=role) == text  # restored afterwards
+    assert all("dash.public.example" not in c[2] and "svc.cluster.local" in c[2] for c in ctx.guard.calls)
+
+
+def test_slack_replies_pick_the_config_by_the_recipient_role(conn_factory, tmp_path):
+    llm, _ = counting_llm(answer=IBAN_TEXT)
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard()
+    chat.run(ctx, dm("vanessa", "question one", n=1))
+    assert ctx.notifier.updates[-1]["text"] == "Please transfer to [IBAN hidden] today."
+    chat.run(ctx, dm("vincenzo", "question two", n=2))
+    assert ctx.notifier.updates[-1]["text"] == IBAN_TEXT
+    assert [c for c in ctx.guard.configs() if c.startswith("bot-output")] == ["bot-output", "bot-output-finance"]
+
+
+def test_send_dm_is_judged_by_the_recipients_role(conn_factory, tmp_path):
+    from scout.loops.toolbox import Toolbox
+
+    ctx = make_world(conn_factory, tmp_path)
+    with conn_factory() as conn:
+        conn.execute("UPDATE employees SET slack_user_id = 'U_V' WHERE id = 'vanessa'")
+        conn.execute("UPDATE employees SET slack_user_id = 'U_G' WHERE id = 'grazyna'")
+        conn.commit()
+    ctx.guard = FakeGuard()
+    task = ctx.recorder.open("t:dm", "chat", "x", requested_by="vincenzo")
+    box = Toolbox(ctx, "vincenzo", "ceo", task)
+    box.call("send_dm", {"person": "vanessa", "text": f"Pay {IBAN_TEXT}"})  # waitstaff: strict, masked
+    box.call("send_dm", {"person": "grazyna", "text": f"Pay {IBAN_TEXT}"})  # office manager: finance config
+    assert ctx.guard.configs() == ["bot-output", "bot-output-finance"]
+    sent = {m["to"]: m["text"] for m in ctx.notifier.sent}
+    assert "[IBAN hidden]" in sent["vanessa"] and "PL61" in sent["grazyna"]

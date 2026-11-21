@@ -1,4 +1,4 @@
-# One service, three configs. The request field "guardrails": {"config_id": "<name>"} selects the config;
+# One service, four configs. The request field "guardrails": {"config_id": "<name>"} selects the config;
 # without it the entry with `default: true` runs. Configs are mounted at /app/config/<name>.
 apiVersion: trustyai.opendatahub.io/v1alpha1
 kind: NemoGuardrails
@@ -20,6 +20,8 @@ spec:
       configMaps: [guard-tool-result]
     - name: bot-output
       configMaps: [guard-bot-output]
+    - name: bot-output-finance
+      configMaps: [guard-bot-output-finance]
   env:
     # The openai engine insists on this variable; vLLM behind it ignores the value. Not a secret.
     - name: OPENAI_API_KEY

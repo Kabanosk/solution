@@ -247,7 +247,9 @@ def slack_markdown(text: str) -> str:
 def _finish(ctx: JobContext, task: Task, p: dict[str, Any], text: str, *, level: str = "AUTO",
             status: str = "done", screen: bool = True) -> Task:
     if screen:  # bot-output rails; the fixed "blocked" replies are not screened again
-        text = guardrails.screen_output(ctx, task.id, text, requester=p.get("from_id"), source="DM reply")
+        who = p.get("from_id")
+        text = guardrails.screen_output(ctx, task.id, text, requester=who, source="DM reply",
+                                        role=ctx.hr.role(who) if who else None)
     text = slack_markdown(text)
     if p.get("status_ref"):
         ctx.notifier.update(p["status_ref"], text, level)
@@ -398,7 +400,7 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     if intent == "question":
         reply = answer(ctx, task, text, sender, role, history=history)
         # bot-output rails first: what is stored in the step (and fed back as history later) is what was sent
-        reply = guardrails.screen_output(ctx, task.id, reply, requester=sender, source="DM reply")
+        reply = guardrails.screen_output(ctx, task.id, reply, requester=sender, source="DM reply", role=role)
         ctx.recorder.step(task.id, "answered", "Answered the question", source="scout",
                           detail={"reply": reply[:MSG_CHARS]})
         return _finish(ctx, task, p, reply, screen=False)

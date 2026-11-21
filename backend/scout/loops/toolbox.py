@@ -383,20 +383,22 @@ class Toolbox:
                 self.ctx.audit.record("agent", "access_check", "tasks", f"{hidden} task(s) of other people left out",
                                       "DENY", task_id=self.task.id, requester=self.requester, role=self.role,
                                       policy="tasks: requester-or-exec-only")
-            sql += " AND (owner_id = %s OR requested_by = %s)"
+            sql += " AND loop <> 'strategy' AND (owner_id = %s OR requested_by = %s)"
             a += [self.requester, self.requester]
         return {"rows": _rows(self._q(sql + " ORDER BY updated_at DESC LIMIT 10", a))}
 
     def t_task_log(self, task_id: str, **_: Any) -> dict[str, Any]:
         """The task row and its steps are read in one REPEATABLE READ snapshot and the permission is judged on that
         row, so a task that changes hands (even away and back) while we read cannot let other steps in."""
-        cols = "id, title, status, outcome, owner_id, requested_by"
+        cols = "id, title, status, outcome, owner_id, requested_by, loop"
         with self.ctx.conn_factory() as conn:
             conn.isolation_level = IsolationLevel.REPEATABLE_READ
             task = conn.execute(f"SELECT {cols} FROM agent_tasks WHERE upper(id) = upper(%s)",
                                 [task_id.strip()]).fetchone()
             if not task:
                 return {"error": "not_found"}
+            if task["loop"] == "strategy" and not self._is_exec():
+                return {"error": "access_denied", "policy": "strategy: exec-only"}
             steps: list[dict[str, Any]] = []
             if can_see_task(self.requester, self.role, task["requested_by"], task["owner_id"])[0]:
                 steps = conn.execute("SELECT ts, text FROM agent_task_steps WHERE task_id = %s ORDER BY id",

@@ -253,7 +253,7 @@ async function mockServer(page, initial, opts = {}) {
       assert.equal(await page.locator('#scout-onboarding-progress-label').innerText(), 'Step 5 of 6');
       assert.equal(new URL(page.url()).searchParams.has('setup'), false); await page.close(); }
 
-    // Slack OAuth is authorization only: the owner must select channels and Scout must verify them.
+    // When one-click joining found no channel, the manual channel list is open; once connected it folds away.
     { const initial = settledFrom(fresh('in_progress'), ['bank', 'invoicing', 'ksef', 'email']); initial.steps = initial.steps.map(s => s.id === 'slack' ? step('slack', 'needs_configuration', { provider: 'slack', display: { authorized: true, workspace: 'Test Slack' } }) : s);
       const { page, server } = await open(initial, '#setup');
       await page.locator('#scout-onboarding-slack-channels-form').waitFor();
@@ -268,6 +268,8 @@ async function mockServer(page, initial, opts = {}) {
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.trim() === 'Connected');
       assert.deepEqual(server.calls.find(c => c.method === 'PUT').body, { channels: ['C0123456789', 'G0123456789'] });
       assert.deepEqual(await shown(page), ['slack'], 'saving channels stays on the step');
+      assert.equal(await page.locator('#scout-onboarding-slack-channels').isVisible(), false, 'manual list folds away once connected');
+      await page.locator('#scout-onboarding-slack-manual summary').click();
       await page.locator('#scout-onboarding-slack-channels').fill('');
       await page.locator('#scout-onboarding-slack-channels-save').click();
       await page.waitForFunction(() => document.querySelector('#scout-onboarding-status-slack')?.textContent.trim() === 'Needs setup');

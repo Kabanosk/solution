@@ -38,7 +38,7 @@ export function parseConnectBody(provider: Provider, body: Record<string, unknow
 }
 
 export function parseSlackChannels(body: Record<string, unknown>): Parsed<{ channels: string[] }> {
-  if (!Array.isArray(body.channels) || body.channels.length > 20 || !body.channels.every(id => typeof id === "string" && /^[CG][A-Z0-9]{8,14}$/.test(id))) return bad("Use at most 20 Slack channel IDs.");
+  if (!Array.isArray(body.channels) || body.channels.length > 100 || !body.channels.every(id => typeof id === "string" && /^[CG][A-Z0-9]{8,14}$/.test(id))) return bad("Use at most 100 Slack channel IDs.");
   return { ok: true, value: { channels: [...new Set(body.channels as string[])] } };
 }
 
@@ -103,7 +103,7 @@ function sanitizeStep(raw: unknown): SetupStep | null {
   if (isRecord(raw.display)) for (const [key, value] of Object.entries(raw.display).slice(0, 20)) {
     if (key === "revocation_unconfirmed") { if (typeof value === "boolean") display[key] = value; continue; }
     if (!DISPLAY_FIELDS[id].includes(key)) continue;
-    if (typeof value === "string") display[key] = value.slice(0, 200);
+    if (typeof value === "string") display[key] = value.slice(0, key === "channel_ids" ? 1600 : 200);
     else if (typeof value === "boolean" || value === null) display[key] = value;
   }
   return { id, state, provider: shortText(raw.provider, 40), message: shortText(raw.message, 300), display };

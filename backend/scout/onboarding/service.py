@@ -310,20 +310,36 @@ def callback_slack(conn: Any, actor: Actor, s: ScoutSettings, body: Any, bound: 
                 log.warning("could not revoke an unused Slack installation")
         log.warning("slack installation failed: %s", exc.code)
         return fail(conn, actor, "slack", SLACK_MESSAGES[exc.code], exc.code)
-    # Authorized, not yet usable: status stays 'disconnected' (so no connector is built) until channels are verified.
-    # A fresh installation always starts with no channels, so a different workspace never inherits an old list.
+    # One click: the bot joins every public channel and is invited into the installer's private channels. The
+    # installer's user token is only used for those invites and is revoked right after, whatever happened.
+    # A fresh installation never inherits an old channel list, so a different workspace starts clean.
+    user_token = found.pop("user_token", None)
+    try:
+        joined = slack_oauth.auto_join(found["token"], found["bot_user_id"], user_token)
+    except slack_oauth.SlackAuthError as exc:
+        log.warning("slack auto-join failed: %s", exc.code)
+        joined = {"channels": [], "private": 0, "skipped": 0}
+    finally:
+        if user_token:
+            try:
+                slack_oauth.revoke(user_token)
+            except Exception:  # noqa: BLE001
+                log.warning("could not revoke the Slack installer token")
+    channels = joined["channels"]
     upsert_connection(conn, "slack", "Slack",
-                      {"team": found["team"], "team_id": found["team_id"], "channels": [], "scopes": found["scopes"],
+                      {"team": found["team"], "team_id": found["team_id"], "channels": channels, "scopes": found["scopes"],
                        "bot_user_id": found["bot_user_id"], "read_only": True, "authorized": True},
-                      seal_secret(s, actor.tenant.id, "slack", found["token"]), status="disconnected")
-    audit(conn, "connect", "chat:slack", f"Slack workspace {found['team_id']} (read-only)")
+                      seal_secret(s, actor.tenant.id, "slack", found["token"]),
+                      status="connected" if channels else "disconnected")
+    audit(conn, "connect", "chat:slack",
+          f"Slack workspace {found['team_id']}: bot joined {len(channels)} channel(s), {joined['private']} private")
     state.record(conn, actor.tenant.id, "slack")
     return {}
 
 
 SLACK_CHANNEL_MESSAGES = {
     "unavailable": "Slack could not be reached while checking channel {c}. Nothing was changed.",
-    "not_in_channel": "Scout's bot is not in channel {c}. Invite the bot to that channel in Slack (Scout never joins on its own), then try again.",
+    "not_in_channel": "Scout's bot is not in channel {c}. Invite the bot to that channel in Slack, or disconnect and connect Slack again to join all channels automatically.",
     "missing_scope": "Slack did not allow reading channel {c}: the installation lacks permission. Install again and allow the read permissions.",
     "channel_not_found": "Channel {c} was not found in this Slack workspace.",
     "unexpected": "Slack returned an unexpected response for channel {c}.",
@@ -331,7 +347,7 @@ SLACK_CHANNEL_MESSAGES = {
 
 
 def set_slack_channels(conn: Any, actor: Actor, s: ScoutSettings, channels: list[str]) -> None:
-    """Persist the readable channel list only after EVERY channel passed a read check. The bot is never joined."""
+    """Edit the readable channel list by hand. Persisted only after EVERY channel passed a read check; never joins."""
     from scout.onboarding import slack_oauth
     row = conn.execute("SELECT status, config FROM connections WHERE id = 'slack' AND config->>'managed_by' = %s "
                        "AND provider = 'slack_oauth'", (MANAGED_BY,)).fetchone()

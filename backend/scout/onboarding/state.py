@@ -91,7 +91,7 @@ def _derive(step_id: str, meta: dict[str, Any], row: dict[str, Any] | None, pend
     elif step_id == "slack" and row and cfg.get("authorized") and row["status"] == "disconnected":
         # installed and identity-verified, but no channel is readable yet: honest prerequisite, never "connected"
         out["display"] = {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id")}
-        out.update(state="needs_configuration", message="Slack is authorized. Choose the channels Scout may read.")
+        out.update(state="needs_configuration", message="Slack is authorized, but Scout could not join any channel. Disconnect and connect Slack again, or add channel IDs below.")
         if result:
             out.update(state=result.get("state", "failed"), message=result.get("message"))
     elif row and row["status"] == "error":
@@ -125,7 +125,7 @@ def _connected(step_id: str, cfg: dict[str, Any], docs: int) -> tuple[str, dict[
     if step_id == "email":
         return ("Mailbox authorized read-only with Google.",
                 {"mailbox": cfg.get("email"), "label": cfg.get("label"), "scope": "gmail.readonly", "read_only": True})
-    return ("Slack channels verified read-only. Scout never joins channels or sends messages.",
+    return ("Channels created later are not joined automatically. Disconnect and connect again to pick them up.",
             {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id"),
              "channels": str(len(cfg.get("channels") or [])), "channel_ids": ", ".join(cfg.get("channels") or [])})
 

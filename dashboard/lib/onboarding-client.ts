@@ -10,7 +10,7 @@ export const STEPS: { id: SetupStepId; title: string; description: string; cta: 
   { id: "invoicing", title: "Invoicing", description: "Scout's built-in invoicing for this workspace. It starts empty.", cta: "Use built-in invoicing", provider: "builtin" },
   { id: "ksef", title: "KSeF", description: "National e-invoice system, test environment only.", cta: "Set up test environment", provider: "ksef" },
   { id: "email", title: "Email", description: "Gmail / Google Workspace: Google grants read-only mailbox permission; Scout restricts reads to one label. Google sign-in alone is not mailbox consent. Disconnect or failed-setup revocation may affect other Scout workspaces using the same Google account.", cta: "Continue with Google", provider: "google" },
-  { id: "slack", title: "Slack", description: "Install Scout in your Slack workspace. Scout does not send messages to verify it.", cta: "Connect workspace", provider: "slack" },
+  { id: "slack", title: "Slack", description: "One click: Scout's bot joins your public and private channels to read them. It never sends messages.", cta: "Connect workspace", provider: "slack" },
   { id: "network", title: "Company network", description: "Tell us whether Scout needs private-network access. An administrator sets it up.", cta: "Answer a few questions", provider: null },
 ];
 const IDS = STEPS.map(entry => entry.id);
@@ -67,7 +67,7 @@ export const connectProvider = async (fetcher: Fetcher, provider: Exclude<Provid
 export const disconnectProvider = async (fetcher: Fetcher, provider: Provider) => parseSetup(await request(fetcher, `/api/onboarding/connect/${provider}`, send("DELETE", {})));
 export function parseSlackChannelIds(value: string): string[] | null {
   const channels = [...new Set(value.split(/[\s,]+/).filter(Boolean))];
-  return channels.length <= 20 && channels.every(id => /^[CG][A-Z0-9]{8,14}$/.test(id)) ? channels : null;
+  return channels.length <= 100 && channels.every(id => /^[CG][A-Z0-9]{8,14}$/.test(id)) ? channels : null;
 }
 export const saveSlackChannels = async (fetcher: Fetcher, channels: string[]) => parseSetup(await request(fetcher, "/api/onboarding/slack/channels", send("PUT", { channels })));
 

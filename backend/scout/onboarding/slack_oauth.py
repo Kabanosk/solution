@@ -1,5 +1,6 @@
-"""Slack tenant installation (OAuth v2). Read-only scopes, identity verification with `auth.test`; no message is ever
-sent as a connection test and no global Socket Mode credential is involved."""
+"""Slack tenant installation (OAuth v2), one click: identity verification with `auth.test`, then the bot joins every
+public channel itself and is invited into the installer's private channels with a short-lived user token that is
+revoked right after. No message is ever sent and no global Socket Mode credential is involved."""
 
 from __future__ import annotations
 
@@ -10,7 +11,10 @@ import httpx
 
 from scout.onboarding import http as provider_http
 
-SCOPES = ["channels:read", "channels:history", "groups:read", "groups:history", "users:read"]
+SCOPES = ["channels:read", "channels:history", "channels:join", "groups:read", "groups:history", "users:read"]
+# Installer (user) scopes, used once to invite the bot into the installer's private channels, then revoked.
+USER_SCOPES = ["groups:read", "groups:write"]
+MAX_CHANNELS = 100
 AUTH_URL = provider_http.BASES["slack"] + "/oauth/v2/authorize"
 
 
@@ -25,6 +29,7 @@ class SlackAuthError(RuntimeError):
 
 def authorize_url(client_id: str, redirect_uri: str, state: str) -> str:
     return AUTH_URL + "?" + urlencode({"client_id": client_id, "scope": ",".join(SCOPES),
+                                       "user_scope": ",".join(USER_SCOPES),
                                        "redirect_uri": redirect_uri, "state": state})
 
 
@@ -68,8 +73,57 @@ def install(client_id: str, client_secret: str, code: str, redirect_uri: str) ->
         raise SlackAuthError("unexpected", token)
     if identity.get("team_id") != team["id"]:
         raise SlackAuthError("identity_mismatch", token)
+    user = body.get("authed_user") or {}
+    user_token = user.get("access_token") if isinstance(user.get("access_token"), str) else None
+    user_granted = {s for s in str(user.get("scope", "")).split(",") if s}
     return {"token": token, "team_id": str(team["id"]), "team": str(team.get("name") or identity.get("team") or ""),
-            "scopes": sorted(granted), "bot_user_id": body.get("bot_user_id")}
+            "scopes": sorted(granted), "bot_user_id": body.get("bot_user_id"),
+            "user_token": user_token if set(USER_SCOPES) <= user_granted else None}
+
+
+def _pages(token: str, method: str, data: dict[str, str]) -> list[dict[str, Any]]:
+    """All non-archived channels of a paginated `conversations.list` / `users.conversations` call."""
+    out: list[dict[str, Any]] = []
+    cursor = ""
+    for _ in range(50):
+        body = _post(f"/api/{method}", data={**data, "exclude_archived": "true", "limit": "200",
+                                              **({"cursor": cursor} if cursor else {})}, token=token)
+        if not body.get("ok"):
+            raise SlackAuthError("unexpected")
+        out += [c for c in body.get("channels") or [] if isinstance(c, dict) and c.get("id")]
+        cursor = str((body.get("response_metadata") or {}).get("next_cursor") or "")
+        if not cursor:
+            break
+    return out
+
+
+def auto_join(token: str, bot_user_id: str | None, user_token: str | None) -> dict[str, Any]:
+    """One-click channel access. The bot joins every public channel (`conversations.join`, posts nothing) and, with
+    the installer's user token, is invited into every private channel the installer is in. Private channels the
+    bot was already in are kept. Best effort per channel: one refusal (e.g. a channel restricted by an admin) never
+    blocks the rest. Returns {"channels": [ids], "private": n, "skipped": n}; at most MAX_CHANNELS ids."""
+    joined: list[str] = []
+    skipped = 0
+    for ch in _pages(token, "conversations.list", {"types": "public_channel"}):
+        if ch.get("is_member"):
+            joined.append(ch["id"])
+            continue
+        if _post("/api/conversations.join", data={"channel": ch["id"]}, token=token).get("ok"):
+            joined.append(ch["id"])
+        else:
+            skipped += 1
+    private = {c["id"] for c in _pages(token, "users.conversations", {"types": "private_channel"})}
+    if user_token and bot_user_id:
+        for ch in _pages(user_token, "users.conversations", {"types": "private_channel"}):
+            if ch["id"] in private:
+                continue
+            body = _post("/api/conversations.invite", data={"channel": ch["id"], "users": bot_user_id}, token=user_token)
+            if body.get("ok") or body.get("error") == "already_in_channel":
+                private.add(ch["id"])
+            else:
+                skipped += 1
+    channels = list(dict.fromkeys(joined + sorted(private)))[:MAX_CHANNELS]
+    return {"channels": channels, "private": len(private), "skipped": skipped}
 
 
 def check_channel(token: str, channel_id: str) -> None:

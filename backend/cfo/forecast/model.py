@@ -74,6 +74,13 @@ MLFLOW_EXPERIMENT = "liquidity-forecast"  # `MLFLOW_EXPERIMENT_NAME` overrides
 REGISTERED_MODEL_NAME = "liquidity-forecast"
 CHAMPION_ALIAS = "champion"
 MLFLOW_MODEL_ARTIFACT = "model"
+# Recorded by XGBoost during `fit` (an eval_set only watches, it never changes the fit) and logged as stepped MLflow
+# metrics, one step per boosting round. They are in the units of what the booster models: the target minus the
+# baseline for the offset feature sets. `<prefix>_<metric>_curve`; the names do not collide with the scalar metrics.
+EVAL_METRICS = ["rmse", "mae"]
+CURVE_NAMES = tuple(f"{prefix}_{metric}_curve" for prefix in ("train", "holdout_train", "holdout")
+                    for metric in EVAL_METRICS)
+MLFLOW_BATCH_LIMIT = 1000  # MLflow accepts at most 1000 metrics per log_batch call
 META_ARTIFACT = "forecast_model.meta.json"  # the sidecar of `ForecastModel.save`, as a run artifact
 _REGISTRY_ALIAS_URI = re.compile(r"^models:/(?P<name>[^/@]+)@(?P<alias>[^/@]+)$")
 _REGISTRY_VERSION_URI = re.compile(r"^models:/(?P<name>[^/@]+)/(?P<version>\d+)$")
@@ -137,6 +144,8 @@ class ForecastModel:
     mlflow_run_id: str | None = None
     model_version: str | None = None  # registered model version, None when not from the registry
     trained_at: datetime | None = None  # start of the MLflow run
+    # Per-boosting-round errors of the fits behind this model (`CURVE_NAMES`), in memory only: not in `meta()`, not saved.
+    training_curves: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
     def _frame(self, dates: Iterable[Any]) -> pd.DataFrame:
         """Calendar columns plus (for level sets) the level columns of the origin, held constant for every date."""
@@ -385,8 +394,21 @@ def _offset(frame: pd.DataFrame, feature_set: str) -> pd.Series | float:
     return feat.applied_baseline(frame) if feature_set in feat.OFFSET_SETS else 0.0
 
 
+def _fit_with_curves(params: Mapping[str, Any], x: pd.DataFrame, y: pd.Series,
+                     watch: Mapping[str, tuple[pd.DataFrame, pd.Series]]) -> tuple[XGBRegressor, dict[str, list[float]]]:
+    """Fit exactly like `XGBRegressor(**params).fit(x, y)` and also return the per-round errors on each `watch`
+    entry (name -> (x, y)) as `{<name>_<metric>_curve: [...]}`. No early stopping: the fit is unchanged."""
+    regressor = XGBRegressor(**params, eval_metric=EVAL_METRICS)
+    regressor.fit(x, y, eval_set=[watch[name] for name in watch], verbose=False)
+    recorded = regressor.evals_result()
+    curves = {f"{name}_{metric}_curve": [float(v) for v in recorded[f"validation_{i}"][metric]]
+              for i, name in enumerate(watch) for metric in EVAL_METRICS}
+    return regressor, curves
+
+
 def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str, Any], holdout_days: int,
-              exclude_categories: Iterable[str], feature_set: str = "calendar") -> dict[str, float]:
+              exclude_categories: Iterable[str], feature_set: str = "calendar",
+              curves: dict[str, list[float]] | None = None) -> dict[str, float]:
     """Fit on all but the last `holdout_days`, score on them (see `backtest_split` for what the model may see).
     One year of history cannot be cross-validated by year (the shutdown occurs once), so the check is a time
     holdout of ordinary days, against a naive mean."""
@@ -394,7 +416,12 @@ def _backtest(transactions: pd.DataFrame, table: pd.DataFrame, params: dict[str,
         return {}
     columns = feat.feature_set_columns(feature_set)
     train, test = backtest_split(transactions, holdout_days, exclude_categories, feature_set)
-    regressor = XGBRegressor(**params).fit(train[columns], train["net_cash_flow"] - _offset(train, feature_set))
+    y_train, y_test = (frame["net_cash_flow"] - _offset(frame, feature_set) for frame in (train, test))
+    regressor, recorded = _fit_with_curves(params, train[columns], y_train,
+                                           {"holdout_train": (train[columns], y_train),
+                                            "holdout": (test[columns], y_test)})
+    if curves is not None:
+        curves.update(recorded)
     booster = regressor.predict(test[columns])
     if feat.has_schedule(feature_set):  # the variable part is switched off on closed days, as in `predict`
         booster = booster * (1 - test["shutdown_flag"].to_numpy())
@@ -483,8 +510,11 @@ def train(
     feature_set, table = _usable_table(transactions, excluded, feature_set)
     merged = {**DEFAULT_PARAMS, **FEATURE_SET_PARAMS.get(feature_set, {}), **(params or {})}
     columns = feat.feature_set_columns(feature_set)
-    metrics = _backtest(transactions, table, merged, holdout_days, excluded, feature_set)
-    regressor = XGBRegressor(**merged).fit(table[columns], table["net_cash_flow"] - _offset(table, feature_set))
+    curves: dict[str, list[float]] = {}
+    metrics = _backtest(transactions, table, merged, holdout_days, excluded, feature_set, curves)
+    target = table["net_cash_flow"] - _offset(table, feature_set)
+    regressor, recorded = _fit_with_curves(merged, table[columns], target, {"train": (table[columns], target)})
+    curves.update(recorded)
     fitted = regressor.predict(table[columns]) + np.asarray(_offset(table, feature_set))
     metrics["train_mae"] = float(np.abs(fitted - table["net_cash_flow"].to_numpy()).mean())
     metrics["train_days"] = float(len(table))
@@ -506,7 +536,7 @@ def train(
         trained_until=last_day,
         params=merged, metrics=metrics, excluded_categories=excluded,
         feature_columns=columns, feature_set=feature_set, level_values=level_values,
-        baseline_mean=baseline_mean, schedule=spec,
+        baseline_mean=baseline_mean, schedule=spec, training_curves=curves,
     )
     if band:
         model.band_spec = _measure_band(transactions, merged, excluded, feature_set)
@@ -556,6 +586,21 @@ def _mlflow() -> Any:
     return mlflow
 
 
+def mlflow_experiment_id(mlflow: Any, name: str) -> str:
+    """Id of experiment `name`, created when missing. Never `mlflow.set_experiment`: that changes the process-wide
+    active experiment, and the API / Scout worker write their LLM traces into it in the same process. Callers pass
+    the id to `mlflow.start_run(experiment_id=...)`."""
+    experiment = mlflow.get_experiment_by_name(name)
+    if experiment is None:
+        try:
+            return str(mlflow.create_experiment(name))
+        except mlflow.exceptions.MlflowException:  # created by someone else in the meantime
+            experiment = mlflow.get_experiment_by_name(name)
+            if experiment is None:
+                raise
+    return str(experiment.experiment_id)
+
+
 def resolve_mlflow_model(uri: str) -> MlflowModelRef:
     """Which run and registered version a model URI points to right now (one cheap call, no download)."""
     mlflow = _mlflow()
@@ -575,6 +620,19 @@ def resolve_mlflow_model(uri: str) -> MlflowModelRef:
     if not run_id:
         raise ValueError(f"MLflow model {uri} has no source run; the forecast sidecar cannot be found")
     return MlflowModelRef(uri=pinned, run_id=run_id, version=version)
+
+
+def log_curves(mlflow: Any, run_id: str, curves: Mapping[str, Iterable[float]]) -> None:
+    """Log each curve as a stepped metric (step = index) with `MlflowClient.log_batch`, at most 1000 per call: one
+    HTTP call per point would be hundreds of round trips to a remote server. Non-finite points are skipped."""
+    from mlflow.entities import Metric
+
+    now = int(datetime.now(timezone.utc).timestamp() * 1000)
+    points = [Metric(key, float(v), now, step) for key, values in curves.items() for step, v in enumerate(values)
+              if np.isfinite(v)]
+    client = mlflow.MlflowClient()
+    for start in range(0, len(points), MLFLOW_BATCH_LIMIT):
+        client.log_batch(run_id, metrics=points[start:start + MLFLOW_BATCH_LIMIT])
 
 
 def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
@@ -602,13 +660,17 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
     try:
         import xgboost
 
-        mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT_NAME") or MLFLOW_EXPERIMENT)
-        with mlflow.start_run(run_name=f"xgb-until-{model.trained_until.date()}") as run:
+        experiment_id = mlflow_experiment_id(mlflow, os.environ.get("MLFLOW_EXPERIMENT_NAME") or MLFLOW_EXPERIMENT)
+        with mlflow.start_run(experiment_id=experiment_id, run_name=f"xgb-until-{model.trained_until.date()}") as run:
             run_id = run.info.run_id
             mlflow.log_params({k: str(v) for k, v in model.params.items()})
             mlflow.log_param("excluded_categories", ",".join(model.excluded_categories))
             mlflow.log_param("feature_set", model.feature_set)
             mlflow.log_metrics(model.metrics)
+            try:
+                log_curves(mlflow, run_id, model.training_curves)
+            except Exception:  # noqa: BLE001 - the curves are a nicety, the model must still be logged
+                log.exception("MLflow: the training curves could not be logged")
             # Pinned requirement: skips MLflow's slow import-based inference and is all the booster needs.
             info = mlflow_xgboost.log_model(model.regressor.get_booster(), name=MLFLOW_MODEL_ARTIFACT,
                                             pip_requirements=[f"xgboost=={xgboost.__version__}"])

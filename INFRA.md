@@ -31,6 +31,7 @@ Status legend: ✅ running · 🟡 written, not yet on the cluster · ⏳ planne
 | LLM (vLLM, Granite 4.0 H Tiny) | n/a | InferenceService `modelcar-granite-4-0-h-tiny` in project `my-first-model` (L4, one GPU); args in §8 | ✅ |
 | NeMo Guardrails (check-only sidecar) | n/a | `NemoGuardrails` CR `scout-guardrails`, svc `scout-guardrails:443` (TLS, bearer token), 3 configs, `deploy/openshift/guardrails/`, [`docs/guardrails.md`](docs/guardrails.md) | ✅ T051; Scout client ⏳ T052 |
 | MLflow | optional (`MLFLOW_TRACKING_URI`) | Deployment + svc `mlflow:5000` (`deploy/openshift/mlflow/`); Route has no auth, prefer `oc port-forward svc/mlflow 5000:5000` | ✅ |
+| Forecast search + nightly retrain | `python -m cfo.forecast.tune` / `python -m cfo.forecast.train` | Job `forecast-tune` and CronJob `forecast-retrain` (`deploy/openshift/forecast/`, **not** in `deploy/` or `app/`: applied by hand, [`docs/mlflow.md`](docs/mlflow.md)); image = `cfo-backend` with the `mlflow` + `tuning` extras | 🟡 T064 |
 
 Everything on the cluster carries `app.kubernetes.io/part-of=cfo`. Base manifests: `deploy/` (`oc apply -k deploy/`).
 
@@ -87,7 +88,7 @@ The image entrypoint is the `cfo` dispatcher (`deploy/cfo-entrypoint.sh`):
 | `cfo bank-mock` | `python -m scout.mock_bank` on port 8010 |
 | `cfo seed [--reset]` | `python -m scout.seed` (demo company, Scout tables, bank mock) |
 | `cfo migrate` / `generate` / `load` | same as the modules in §2 |
-| `cfo <anything>` | exec'd as is: `cfo sh`, `cfo python -m scout.demo list` |
+| `cfo <anything>` | exec'd as is: `cfo sh`, `cfo python -m scout.demo list`, `cfo python -m cfo.forecast.train --help` |
 
 The image has no data: `data/generated` and the source CSV come from a volume or from `cfo generate` with
 the CSV mounted (`SOURCE_CSV`). Healthcheck: `GET /healthz` → `{"status":"ok"}`.
@@ -145,7 +146,9 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
 | `FORECAST_MODEL_PATH` | `models/liquidity_xgb.json` | path to the saved XGBoost model |
 | `MLFLOW_TRACKING_URI` | unset (MLflow off) | MLflow service URL (T024). Read from the process environment only (not from `.env`), like every other `MLFLOW_*` variable |
 | `MLFLOW_AGENT_EXPERIMENT` | `cfo-agent` | experiment that receives one trace per agent event when `MLFLOW_TRACKING_URI` is set (`cfo/observability.py`, T027) |
-| `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error falls back to `FORECAST_MODEL_PATH` |
+| `FORECAST_MODEL_URI` | empty (local model file) | `models:/liquidity-forecast@champion`: the API serves this registry version when `MLFLOW_TRACKING_URI` is set too; the alias is re-read every 60 s, any MLflow error (or an empty registry) falls back to `FORECAST_MODEL_PATH`. Set in ConfigMap `cfo-config` since T064 |
+| `MLFLOW_EXPERIMENT_NAME` | `liquidity-forecast` | experiment of the forecast model runs (`model.py`, also the model run of `tune --promote`); the search itself always logs to `liquidity-forecast-tuning`. Neither changes the process-wide active experiment (T064), so LLM traces stay in `MLFLOW_AGENT_EXPERIMENT` |
+| `DATABASE_URL`, `MLFLOW_TRACKING_URI` (Jobs) | from Secret `postgres` / ConfigMap `cfo-config` | what `forecast-tune` and `forecast-retrain` read, composed exactly like in `api.yaml`; `--source db` makes them fail instead of falling back to the CSV (`SOURCE_CSV`) |
 | `MLFLOW_TRACKING_AUTH`, `MLFLOW_WORKSPACE`, `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_NAME` | unset | standard MLflow client variables, the code sets none of them. RHOAI MLflow: `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` (+ `MLFLOW_WORKSPACE=<project>` from another namespace). Suggested for the API pod: `MLFLOW_HTTP_REQUEST_MAX_RETRIES=1`, `MLFLOW_HTTP_REQUEST_TIMEOUT=10` |
 | `LLM_VERIFY_TLS` | `true` | `true`, `false` (self-signed certificate) or a CA bundle path for an https `LLM_BASE_URL`; the cluster uses the plain-HTTP predictor service (D-020), so the CA path set in `cfo-config` is unused there |
 | `VLLM_METRICS_URL` | unset (usage sampler off) | `http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics` (T032) |

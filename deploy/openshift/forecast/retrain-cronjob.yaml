@@ -1,0 +1,45 @@
+# Nightly retrain of the forecast model on the newest bookings (T064): train the default configuration, log the run, register
+# it as a new version (`challenger`) and move `champion` only when it is better (`tune.promote` rule, real 90-day balance
+# error, 2 % margin). The API follows the alias, so a better model is live within a minute, a worse one never is.
+#   Apply:    oc apply -f deploy/openshift/forecast/retrain-cronjob.yaml
+#   Run now:  oc create job forecast-retrain-manual --from=cronjob/forecast-retrain
+#   Pause:    oc patch cronjob forecast-retrain -p '{"spec":{"suspend":true}}'
+# Schedule is UTC (01:30). `--source db` fails loudly; exit code 2 = champion lookup failed, nothing registered.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: forecast-retrain
+  labels: {app: forecast-retrain, app.kubernetes.io/component: forecast-job}
+spec:
+  schedule: "30 1 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels: {app: forecast-retrain, app.kubernetes.io/component: forecast-job}
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          containers:
+            - name: retrain
+              image: cfo-backend:latest
+              imagePullPolicy: Always
+              args: [python, -m, cfo.forecast.train, --source, db, --register, --promote-if-better, --json]
+              envFrom:
+                - configMapRef: {name: cfo-config}
+              env:
+                - {name: POSTGRESQL_USER, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_USER}}}
+                - {name: POSTGRESQL_PASSWORD, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_PASSWORD}}}
+                - {name: POSTGRESQL_DATABASE, valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}}
+                - name: DATABASE_URL
+                  value: postgresql://$(POSTGRESQL_USER):$(POSTGRESQL_PASSWORD)@postgres:5432/$(POSTGRESQL_DATABASE)
+              resources:
+                requests: {cpu: 250m, memory: 1Gi}
+                limits: {cpu: "1", memory: 2Gi}

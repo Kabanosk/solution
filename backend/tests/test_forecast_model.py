@@ -143,22 +143,36 @@ def test_feature_importances_and_explanation(trained):
 
 
 # -- MLflow only when configured ---------------------------------------------------------------------------
+fake_calls: list[tuple] = []  # the fake's MlflowClient has no reference to the module instance
+
+
 class _FakeMlflow(types.ModuleType):
     def __init__(self):
         super().__init__("mlflow")
-        self.calls: list[tuple] = []
+        self.calls: list[tuple] = fake_calls
+        fake_calls.clear()
         self.xgboost = types.SimpleNamespace(
             log_model=lambda booster, name, **kwargs: self.calls.append(("model", name)))
 
     def set_tracking_uri(self, uri): self.calls.append(("uri", uri))
-    def set_experiment(self, name): self.calls.append(("experiment", name))
+    def get_experiment_by_name(self, name):  # the experiment is looked up, never made the active one (T064)
+        self.calls.append(("experiment", name))
+        return types.SimpleNamespace(experiment_id="exp-1")
+
+    def set_experiment(self, name): raise AssertionError("set_experiment changes the process-wide active experiment")
+
+    class MlflowClient:
+        def __init__(self_inner): pass
+
+        def log_batch(self_inner, run_id, metrics=()): fake_calls.append(("batch", run_id, sorted({x.key for x in metrics})))
     def log_params(self, params): self.calls.append(("params", sorted(params)))
     def log_param(self, key, value): self.calls.append(("param", key))
     def log_metrics(self, metrics): self.calls.append(("metrics", sorted(metrics)))
     def log_artifact(self, path): self.calls.append(("artifact", path.rsplit("/", 1)[-1]))
 
-    def start_run(self, run_name=None):
+    def start_run(self, experiment_id=None, run_name=None):
         calls = self.calls
+        assert experiment_id == "exp-1"
 
         class Run:
             info = types.SimpleNamespace(run_id="run-1")
@@ -185,6 +199,8 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     fake = _FakeMlflow()
     monkeypatch.setitem(sys.modules, "mlflow", fake)
     monkeypatch.setitem(sys.modules, "mlflow.xgboost", fake.xgboost)
+    monkeypatch.setitem(sys.modules, "mlflow.entities",
+                        types.SimpleNamespace(Metric=lambda key, value, ts, step: types.SimpleNamespace(key=key)))
     model = m.train(history)
     kinds = [c[0] for c in fake.calls]
     assert kinds[:3] == ["uri", "experiment", "start"] and kinds[-1] == "end"
@@ -194,6 +210,8 @@ def test_mlflow_logging_when_tracking_uri_is_set(history, monkeypatch):
     assert model.mlflow_run_id == "run-1" and model.model_version is None  # logged, not registered
     logged_metrics = next(c[1] for c in fake.calls if c[0] == "metrics")
     assert "holdout_mae" in logged_metrics and set(logged_metrics) == set(model.metrics)
+    batches = [c for c in fake.calls if c[0] == "batch"]  # the training curves go out through log_batch
+    assert {c[1] for c in batches} == {"run-1"} and {k for c in batches for k in c[2]} == set(m.CURVE_NAMES)
 
 
 def test_missing_mlflow_package_does_not_break_training(history, monkeypatch):

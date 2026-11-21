@@ -19,4 +19,4 @@ WORKDIR /app
 
 # Dependencies first (cached unless pyproject.toml or uv.lock change).
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version /app/backend/
-RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-install-project --no-editable
+RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --extra tuning --no-install-project --no-editable

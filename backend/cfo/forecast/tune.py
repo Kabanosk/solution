@@ -386,23 +386,28 @@ def _tracking(uri: str | None) -> Iterator[tuple[Any, str] | None]:
         mlflow.set_tracking_uri(previous_uri)
 
 
-def _ensure_experiment(mlflow: Any, name: str, uri: str) -> None:
-    """Select the experiment. A new one on a sqlite store keeps its artifacts next to the database file (never in a
+def _ensure_experiment(mlflow: Any, name: str, uri: str) -> str:
+    """Id of the experiment, created when missing (never `set_experiment`: it would change the process-wide active
+    experiment, see `model.mlflow_experiment_id`). A new one on a sqlite store keeps its artifacts next to the database file (never in a
     stray `./mlruns`); on a tracking server the server decides."""
     if mlflow.get_experiment_by_name(name) is None and uri.startswith("sqlite:///"):
         db = Path(uri[len("sqlite:///"):]).resolve()
         mlflow.create_experiment(name, artifact_location=(db.parent / "mlartifacts" / name).as_uri())
-    mlflow.set_experiment(name)
+    return m.mlflow_experiment_id(mlflow, name)
 
 
 class _Tracker:
     """Best-effort MLflow logging of one search: the first failure is logged and switches logging off."""
 
-    def __init__(self, handle: tuple[Any, str] | None, experiment: str):
+    def __init__(self, handle: tuple[Any, str] | None, experiment: str,
+                 curves_from: pd.DataFrame | None = None):
+        self.curves_from = curves_from  # transactions: log each trial's holdout curve (`--log-curves`); None = off
+        self.best_so_far = math.inf
         self.mlflow = handle[0] if handle else None
         self.uri = handle[1] if handle else None
         self.experiment = experiment
         self.parent_run_id: str | None = None
+        self.experiment_id: str | None = None
 
     def _safe(self, what: str, fn: Callable[[], Any]) -> Any:
         if self.mlflow is None:
@@ -416,15 +421,16 @@ class _Tracker:
 
     def start_parent(self, params: Mapping[str, Any]) -> None:
         def go() -> None:
-            _ensure_experiment(self.mlflow, self.experiment, self.uri)
-            run = self.mlflow.start_run(run_name=f"tuning-{date.today().isoformat()}")
+            self.experiment_id = _ensure_experiment(self.mlflow, self.experiment, self.uri)
+            run = self.mlflow.start_run(experiment_id=self.experiment_id, run_name=f"tuning-{date.today().isoformat()}")
             self.parent_run_id = run.info.run_id
             self.mlflow.log_params({k: str(v) for k, v in params.items()})
         self._safe("parent run", go)
 
     def log_trial(self, trial: Mapping[str, Any]) -> None:
         def go() -> None:
-            with self.mlflow.start_run(run_name=f"trial-{trial['number']:03d}", nested=True):
+            with self.mlflow.start_run(experiment_id=self.experiment_id, run_name=f"trial-{trial['number']:03d}",
+                                       nested=True) as run:
                 self.mlflow.log_params({"feature_set": trial["feature_set"],
                                         **{k: str(v) for k, v in trial["params"].items()}})
                 metrics: dict[str, float] = {"trial_number": float(trial["number"]),
@@ -439,7 +445,27 @@ class _Tracker:
                     for origin, errors in trial["per_origin"].items():
                         metrics[f"cum_error_{origin.replace('-', '_')}"] = float(errors["cum_error_end"])
                 self.mlflow.log_metrics(metrics)
+                if self.curves_from is not None and not trial.get("error"):
+                    try:
+                        m.log_curves(self.mlflow, run.info.run_id,
+                                     _holdout_curves(self.curves_from, trial["feature_set"], trial["params"]))
+                    except Exception as exc:  # noqa: BLE001 - a missing curve must not switch the logging off
+                        log.warning("trial %s: no holdout curve (%s)", trial["number"], exc)
+            self._log_progress(trial)
         self._safe(f"trial {trial['number']}", go)
+
+    def _log_progress(self, trial: Mapping[str, Any]) -> None:
+        """Parent run: this trial's 90-day balance error and the best so far, step = trial number."""
+        error = (trial.get("scores") or {}).get("balance_error_90d")
+        if trial.get("error") or not _is_finite(error) or not self.parent_run_id:
+            return
+        self.best_so_far = min(self.best_so_far, float(error))
+        now = int(time.time() * 1000)
+        from mlflow.entities import Metric
+        step = int(trial["number"])
+        self.mlflow.MlflowClient().log_batch(self.parent_run_id, metrics=[
+            Metric("trial_balance_error_90d", float(error), now, step),
+            Metric("best_so_far_balance_error_90d", self.best_so_far, now, step)])
 
     def finish_parent(self, result: TuningResult) -> None:
         def go() -> None:
@@ -470,6 +496,16 @@ class _Tracker:
             with contextlib.suppress(Exception):
                 import mlflow
                 mlflow.end_run()
+
+
+def _holdout_curves(transactions: pd.DataFrame, feature_set: str, params: Mapping[str, Any]) -> dict[str, list[float]]:
+    """Per-round holdout curves (last 60 days, `model.train`'s own holdout) of one configuration: one extra fit."""
+    excluded = m.EXCLUDED_CATEGORIES
+    name, table = m._usable_table(transactions, excluded, feature_set)
+    merged = {**m.DEFAULT_PARAMS, **m.FEATURE_SET_PARAMS.get(name, {}), **params}
+    curves: dict[str, list[float]] = {}
+    m._backtest(transactions, table, merged, 60, excluded, name, curves)
+    return {k: v for k, v in curves.items() if k.startswith("holdout_")}
 
 
 def _trials_frame(result: TuningResult) -> pd.DataFrame:
@@ -523,7 +559,8 @@ def _log_history_plot(mlflow: Any, result: TuningResult) -> None:
 def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
            feature_sets: Iterable[str] | None = None, tracking_uri: str | None = None,
            min_gain: float = DEFAULT_MIN_GAIN, data_source: str | None = None, mode: str = MODE_BALANCE,
-           origins: Iterable[Any] | None = None, reference_set: str | None = None) -> TuningResult:
+           origins: Iterable[Any] | None = None, reference_set: str | None = None,
+           log_curves: bool = False) -> TuningResult:
     """Run `n_trials` Optuna trials (TPE, seeded) scored by the rolling-origin balance error.
 
     Every trial is a child run of the parent run `tuning-<date>` in experiment `liquidity-forecast-tuning` when MLflow
@@ -583,7 +620,7 @@ def search(transactions: pd.DataFrame, *, n_trials: int, seed: int = 0,
         return record["objective"]
 
     with _tracking(tracking_uri) as handle:
-        tracker = _Tracker(handle, TUNING_EXPERIMENT)
+        tracker = _Tracker(handle, TUNING_EXPERIMENT, curves_from=transactions if log_curves else None)
         tracker.start_parent({"n_trials": n_trials, "seed": seed, "feature_sets": ",".join(sets),
                               "min_gain": min_gain, "rows": len(transactions), "data_source": data_source or "",
                               "baseline_feature_set": ref_set, "mode": mode,
@@ -889,6 +926,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                                                f"(default: {','.join(DEFAULT_FEATURE_SETS)})")
     parser.add_argument("--min-gain", type=_min_gain_arg, default=DEFAULT_MIN_GAIN,
                         help="a candidate is better only by this share of the reference's error (default 0.02)")
+    parser.add_argument("--log-curves", action="store_true",
+                        help="log every trial's per-round holdout curve to its MLflow run (one extra fit per trial; "
+                             "off by default: 200 trials of hundreds of points flood the server)")
     parser.add_argument("--promote", action="store_true",
                         help="retrain the best configuration and register it as 'challenger'")
     parser.add_argument("--promote-if-better", action="store_true",
@@ -902,7 +942,7 @@ def main(argv: Sequence[str] | None = None) -> int:
              transactions["booking_date"].max().date())
     sets = [s.strip() for s in args.feature_sets.split(",") if s.strip()] if args.feature_sets else None
     kw: dict[str, Any] = {"feature_sets": sets, "tracking_uri": args.tracking_uri, "min_gain": args.min_gain,
-                          "data_source": source, "reference_set": args.reference_set,
+                          "data_source": source, "log_curves": args.log_curves, "reference_set": args.reference_set,
                           "mode": MODE_CONSTRAINED if args.constrained else MODE_BALANCE}
     if args.weekly:
         from cfo.forecast import folds

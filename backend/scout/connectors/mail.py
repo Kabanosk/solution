@@ -257,6 +257,20 @@ class GmailMail:
         return [self._hit(m["id"]) for m in res.get("messages", [])]
 
     @_guard_mail_read
+    def pdf_search(self, words, since, *, task_id=None):  # noqa: ANN001
+        """Mails with a PDF attached (Gmail `has:attachment filename:pdf`), optionally mentioning `words`."""
+        quoted = " OR ".join(f'"{w}"' for w in words if w)
+        q = f"has:attachment filename:pdf after:{int(since.timestamp())}" + (f" ({quoted})" if quoted else "")
+        kwargs: dict[str, Any] = {"userId": "me", "q": q, "maxResults": 25}
+        if self.label_id():
+            kwargs["labelIds"] = [self.label_id()]
+        res = self._svc.users().messages().list(**kwargs).execute()
+        if self._audit:
+            self._audit.record("agent", "search", f"mail:{self.mailbox}", q, task_id=task_id,
+                               policy=f"label:{self._label_name}" if self._label_name else None)
+        return [self._hit(m["id"]) for m in res.get("messages", [])]
+
+    @_guard_mail_read
     def attachment(self, hit_id, name, *, task_id=None):  # noqa: ANN001
         self._assert_message_scope(hit_id)
         m = self._svc.users().messages().get(userId="me", id=hit_id, format="full").execute()
@@ -289,6 +303,34 @@ class GmailMail:
         return hits, {"history_id": res.get("historyId", cursor["history_id"])}
 
 
+INVOICE_WORDS = ("invoice", "invoices", "faktura", "fakturę", "faktury", "rechnung", "fattura", "factura", "facture",
+                 "receipt", "rachunek", "paragon", "bill", "billing", "payment", "vat")
+
+
+def _is_pdf(name: str) -> bool:
+    return name.lower().endswith(".pdf")
+
+
+def invoice_mails(mail: Any, since: datetime, words: list[str] | None = None, *,
+                  task_id: str | None = None) -> list[MailHit]:
+    """Mails with PDF attachments that look like invoices (subject, body or file name), newest first. With `words`
+    (supplier, invoice number…) only those mentioning them. Uses Gmail's own attachment search when available."""
+    words = [w for w in (words or []) if w]
+    if hasattr(mail, "pdf_search"):
+        hits = mail.pdf_search(words, since, task_id=task_id)
+    else:
+        hits = mail.search(words or list(INVOICE_WORDS[:6]), since, task_id=task_id)
+    out = []
+    for h in hits:
+        pdfs = [a for a in h.attachments if _is_pdf(a)]
+        if not pdfs:
+            continue
+        text = f"{h.subject} {h.snippet} {h.body} {' '.join(pdfs)}".casefold()
+        if words or any(w in text for w in INVOICE_WORDS):
+            out.append(h)
+    return sorted(out, key=lambda h: h.date or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+
 class WorkspaceMail:
     """Google Workspace: a service account with domain-wide delegation reads the authorized mailboxes."""
 
@@ -305,6 +347,9 @@ class WorkspaceMail:
 
     def search(self, terms, since, *, task_id=None):  # noqa: ANN001
         return [h for b in self._boxes for h in b.search(terms, since, task_id=task_id)]
+
+    def pdf_search(self, words, since, *, task_id=None):  # noqa: ANN001
+        return [h for b in self._boxes for h in b.pdf_search(words, since, task_id=task_id)]
 
     def attachment(self, hit_id, name, *, task_id=None):  # noqa: ANN001
         for b in self._boxes:

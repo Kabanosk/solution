@@ -15,7 +15,7 @@ def box(ctx, who: str):  # noqa: ANN001, ANN201
 
 
 def test_specs_are_small_model_friendly():
-    assert len(SPECS) == 20
+    assert len(SPECS) == 21
     for s in SPECS:
         assert len(s.description) < 200
         assert all(p.get("type") in ("string", "integer", "boolean") for p in s.parameters["properties"].values())

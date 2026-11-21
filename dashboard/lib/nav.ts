@@ -33,7 +33,7 @@ export type NavItem = {
   demoOnly?: boolean;
 };
 
-export type NavSection = { section: "primary" | "Loops" | "Finance" | "Workspace"; collapsible: boolean; items: NavItem[] };
+export type NavSection = { section: "primary" | "Loops" | "Workspace"; collapsible: boolean; items: NavItem[] };
 
 const FILTER_KEYS = ["scope", "loop", "status", "owner"] as const;
 
@@ -46,9 +46,9 @@ const loopItem = (loop: string, label: string) =>
 export const NAV: NavSection[] = [
   { section: "primary", collapsible: false, items: [
     view("overview", "Overview", "layout"),
-    item("inbox", "Inbox", "inbox", { view: "tasks", filter: { scope: "inbox" } }, { countKey: "inbox" }),
-    view("tasks", "Tasks", "list-todo", { countKey: "openTasks" }),
     view("chat", "Scout chat", "message"),
+    view("tasks", "Tasks", "list-todo", { countKey: "openTasks" }),
+    view("transactions", "Transactions", "receipt"),
   ] },
   { section: "Loops", collapsible: true, items: [
     loopItem("invoicing", "Invoicing"),
@@ -56,16 +56,11 @@ export const NAV: NavSection[] = [
     loopItem("liquidity", "Liquidity"),
     loopItem("chat", "Chat"),
   ] },
-  { section: "Finance", collapsible: true, items: [
-    view("transactions", "Transactions", "receipt"),
-    view("staffing", "Staffing", "users"),
-  ] },
   { section: "Workspace", collapsible: true, items: [
     view("connections", "Connections", "plug"),
     view("audit", "Audit log", "scroll"),
     view("policies", "Access policies", "shield"),
     view("llm-usage", "LLM usage", "cpu"),
-    view("demo", "Demo", "play", { demoOnly: true }),
   ] },
 ];
 
@@ -111,7 +106,6 @@ export function activeItem(route: Route): NavItem | undefined {
   if (route.view !== "tasks") return NAV_ITEMS.find(entry => entry.route.view === route.view);
   const filter = route.filter ?? {};
   if (filter.loop && !filter.scope) return NAV_ITEMS.find(entry => entry.loop === filter.loop);
-  if (filter.scope === "inbox" && !filter.loop) return NAV_ITEMS.find(entry => entry.id === "inbox");
   return NAV_ITEMS.find(entry => entry.id === "tasks");
 }
 

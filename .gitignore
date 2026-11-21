@@ -19,6 +19,7 @@ mlflow.db
 /dashboard/public/fonts/
 /dashboard/next-env.d.ts
 /dashboard/**/*.tsbuildinfo
+/artifacts/ui-cleanup/
 
 # Dashboard credentials and confidential records
 /dashboard/**/*.pem

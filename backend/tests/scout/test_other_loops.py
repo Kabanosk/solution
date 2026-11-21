@@ -219,3 +219,24 @@ def test_requester_without_status_message_gets_a_dm(conn_factory, tmp_path):
     liquidity.resume(ctx, t.approval_id, False, "vincenzo")
     last = ctx.notifier.sent[-1]
     assert last["to"] == "grazyna" and "rejected" in last["text"] and last["task_id"] == t.id
+
+
+def test_what_if_from_chat_reports_back_into_the_chat(conn_factory, tmp_path):
+    from scout.loops.toolbox import Toolbox
+
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.forecaster = fake_review(gap=True)
+    chat_task = ctx.recorder.open("web:conv12345", "chat", "Dashboard chat")
+    out = Toolbox(ctx, "vincenzo", "ceo", chat_task).call("start_what_if", {"amount_eur": "30000", "month": "March",
+                                                                            "what": "an oven"})
+    assert out["started"] and "this chat" in out["note"]
+    with conn_factory() as conn:
+        j = conn.execute("SELECT * FROM agent_jobs WHERE kind='what_if'").fetchone()
+    assert j["payload"]["chat_task"] == chat_task.id
+    t = liquidity.run(ctx, job("what_if", j["payload"]))
+    follow = [s for s in ctx.recorder.steps(chat_task.id) if s.kind == "followup"]
+    assert len(follow) == 1 and "approval" in follow[0].text.lower() and t.id in follow[0].text
+    liquidity.resume(ctx, t.approval_id, True, "vincenzo")
+    follow = [s for s in ctx.recorder.steps(chat_task.id) if s.kind == "followup"]
+    assert len(follow) == 2 and "approved" in follow[1].text and "SIMULATED" in follow[1].text
+    assert follow[1].detail["task"] == t.id

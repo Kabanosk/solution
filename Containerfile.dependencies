@@ -1,0 +1,22 @@
+# File for dependency layer
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+USER 0
+
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH=/opt/venv/bin:$PATH \
+    HOME=/app
+
+RUN pip install --no-cache-dir "uv>=0.5,<1"
+
+WORKDIR /app
+
+# Dependencies first (cached unless pyproject.toml or uv.lock change).
+COPY backend/pyproject.toml backend/uv.lock backend/.python-version /app/backend/
+RUN uv sync --project /app/backend --frozen --no-dev --extra mlflow --no-install-project --no-editable

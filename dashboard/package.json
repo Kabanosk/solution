@@ -11,6 +11,7 @@
     "prepare:assets": "node scripts/prepare-assets.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:e2e": "node tests/public-assets.e2e.cjs && node tests/organization-auth.e2e.cjs",
+    "test:e2e:onboarding": "node tests/onboarding-callback.e2e.cjs && node tests/onboarding.e2e.cjs",
     "test:e2e:legacy": "node tests/ui-cleanup.e2e.cjs && node tests/connections.e2e.cjs && node tests/dm-reply.e2e.cjs"
   },
   "dependencies": {

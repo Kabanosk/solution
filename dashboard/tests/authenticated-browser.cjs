@@ -18,6 +18,8 @@ exports.authenticatedFixture = async browser => {
   try {
     const organization = (await pool.query('SELECT schema_name FROM scout_auth.organizations WHERE slug=$1', [slug])).rows[0];
     assert.ok(organization, 'Signup and SCOUT_AUTH_TEST_DATABASE_URL must use the same isolated database');
+    // These visual fixtures represent an existing workspace, not the signup/onboarding acceptance case.
+    await pool.query("UPDATE scout_auth.workspace_setup SET status='dismissed' WHERE organization_id=(SELECT id FROM scout_auth.organizations WHERE slug=$1)", [slug]);
     const schema = organization.schema_name;
     assert.match(schema, /^tenant_[a-f0-9]{32}$/);
     for (const [id, kind] of [['bank','bank'],['invoicing','invoicing'],['mail','mail'],['slack','chat'],['laptops','files'],['ksef','invoicing']]) {

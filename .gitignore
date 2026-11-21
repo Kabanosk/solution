@@ -22,6 +22,8 @@ mlflow.db
 /artifacts/ui-cleanup/
 /artifacts/organization-auth/
 /artifacts/connections/
+/artifacts/onboarding-ui/
+/.house/tmp/
 
 # Dashboard credentials and confidential records
 /dashboard/**/*.pem

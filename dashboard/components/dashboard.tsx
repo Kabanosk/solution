@@ -18,6 +18,8 @@ import { AttentionList, TaskBoard } from "@/components/tasks/task-list";
 import { TaskDetailSkeleton, TaskDetailView } from "@/components/tasks/task-detail";
 import { AuditLog } from "@/components/audit-log";
 import { Connections } from "@/components/connections";
+import { Onboarding } from "@/components/onboarding";
+import { canEdit, fetchSetup, shouldOpenSetup } from "@/lib/onboarding-client";
 import { AccessPolicies } from "@/components/access-policies";
 import { DemoView } from "@/components/demo-panel";
 import { Transactions } from "@/components/transactions";
@@ -153,6 +155,18 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
   useEffect(() => { mainRef.current?.focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }, [page, route.taskId]);
 
+  // A new owner's pending setup opens on an ordinary load. An explicit hash (deep link, #setup, #chat) is never overridden,
+  // and a failed lookup leaves the default view alone.
+  const role = data.workspace?.role;
+  useEffect(() => {
+    if (window.location.hash || !canEdit(role)) return;
+    const controller = new AbortController();
+    fetchSetup(tenantFetch, controller.signal).then(setup => {
+      if (shouldOpenSetup({ hash: window.location.hash, role, status: setup.status })) navigateRef.current({ view: "setup" }, { replace: true });
+    }, () => undefined);
+    return () => controller.abort();
+  }, [role]);
+
   // Once the first view is on screen, warm the data of the views that load separately, so switching to them is instant.
   useEffect(() => {
     const idle = window.requestIdleCallback ?? ((callback: () => void) => window.setTimeout(callback, 1200));
@@ -209,7 +223,8 @@ function DashboardContent({ data }: { data: DashboardData }) {
     : <p role="status" className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">Demo scenarios are switched off on this deployment (SCOUT_DEMO is not set).</p>;
   else if (page === "staffing") content = <Staffing data={data} onBack={() => navigate({ view: "overview" })} />;
   else if (page === "transactions") content = <TransactionsView tasks={scout.tasks} />;
-  else if (page === "connections") content = <Connections connections={scout.connections} />;
+  else if (page === "connections") content = <Connections connections={scout.connections} onOpenSetup={canEdit(role) ? () => navigate({ view: "setup" }) : undefined} />;
+  else if (page === "setup") content = <Onboarding role={data.workspace?.role} onContinue={() => navigate({ view: "chat" })} />;
   else if (page === "audit") content = <AuditView />;
   else if (page === "policies") content = <AccessPolicies />;
   else if (page === "llm-usage") content = <LlmUsage active />;

@@ -2,7 +2,8 @@
 (`docs/guardrails-demo.md`) all read, plus `preflight` and `reset`.
 
     python -m scout.demo guard-preflight [--scenario A] [--repeat 3]   # what does NeMo say to each demo prompt?
-    python -m scout.demo guard-reset [--person vanessa ...]            # back to "attempt 1 of 3", CEO alert again
+    python -m scout.demo guard-reset [--person vanessa ...]            # back to "attempt 1 of 3", CEO alert again,
+                                                                       # and the workspace guardrails switch ON
     python -m scout.demo plant                                         # the files of the live cases (see scout.seed)
 
 A `Probe` is one text sent to one check config. `type` probes are what the presenter types, `alt` probes are
@@ -16,6 +17,7 @@ temperature 0). Re-run the preflight after any change of the judge prompt, the m
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -27,6 +29,7 @@ from scout import guardrails
 from scout.demo_data import SCENARIOS as SCENARIOS_
 from scout.guardrails import BOT_OUTPUT, BOT_OUTPUT_FINANCE, TOOL_RESULT, USER_INPUT, Verdict
 
+log = logging.getLogger(__name__)
 BLOCKED, SUCCESS = "blocked", "success"
 DEMO_PERSONAS = tuple(e.id for e in EMPLOYEES)
 # The only outside item the demo itself flags is the planted poisoned mail (scenario E): the invoicing loop keys its
@@ -307,3 +310,17 @@ def reset(conn_factory: Callable[[], Any], persons: Sequence[str] | None = None)
                      for prefix in DEMO_ALERT_KEY_PREFIXES)
         conn.commit()
     return {"strikes": strikes, "alerts": alerts}
+
+
+def switch_on(conn_factory: Callable[[], Any], organization_id: str) -> bool | None:
+    """Turn the workspace guardrails switch back ON after a demo that turned it off (one `guardrails_toggled` audit
+    row when it changes). True: it was OFF; False: already ON; None: it could not be written (a switch that cannot be
+    read counts as ON anyway)."""
+    try:
+        with conn_factory() as conn:
+            changed = guardrails.set_switch(conn, organization_id, True, "guard-reset", actor="operator", role=None)
+            conn.commit()
+        return changed
+    except Exception:  # noqa: BLE001 - e.g. the migration did not run yet: the strikes were still reset
+        log.warning("could not turn the guardrails switch on", exc_info=True)
+        return None

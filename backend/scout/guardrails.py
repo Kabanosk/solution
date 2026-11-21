@@ -15,6 +15,13 @@ reason = the rails that fired), `guardrail_unavailable`, `guardrail_escalation` 
 The checked content itself never goes into `audit_log` (the audit API is readable): a row holds the config id, the
 rails and the length and a short hash of the text. The full blocked prompts of people live in `guardrail_strikes`,
 which no API exposes; the compliance DM is built from it.
+
+The per-workspace switch (T084, for the demo): `scout_auth.guardrails_settings.enabled` false turns this whole layer
+off for that organization (every config, the output masking, strikes, alerts, the flagged-invoice path): `check`
+answers `disabled` and nothing is sent or written per message. No row, no bound organization or any error reading it
+means ON (fail-safe, unlike the fail-open of the service). The value is cached for SWITCH_TTL_S per process, so a
+toggle on the dashboard reaches the worker and the api within seconds. The access controls (salary visibility,
+task_log isolation, roles) are authorization in `scout.audit` and the toolbox, not this layer: they never switch off.
 """
 
 from __future__ import annotations
@@ -30,6 +37,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from psycopg import sql
 
 from cfo.observability import span
 
@@ -197,6 +205,90 @@ def from_settings(settings: Any) -> HttpGuardrails:
                           verify=ca if ca and os.path.isfile(ca) else True)
 
 
+# -- the per-workspace switch -----------------------------------------------------------------------------
+SWITCH_TABLE = "scout_auth.guardrails_settings"
+SWITCH_TTL_S = 5.0
+SWITCH_ACTION, SWITCH_POLICY = "guardrails_toggled", "guardrails-switch"
+_clock = time.monotonic
+_SWITCH_LOCK = threading.Lock()
+_SWITCH: dict[str, tuple[bool, float]] = {}  # organization id -> (on, read at)
+
+
+def _organization_id() -> str | None:
+    from cfo.tenancy import current_tenant
+
+    tenant = current_tenant(required=False)
+    return tenant.id if tenant else None
+
+
+def _table() -> sql.Composable:
+    return sql.Identifier(*SWITCH_TABLE.split("."))
+
+
+def clear_switch_cache(organization_id: str | None = None) -> None:
+    with _SWITCH_LOCK:
+        if organization_id is None:
+            _SWITCH.clear()
+        else:
+            _SWITCH.pop(organization_id, None)
+
+
+def switched_on(ctx: Any) -> bool:
+    """Is the guardrails layer on for the organization bound to this context? Never raises."""
+    org = _organization_id()
+    if not org:
+        return True
+    with _SWITCH_LOCK:
+        hit = _SWITCH.get(org)
+        if hit and _clock() - hit[1] < SWITCH_TTL_S:
+            return hit[0]
+    on = _read_switch(ctx, org)
+    with _SWITCH_LOCK:
+        _SWITCH[org] = (on, _clock())
+    return on
+
+
+def _read_switch(ctx: Any, org: str) -> bool:
+    try:
+        with ctx.conn_factory() as conn:
+            row = conn.execute(sql.SQL("SELECT enabled FROM {} WHERE organization_id = %s").format(_table()),
+                               (org,)).fetchone()
+    except Exception:  # noqa: BLE001 - fail-safe: a switch that cannot be read is ON
+        log.warning("could not read the guardrails switch; it counts as ON", exc_info=True)
+        return True
+    if row is None:
+        return True
+    value = row["enabled"] if isinstance(row, dict) else row[0]
+    return value is not False
+
+
+def set_switch(conn: Any, organization_id: str, enabled: bool, who: str, *, actor: str = "dashboard",
+               role: str | None = "owner") -> bool:
+    """Turn the layer on or off for one organization. `conn` is bound to that organization's schema (its
+    `audit_log` gets the row); the caller commits. One audit row per change; True when it changed."""
+    conn.execute(sql.SQL("INSERT INTO {} (organization_id) VALUES (%s) ON CONFLICT DO NOTHING").format(_table()),
+                 (organization_id,))
+    row = conn.execute(sql.SQL("SELECT enabled FROM {} WHERE organization_id = %s FOR UPDATE").format(_table()),
+                       (organization_id,)).fetchone()
+    before = row["enabled"] if isinstance(row, dict) else row[0]
+    if bool(before) == bool(enabled):
+        return False
+    conn.execute(sql.SQL("UPDATE {} SET enabled = %s, updated_by = %s, updated_at = now() "
+                         "WHERE organization_id = %s").format(_table()), (bool(enabled), who, organization_id))
+    state = "ON" if enabled else "OFF"
+    conn.execute("INSERT INTO audit_log (actor, requester, role, action, target, resource, decision, policy, reason) "
+                 "VALUES (%s, %s, %s, %s, 'guardrails:workspace', %s, 'ALLOW', %s, %s)",
+                 (actor, who, role, SWITCH_ACTION, f"NeMo guardrails turned {state}", SWITCH_POLICY, state))
+    clear_switch_cache(organization_id)
+    return True
+
+
+def active(ctx: Any) -> bool:
+    """A client with a URL and the workspace switch ON."""
+    client = getattr(ctx, "guard", None)
+    return client is not None and bool(getattr(client, "enabled", False)) and switched_on(ctx)
+
+
 # -- one check: tracing, fail-open, audit -----------------------------------------------------------------
 def _digest(text: str) -> str:
     return f"{len(text)} chars, sha1:{hashlib.sha1(text.encode()).hexdigest()[:10]}"
@@ -227,7 +319,7 @@ def check(ctx: Any, config_id: str, texts: str | list[str], *, task_id: str | No
     texts = [texts] if isinstance(texts, str) else list(texts)
     texts = [t for t in texts if t.strip()]
     client = getattr(ctx, "guard", None)
-    if client is None or not getattr(client, "enabled", False) or not texts:
+    if client is None or not getattr(client, "enabled", False) or not texts or not switched_on(ctx):
         return Verdict("disabled")
     chars = sum(len(t) for t in texts)
     if sum(len(_chunks(t)) for t in texts) > MAX_CHUNKS:  # never pass on what could not be checked whole
@@ -484,8 +576,7 @@ def screen_output(ctx: Any, task_id: str | None, text: str, *, requester: str | 
     code: the owner and the office manager get the light `bot-output-finance` check (links only); everyone else gets
     IBANs, cards, e-mails and phone numbers masked first (audit MASK) and the masked text checked by `bot-output`.
     Links to Scout's own dashboard are swapped for a placeholder host during the check and restored after."""
-    client = getattr(ctx, "guard", None)
-    if client is None or not getattr(client, "enabled", False):
+    if not active(ctx):  # no service, or the workspace switch is OFF: no masking, no check
         return text
     dash = (getattr(ctx.settings, "dashboard_url", "") or "").rstrip("/")
     swap = dash.startswith("http") and dash in text

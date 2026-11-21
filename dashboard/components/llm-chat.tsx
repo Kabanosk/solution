@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpRight, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, BellRing, Check, ChevronDown, Copy, Download, FileSpreadsheet, FileText, History, LoaderCircle, Send, Wrench, RotateCcw, Square, SquarePen } from "lucide-react";
 import { ScoutMark } from "@/components/brand";
 import { Markdown } from "@/components/markdown";
-import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, newConversationId, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
+import { applyCompaction, CHAT_MODELS, MAX_MESSAGE_LENGTH, mergeFollowups, newConversationId, readJsonLines, requestFor, type ChatFile, type ChatTurn } from "@/lib/chat-model";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -33,6 +33,24 @@ export function LlmChat({ active }: { active: boolean }) {
     if (input.current) { input.current.style.height = "auto"; input.current.style.height = `${Math.min(input.current.scrollHeight, 160)}px`; }
   }, [draft]);
   useEffect(() => () => { request.current?.abort(); }, []);
+  // A what-if or approval Scout started reports back as `followup` steps on the chat's task: watch it while one is due.
+  const watchedTask = messages.some(turn => turn.awaiting) ? [...messages].reverse().find(turn => turn.taskId)?.taskId : undefined;
+  useEffect(() => {
+    if (!watchedTask) return;
+    let stopped = false;
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(watchedTask)}`, { cache: "no-store" });
+        if (!response.ok || stopped) return;
+        const detail = await response.json() as { steps?: { id: number; kind: string; text: string }[] };
+        if (!stopped && Array.isArray(detail.steps)) setMessages(current => mergeFollowups(current, detail.steps!));
+      } catch { /* the next tick tries again */ }
+    };
+    void poll();
+    const timer = setInterval(poll, 4000);
+    return () => { stopped = true; clearInterval(timer); };
+  }, [watchedTask]);
 
   async function reply(history: ChatTurn[]) {
     if (request.current) return;
@@ -70,7 +88,7 @@ export function LlmChat({ active }: { active: boolean }) {
         }
         else if (event.type === "file") { files.push({ name: event.name, mime: event.mime, dataB64: event.data_b64, sentToSlack: event.sent_to_slack }); update({ files: [...files] }); }
         else if (event.type === "error") { failure = event.message; throw new Error("Model stream failed"); }
-        else if (event.type === "done") { completed = true; setTruncated(event.truncated); if (event.task_id) update({ taskId: event.task_id }); }
+        else if (event.type === "done") { completed = true; setTruncated(event.truncated); if (event.task_id) update({ taskId: event.task_id, ...(event.followups ? { awaiting: true } : {}) }); }
       }
       if (request.current !== controller) return;
       if (controller.signal.aborted) update({ status: "stopped" });
@@ -165,6 +183,11 @@ export function LlmChat({ active }: { active: boolean }) {
                 {turn.content ? <Markdown source={turn.content} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
                   : turn.files?.length ? null : turn.status === "pending" ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />Working…</span>
                   : <span className="text-sm text-muted-foreground">No response received.</span>}
+                {turn.followups?.map(update => <div key={update.id} className="rounded-lg border border-emerald-600/20 bg-emerald-50/60 px-3.5 py-2.5 dark:bg-emerald-950/30">
+                  <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-emerald-700 uppercase dark:text-emerald-400"><BellRing className="size-3" aria-hidden="true" />Update</p>
+                  <Markdown source={update.text} className="min-w-0 text-sm leading-6 [overflow-wrap:anywhere]" />
+                </div>)}
+                {turn.awaiting && turn.id === [...messages].reverse().find(item => item.awaiting)?.id && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Scout posts updates here as they happen</p>}
                 {(turn.taskId || (turn.content && turn.status !== "pending")) && <div className="flex items-center gap-1">
                   {turn.content && turn.status !== "pending" && <Button variant="ghost" size="sm" aria-label="Copy response" className="h-7 px-2 text-muted-foreground" onClick={() => void copy(turn)}>{copied === turn.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}</Button>}
                   {turn.taskId && turn.id === latestTaskTurn && <Link href={`/#task/${encodeURIComponent(turn.taskId)}`} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Open {turn.taskId}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}

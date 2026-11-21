@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, newConversationId, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
+import { applyCompaction, CHAT_MODELS, ChatInputError, conversationForRequest, mergeFollowups, newConversationId, requestFor, SUMMARY_PREFIX, parseChatRequest, readChatBody, readJsonLines, sanitizeChatEvent, type ChatTurn } from "../lib/chat-model.ts";
 import { completionEvents } from "../lib/chat-stream.ts";
 
 const model = CHAT_MODELS[0].id;
@@ -144,4 +144,19 @@ test("a chat request carries its conversation id, and only a well-formed one", (
     { model, messages: [user], conversationId: "abc12345def" });
   assert.throws(() => parseChatRequest({ model, messages: [user], conversationId: "bad id!" }), ChatInputError);
   assert.match(newConversationId(), /^[A-Za-z0-9_-]{8,64}$/);
+});
+
+test("follow-ups attach once to the answer waiting for them and go back to the model", () => {
+  const turns: ChatTurn[] = [
+    { id: "u1", role: "user", content: "what if an oven", status: "complete" },
+    { id: "a1", role: "assistant", content: "Running the forecast.", status: "complete", taskId: "SC-1", awaiting: true },
+    { id: "u2", role: "user", content: "and today?", status: "complete" },
+    { id: "a2", role: "assistant", content: "Friday.", status: "complete", taskId: "SC-1" },
+  ];
+  const steps = [{ id: 7, kind: "followup", text: "Wojciech approved it." }, { id: 5, kind: "looked_up", text: "x" }];
+  const merged = mergeFollowups(turns, steps);
+  assert.deepEqual(merged[1].followups, [{ id: 7, text: "Wojciech approved it." }]);
+  assert.equal(mergeFollowups(merged, steps), merged);  // nothing new: same array
+  assert.match(requestFor(merged).messages[1].content, /Update: Wojciech approved it\./);
+  assert.equal(sanitizeChatEvent({ type: "done", truncated: false, task_id: "SC-1", followups: true })?.type, "done");
 });

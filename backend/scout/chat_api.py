@@ -123,12 +123,18 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
         raise ApiError(503, "scout_unavailable", f"Scout could not start: {type(e).__name__}") from None
     asker = by or settings.ceo_id
     question = turns[-1]["content"]
+    role = ctx.hr.role(asker)
+    # the current turn is screened first and alone (the strike is decided on it), before anything is stored: the task
+    # API is readable by anyone, so a blocked prompt gets a neutral title and no preview
+    blocked = guardrails.screen_human(ctx, asker, question, role=role)
     preview = question if len(question) <= 60 else question[:57] + "…"
     key = f"web:{body.conversation_id}" if body.conversation_id else f"web:{secrets.token_hex(8)}"
-    task = ctx.recorder.open(key, "chat", f"Dashboard chat: “{preview}”", requested_by=asker, owner_id=asker)
+    task = ctx.recorder.open(key, "chat", "Dashboard chat: blocked message" if blocked else f"Dashboard chat: “{preview}”",
+                             requested_by=asker, owner_id=asker)
     if task.status != "in_progress":
         ctx.recorder.set_status(task.id, "in_progress")
-    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
+    ctx.recorder.step(task.id, "picked_up", f"{ctx.hr.name(asker)} sent a message that the safety policy blocked"
+                      if blocked else f"{ctx.hr.name(asker)} asked: “{preview}”", source="dashboard")
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     files: list[dict[str, Any]] = []
@@ -154,9 +160,9 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                                   source="scout")
                 events.put({"type": "compacted", "summary": summary, "replaced": replaced})
 
-            role = ctx.hr.role(asker)
-            history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
-            reply = guardrails.screen_human(ctx, asker, question, role=role, task_id=task.id)  # strikes: this turn only
+            reply = blocked
+            if reply is None:  # the current turn passed; the history the client resent is screened next
+                history = guardrails.screen_history(ctx, turns[:-1], task_id=task.id, requester=asker)
             if reply is not None:  # blocked by the safety policy: no model call at all
                 ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it",
                                   source="guardrails")

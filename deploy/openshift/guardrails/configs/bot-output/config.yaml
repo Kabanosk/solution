@@ -19,10 +19,10 @@ rails:
           - "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]{4}){3,7}(?:\\s?[A-Z0-9]{1,4})?\\b"
           - "\\b(?:\\d[ -]?){13,19}\\b"
           # A URL is fine only if its host is an allowed domain or a subdomain of one, and the host ends right there
-          # (/ : ? # whitespace ) or end of text). "slack.com.evil.net" and "slack.com@evil.net" are blocked.
+          # (only an optional :port, then / ? # whitespace ) or end of text; any @ in the authority is blocked). "slack.com.evil.net" and "slack.com@evil.net" are blocked.
           # Allowed: what Scout links to (Slack, KSeF incl. api-test and ksef-test, in-cluster services, localhost).
           # The dashboard's own links are swapped for an in-cluster placeholder by Scout before the check.
-          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|localhost|127\\.0\\.0\\.1|slack\\.com|ksef\\.mf\\.gov\\.pl|ksef-test\\.mf\\.gov\\.pl)(?=[/:?#\\s)]|$))[^\\s)]+"
+          - "https?://(?!(?:[\\w-]+\\.)*(?:svc\\.cluster\\.local|localhost|127\\.0\\.0\\.1|slack\\.com|ksef\\.mf\\.gov\\.pl|ksef-test\\.mf\\.gov\\.pl)(?::\\d+)?(?:[/?#\\s)]|$))[^\\s)]+"
   output:
     flows:
       - detect sensitive data on output

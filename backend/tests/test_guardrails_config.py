@@ -209,6 +209,11 @@ def test_bot_output_entities_and_flows(maps):
         "http://svc.cluster.local.evil.invalid/x",
         "https://example.com/docs",  # nothing real uses example.com: no longer allowed
         "https://ksef.mf.gov.pl.evil.invalid/x",
+        "https://slack.com:x@evil.invalid/",  # colon after an allowed host, real host in the userinfo trick
+        "https://slack.com:443@evil.invalid/",
+        "https://user:pass@slack.com/x",
+        "https://user@slack.com/x",
+        "https://slack.com:abc/x",
     ],
 )
 @pytest.mark.parametrize("config", ["guard-bot-output", "guard-bot-output-finance"])
@@ -227,6 +232,7 @@ def test_bot_output_regex_blocks_leaks(maps, config, text):
         "Thread: https://acme.slack.com/archives/C01/p1, (https://slack.com) and https://a.b.slack.com:8443/x?y=1#z",
         "E-invoice at https://api-test.ksef.mf.gov.pl/v2/invoices and https://ksef-test.mf.gov.pl/web, https://ksef.mf.gov.pl",
         "Local: http://localhost:3000/tasks/SC-1 and http://127.0.0.1:8010/mock",
+        "Port: https://acme.slack.com:443/archives/C01 and (https://slack.com:8443)",
     ],
 )
 @pytest.mark.parametrize("config", ["guard-bot-output", "guard-bot-output-finance"])

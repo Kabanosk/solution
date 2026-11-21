@@ -491,10 +491,13 @@ def test_the_current_message_is_checked_on_its_own_and_long_history_in_batches(c
                     {"role": "assistant", "content": f"answer {i} " + "y" * 15900}]
     events = _ask(client, [*history, {"role": "user", "content": f"the {SALARY}?"}])
     assert "attempt 1 of 3" in events[0]["text"]  # the current message was checked, not crowded out
+    assert ctx.guard.configs() == ["user-input"] and len(ctx.guard.messages[0]) == 1  # blocked: nothing else is spent
+    ctx.guard.calls.clear(), ctx.guard.messages.clear()
+    events = _ask(client, [*history, {"role": "user", "content": "a fine question"}])
+    assert [e["text"] for e in events if e["type"] == "delta"] == ["Fine."]
+    assert ctx.guard.configs()[0] == "user-input" and len(ctx.guard.messages[0]) == 1  # the current turn goes first
     assert all(len(m) <= guardrails.MAX_CHUNKS for m in ctx.guard.messages)
-    checked = sum(len(m) for m in ctx.guard.messages)
-    assert checked >= 2 * 30 * 2  # every history turn went through a check (two or more chunks each)
-    assert [len(m) for cfg, m in zip(ctx.guard.configs(), ctx.guard.messages) if cfg == "user-input"][-1] == 1
+    assert sum(len(m) for m in ctx.guard.messages) >= 2 * 30 * 2  # every history turn went through a check
     get_api_settings.cache_clear()
 
 
@@ -532,16 +535,10 @@ def test_a_blocked_slack_answer_is_never_stored_or_fed_back_as_history(conn_fact
     assert "4000" not in ctx.notifier.updates[-1]["text"] and "4000" not in (out.outcome or "")
 
 
-def test_download_filename_with_non_latin1_characters(conn_factory, tmp_path, monkeypatch):
-    from urllib.parse import unquote
-
+def _documents_client(conn_factory, monkeypatch, token: str | None = "tok"):  # noqa: ANN001, ANN202
     from scout import api as scout_api
     from scout import documents_api
 
-    with conn_factory() as conn:
-        row = conn.execute("INSERT INTO flagged_documents (task_id, name, sha256, content) VALUES "
-                           "('SC-1', %s, 'x', %s) RETURNING id", ("Faktura Łódź.pdf", b"%PDF-1.4")).fetchone()
-        conn.commit()
     app = FastAPI()
     install_error_handlers(app)
     app.include_router(documents_api.router)
@@ -554,13 +551,52 @@ def test_download_filename_with_non_latin1_characters(conn_factory, tmp_path, mo
             c.close()
 
     app.dependency_overrides[scout_api.get_conn] = conn_override
-    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    if token:
+        monkeypatch.setenv("API_WRITE_TOKEN", token)
+    else:
+        monkeypatch.delenv("API_WRITE_TOKEN", raising=False)
     get_api_settings.cache_clear()
-    r = TestClient(app).get(f"/v1/documents/{row['id']}", headers={"Authorization": "Bearer tok"})
+    return TestClient(app)
+
+
+def _keep(conn_factory, task_id: str, name: str = "x.pdf", data: bytes = b"%PDF-1.4") -> int:  # noqa: ANN001
+    with conn_factory() as conn:
+        row = conn.execute("INSERT INTO flagged_documents (task_id, name, sha256, content) VALUES (%s, %s, 'x', %s) "
+                           "RETURNING id", (task_id, name, data)).fetchone()
+        conn.commit()
+    return row["id"]
+
+
+def test_download_filename_with_non_latin1_characters(conn_factory, tmp_path, monkeypatch):
+    from urllib.parse import unquote
+
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))  # an approval is pending: the owner may look at the original
+    doc_id = _keep(conn_factory, task.id, "Faktura Łódź.pdf")
+    c = _documents_client(conn_factory, monkeypatch)
+    r = c.get(f"/v1/documents/{doc_id}", headers={"Authorization": "Bearer tok"})
     assert r.status_code == 200 and r.content == b"%PDF-1.4"
     header = r.headers["content-disposition"]
     assert 'filename="Faktura d.pdf"' in header and "filename*=UTF-8''" in header
     assert unquote(header.split("filename*=UTF-8''")[1]) == "Faktura Łódź.pdf"
+    get_api_settings.cache_clear()
+
+
+def test_documents_are_off_without_a_token_and_after_a_rejection_and_every_download_is_audited(
+        conn_factory, tmp_path, monkeypatch):
+    ctx = poisoned_world(conn_factory, tmp_path)
+    task = run_txn(ctx, pay(ctx, "poisoned"))
+    doc_id = _keep(conn_factory, task.id)
+    off = _documents_client(conn_factory, monkeypatch, token=None)
+    assert off.get(f"/v1/documents/{doc_id}").status_code == 503  # unset token: closed, never open
+    c = _documents_client(conn_factory, monkeypatch)
+    assert c.get(f"/v1/documents/{doc_id}").status_code == 401
+    assert c.get(f"/v1/documents/{doc_id}", headers={"Authorization": "Bearer tok"}).status_code == 200  # pending
+    liquidity.resume(ctx, task.approval_id, False, "vincenzo")
+    assert c.get(f"/v1/documents/{doc_id}", headers={"Authorization": "Bearer tok"}).status_code == 403
+    rows = [r for r in _all_audit(conn_factory) if r["action"] == "download_flagged_document"]
+    assert [r["decision"] for r in rows] == ["ALLOW", "DENY"] and rows[0]["task_id"] == task.id
+    assert "rejected" in rows[1]["reason"]
     get_api_settings.cache_clear()
 
 
@@ -951,3 +987,139 @@ def test_send_dm_is_judged_by_the_recipients_role(conn_factory, tmp_path):
     assert ctx.guard.configs() == ["bot-output", "bot-output-finance"]
     sent = {m["to"]: m["text"] for m in ctx.notifier.sent}
     assert "[IBAN hidden]" in sent["vanessa"] and "PL61" in sent["grazyna"]
+
+
+# -- review round 4 ------------------------------------------------------------------------------------------------
+def test_blocked_prompts_get_a_neutral_title_and_no_preview(conn_factory, tmp_path, monkeypatch):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    out = chat.run(ctx, dm("vanessa", f"The {SALARY} please"))
+    assert SALARY not in out.title and "blocked message" in out.title
+    assert all(SALARY not in s.text for s in ctx.recorder.steps(out.id))
+    client = _chat_client(ctx, monkeypatch)
+    events = _ask(client, [{"role": "user", "content": f"What is the {SALARY}?"}])
+    task = ctx.recorder.get(events[-1]["task_id"])
+    assert SALARY not in task.title and "blocked" in task.title
+    assert all(SALARY not in s.text for s in ctx.recorder.steps(task.id))
+    ok = _ask(client, [{"role": "user", "content": "What is the cash position today?"}])
+    assert "cash position" in ctx.recorder.get(ok[-1]["task_id"]).title  # a clean question keeps its preview
+    get_api_settings.cache_clear()
+
+
+def test_the_current_turn_is_screened_before_the_history_and_a_big_blocked_batch_is_withheld_unchecked(
+        conn_factory, tmp_path, monkeypatch):
+    ctx = make_world(conn_factory, tmp_path, llm=counting_llm()[0])
+    ctx.guard = FakeGuard({"tool-result": [(INJECTION, "injection regex")]})
+    client = _chat_client(ctx, monkeypatch)
+    history = []
+    for i in range(12):
+        history += [{"role": "user", "content": f"q{i}"}, {"role": "assistant", "content": f"a{i}" + (INJECTION if i == 5 else "")}]
+    events = _ask(client, [*history, {"role": "user", "content": "fine question"}])
+    assert [e["type"] for e in events] == ["delta", "done"]
+    assert ctx.guard.calls[0][0] == "user-input" and ctx.guard.calls[0][2] == "fine question"  # current turn first
+    rechecks = [m for cfg, m in zip(ctx.guard.configs(), ctx.guard.messages) if cfg == "tool-result" and len(m) == 1]
+    assert rechecks == []  # 12 assistant turns in a blocked batch: more than MAX_RECHECKS, none rechecked one by one
+    get_api_settings.cache_clear()
+
+
+# KSeF sync path ---------------------------------------------------------------------------------------------------
+def _poisoned_ksef(tail: int):  # noqa: ANN202
+    """A KSeF whose invoices carry an instruction after `tail` characters of an ordinary description."""
+    from test_ksef import FakeKsef
+
+    class Poisoned(FakeKsef):
+        def download(self, token, ksef_number):  # noqa: ANN001, ANN202
+            xml = super().download(token, ksef_number)
+            if b"AS-12345" in xml:
+                xml = xml.replace(b"</P_7>", (b" " + b"x" * tail + b" " + INJECTION.encode()) + b"</P_7>", 1)
+            return xml
+
+    return Poisoned
+
+
+@pytest.fixture
+def ksef_company(conn_factory, tmp_path):  # noqa: ANN001, ANN201
+    from test_ksef import FakeKsef
+
+    FakeKsef.reset()
+    conn = conn_factory()
+    from decimal import Decimal
+    import datetime as dt
+    from cfo.db.repo import Repository
+    from cfo.domain import Transaction
+
+    with Repository(conn).transaction():
+        Repository(conn).add_transaction(Transaction(
+            id="t_open", booking_date=dt.date(2025, 3, 10), type="transfer", reference="Invoice AS-12345",
+            counterparty="Asimex Wholesale Ltd", amount=Decimal("-623.48"), invoice_number="AS-12345"))
+    conn.close()
+    ctx = make_world(conn_factory, tmp_path)
+    ctx.guard = FakeGuard({"tool-result": [(INJECTION, "injection regex")]})
+    return ctx
+
+
+def _sync(ctx, factory):  # noqa: ANN001, ANN202
+    from scout import ksef_sync
+
+    with ctx.conn_factory() as conn:
+        ksef_sync.start(conn)
+    return ksef_sync.run(ctx.conn_factory, ctx.audit, factory, sleep=lambda s: None, ctx=ctx)
+
+
+def _invoice_row(ctx):  # noqa: ANN001, ANN202
+    with ctx.conn_factory() as conn:
+        return conn.execute("SELECT * FROM invoices WHERE number = 'AS-12345'").fetchone()
+
+
+@pytest.mark.parametrize("tail", [10, 5000])  # 5000: far beyond 300 characters of one description
+def test_ksef_sync_holds_a_flagged_invoice_for_the_owner_instead_of_importing_it(ksef_company, tail):
+    ctx = ksef_company
+    res = _sync(ctx, _poisoned_ksef(tail))
+    assert res["flagged"] == 1 and _invoice_row(ctx) is None
+    with ctx.conn_factory() as conn:
+        assert not conn.execute("SELECT documented FROM transactions WHERE id = 't_open'").fetchone()["documented"]
+        (apr,) = conn.execute("SELECT * FROM approvals").fetchall()
+    assert apr["status"] == "pending" and "Suspicious content" in apr["question"] and "KSeF" in apr["question"]
+    assert any("Suspicious content" in m["text"] and m["to"] == "vincenzo" for m in ctx.notifier.sent)
+    again = _sync(ctx, _poisoned_ksef(tail))  # a second sync neither imports it nor makes a second card
+    assert again["flagged"] == 1 and _invoice_row(ctx) is None
+    with ctx.conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM approvals").fetchone()["n"] == 1
+
+
+def test_ksef_sync_never_imports_a_rejected_flagged_invoice_and_imports_an_approved_one(ksef_company):
+    ctx = ksef_company
+    _sync(ctx, _poisoned_ksef(10))
+    with ctx.conn_factory() as conn:
+        apr = conn.execute("SELECT id FROM approvals").fetchone()["id"]
+    liquidity.resume(ctx, apr, False, "vincenzo")
+    assert _sync(ctx, _poisoned_ksef(10))["flagged"] == 1 and _invoice_row(ctx) is None  # rejected: stays out
+    with ctx.conn_factory() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM approvals").fetchone()["n"] == 1  # and no new card
+
+
+def test_ksef_sync_after_approval_does_not_touch_the_filed_invoice(ksef_company):
+    ctx = ksef_company
+    _sync(ctx, _poisoned_ksef(10))
+    with ctx.conn_factory() as conn:
+        apr = conn.execute("SELECT id FROM approvals").fetchone()["id"]
+    liquidity.resume(ctx, apr, True, "vincenzo")  # the owner accepts: filed from the card
+    assert _invoice_row(ctx)["total"] == __import__("decimal").Decimal("623.48")
+    res = _sync(ctx, _poisoned_ksef(10))
+    assert res["on_file"] >= 1 and res["imported"] >= 0
+
+
+def test_ksef_sync_without_guardrails_context_is_unchanged(ksef_company):
+    from scout import ksef_sync
+    from test_ksef import FakeKsef
+
+    ctx = ksef_company
+    with ctx.conn_factory() as conn:
+        ksef_sync.start(conn)
+    res = ksef_sync.run(ctx.conn_factory, ctx.audit, FakeKsef, sleep=lambda s: None)
+    assert res["flagged"] == 0 and _invoice_row(ctx) is not None
+
+
+def test_ksef_text_is_whole():
+    doc = {"supplier": "S", "number": "N", "lines": [{"description": "d" * 5000}] + [{"description": f"l{i}"} for i in range(400)]}
+    text = guardrails.ksef_text(doc)
+    assert "d" * 5000 in text and "l399" in text

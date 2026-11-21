@@ -272,8 +272,7 @@ def _rung_ksef(ctx: JobContext, task: Task, number: str | None) -> tuple[bool, I
                                                       f"the number {number}", source="ksef")
             mismatch = mismatch or inv
             continue
-        v = guardrails.screen_document(ctx, task.id, "\n".join([inv.supplier, *[ln["description"] for ln in inv.lines]]),
-                                       f"KSeF {ksef_number}")
+        v = guardrails.screen_document(ctx, task.id, guardrails.ksef_text(doc), f"KSeF {ksef_number}")  # all of it
         if v.blocked:
             flagged = {"name": f"KSeF {ksef_number}", "rails": v.rails, "from": inv.supplier,
                        "evidence": {"name": f"KSeF {ksef_number}", "kind": "invoice", "ref": f"ksef:{ksef_number}",

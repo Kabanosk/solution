@@ -45,7 +45,7 @@ def _ksef_connect(ctx: JobContext, job: Job) -> Any:
     from scout import ksef_sync
     from scout.connectors.ksef import KsefClient
 
-    return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url)
+    return ksef_sync.run(ctx.conn_factory, ctx.audit, KsefClient, base_url=ctx.settings.ksef_api_url, ctx=ctx)
 
 
 HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {

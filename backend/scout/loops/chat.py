@@ -321,8 +321,8 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
         role = ctx.hr.role(sender) if sender else "staff"
         blocked = guardrails.screen_human(ctx, sender, text, role=role)
         if blocked:
-            preview = text if len(text) <= 60 else text[:57] + "…"
-            task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: “{preview}”",
+            # the task API is readable by anyone: a blocked prompt gets a neutral title and no preview
+            task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: blocked message",
                                      requested_by=sender or "unknown", owner_id=sender)
             if p.get("status_ref"):
                 ctx.notifier.track(task.id, p["status_ref"])

@@ -115,9 +115,9 @@ Response (shortened):
 that blocked (empty list when nothing did): log it. Send `tool` text as
 `{"role": "tool", "tool_call_id": "call_1", "content": "..."}` and the reply as a single `assistant` message.
 
-## Check script (28 prompts)
+## Check script (32 prompts)
 
-`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result`, 9 `bot-output` and 4 `bot-output-finance`
+`deploy/openshift/guardrails/check_prompts.py` (standard library only) runs 9 `user-input`, 6 `tool-result`, 11 `bot-output` and 6 `bot-output-finance`
 prompts (some try to smuggle a URL past the allow-list) and prints status and `activated_rails`
 per prompt. Exit code 1 when any verdict differs or when `guardrails_data.log.activated_rails` is missing from any
 response. It always verifies the TLS certificate before it sends the token (no switch to skip that):
@@ -137,7 +137,7 @@ Everything is in `deploy/openshift/guardrails/configs/<config>/`:
 - Judge prompt: `configs/user-input/prompts.yml`. Keep the last lines `Respond only with 'yes' or 'no'.` / `Answer:`
   and `max_tokens: 3`; a small model needs the few-shot examples, remove them and it blocks ordinary payment
   requests. Add a failing prompt to `check_prompts.py` first, then tune.
-- URL allow-list: the host must be an allowed domain or a subdomain of it and end right there (`/ : ? #`, whitespace,
+- URL allow-list: the host must be an allowed domain or a subdomain of it and end right there (an optional `:port`, then `/ ? #`, whitespace,
   `)` or end of text), so `slack.com.evil.net` and `slack.com@evil.net` are blocked. Add domains to the
   alternation in `configs/bot-output/config.yaml` and `configs/bot-output-finance/config.yaml` (keep both the same) and a bypass sample to the test.
 - Regex lists: `config.yaml` under `rails.config.regex_detection.<input|output>.patterns` (YAML needs `\\` for

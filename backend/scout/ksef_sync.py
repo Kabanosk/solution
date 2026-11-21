@@ -220,10 +220,55 @@ def _import(repo: Repository, doc: dict[str, Any], ksef_number: str, *, our_nip:
     return ("linked", total) if link else ("imported", Decimal(0))
 
 
+def _screen(ctx: Any, doc: dict[str, Any], ksef_number: str) -> str:
+    """Safety check of one received invoice, before it is imported or linked: "ok" (import it), "skip" (flagged:
+    a card is pending or was rejected, or none can be made) or "hold" (flagged: the owner now has a card). The whole
+    text is checked: seller, number and every line with its full description."""
+    from scout import guardrails
+    from scout.loops import invoicing
+    from scout.models import InvoiceDoc
+
+    v = guardrails.screen_document(ctx, None, guardrails.ksef_text(doc), f"KSeF {ksef_number}")
+    if not v.blocked:
+        return "ok"
+    with ctx.conn_factory() as conn:
+        txn = next((t for t in Repository(conn).list_transactions(undocumented_only=True)
+                    if t.invoice_number == doc["number"] and -t.amount == doc["total"]), None)
+        state = conn.execute(
+            "SELECT a.status FROM approvals a JOIN agent_tasks t ON t.id = a.task_id WHERE t.dedupe_key = %s "
+            "ORDER BY a.created_at DESC LIMIT 1", (f"txn:{txn.id}" if txn else "-",)).fetchone() if txn else None
+    if state and state["status"] == "approved":
+        return "ok"  # the owner accepted this document earlier
+    if state or txn is None:  # pending or rejected: never imported meanwhile; no payment: nothing to file against
+        if txn is None:
+            guardrails.alert_outside(ctx, f"ksef:{ksef_number}", f"KSeF {ksef_number} ({doc['number']})", v.rails, None)
+        return "skip"
+    task = ctx.recorder.open(f"txn:{txn.id}", "invoicing", f"Invoice {doc['number']} for {txn.counterparty}",
+                             amount=txn.amount, counterparty=txn.counterparty, transaction_id=txn.id)
+    inv = InvoiceDoc(number=doc["number"], supplier=(doc["supplier"] or txn.counterparty or "?")[:200],
+                     issue_date=doc["issue_date"], total=doc["total"], source=f"ksef:{ksef_number}",
+                     lines=[{"description": (ln["description"] or "-")[:300], "quantity": ln["quantity"],
+                             "unit_price": ln["unit_price"], "amount": ln["amount"]} for ln in doc["lines"][:200]])
+    flagged = {"name": f"KSeF {ksef_number}", "rails": v.rails, "from": inv.supplier,
+               "evidence": {"name": f"KSeF {ksef_number}", "kind": "invoice", "ref": f"ksef:{ksef_number}",
+                            "source": "ksef"}}
+    invoicing.hold_flagged(ctx, task, flagged, doc["number"], inv.issue_date, doc=inv)
+    return "hold"
+
+
+def _safe_screen(ctx: Any, doc: dict[str, Any], ksef_number: str) -> str:
+    try:
+        return _screen(ctx, doc, ksef_number)
+    except Exception:  # noqa: BLE001 - what could not be handled is not imported
+        log.exception("could not screen KSeF invoice %s", ksef_number)
+        return "skip"
+
+
 def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, *,
         base_url: str = TEST_URL, now: Callable[[], dt.datetime] | None = None,
-        sleep: Callable[[float], None] | None = None) -> dict[str, Any]:
-    """The whole one-click flow. Never raises: failures end in phase=error with the reason in the step log."""
+        sleep: Callable[[float], None] | None = None, ctx: Any = None) -> dict[str, Any]:
+    """The whole one-click flow. Never raises: failures end in phase=error with the reason in the step log.
+    With `ctx` (the worker's JobContext) every received invoice goes through the guardrails first."""
     now = now or (lambda: dt.datetime.now(dt.UTC))
     import time as _time
     sleep = sleep or _time.sleep
@@ -282,7 +327,7 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
             sleep(2.0)
         p.step(f"Queried KSeF for invoices addressed to NIP {nip}: {len(metas)} found", received=len(metas))
 
-        counts = {"linked": 0, "on_file": 0, "mismatch": 0, "imported": 0, "review": 0}
+        counts = {"linked": 0, "on_file": 0, "mismatch": 0, "imported": 0, "review": 0, "flagged": 0}
         linked_total = unpaid_total = Decimal(0)
         listing = []
         conn = conn_factory()
@@ -291,6 +336,12 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
             for m in metas:
                 doc = parse_fa3(client.download(token, m["ksefNumber"]))
                 if not doc["number"]:
+                    continue
+                if ctx is not None and (verdict := _safe_screen(ctx, doc, m["ksefNumber"])) != "ok":
+                    counts["flagged"] += 1
+                    listing.append({"number": doc["number"], "ksef_number": m["ksefNumber"], "supplier": doc["supplier"],
+                                    "total": str(doc["total"]), "currency": doc["currency"], "linked": False,
+                                    "outcome": "flagged" if verdict == "hold" else "flagged_skipped"})
                     continue
                 outcome, amount = _import(repo, doc, m["ksefNumber"], our_nip=nip, sellers=known_sellers(nip))
                 counts[outcome] += 1
@@ -311,6 +362,8 @@ def run(conn_factory: ConnFactory, audit: Audit, client_factory: ClientFactory, 
             text += f", {counts['imported']} new and not paid yet (€{unpaid_total:,.2f}, added to payables)"
         if counts["mismatch"]:
             text += f", {counts['mismatch']} with a different amount than the payment"
+        if counts["flagged"]:
+            text += f", {counts['flagged']} flagged by the safety check (not imported; the owner decides)"
         if counts["review"]:
             text += f", {counts['review']} left for review (unknown seller, conflicting or not addressed to us)"
         p.step(text, imported=len(listing), linked=counts["linked"], linked_total=str(linked_total),

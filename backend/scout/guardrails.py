@@ -46,6 +46,7 @@ PROMPT_CHARS = 700  # per prompt, only when the full prompts could not be upload
 CHECK_CHARS = 8000  # one message to the service; longer texts are cut into overlapping chunks, all of them checked
 CHUNK_OVERLAP = 300  # so an instruction cut at a chunk boundary is still whole in one of them
 MAX_CHUNKS = 100
+MAX_RECHECKS = 8  # per-turn rechecks after a blocked history batch; more turns than this are withheld unchecked
 
 WITHHELD = "[content withheld: flagged by guardrail]"
 OUTPUT_REPLY = "I could not share that answer safely. Please rephrase your question."
@@ -462,6 +463,13 @@ def screen_output(ctx: Any, task_id: str | None, text: str, *, requester: str | 
     return work.replace(DASHBOARD_PLACEHOLDER, dash) if swap else work
 
 
+def ksef_text(doc: dict[str, Any]) -> str:
+    """Everything a KSeF invoice says in free text, whole: seller, number and every line description (the import
+    keeps 200 lines of 300 characters, but the check must see all of it)."""
+    return "\n".join([str(doc.get("supplier") or ""), str(doc.get("number") or ""),
+                      *[str(ln.get("description") or "") for ln in doc.get("lines") or []]])
+
+
 # -- 4. earlier turns the client sent --------------------------------------------------------------------
 def _batches(turns: list[dict[str, str]], idx: list[int]) -> list[list[int]]:
     """Group turn indexes so that one `/checks` call never needs more than MAX_CHUNKS messages."""
@@ -493,6 +501,10 @@ def screen_history(ctx: Any, turns: list[dict[str, str]], *, task_id: str | None
             v = check(ctx, config, [turns[i]["content"] for i in batch], task_id=task_id, requester=requester,
                       source=f"earlier {role} turns")
             if not v.blocked:
+                continue
+            if len(batch) > MAX_RECHECKS:  # too many to recheck one by one within the stream timeout: withhold them all
+                for i in batch:
+                    out[i] = {**turns[i], "content": WITHHELD}
                 continue
             for i in batch:
                 iv = check(ctx, config, turns[i]["content"], task_id=task_id, requester=requester,

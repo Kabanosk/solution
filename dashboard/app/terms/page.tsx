@@ -20,7 +20,7 @@ export default function TermsPage() {
     </section>
     <section id="scout-terms-integrations" className="space-y-3">
       <h2 className="text-xl font-semibold">Integrations and user instructions</h2>
-      <p>Scout may use information and integrations that an organization configures to perform its requested workflows. You are responsible for reviewing outputs, approvals, and any actions before relying on them. Google sign-in only confirms your identity: it does not grant Scout access to Gmail. Mailbox onboarding is not available in this release.</p>
+      <p>Scout may use information and integrations that an organization configures to perform its requested workflows. You are responsible for reviewing outputs, approvals, and any actions before relying on them. Google sign-in only confirms your identity: it does not grant Scout access to Gmail. An organization owner may separately connect a Gmail mailbox with read-only permission, as described in the Privacy Policy; only connect a mailbox you are entitled to share with your workspace.</p>
     </section>
     <section id="scout-terms-finance" className="space-y-3">
       <h2 className="text-xl font-semibold">Demonstration service, not financial advice</h2>

@@ -25,7 +25,13 @@ export default function PrivacyPage() {
     <section id="scout-privacy-google" className="space-y-3">
       <h2 className="text-xl font-semibold">Google sign-in is not Gmail access</h2>
       <p>Current Google sign-in requests only basic identity information (name, email, and profile). Scout verifies the Google identity token and stores a linked account identifier; it does not retain Google access or refresh tokens from sign-in. Signing in does not connect a mailbox or let Scout read your emails.</p>
-      <p>Gmail mailbox connections are not currently available in this version. If that feature is introduced, it will require a separate, explicit permission request and an update to this policy before it is offered.</p>
+    </section>
+    <section id="scout-privacy-gmail" className="space-y-3">
+      <h2 className="text-xl font-semibold">Gmail mailbox connections</h2>
+      <p>An organization owner may separately connect one Gmail mailbox to their workspace. This uses its own Google permission request for read-only Gmail access (<code>gmail.readonly</code>) with offline access. Google grants read access to the whole mailbox; Scout restricts its own reads to the one label the owner selects (Inbox by default) and stops reading if that label disappears.</p>
+      <p>Scout stores the resulting refresh token encrypted on the server and never sends it to the browser. When members of that workspace ask Scout to work with email, or a workflow they set up needs it (for example matching an invoice to a payment), Scout reads the relevant messages and attachments from that label, shows the needed results to members of the same workspace, and records the access in the workspace audit log. Message content may be processed by the AI model that answers the request. Scout does not send email, change the mailbox, or share mailbox data with other organizations.</p>
+      <p>This Gmail connection has not yet been verified by Google. Google shows a warning before consent and limits how many accounts can connect. Only connect a mailbox you are entitled to share with your workspace. The owner can disconnect it at any time in Connections, which deletes the stored credential and asks Google to revoke the grant; you can also remove Scout&apos;s access in your Google account security settings.</p>
+      <p>Scout&apos;s use and transfer of information received from Google APIs adheres to the <a className="underline underline-offset-4" href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Gmail data is not used for advertising, is not sold, and is not used to train generalized AI models.</p>
     </section>
     <section id="scout-privacy-storage" className="space-y-3">
       <h2 className="text-xl font-semibold">Storage, sharing, and retention</h2>

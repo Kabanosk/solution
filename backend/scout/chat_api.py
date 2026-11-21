@@ -43,6 +43,7 @@ from scout.hiring_bridge import HiringBridgeError, HiringRequest
 from scout.jobs import JobQueue
 from scout.loops import chat
 from scout.loops.context import HR, JobContext, LogNotifier
+from scout.loops.toolbox import EXTERNAL_TOOLS
 from scout.tasks import TaskRecorder
 
 log = logging.getLogger(__name__)
@@ -60,13 +61,15 @@ EXTERNAL_BASE_URLS = {
     "openai": "https://api.openai.com/v1",
     "mistral": "https://api.mistral.ai/v1",
     "groq": "https://api.groq.com/openai/v1",
+    "xai": "https://api.x.ai/v1",
 }
 
 
 class ExternalModel(BaseModel):
-    """An external provider chosen in the dashboard chat: it runs the same agent loop and tools as Granite."""
+    """An external provider chosen in the dashboard chat: it runs the same agent loop as Granite, with only the
+    small allowlist of tools that never return company data (`toolbox.EXTERNAL_TOOLS`)."""
 
-    provider: str = Field(pattern="^(openai|mistral|groq)$")
+    provider: str = Field(pattern="^(openai|mistral|groq|xai)$")
     model: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,149}$")
     api_key: str = Field(pattern=r"^[\x21-\x7e]{8,512}$", repr=False)
 
@@ -80,7 +83,7 @@ class ChatRequest(BaseModel):
     messages: list[Turn] = Field(min_length=1, max_length=64)
     # One dashboard conversation = one chat task; every question is a step on it. Absent: a task per question.
     conversation_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
-    # Absent: the configured on-premise model (Granite). Present: this provider answers, with the same toolbox.
+    # Absent: the configured on-premise model (Granite, every tool). Present: this provider answers, allowlisted tools only.
     external: ExternalModel | None = None
 
 
@@ -230,7 +233,8 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                 ctx.recorder.set_status(task.id, "cancelled", outcome=reply[:300], resolved_via="auto",
                                         level="NOTIFY")
             else:
-                reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted)
+                reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted,
+                                    allowed_tools=EXTERNAL_TOOLS if body.external is not None else None)
                 reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
                 ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout")
                 waiting_on = dm_replies.pending_count(ctx.conn_factory, task.id)

@@ -195,3 +195,29 @@ def test_rejected_temperature_is_dropped_and_max_tokens_renamed():
     sent.clear()
     assert llm.chat([Message(role="user", content="hi")], max_tokens=50).content == "ok"
     assert len(sent) == 1  # remembered: no second round of rejections
+
+
+def test_reasoning_content_from_a_reasoning_model_is_ignored_and_never_echoed():
+    """xAI reasoning models add `reasoning_content` next to `tool_calls`; it is neither read nor sent back."""
+
+    class Reasoning:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            call = SimpleNamespace(id="c1", function=SimpleNamespace(name="submit", arguments='{"x": 1}'))
+            first = len(self.calls) == 1
+            msg = SimpleNamespace(content=None if first else "done", tool_calls=[call] if first else None,
+                                  reasoning_content="PRIVATE-CHAIN-OF-THOUGHT")
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=None)
+
+    api = Reasoning()
+    llm = llm_with(api)
+    tools = [ToolSpec(name="submit", description="d")]
+    first = llm.chat([Message(role="user", content="go")], tools)
+    assert first.tool_calls[0].name == "submit" and "PRIVATE" not in first.model_dump_json()
+    llm.chat([Message(role="user", content="go"), first.as_message(),
+              Message(role="tool", tool_call_id="c1", content="{}")], tools)
+    assert "PRIVATE-CHAIN-OF-THOUGHT" not in str(api.calls[1]["messages"])
+    assert all(set(m) <= {"role", "content", "tool_calls", "tool_call_id"} for m in api.calls[1]["messages"])

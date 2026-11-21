@@ -188,16 +188,19 @@ def test_chat_says_when_a_followup_will_come(conn_factory, tmp_path, monkeypatch
     get_api_settings.cache_clear()
 
 
-def test_external_model_answers_with_the_same_tools(conn_factory, tmp_path, monkeypatch):
-    """Choosing GPT in the dashboard swaps only the model: the agent loop, toolbox and task log stay Scout's."""
+def test_external_model_answers_through_the_same_loop_with_a_small_toolbox(conn_factory, tmp_path, monkeypatch):
+    """Choosing an external model in the dashboard swaps only the model: the agent loop and task log stay Scout's,
+    but the model sees and may call only the allowlisted tools (no company data)."""
+    from scout.loops.toolbox import EXTERNAL_TOOLS
+
     granite = FakeLLM(handler=lambda m, t: "Granite must not answer.")
     seen_tools: list[set[str]] = []
 
     def handler(messages, tools):  # noqa: ANN001
         seen_tools.append({t.name for t in tools or []})
         if not any(m.role == "tool" for m in messages):
-            return FakeLLM.tool_call("missing_invoices", days=30)
-        return "GPT: one payment has no invoice."
+            return FakeLLM.tool_call("missing_invoices", days=30)  # invented: not on its list
+        return "GPT: that is company data, choose Granite."
 
     gpt = FakeLLM(handler=handler)
     built: list[tuple[str, str, str]] = []
@@ -222,10 +225,22 @@ def test_external_model_answers_with_the_same_tools(conn_factory, tmp_path, monk
     r = c.post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
     events = [json.loads(line) for line in r.text.splitlines()]
     assert [e["type"] for e in events] == ["step", "delta", "done"]
-    assert events[1]["text"] == "GPT: one payment has no invoice."
+    assert events[0]["text"] == "Tried missing invoices(days=30): not available for this model"
+    assert events[1]["text"] == "GPT: that is company data, choose Granite."
     assert built == [("openai", "gpt-4.1-mini", "sk-test-123456")]
     assert granite.calls == []
-    assert {"missing_invoices", "search_email", "search_chat", "send_dm", "send_invoices"} <= seen_tools[0]
+    assert seen_tools[0] == EXTERNAL_TOOLS
     bad = {**body, "external": {"provider": "evil", "model": "x", "api_key": "sk-test-123456"}}
     assert c.post("/v1/chat", json=bad, headers={"Authorization": "Bearer tok"}).status_code in (400, 422)
     get_api_settings.cache_clear()
+
+
+def test_every_dashboard_provider_has_a_fixed_base_url():
+    for provider, url in (("openai", "https://api.openai.com/v1"), ("mistral", "https://api.mistral.ai/v1"),
+                          ("groq", "https://api.groq.com/openai/v1"), ("xai", "https://api.x.ai/v1")):
+        assert chat_api.EXTERNAL_BASE_URLS[provider] == url
+        model = chat_api.ExternalModel(provider=provider, model="grok-4.7", api_key="key-123456")
+        assert model.provider == provider
+    import pytest
+    with pytest.raises(ValueError):
+        chat_api.ExternalModel(provider="evil", model="x", api_key="key-123456")

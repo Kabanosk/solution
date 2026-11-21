@@ -100,8 +100,16 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="start_what_if", description="Start a cash forecast for money going out (a purchase) or coming in "
              "(a client paying us): amount in EUR, month, what, direction 'out' or 'in'. The result comes as a "
              "separate message.", parameters=_p(amount_eur=S, month=S, what=S, direction=S)),
+    ToolSpec(name="send_briefing", description="Send the newest finished daily briefing (owner only) to a colleague's "
+             "Slack DM. person = first name. You never see the briefing text.", parameters=_p(person=S)),
 ]
 NAMES = {s.name for s in SPECS}
+# What a model outside the company's own infrastructure (OpenAI, Mistral, Groq, xAI) may call. None of these returns
+# company data to the model: `start_what_if` only queues a local forecast, `send_briefing` returns {sent, to, title,
+# date} and never the text. `Toolbox.call()` enforces this set; hiding the specs alone would not be a control.
+EXTERNAL_TOOLS: frozenset[str] = frozenset({"dashboard_help", "start_what_if", "send_dm", "send_briefing"})
+BRIEFING_PART = 2500  # characters per Slack message (Slack's section text limit is 3000)
+BRIEFING_PARTS = 3
 
 
 def _num(v: Any) -> Decimal | None:
@@ -134,6 +142,24 @@ def repair_args(args: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
+def _parts(text: str, size: int) -> list[str]:
+    """Split on line breaks into pieces of at most `size` characters (a longer single line is cut)."""
+    out: list[str] = []
+    current = ""
+    for line in text.split("\n"):
+        while len(line) > size:
+            if current:
+                out.append(current)
+                current = ""
+            out.append(line[:size])
+            line = line[size:]
+        if len(current) + len(line) + 1 > size and current:
+            out.append(current)
+            current = ""
+        current = f"{current}\n{line}" if current else line
+    return [*out, current] if current else out
+
+
 def _rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: (str(v) if v is not None else None) for k, v in r.items()} for r in rows[:MAX_ROWS]]
 
@@ -141,8 +167,10 @@ def _rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 class Toolbox:
     """The tools, bound to one asker and one task (for the audit log and the step log)."""
 
-    def __init__(self, ctx: JobContext, requester: str, role: str, task: Task, question: str = ""):
+    def __init__(self, ctx: JobContext, requester: str, role: str, task: Task, question: str = "",
+                 allowed: frozenset[str] | set[str] | None = None):
         self.ctx, self.requester, self.role, self.task = ctx, requester, role, task
+        self.allowed = None if allowed is None else frozenset(allowed)  # None: every tool (Granite, Slack DMs)
         self.question = question
         self.blocked_reply: str | None = None  # set when the output rails stop a message Scout was to send
 
@@ -214,8 +242,12 @@ class Toolbox:
 
     # -- dispatch ------------------------------------------------------------------------------------------
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
-        if name not in NAMES:
-            return {"error": "unknown_tool", "tools": sorted(NAMES)}
+        if name not in NAMES or (self.allowed is not None and name not in self.allowed):
+            visible = NAMES if self.allowed is None else NAMES & self.allowed
+            if name in NAMES:  # a real tool, but this model may not use it: nothing runs, nothing is audited as allowed
+                return {"error": "not_available_for_this_model", "tools": sorted(visible),
+                        "hint": "Company data is only available with the on-premise model (Granite)."}
+            return {"error": "unknown_tool", "tools": sorted(visible)}
         args = repair_args(args)
         try:
             return getattr(self, f"t_{name}")(**{k: v for k, v in args.items() if v not in (None, "")})
@@ -727,6 +759,52 @@ class Toolbox:
         return {"sent": True, "to": self.ctx.hr.full_name(who), "awaiting_reply": True,
                 "note": "Their reply in that Slack thread will be passed on to the asker automatically."}
 
+    def t_send_briefing(self, person: str = "", **_: Any) -> dict[str, Any]:
+        """The newest finished strategy task (the CEO daily briefing, or the news review the dashboard writes), sent
+        to a colleague's Slack DM. The result never carries the text: a model can forward it without reading it."""
+        if not self._is_exec():
+            self.ctx.audit.record("agent", "send_briefing", "tasks", "strategy briefing", "DENY", task_id=self.task.id,
+                                  requester=self.requester, role=self.role, policy="strategy: exec-only")
+            return {"error": "access_denied", "policy": "strategy: exec-only"}
+        if not (person or "").strip():
+            return {"error": "missing_arguments", "hint": "Call again with person (who gets the briefing)."}
+        who = self._on_slack(person)
+        if who is None:
+            return {"error": "unknown_person", "person": person,
+                    "hint": "Nobody by that name in the company or in the Slack workspace."}
+        if not self._slack_of(who):
+            return {"error": "not_on_slack", "person": self.ctx.hr.full_name(who)}
+        rows = self._q("SELECT title, outcome, created_at FROM agent_tasks WHERE loop = 'strategy' AND status = 'done' "
+                       "AND coalesce(outcome, '') <> '' ORDER BY created_at DESC, id DESC LIMIT 1", [])
+        if not rows:
+            return {"error": "no_briefing", "hint": "No daily briefing has finished yet."}
+        title, text, created = rows[0]["title"], rows[0]["outcome"].strip(), rows[0]["created_at"]
+        sign = f"\n\nfrom {self.ctx.hr.name(self.requester)} via Scout"
+        safe = guardrails.screen_output(self.ctx, self.task.id, text[:BRIEFING_PART * 4] + sign, requester=self.requester,
+                                        source="send_briefing", role=self.ctx.hr.role(who))  # judged by who receives it
+        if safe == guardrails.OUTPUT_REPLY:
+            self.blocked_reply = guardrails.OUTPUT_REPLY
+            return {"error": "blocked_by_safety_policy", "sent": False}
+        parts = _parts(safe, BRIEFING_PART)
+        cut = len(text) > BRIEFING_PART * 4 or len(parts) > BRIEFING_PARTS
+        if len(parts) > BRIEFING_PARTS:  # what Slack takes in a few messages; the signature stays on the last one
+            parts = [*parts[:BRIEFING_PARTS - 1], f"{parts[BRIEFING_PARTS - 1][:BRIEFING_PART - len(sign) - 1].rstrip()}…{sign}"]
+        try:
+            for part in parts:
+                if not self.ctx.notifier.dm(who, part, dm_replies.LEVEL, task_id=self.task.id):
+                    raise RuntimeError("not delivered")
+        except Exception:  # noqa: BLE001 - Slack said no: say so, whatever already went out
+            log.exception("send_briefing failed")
+            return {"error": "not_sent", "person": self.ctx.hr.full_name(who),
+                    "hint": "Slack did not deliver it. Tell the user it was not sent."}
+        self.ctx.audit.record("agent", "send_briefing", f"slack:{who}", title[:200], task_id=self.task.id,
+                              requester=self.requester, role=self.role)
+        out: dict[str, Any] = {"sent": True, "to": self.ctx.hr.full_name(who), "title": title,
+                               "date": f"{created:%Y-%m-%d}"}
+        if cut:
+            out["truncated"] = True  # the Slack messages end with an ellipsis; the full text is in the dashboard
+        return out
+
     def t_close_tasks(self, task_ids: str = "", reason: str = "", **_: Any) -> dict[str, Any]:
         reason = (reason or "").strip()
         if not task_ids or len(reason) < 3:
@@ -866,6 +944,8 @@ def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
         return f"Looked at cost trends: {len(result['series'])} cost pairs"
     if result.get("started"):
         return "Started a cash forecast (what-if)"
+    if name == "send_briefing" and result.get("sent"):
+        return f"Sent the {result.get('title', 'daily briefing')} to {result.get('to')}"
     n = next((len(v) for v in result.values() if isinstance(v, list)), None)
     return f"Looked at {label}({shown})" + (f": {n} result(s)" if n is not None else "")
 

@@ -3,6 +3,7 @@ export const EXTERNAL_PROVIDERS = [
   { id: "openai", name: "OpenAI", endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4.1-mini" },
   { id: "mistral", name: "Mistral", endpoint: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest" },
   { id: "groq", name: "Groq", endpoint: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
+  { id: "xai", name: "xAI", endpoint: "https://api.x.ai/v1/chat/completions", model: "grok-4.7" },
 ] as const;
 export type ExternalConfig = { provider: typeof EXTERNAL_PROVIDERS[number]["id"]; model: string; apiKey: string };
 

@@ -44,8 +44,8 @@ spec:
             # The liquidity model is trained on the first request when the file is missing; /tmp is writable under any UID.
             - {name: FORECAST_MODEL_PATH, value: /tmp/liquidity_xgb.json}
           resources:
-            requests: {cpu: 100m, memory: 384Mi}
-            limits: {cpu: "1", memory: 1536Mi}
+            requests: {cpu: 50m, memory: 384Mi}
+            limits: {cpu: "1", memory: 1Gi}
           readinessProbe:
             httpGet: {path: /healthz, port: 8000}
             initialDelaySeconds: 5

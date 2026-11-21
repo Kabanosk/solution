@@ -173,7 +173,7 @@ function StepRow({ step, network, editable, busy, run, patch, reload, onSkip, fo
   const [nipError, setNipError] = useState<string | null>(null);
   const settled = step.state === "connected" || step.state === "sandbox_connected";
   const slackAuthorized = step.id === "slack" && step.display.authorized === true;
-  const facts = Object.entries(step.display).filter(([, value]) => value !== null && value !== "").slice(0, 6);
+  const facts = Object.entries(step.display).filter(([key, value]) => key !== "channel_ids" && value !== null && value !== "").slice(0, 6);
   const id = (suffix: string) => `scout-onboarding-${suffix}-${step.id}`;
 
   const connect = () => {
@@ -228,7 +228,10 @@ function StepRow({ step, network, editable, busy, run, patch, reload, onSkip, fo
             <Input id="scout-onboarding-gmail-label" value={mailLabel} maxLength={100} onChange={event => setMailLabel(event.target.value)} className="h-9" />
             <p>Defaults to INBOX. Google grants read-only mailbox permission; Scout restricts its reads to this label.</p></div>
         </details>}
-        {editable && slackAuthorized && <SlackChannelsForm initial={typeof step.display.channel_ids === "string" ? step.display.channel_ids : ""} disabled={disabled} onSubmit={channels => run("slack", () => saveSlackChannels(tenantFetch, channels))} />}
+        {editable && slackAuthorized && <details id="scout-onboarding-slack-manual" className="pt-1 text-xs text-muted-foreground" open={!settled}>
+          <summary className="cursor-pointer">Edit channels manually</summary>
+          <SlackChannelsForm initial={typeof step.display.channel_ids === "string" ? step.display.channel_ids : ""} disabled={disabled} onSubmit={channels => run("slack", () => saveSlackChannels(tenantFetch, channels))} />
+        </details>}
 
         {editable && form && step.id === "ksef" && <form id="scout-onboarding-ksef-form" className="max-w-sm space-y-1.5 pt-2" noValidate
           onSubmit={event => { event.preventDefault(); if (!validNip(nip.trim())) { setNipError("Enter the 10-digit NIP, digits only."); return; } setNipError(null); void connect(); }}>
@@ -251,12 +254,12 @@ function SlackChannelsForm({ initial, disabled, onSubmit }: { initial: string; d
   return <form id="scout-onboarding-slack-channels-form" className="max-w-md space-y-2 pt-2" onSubmit={event => {
     event.preventDefault();
     const channels = parseSlackChannelIds(value);
-    if (channels === null) { setError("Enter at most 20 Slack channel IDs, starting with C or G, separated by commas or spaces."); return; }
+    if (channels === null) { setError("Enter at most 100 Slack channel IDs, starting with C or G, separated by commas or spaces."); return; }
     setError(null); void onSubmit(channels);
   }}>
     <label htmlFor="scout-onboarding-slack-channels" className="block text-xs font-medium">Slack channel IDs</label>
     <Input id="scout-onboarding-slack-channels" value={value} onChange={event => setValue(event.target.value)} placeholder="C0123456789, G0123456789" autoComplete="off" className="h-9 font-mono" aria-invalid={error ? true : undefined} aria-describedby="scout-onboarding-slack-channels-hint" />
-    <p id="scout-onboarding-slack-channels-hint" className="text-xs leading-5 text-muted-foreground">Copy each channel ID from its Slack details and invite Scout’s bot yourself. Scout verifies read access without joining or sending messages. An empty list turns channel reading off.</p>
+    <p id="scout-onboarding-slack-channels-hint" className="text-xs leading-5 text-muted-foreground">Scout joined these channels when you connected Slack. Remove IDs to stop reading a channel, or add one (invite Scout’s bot to it first). An empty list turns channel reading off.</p>
     {error && <p id="scout-onboarding-slack-channels-error" role="alert" className="text-xs text-danger">{error}</p>}
     <Button id="scout-onboarding-slack-channels-save" type="submit" size="sm" className="h-8" disabled={disabled}>Save channels</Button>
   </form>;

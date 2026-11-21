@@ -275,11 +275,11 @@ def test_approval_handed_to_someone_else_who_approves_by_typing(conn_factory, tm
     t = liquidity.run(ctx, job("what_if", {"amount": "30000", "month": "March", "what": "an oven",
                                            "from_id": "vincenzo", "chat_task": chat_task.id}))
     # only the current approver (or the CEO) may hand it over
-    denied = Toolbox(ctx, "vanessa", "staff", chat_task).call("reassign_approval", {"task_id": t.id, "person": "Rosa"})
+    denied = Toolbox(ctx, "vanessa", "staff", chat_task).call("hand_over_task", {"task_id": t.id, "person": "Rosa"})
     assert denied["error"] == "access_denied"
-    out = Toolbox(ctx, "vincenzo", "ceo", chat_task).call("reassign_approval",
+    out = Toolbox(ctx, "vincenzo", "ceo", chat_task).call("hand_over_task",
                                                          {"task_id": t.id, "person": "Grazyna"})
-    assert out["reassigned"] is True and out["to"] == "Grazyna"
+    assert out["handed"] == [t.id] and out["to"] == "Grazyna"
     card = ctx.notifier.sent[-1]
     assert card["to"] == "grazyna" and [b.action_id for b in card["buttons"]] == ["scout_approve", "scout_reject"]
     task = ctx.recorder.get(t.id)
@@ -301,3 +301,43 @@ def test_unclear_typed_answer_to_an_approval_asks_for_the_buttons(conn_factory, 
     chat.run(ctx, dm("vincenzo", "hmm what does this mean", n=32, thread=ctx.recorder.get(t.id).slack_ref))
     assert ctx.recorder.get(t.id).status == "waiting"
     assert "Approve" in ctx.notifier.updates[-1]["text"] or "Approve" in ctx.notifier.sent[-1]["text"]
+
+
+def test_hand_over_a_waiting_invoice_question(conn_factory, tmp_path):
+    from scout.loops.toolbox import Toolbox
+
+    ctx = make_world(conn_factory, tmp_path, grazyna_away=False)
+    ctx.hr.link_slack({"vincenzo": "U_VIN", "grazyna": "U_GRA"}, {})
+    t = waiting_task(ctx)
+    chat_task = ctx.recorder.open("web:conv88888888", "chat", "Dashboard chat")
+    out = Toolbox(ctx, "vincenzo", "ceo", chat_task).call("hand_over_task", {"task_id": "all-of-grazyna", "person": "x"})
+    assert "error" in out  # "all" means the asker's own waiting tasks only; here a bad id
+    out = Toolbox(ctx, "grazyna", "office_manager", chat_task).call("hand_over_task",
+                                                                   {"task_id": t.id, "person": "Vincenzo"})
+    assert out.get("handed") == [t.id], out
+    moved = ctx.recorder.get(t.id)
+    assert moved.owner_id == "vincenzo" and moved.status == "waiting"
+    msg = ctx.notifier.sent[-1]
+    assert msg["to"] == "vincenzo" and "take this over" in msg["text"] and moved.slack_ref.startswith("D_vincenzo")
+    assert any("handed" in s.text.lower() for s in ctx.recorder.steps(t.id))
+
+
+def test_claimed_actions_that_failed_are_corrected(conn_factory, tmp_path):
+    from scout.loops.chat import answer
+
+    def handler(messages, tools):  # noqa: ANN001
+        if not any(m.role == "tool" for m in messages):
+            return FakeLLM.tool_call("hand_over_task", task_id="SC-999", person="Grazyna")
+        return "I've reassigned the approval tasks to Grazyna as requested."
+
+    ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
+    task = ctx.recorder.open("web:conv99999999", "chat", "Dashboard chat")
+    reply = answer(ctx, task, "give the approvals to Grazyna", "vincenzo", "ceo")
+    assert reply.startswith("I've reassigned") and "Correction" in reply and "SC-999" in reply
+
+
+def test_a_mention_is_not_taken_for_an_invoice_reply(conn_factory, tmp_path):
+    ctx = make_world(conn_factory, tmp_path, grazyna_away=False, llm=route_llm("smalltalk"))
+    t = waiting_task(ctx)
+    out = chat.run(ctx, dm("grazyna", "hello Scout", n=41, thread="C9:7.1", mention=True))
+    assert out.loop == "chat" and ctx.recorder.get(t.id).status == "waiting"

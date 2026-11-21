@@ -122,7 +122,7 @@ def _send_card(ctx: JobContext, task_id: str, apr_id: str, approver: str, questi
     return ref
 
 
-def reassign(ctx: JobContext, approval_id: str, to: str, by: str) -> Task:
+def reassign(ctx: JobContext, approval_id: str, to: str, by: str, chat_task: str | None = None) -> Task:
     """Hand a pending approval to someone else: they get the card, the old card says so, the chat hears it.
     Only the current approver or the owner (CEO) may do it; anyone else raises PermissionError (audited)."""
     apr = _get_approval(ctx, approval_id)
@@ -143,7 +143,7 @@ def reassign(ctx: JobContext, approval_id: str, to: str, by: str) -> Task:
     if old_ref:
         ctx.notifier.update(old_ref, f"{apr.question}\n\n↪ Handed to {new} by {who}", "APPROVAL")
     ctx.recorder.step(apr.task_id, "reassigned", f"{who} asked {new} to approve instead", source="approval",
-                      detail={"approval_id": approval_id, "to": to})
+                      detail={"approval_id": approval_id, "to": to, **({"chat_task": chat_task} if chat_task else {})})
     ctx.recorder.update(apr.task_id, owner_id=to, slack_ref=ref)
     ctx.audit.record(by, "reassign_approval", f"approval:{approval_id}", f"to {to}", task_id=apr.task_id,
                      requester=by)
@@ -259,12 +259,15 @@ def _propose(ctx: JobContext, task: Task, p: Any) -> None:
 
 
 def _chat_followup(ctx: JobContext, task_id: str, text: str) -> None:
-    """A what-if started from a chat reports back into that chat: a `followup` step on the chat's task, which the
-    dashboard chat shows as a new message from Scout."""
-    steps = ctx.recorder.steps(task_id)
-    chat_task = (steps[0].detail or {}).get("chat_task") if steps else None
-    if chat_task:
-        ctx.recorder.step(chat_task, "followup", text, source="scout", detail={"task": task_id})
+    """A what-if reports back into every chat that started or handed it on: a `followup` step on each chat's task,
+    which the dashboard chat shows as a new message from Scout."""
+    chats: list[str] = []
+    for s in ctx.recorder.steps(task_id):
+        c = (s.detail or {}).get("chat_task")
+        if c and c not in chats:
+            chats.append(c)
+    for c in chats:
+        ctx.recorder.step(c, "followup", text, source="scout", detail={"task": task_id})
 
 
 def _status_done(ctx: JobContext, p: dict[str, Any], task_id: str) -> Task:

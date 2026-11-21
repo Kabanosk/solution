@@ -13,6 +13,7 @@ message with the last 8 step lines (at most one edit per second per message; `fl
 from __future__ import annotations
 
 import base64
+import re
 import logging
 import threading
 import time
@@ -236,6 +237,28 @@ class SlackUI:
                                   "channel": channel, "ts": ts, "thread": thread, "status_ref": status_ref},
                            f"dm:{channel}:{ts}")
 
+    def on_mention(self, event: dict[str, Any]) -> None:
+        """@Scout in a channel: answered in a thread under the mention; the thread is one conversation."""
+        employee = self._emp.get(event.get("user", ""))
+        if not employee or event.get("bot_id"):
+            log.info("ignoring a mention from an unknown Slack user")
+            return
+        channel, ts = event["channel"], event["ts"]
+        root = event.get("thread_ts") or ts
+        text = re.sub(r"^\s*(<@[A-Z0-9_]+>\s*)+", "", event.get("text") or "").strip()
+        try:
+            self.client.reactions_add(channel=channel, timestamp=ts, name="eyes")
+        except Exception:  # noqa: BLE001
+            log.warning("could not add the eyes reaction", exc_info=True)
+        res = self.client.chat_postMessage(channel=channel, thread_ts=root, text="[WORKING] Working on it…",
+                                           blocks=self._blocks("Working on it…", "WORKING", None, ()), **self._identity)
+        status_ref = f"{res['channel']}:{res['ts']}"
+        with self._lock:
+            self._origin[status_ref] = (channel, ts)
+        self._jobs.enqueue("dm", {"from_id": employee, "text": text, "files": [], "channel": channel, "ts": ts,
+                                  "thread": f"{channel}:{root}", "status_ref": status_ref, "mention": True},
+                           f"dm:{channel}:{ts}")
+
     def on_action(self, ack: Callable[[], None], body: dict[str, Any]) -> None:
         ack()
         action = (body.get("actions") or [{}])[0]
@@ -270,5 +293,6 @@ class SlackUI:
 
     def register(self, app: Any) -> None:
         app.event("message")(self.on_message)
+        app.event("app_mention")(self.on_mention)
         app.action(APPROVE)(self.on_action)
         app.action(REJECT)(self.on_action)

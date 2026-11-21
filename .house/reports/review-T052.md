@@ -1,28 +1,28 @@
 # Review T052
 
 - **Reviewer:** codex
-- **Note:** Codex reviews Claude's work (2/40 today)
-- **Base:** 35679a2626eeb507d2314626aea3004023c5ea0a
-- **Head:** 1e44fd969e486d217d3effc57fbddd40c146dacc
+- **Note:** Codex reviews Claude's work (6/40 today)
+- **Base:** 40ff9fc61a43627ae8c5c7ae09fb4e3220943de3
+- **Head:** 499dc10d66e47b14d286c1b9acdab37551c433ac
 - **Status:** ok
-- **Blockers:** 1
+- **Blockers:** 0
 - **Majors:** 7
-- **Minors:** 1
+- **Minors:** 2
 - **Nits:** 0
-- **Verdict:** Request changes. Dashboard guardrails are disabled in production wiring, and withheld content can be exposed through the audit API.
-- **Date:** 2026-11-21 01:22
+- **Verdict:** Request changes. The diff has guardrail bypasses, incorrect strike accounting, and an approval retry gap. AC-3 cluster evidence is still pending in the task report.
+- **Date:** 2026-11-21 01:48
 
 Treat the findings as an outside opinion, not necessarily right: fix real bugs, log disagreements.
 
 ## Review text
 
-BLOCKER backend/scout/chat_api.py:82 — The production dashboard context leaves `guard` unset and uses the raw `get_llm()`. All three guardrail checks are disabled on `/v1/chat`, and dashboard LLM calls lack tracing. The tests inject a preconfigured context and miss this wiring failure.
-MAJOR backend/scout/chat_api.py:164 — The endpoint screens only the final user turn, then passes client-supplied history into the model and its compaction call. A previously blocked prompt can reach the model on the next request as an earlier turn.
-MAJOR backend/scout/guardrails.py:153 — Blocked tool results and bot replies are copied into `audit_log.resource`. The read endpoint at `/v1/audit` returns that field without authentication, exposing excerpts of content the guardrail withheld.
-MAJOR backend/scout/guardrails.py:171 — Strike recording, counting, sending the DM, and resetting the counter are separate operations. Concurrent blocks for the same person can send duplicate alerts or reset away a strike that was absent from the alert.
-MAJOR backend/scout/guardrails.py:210 — `SlackUI.dm()` returns `None` when the recipient has no Slack channel. Escalation still records the prompts as reported and resets the counter. A configured Slack ID outside the employee directory also falls back to the CEO, sending the prompts to a different recipient.
-MAJOR backend/scout/guardrails.py:204 — The alert reconstructs prompts from `audit_log.resource`, which `Audit.record()` truncates to 500 characters. Compliance can miss the part of a prompt that triggered the block.
-MAJOR backend/scout/loops/invoicing.py:104 — Approving a flagged PDF files an invoice record synthesized from the payment amount, supplier, and date. The filing call receives no original document, so approval can create a paid invoice record with unverified values while leaving the reviewed PDF unattached.
-MAJOR backend/scout/guardrails.py:224 — External alert deduplication uses a process-local hash of the whole tool response and includes the task ID. The same item can alert repeatedly across tasks, changed search results, or restarts, while a failed notification is suppressed on retry within the same process.
-MINOR .house/checks/T052.json:24 — AC-3 requires evidence in `reports/T052.md`, but the reviewed revision contains no T052 report or recorded cluster result.
-VERDICT: Request changes. Dashboard guardrails are disabled in production wiring, and withheld content can be exposed through the audit API.
+MAJOR backend/scout/loops/chat.py:210 — Slack screens the answer after the raw reply has already been saved in the task step at line 332. The task API exposes that step, and later Slack turns feed the blocked reply back into the model as conversation history.  
+MAJOR backend/scout/chat_api.py:160 — Dashboard strikes count blocked text from prior turns. The dashboard resends a blocked prompt alongside its completed refusal, so two harmless follow-ups can trigger compliance escalation after a single blocked prompt.  
+MAJOR backend/scout/guardrails.py:159 — The check silently drops all chunks after the first 100. A valid `/v1/chat` request can fill that limit with earlier turns, leaving the current user message unchecked before Scout passes it to the model.  
+MAJOR backend/scout/guardrails.py:404 — When the batch check blocks assistant history but an individual recheck times out, the code passes the original turn to the model. A transient failure can therefore release content from a batch that already received a blocking verdict.  
+MAJOR backend/scout/chat_api.py:155 — The dashboard streams the LLM-generated conversation summary before applying the output rail. Sensitive content reproduced in that summary reaches the browser even if the final answer is blocked.  
+MAJOR backend/scout/loops/invoicing.py:336 — If a flagged invoice is followed by a clean match, Scout sends a warning and files the clean match without creating an approval card for the flagged invoice. The same branch exists for files and replies, so the CEO cannot approve or reject those flagged items.  
+MAJOR backend/scout/loops/liquidity.py:194 — The approval is committed before the workflow files the flagged invoice. If the worker crashes or filing raises after that commit, a retry sees the approval as already answered and returns without filing.  
+MINOR backend/scout/documents_api.py:25 — Supplier-controlled filenames are inserted directly into the response header. A filename containing characters outside Latin-1, such as `Faktura Łódź.pdf`, causes Starlette to raise while constructing the download response.  
+MINOR backend/scout/guardrails.py:339 — A successful suspicious-content DM records deduplication state but no `guardrail_escalation` audit row, so the Audit page cannot show that the CEO was notified.  
+VERDICT: Request changes. The diff has guardrail bypasses, incorrect strike accounting, and an approval retry gap. AC-3 cluster evidence is still pending in the task report.

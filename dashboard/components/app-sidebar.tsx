@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Cpu, Inbox, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Play, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Cpu, Inbox, KeyRound, LogOut, MessageSquare, LayoutGrid, ListTodo, PanelLeftClose, Play, Plug, Receipt, RefreshCw, ScrollText, Search, ShieldCheck, SquarePen, Users, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { ScoutMark } from "@/components/brand";
 import { NAV, type IconName, type NavItem, type Route } from "@/lib/nav";
 import { LOOP_SIGNAL_LABEL, type LoopSignal } from "@/lib/task-signals";
 import { cn } from "@/lib/utils";
+import { scopeKey } from "@/lib/tenant-browser";
 
 const ICONS: Record<IconName, LucideIcon> = {
   inbox: Inbox, "list-todo": ListTodo, refresh: RefreshCw, layout: LayoutGrid, receipt: Receipt, users: Users, plug: Plug, scroll: ScrollText, shield: ShieldCheck, message: MessageSquare, cpu: Cpu, play: Play,
@@ -31,18 +32,18 @@ function LoopDot({ status }: { status?: LoopStatus }) {
   return <span className={cn("size-1.5 shrink-0 rounded-full", DOT[status.signal])} role="img" data-loop-signal={status.signal} title={parts} aria-label={LOOP_SIGNAL_LABEL[status.signal]} />;
 }
 
-export function AppSidebar({ active, counts, user, demo, onNavigate, onSearch, onNewTask }: {
-  active: string | null; counts: NavCounts; user: { name: string; role: string }; demo: boolean;
+export function AppSidebar({ active, counts, user, organizationName, organizationSlug, googleAvailable, demo, onNavigate, onSearch, onNewTask }: {
+  active: string | null; counts: NavCounts; user: { name: string; role: string }; organizationName: string; organizationSlug: string; googleAvailable: boolean; demo: boolean;
   onNavigate: (route: Route) => void; onSearch: () => void; onNewTask: () => void;
 }) {
   const { toggleSidebar } = useSidebar();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   useEffect(() => {
-    try { setCollapsed(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}")); } catch { /* Defaults stay expanded. */ }
+    try { setCollapsed(JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEY)) ?? "{}")); } catch { /* Defaults stay expanded. */ }
   }, []);
   const toggle = (section: string) => setCollapsed(previous => {
     const next = { ...previous, [section]: !previous[section] };
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* Collapse still works without storage. */ }
+    try { localStorage.setItem(scopeKey(STORAGE_KEY), JSON.stringify(next)); } catch { /* Collapse still works without storage. */ }
     return next;
   });
   const count = (item: NavItem) => item.countKey === "loop" ? counts.loops[item.loop!] ?? 0
@@ -54,12 +55,17 @@ export function AppSidebar({ active, counts, user, demo, onNavigate, onSearch, o
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button id="scout-company-switcher" variant="ghost" className="h-8 min-w-0 flex-1 justify-start gap-2 px-1.5 text-[13px] font-medium" aria-label="Select workspace">
-              <ScoutMark size={20} /><span id="scout-company-name" className="truncate">Pizzeria Amalfi</span><ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <ScoutMark size={20} /><span id="scout-company-name" className="truncate">{organizationName}</span><ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent id="scout-company-list" align="start" className="min-w-56">
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Scout · Your finance agent</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value="amalfi"><DropdownMenuRadioItem value="amalfi">Pizzeria Amalfi</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+            <DropdownMenuRadioGroup value="current"><DropdownMenuRadioItem value="current" className="min-h-11 font-medium">{organizationName}</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="min-h-11"><a id="scout-switch-org" href="/"><Building2 className="size-4" strokeWidth={1.5} aria-hidden="true" />Find another organization</a></DropdownMenuItem>
+            <form id="scout-link-google-form" action={`/api/auth/google/start?organization=${encodeURIComponent(organizationSlug)}`} method="post"><DropdownMenuItem asChild disabled={!googleAvailable} onSelect={event => event.preventDefault()}><button id="scout-link-google" type="submit" disabled={!googleAvailable} className="min-h-11 w-full text-left"><KeyRound className="size-4" strokeWidth={1.5} aria-hidden="true" />{googleAvailable ? "Link Google sign-in" : "Google sign-in not configured"}</button></DropdownMenuItem></form>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem id="scout-sign-out" className="min-h-11" onSelect={async () => { const result = await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); if (result.ok) window.location.assign("/"); }}><LogOut className="size-4" strokeWidth={1.5} aria-hidden="true" />Sign out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button id="scout-sidebar-search" variant="ghost" size="icon" className="size-7" aria-label="Search (⌘K)" title="Search  ⌘K" onClick={onSearch}><Search className="size-4" aria-hidden="true" /></Button>
@@ -81,7 +87,7 @@ export function AppSidebar({ active, counts, user, demo, onNavigate, onSearch, o
               const current = active === item.id;
               return <SidebarMenuItem key={item.id}>
                 <SidebarMenuButton id={`scout-nav-${item.id}`} asChild isActive={current} className="h-7 gap-2 px-2 text-[13px] font-normal hover:bg-sidebar-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium">
-                  <a href={item.href} aria-current={current ? "page" : undefined} onClick={event => { if (event.metaKey || event.ctrlKey) return; event.preventDefault(); onNavigate(item.route); }}>
+                  <a href={item.href.replace(/^\//, "")} aria-current={current ? "page" : undefined} onClick={event => { if (event.metaKey || event.ctrlKey) return; event.preventDefault(); onNavigate(item.route); }}>
                     <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
                     <span className="flex-1 truncate">{item.label}</span>
                     {item.loop && <LoopDot status={counts.signals[item.loop]} />}

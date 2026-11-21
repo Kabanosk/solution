@@ -1,17 +1,21 @@
-// Requires a local DASHBOARD_PREVIEW=1 server. No live connector writes are made.
+// Requires a local authenticated organization server. No live connector writes are made.
 const { chromium } = require('playwright-core');
+const { authenticatedFixture } = require("./authenticated-browser.cjs");
+let fixture;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const base = process.env.BASE_URL || 'http://127.0.0.1:3000';
+let base = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const output = path.resolve(__dirname, '../../artifacts/connections');
 
 (async () => {
   fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
+    fixture = await authenticatedFixture(browser);
+    base = fixture.base;
     for (const theme of ['light', 'dark']) {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+      const page = await fixture.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       page.on('console', message => { if (message.type() === 'error' && /hydrat/i.test(message.text())) errors.push('Hydration mismatch'); });
@@ -21,7 +25,7 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       assert.equal(await page.locator('[data-connection-row]').count(), 6, 'Integrations form a consistent six-row list');
       assert.equal(await page.locator('#scout-connections [data-slot="card"]').count(), 0, 'Connections are not a mismatched card grid');
       await page.getByText('5 of 6 connected', { exact: true }).waitFor();
-      assert.equal(await page.locator('#scout-connect-google').getAttribute('href'), '/api/google');
+      assert.equal(await page.locator('#scout-connect-google').isDisabled(), true);
       assert.equal(await page.locator('#ksef-invoices').count(), 0, 'Detailed sync output is hidden until requested');
       for (const row of await page.locator('[data-connection-row]').all()) {
         assert.equal(await row.locator('[data-connection-icon] svg').evaluate(e => getComputedStyle(e).width), '16px');
@@ -30,6 +34,7 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       await ksefDetails.focus();
       await page.keyboard.press('Enter');
       await page.locator('#ksef-invoices').waitFor();
+      await page.locator('#ksef-invoices').getByText('VISUAL-1', { exact: true }).waitFor();
       assert.equal(await page.getByRole('button', { name: 'Hide KSeF details', exact: true }).getAttribute('aria-expanded'), 'true');
       await page.getByRole('button', { name: 'Hide KSeF details', exact: true }).click();
       await page.getByRole('button', { name: 'Show Slack details', exact: true }).click();
@@ -41,11 +46,7 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       await page.getByRole('button', { name: 'Hide Email details', exact: true }).click();
       await page.mouse.move(0, 0);
       await page.screenshot({ path: path.join(output, `connections-${theme}.png`), fullPage: true });
-      await page.route('**/api/ksef', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'The integration is temporarily unavailable.' }) }));
-      await page.locator('#ksef-connect').click();
-      await page.getByRole('alert').filter({ hasText: 'The integration is temporarily unavailable.' }).waitFor();
-      assert.equal(await page.locator('#ksef-connect').isEnabled(), true, 'A failed sync remains retryable');
-      assert.equal(await page.getByRole('button', { name: 'Hide KSeF details', exact: true }).getAttribute('aria-expanded'), 'true');
+      assert.equal(await page.locator('#ksef-connect').isDisabled(), true, 'Closed connection mutations are not offered as working actions');
       for (const viewport of [{ width: 320, height: 640 }, { width: 375, height: 812 }, { width: 812, height: 375 }]) {
         await page.setViewportSize(viewport);
         await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, undefined, { timeout: 5000 });
@@ -73,12 +74,15 @@ const output = path.resolve(__dirname, '../../artifacts/connections');
       const helpLink = page.locator('#scout-chat-messages').getByRole('link', { name: 'Connections', exact: true });
       await helpLink.waitFor();
       assert.equal(await helpLink.getAttribute('target'), null, 'Dashboard help navigates in this tab');
+      assert.equal(await helpLink.getAttribute('href'), '#connections', 'Dashboard help preserves the organization path');
       await helpLink.click();
       await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname.replace(/\/$/, ''), `/${fixture.slug}`);
       await page.goto(base + '/#overview');
-      await page.locator('#scout-overview').waitFor({ state: 'visible' });
+      await page.locator('#scout-empty-overview').waitFor({ state: 'visible' });
+      await page.getByRole('heading', { name: 'Your workspace is ready', exact: true }).waitFor();
       assert.deepEqual(errors, []);
-      console.log(`PASS ${theme}: integration list, keyboard details, scopes, Google setup/callback, sync error/retry, responsive layouts, default chat and explicit Overview`);
+      console.log(`PASS ${theme}: integration list, keyboard details, scopes, Google setup/callback, disabled connection mutations, responsive layouts, default chat and explicit Overview`);
       await page.close();
     }
   } finally { await browser.close(); }

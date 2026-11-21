@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 import pandas as pd
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
 
 from cfo.config import REPO_ROOT, get_settings
@@ -171,7 +172,7 @@ def seeded():
     from cfo.db.repo import Repository
 
     schema = f"t014_test_{os.getpid()}"
-    repo = Repository.connect(url)
+    repo = operator_repository(url)
     repo.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     repo.conn.execute(f"CREATE SCHEMA {schema}")
     repo.conn.execute(f"SET search_path TO {schema}")

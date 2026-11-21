@@ -25,10 +25,14 @@ def main(argv: list[str]) -> int:
     if not settings.vllm_metrics_url:
         print("VLLM_METRICS_URL is not set: nothing to sample.", file=sys.stderr)
         return 2
+    from cfo.tenancy import bind_tenant, legacy_connectors_enabled, worker_tenant
+    from scout.db import factory
+    tenant = worker_tenant(get_settings().database_url)
+    if not legacy_connectors_enabled(tenant):
+        raise PermissionError("Global vLLM metrics sampler requires explicit legacy organization configuration")
+    with bind_tenant(tenant):
+        connect = factory(get_settings().database_url)
     fetch = sampler.make_fetch(settings)
-
-    def connect() -> psycopg.Connection:
-        return psycopg.connect(get_settings().database_url, connect_timeout=5)
 
     try:
         done = sampler.run(args.every, connect, fetch, max_iterations=1 if args.once else None)

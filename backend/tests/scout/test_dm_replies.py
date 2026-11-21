@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from cfo.api.errors import install_error_handlers
-from cfo.api.settings import get_api_settings
 from cfo.llm import FakeLLM
 from scout import chat_api, dm_replies
 from scout import api as scout_api
@@ -262,7 +261,7 @@ def test_replies_after_the_chat_completed_are_still_routed_and_slack_origin_is_i
     assert ctx.recorder.get(box.task.id).status == "done"
 
 
-def test_chat_stays_waiting_until_the_reply_and_tells_the_page(conn_factory, tmp_path, monkeypatch):
+def test_chat_stays_waiting_until_the_reply_and_tells_the_page(conn_factory, tmp_path):
     def handler(messages, tools):  # noqa: ANN001
         if not any(m.role == "tool" for m in messages):
             return FakeLLM.tool_call("send_dm", person="Grazyna", text="Is the Asimex invoice filed?")
@@ -276,13 +275,15 @@ def test_chat_stays_waiting_until_the_reply_and_tells_the_page(conn_factory, tmp
     app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
     conn = ctx.conn_factory()
     app.dependency_overrides[scout_api.get_conn] = lambda: conn
-    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
-    get_api_settings.cache_clear()
-    auth = {"Authorization": "Bearer tok"}
+    # Router unit test: the signed-in identity comes from a verified employee, not a shared write token.
+    def verified_employee():
+        return "vincenzo"
+    app.dependency_overrides[chat_api.require_write_token] = verified_employee
     c = TestClient(app)
     try:
         r = c.post("/v1/chat", json={"messages": [{"role": "user", "content": "ask Grazyna"}],
-                                     "conversation_id": "conv_dmreply1"}, headers=auth)
+                                     "conversation_id": "conv_dmreply1"})
+        assert r.status_code == 200
         done = [json.loads(x) for x in r.text.splitlines()][-1]
         assert done["type"] == "done" and done["followups"] is True
         task = ctx.recorder.get(done["task_id"])
@@ -293,15 +294,18 @@ def test_chat_stays_waiting_until_the_reply_and_tells_the_page(conn_factory, tmp
         [step] = followups(ctx, task.id)
 
         body = {"task_id": task.id, "step_ids": [step.id]}
+        app.dependency_overrides.pop(chat_api.require_write_token)
         assert c.post("/v1/chat/followups/ack", json=body).status_code == 401
-        assert c.post("/v1/chat/followups/ack", json={"task_id": "x", "step_ids": [1]}, headers=auth).status_code == 422
-        assert c.post("/v1/chat/followups/ack", json=body, headers=auth).json() == {"acknowledged": 1}
-        assert c.post("/v1/chat/followups/ack", json=body, headers=auth).json() == {"acknowledged": 0}
+        app.dependency_overrides[chat_api.require_write_token] = lambda: "vanessa"
+        assert c.post("/v1/chat/followups/ack", json=body).json() == {"acknowledged": 0}
+        app.dependency_overrides[chat_api.require_write_token] = verified_employee
+        assert c.post("/v1/chat/followups/ack", json={"task_id": "x", "step_ids": [1]}).status_code == 422
+        assert c.post("/v1/chat/followups/ack", json=body).json() == {"acknowledged": 1}
+        assert c.post("/v1/chat/followups/ack", json=body).json() == {"acknowledged": 0}
         run_notify(ctx)
         assert "vincenzo" not in [m["to"] for m in ctx.notifier.sent]
     finally:
         conn.close()
-        get_api_settings.cache_clear()
 
 
 def test_crash_after_the_step_committed_but_before_it_was_linked_adds_no_second_followup(conn_factory, tmp_path):

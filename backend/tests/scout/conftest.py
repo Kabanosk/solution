@@ -39,7 +39,10 @@ def schema() -> Any:
 @pytest.fixture
 def conn_factory(schema):  # noqa: ANN001
     url, name = schema
-    return scout_db.factory(url, name)
+    # Fixture-owned DDL schema, not a runtime organization. Keep this admin seam explicit; production
+    # factories correctly reject switching from the authenticated tenant to arbitrary test schemas.
+    from psycopg.rows import dict_row
+    return lambda: psycopg.connect(url, options=f"-csearch_path={name}", row_factory=dict_row)
 
 
 @pytest.fixture

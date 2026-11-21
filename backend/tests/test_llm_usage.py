@@ -33,7 +33,7 @@ from cfo.usage.vllm_metrics import (
     parse_prometheus_text,
     snapshots_from_text,
 )
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 UTC = timezone.utc
 

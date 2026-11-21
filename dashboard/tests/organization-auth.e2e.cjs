@@ -1,0 +1,118 @@
+// Use an isolated, migrated database and a local server; never point this at a live database.
+const { chromium } = require('playwright');
+const { Pool } = require('pg');
+const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const base = process.env.BASE_URL || 'http://127.0.0.1:3017';
+if (!process.env.SCOUT_AUTH_TEST_DATABASE_URL || !['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Error('An isolated local test database and server are required');
+const pool = new Pool({ connectionString: process.env.SCOUT_AUTH_TEST_DATABASE_URL });
+const output = process.env.SCREENSHOT_DIR || path.resolve(__dirname, '../../artifacts/organization-auth');
+const run = randomUUID().slice(0, 8);
+const slugA = `browser-a-${run}`, slugB = `browser-b-${run}`;
+const password = 'local browser test password';
+(async () => {
+  fs.mkdirSync(output, { recursive: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
+  try {
+    const contextA = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+    const page = await contextA.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(base);
+    await page.getByRole('heading', { name: 'Your organization, in focus.' }).waitFor();
+    await page.screenshot({ path: path.join(output, 'organization-entry.png') });
+    await page.getByRole('button', { name: 'Create organization', exact: true }).click();
+    await page.getByLabel('Organization name', { exact: true }).fill(`Browser Studio A ${run}`);
+    await page.getByLabel('Organization URL', { exact: true }).fill(slugA);
+    await page.getByLabel('Your name', { exact: true }).fill('Browser Owner A');
+    await page.getByLabel('Email', { exact: true }).fill(`browser-a-${run}@example.com`);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Create organization', exact: true }).click();
+    await page.waitForURL(`${base}/${slugA}`);
+    await page.locator('#scout-company-name').waitFor();
+    assert.equal(await page.locator('#scout-company-name').textContent(), `Browser Studio A ${run}`);
+    assert.equal(await page.getByText('Development preview', { exact: false }).count(), 0);
+    assert.equal(await page.getByText('Pizzeria Amalfi', { exact: true }).count(), 0);
+    await page.locator('#scout-nav-overview').click();
+    await page.getByRole('heading', { name: 'Your workspace is ready' }).waitFor();
+    assert.equal(await page.locator('#scout-financial-summary').count(), 0);
+    await page.screenshot({ path: path.join(output, 'empty-private-workspace.png') });
+    await page.locator('#scout-company-switcher').click();
+    assert.equal(await page.getByRole('menuitem', { name: 'Find another organization' }).locator('svg').count(), 1);
+    assert.equal(await page.getByRole('menuitem', { name: 'Sign out' }).locator('svg').count(), 1);
+    await page.keyboard.press('Escape');
+
+    const contextB = await browser.newContext();
+    const signupB = await contextB.request.post(`${base}/api/auth/register`, { headers: { Origin: base }, data: { name: `Browser Studio B ${run}`, slug: slugB, ownerName: 'Browser Owner B', email: `browser-b-${run}@example.com`, password } });
+    assert.equal(signupB.status(), 200, await signupB.text());
+    const schemaA = (await pool.query('SELECT schema_name FROM scout_auth.organizations WHERE slug=$1', [slugA])).rows[0].schema_name;
+    const schemaB = (await pool.query('SELECT schema_name FROM scout_auth.organizations WHERE slug=$1', [slugB])).rows[0].schema_name;
+    await pool.query(`INSERT INTO "${schemaA}".agent_tasks(id,dedupe_key,loop,title) VALUES('SC-PRIVATE-A','e2e-a','chat','Private A task')`);
+    await pool.query(`INSERT INTO "${schemaB}".agent_tasks(id,dedupe_key,loop,title) VALUES('SC-PRIVATE-B','e2e-b','chat','Private B task')`);
+    await pool.query(`INSERT INTO "${schemaA}".agent_tasks(id,dedupe_key,loop,title) VALUES('SC-COLLISION','e2e-same-id','chat','Organization A same-ID record')`);
+    await pool.query(`INSERT INTO "${schemaB}".agent_tasks(id,dedupe_key,loop,title) VALUES('SC-COLLISION','e2e-same-id','chat','Organization B same-ID record')`);
+    const headersA = { 'X-Scout-Organization': slugA };
+    const collision = await contextA.request.get(`${base}/api/tasks/SC-COLLISION`, { headers: headersA });
+    assert.equal((await collision.json()).task.title, 'Organization A same-ID record');
+    if (process.env.API_URL) {
+      const token = (await contextA.cookies(base)).find(cookie => cookie.name === 'scout_session').value;
+      const backendHeaders = { ...headersA, Authorization: `Bearer ${token}` };
+      assert.equal((await contextA.request.get(`${process.env.API_URL}/v1/tasks/SC-PRIVATE-A`, { headers: backendHeaders })).status(), 200);
+      assert.equal((await contextA.request.get(`${process.env.API_URL}/v1/tasks/SC-PRIVATE-B`, { headers: backendHeaders })).status(), 404);
+      assert.equal((await contextA.request.get(`${process.env.API_URL}/v1/tasks/SC-PRIVATE-B`, { headers: { ...backendHeaders, 'X-Scout-Organization': slugB } })).status(), 401);
+      assert.equal((await contextA.request.get(`${process.env.API_URL}/v1/tasks`)).status(), 401);
+      assert.equal((await contextA.request.get(`${process.env.API_URL}/docs`)).status(), 401);
+    }
+    assert.equal((await contextA.request.get(`${base}/api/tasks/SC-PRIVATE-A`, { headers: headersA })).status(), 200);
+    assert.equal((await contextA.request.get(`${base}/api/tasks/SC-PRIVATE-B`, { headers: headersA })).status(), 404);
+    assert.equal((await contextA.request.get(`${base}/api/tasks/SC-PRIVATE-B`, { headers: { 'X-Scout-Organization': slugB } })).status(), 401);
+    assert.equal((await contextB.request.get(`${base}/api/tasks/SC-PRIVATE-A`, { headers: { 'X-Scout-Organization': slugB } })).status(), 404);
+    assert.equal((await contextA.request.post(`${base}/api/auth/login`, { headers: { Origin: 'https://evil.example' }, data: {} })).status(), 403);
+    assert.equal((await contextA.request.post(`${base}/api/auth/login`, { data: {} })).status(), 403);
+    const anonymous = await browser.newContext();
+    assert.equal((await anonymous.request.get(`${base}/api/dashboard`, { headers: headersA })).status(), 401);
+    assert.equal((await anonymous.request.get(`${base}/api/tasks/SC-PRIVATE-A`, { headers: { ...headersA, Authorization: 'Basic dGVzdDp0ZXN0' } })).status(), 401);
+    const callback = await anonymous.request.get(`${base}/api/auth/google/callback?state=invalid&code=invalid`, { maxRedirects: 0 });
+    assert.equal(callback.status(), 303); assert.equal(callback.headers().location, `${base}/?auth=failed`);
+    const googleDraft = { intent: 'register', name: 'Browser Google Draft', slug: `google-draft-${run}` };
+    assert.equal((await anonymous.request.post(`${base}/api/auth/google/start`, { headers: { Origin: 'https://evil.example' }, data: googleDraft })).status(), 403);
+    const googleStart = await anonymous.request.post(`${base}/api/auth/google/start`, { headers: { Origin: base }, data: googleDraft });
+    if (googleStart.status() === 200) {
+      const target = new URL((await googleStart.json()).url);
+      assert.equal(target.origin, 'https://accounts.google.com');
+      assert.equal(target.searchParams.get('scope'), 'openid email profile');
+      assert.equal(target.searchParams.get('code_challenge_method'), 'S256');
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM scout_auth.organizations WHERE slug=$1', [googleDraft.slug])).rows[0].n, 0);
+      const cancel = await anonymous.request.get(`${base}/api/auth/google/callback?state=${encodeURIComponent(target.searchParams.get('state'))}&error=access_denied`, { maxRedirects: 0 });
+      assert.equal(cancel.status(), 303);
+      assert.equal(cancel.headers().location, `${base}/?create=1&auth=signup-failed`);
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM scout_auth.organizations WHERE slug=$1', [googleDraft.slug])).rows[0].n, 0);
+    } else assert.equal(googleStart.status(), 503, 'Missing Google credentials fail visibly without creating an organization');
+    const mobile = await anonymous.newPage();
+    await mobile.setViewportSize({ width: 375, height: 812 });
+    for (const theme of ['light', 'dark']) {
+      await mobile.addInitScript(theme => localStorage.setItem('scout-theme', theme), theme);
+      await mobile.goto(`${base}/pizzeria-amalfi`);
+      await mobile.getByRole('heading', { name: 'Welcome back' }).waitFor();
+      const google = mobile.locator('#scout-google-login');
+      if (await google.evaluate(node => node.tagName) === 'BUTTON') assert.equal(await google.isDisabled(), true);
+      else assert.ok((await google.getAttribute('href')).startsWith('/api/auth/google/start?organization='));
+      assert.equal(await google.locator('img').count(), 1);
+      assert.equal(await mobile.locator('#scout-auth-header').getByRole('button').count(), 1);
+      assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+      await mobile.screenshot({ path: path.join(output, `organization-login-${theme}-mobile.png`) });
+    }
+    const logout = await contextA.request.post(`${base}/api/auth/logout`, { headers: { Origin: base }, data: {} });
+    assert.equal(logout.status(), 200);
+    assert.equal((await contextA.request.get(`${base}/api/tasks/SC-PRIVATE-A`, { headers: headersA })).status(), 401);
+    await page.goto(`${base}/${slugA}`);
+    await page.getByLabel('Email', { exact: true }).fill(`browser-a-${run}@example.com`);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.locator('#scout-company-name').waitFor();
+    assert.equal(await page.locator('#scout-company-name').textContent(), `Browser Studio A ${run}`);
+    assert.deepEqual(errors, []);
+    console.log('Browser registration/login/logout, empty tenant data, two-org IDOR, forged tenant headers, anonymous access, CSRF, invalid OAuth callback and mobile light/dark checks passed.');
+  } finally { await browser.close(); await pool.end(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

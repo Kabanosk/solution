@@ -67,7 +67,10 @@ DEFAULT_PARAMS: dict[str, Any] = {
 def default_model_path() -> Path:
     """`$FORECAST_MODEL_PATH` or `<repo>/models/liquidity_xgb.json`."""
     env = os.environ.get("FORECAST_MODEL_PATH")
-    return Path(env) if env else REPO_ROOT / "models" / MODEL_FILENAME
+    from cfo.tenancy import current_tenant
+    tenant = current_tenant(required=False)
+    base = Path(env) if env else REPO_ROOT / "models" / MODEL_FILENAME
+    return base.parent / "tenants" / tenant.id / base.name if tenant else base
 
 
 def _meta_path(path: Path) -> Path:
@@ -341,7 +344,8 @@ def log_to_mlflow_if_configured(model: ForecastModel, *, register: bool = False,
     `mlflow` is an optional dependency and is only imported when the variable is set. A tracking failure never
     breaks training (it is logged).
     """
-    if not os.environ.get("MLFLOW_TRACKING_URI"):
+    from cfo.tenancy import current_tenant
+    if current_tenant(required=False) is not None or not os.environ.get("MLFLOW_TRACKING_URI"):
         return None
     try:
         mlflow = _mlflow()

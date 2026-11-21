@@ -43,6 +43,15 @@ def test_unknown_or_invalid_topic_is_a_compact_recoverable_error(topic):
     assert len(json.dumps(result)) < 400
 
 
+def test_connection_help_does_not_promise_disabled_authorization_or_sync():
+    guide = help_box().call("dashboard_help", {"topic": "connections"})
+    instructions = " ".join(guide["steps"]).lower()
+    assert "unavailable" in instructions
+    assert "google" in instructions and "ksef" in instructions
+    assert "status" in instructions and "permissions" in instructions and "results" in instructions
+    assert "starts authorization" not in instructions and "starts a test-environment invoice sync" not in instructions
+
+
 def test_one_small_help_schema_is_available_to_the_model():
     specs = [spec for spec in SPECS if spec.name == "dashboard_help"]
     assert len(specs) == 1
@@ -53,12 +62,11 @@ def test_one_small_help_schema_is_available_to_the_model():
     assert len(json.dumps(spec.parameters)) + len(spec.description) < 650
 
 
-def test_chat_api_looks_up_dashboard_help_then_streams_page_guidance(conn_factory, tmp_path, monkeypatch):
+def test_chat_api_looks_up_dashboard_help_then_streams_page_guidance(conn_factory, tmp_path):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
     from cfo.api.errors import install_error_handlers
-    from cfo.api.settings import get_api_settings
     from cfo.llm import FakeLLM
     from scout import chat_api
     from scout.config import get_scout_settings
@@ -81,18 +89,15 @@ def test_chat_api_looks_up_dashboard_help_then_streams_page_guidance(conn_factor
     app.include_router(chat_api.router)
     app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda settings: ctx)
     app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
-    monkeypatch.setenv("API_WRITE_TOKEN", "test-dashboard-help")
-    get_api_settings.cache_clear()
-    try:
-        response = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": "How do I connect my mailbox in the dashboard?"}]}, headers={"Authorization": "Bearer test-dashboard-help"})
-        assert response.status_code == 200
-        events = [json.loads(line) for line in response.text.splitlines()]
-        assert [event["type"] for event in events] == ["step", "delta", "done"]
-        assert "dashboard help" in events[0]["text"]
-        assert "[Connections](/#connections)" in events[1]["text"]
-        assert ctx.recorder.get(events[2]["task_id"]).status == "done"
-        assert len(requests) == 2
-        assert requests[0] == ["system", "user"]
-        assert requests[1] == ["system", "user", "assistant", "tool"]
-    finally:
-        get_api_settings.cache_clear()
+    # Router unit test: provide a verified employee explicitly, never revive the removed shared-token auth.
+    app.dependency_overrides[chat_api.require_write_token] = lambda: "vincenzo"
+    response = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": "How do I connect my mailbox in the dashboard?"}]})
+    assert response.status_code == 200
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert [event["type"] for event in events] == ["step", "delta", "done"]
+    assert "dashboard help" in events[0]["text"]
+    assert "[Connections](/#connections)" in events[1]["text"]
+    assert ctx.recorder.get(events[2]["task_id"]).status == "done"
+    assert len(requests) == 2
+    assert requests[0] == ["system", "user"]
+    assert requests[1] == ["system", "user", "assistant", "tool"]

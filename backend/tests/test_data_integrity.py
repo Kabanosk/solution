@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
 
 from cfo.config import get_settings
@@ -35,7 +36,7 @@ def factory():
         psycopg.connect(url, connect_timeout=2).close()
     except psycopg.OperationalError:
         pytest.skip("Postgres not reachable")
-    admin = Repository.connect(url)
+    admin = operator_repository(url)
     admin.conn.execute(f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE")
     admin.conn.execute(f"CREATE SCHEMA {SCHEMA}")
     admin.conn.execute(f"SET search_path TO {SCHEMA}")

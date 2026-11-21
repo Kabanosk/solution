@@ -14,6 +14,7 @@ from email.parser import BytesParser
 from pathlib import Path
 
 import psycopg
+from api_test_helpers import operator_repository
 import pytest
 
 from cfo.config import get_settings
@@ -194,7 +195,7 @@ def repo():
     except psycopg.OperationalError:
         pytest.skip("Postgres not reachable")
     schema = f"t002_test_{os.getpid()}"
-    r = Repository.connect(url)
+    r = operator_repository(url)
     r.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     r.conn.execute(f"CREATE SCHEMA {schema}")
     r.conn.execute(f"SET search_path TO {schema}")

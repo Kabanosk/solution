@@ -48,8 +48,24 @@ class NewPayment(BaseModel):
 
 
 def create_app(conn_factory=None) -> FastAPI:  # noqa: ANN001
-    store = BankStore(conn_factory or scout_db.factory())
+    # Resolve the connection only after authentication, never during module import.
+    store = BankStore(conn_factory or (lambda: scout_db.connect()))
     app = FastAPI(title="Revolut Business (mock)", version="1.0")
+    from cfo.api.auth import OrganizationAuthMiddleware
+    from cfo.api.errors import install_error_handlers
+    from cfo.tenancy import legacy_connectors_enabled
+    from starlette.responses import JSONResponse
+
+    class LegacyBankOnly:
+        def __init__(self, app):
+            self.app = app
+        async def __call__(self, scope, receive, send):
+            if scope["type"] == "http" and scope["path"] != "/healthz" and not legacy_connectors_enabled():
+                return await JSONResponse({"error": {"code": "not_configured", "message": "Mock bank is disabled for this organization."}}, status_code=403)(scope, receive, send)
+            return await self.app(scope, receive, send)
+    app.add_middleware(LegacyBankOnly)
+    app.add_middleware(OrganizationAuthMiddleware)
+    install_error_handlers(app)
 
     @app.get("/api/1.0/accounts")
     def accounts() -> list[dict]:

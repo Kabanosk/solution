@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from api_test_helpers import TestClient
 
 from cfo.api.errors import install_error_handlers
 from cfo.api.settings import get_api_settings
@@ -34,7 +34,7 @@ def test_chat_streams_steps_then_answer(conn_factory, tmp_path, monkeypatch):
     c = TestClient(app)
     body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "Hello!"},
                          {"role": "user", "content": "Which payments miss an invoice?"}]}
-    assert c.post("/v1/chat", json=body).status_code == 401
+    assert c.post("/v1/chat", json=body, headers={"Authorization": ""}).status_code == 401
     r = c.post("/v1/chat", json=body, headers={"Authorization": "Bearer tok"})
     events = [json.loads(line) for line in r.text.splitlines()]
     assert [e["type"] for e in events] == ["step", "delta", "done"]

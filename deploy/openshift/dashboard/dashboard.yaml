@@ -33,11 +33,12 @@ spec:
             - name: PGDATABASE
               valueFrom: {secretKeyRef: {name: postgres, key: POSTGRESQL_DATABASE}}
             - {name: CFO_API_URL, value: "http://api:8000"}
-            - {name: SCOUT_DEMO, value: "1"}
-            - name: API_WRITE_TOKEN  # server-side only: Scout chat, approvals, Connect Google, demo panel
-              valueFrom: {secretKeyRef: {name: slack, key: API_WRITE_TOKEN}}
-          envFrom:
-            - secretRef: {name: dashboard-auth}
+            - {name: SCOUT_APP_ORIGIN, value: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"}
+            - {name: SCOUT_TRUSTED_CLIENT_IP_HEADER, value: "x-forwarded-for"}
+            - name: SCOUT_GOOGLE_CLIENT_ID
+              valueFrom: {secretKeyRef: {name: scout-login, key: client-id, optional: true}}
+            - name: SCOUT_GOOGLE_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: scout-login, key: client-secret, optional: true}}
           resources:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
@@ -75,6 +76,8 @@ kind: Route
 metadata:
   name: dashboard
   labels: {app: dashboard}
+  annotations:
+    haproxy.router.openshift.io/set-forwarded-headers: replace
 spec:
   to: {kind: Service, name: dashboard}
   port: {targetPort: http}

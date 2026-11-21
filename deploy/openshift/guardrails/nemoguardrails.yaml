@@ -26,3 +26,11 @@ spec:
     # The openai engine insists on this variable; vLLM behind it ignores the value. Not a secret.
     - name: OPENAI_API_KEY
       value: not-needed
+    # Only together with a CPU limit (limitrange.yaml): BLAS/OpenMP size their pools from the 32 host cores.
+    # Without a limit this costs ~20 ms per bot-output check at 4 concurrent checks (measured), so keep both or neither.
+    - name: OMP_NUM_THREADS
+      value: "2"
+    - name: MKL_NUM_THREADS
+      value: "2"
+    - name: OPENBLAS_NUM_THREADS
+      value: "2"

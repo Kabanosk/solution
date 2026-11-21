@@ -1,6 +1,6 @@
 """Operator-only schema tooling. No startup migration and no automatic legacy enrollment.
 
-    python -m cfo.db.migrate --migrate          # auth + provisioning + additive existing Scout upgrades
+    python -m cfo.db.migrate --migrate          # auth + provisioning + additive existing Scout upgrades (dm replies, guardrails)
     python -m cfo.db.migrate --provision UUID   # organization row must already exist
     python -m cfo.db.migrate --check            # rollback auth migration, change nothing
 
@@ -22,7 +22,10 @@ from cfo.config import get_settings
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 AUTH_PATH = Path(__file__).with_name("auth.sql")
-SCOUT_UPGRADE_PATH = Path(__file__).with_name("scout_dm_replies.sql")
+SCOUT_UPGRADE_PATHS = (
+    Path(__file__).with_name("scout_dm_replies.sql"),
+    Path(__file__).with_name("scout_guardrails.sql"),
+)
 
 
 def apply_schema(database_url: str, *, check: bool = False, schema: str | None = None) -> None:
@@ -48,10 +51,10 @@ def _application_ddl() -> str:
 
 
 def _upgrade_scout_schemas(conn: psycopg.Connection) -> None:
-    """Add delegated-reply storage only to registered, already initialized application schemas."""
+    """Add delegated-reply and guardrails storage only to registered, already initialized application schemas."""
     from cfo.tenancy import Tenant
 
-    ddl = SCOUT_UPGRADE_PATH.read_text(encoding="utf-8")
+    ddl = "\n".join(path.read_text(encoding="utf-8") for path in SCOUT_UPGRADE_PATHS)
     previous_path = conn.execute("SHOW search_path").fetchone()[0]
     organizations = conn.execute(
         "SELECT id,slug,schema_name,legacy FROM scout_auth.organizations ORDER BY id FOR UPDATE"

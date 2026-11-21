@@ -30,7 +30,7 @@ def old_scout(upgrade_db, request):
     oid = uuid4() if request.param == "tenant" else LEGACY_ID
     schema = "tenant_" + oid.hex if request.param == "tenant" else "public"
     uid = uuid4()
-    tables = ("agent_tasks", "agent_jobs", "transactions", "checkpoints", "events")
+    tables = ("agent_tasks", "agent_jobs", "transactions", "checkpoints", "events", "audit_log")
     with psycopg.connect(upgrade_db) as conn:
         if schema == "public":
             existing = conn.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'").fetchall()
@@ -49,12 +49,17 @@ def old_scout(upgrade_db, request):
         conn.execute("CREATE TABLE transactions(id text PRIMARY KEY,amount numeric); INSERT INTO transactions VALUES ('payment',-642.80)")
         conn.execute("CREATE TABLE checkpoints(id text PRIMARY KEY,body jsonb); INSERT INTO checkpoints VALUES ('checkpoint','{\"approved\":false}')")
         conn.execute("CREATE TABLE events(id text PRIMARY KEY); INSERT INTO events VALUES ('legacy-event')")
+        # Before T050/T052 the decision check allowed only ALLOW/DENY.
+        conn.execute("CREATE TABLE audit_log(id bigserial PRIMARY KEY, actor text NOT NULL, action text NOT NULL, "
+                     "target text NOT NULL, resource text NOT NULL, "
+                     "decision text NOT NULL CHECK (decision IN ('ALLOW','DENY'))); "
+                     "INSERT INTO audit_log(actor,action,target,resource,decision) VALUES ('legacy','a','t','r','DENY')")
     try:
         yield upgrade_db, str(oid), schema, str(uid)
     finally:
         with psycopg.connect(upgrade_db) as conn:
             if schema == "public":
-                for table in ("dm_replies", "dm_requests", *tables):
+                for table in ("dm_replies", "dm_requests", "guardrail_strikes", "guardrail_alerts", "flagged_documents", *tables):
                     conn.execute(sql.SQL("DROP TABLE IF EXISTS {}.{} CASCADE").format(sql.Identifier(schema), sql.Identifier(table)))
             else:
                 conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
@@ -66,7 +71,7 @@ def snapshot(url, schema):
     with psycopg.connect(url) as conn:
         conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
         return {table: conn.execute(sql.SQL("TABLE {}").format(sql.Identifier(table))).fetchall()
-                for table in ("agent_tasks", "agent_jobs", "transactions", "checkpoints", "events")}
+                for table in ("agent_tasks", "agent_jobs", "transactions", "checkpoints", "events", "audit_log")}
 
 
 def assert_dm_schema(conn, schema):
@@ -78,6 +83,39 @@ def assert_dm_schema(conn, schema):
                            "WHERE c.connamespace=%s::regnamespace AND c.contype='f' AND c.conrelid IN (to_regclass(%s),to_regclass(%s))",
                            (schema, f"{schema}.dm_requests", f"{schema}.dm_replies")).fetchall()
     assert targets == [(schema,), (schema,)]
+
+
+GUARDRAIL_TABLES = ("guardrail_strikes", "guardrail_alerts", "flagged_documents")
+
+
+def assert_guardrails_schema(conn, schema):
+    for table in GUARDRAIL_TABLES:
+        assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.{table}",)).fetchone()[0] is not None, table
+    assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.guardrail_strikes_person_idx",)).fetchone()[0] is not None
+    conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+    for decision in ("ALLOW", "DENY", "MASK", "BLOCK"):
+        conn.execute("INSERT INTO audit_log(actor,action,target,resource,decision) VALUES ('t','a','t','r',%s)", (decision,))
+    with pytest.raises(psycopg.errors.CheckViolation), conn.transaction():
+        conn.execute("INSERT INTO audit_log(actor,action,target,resource,decision) VALUES ('t','a','t','r','MAYBE')")
+
+
+def test_upgrade_adds_guardrail_storage_and_widens_the_decision_constraint(old_scout):
+    url, _, schema, _ = old_scout
+    migrate.migrate_auth(url)
+    with psycopg.connect(url) as conn:
+        assert_guardrails_schema(conn, schema)
+    migrate.migrate_auth(url)  # idempotent
+    with psycopg.connect(url) as conn:
+        conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+        assert conn.execute("SELECT actor,decision FROM audit_log WHERE actor='legacy'").fetchall() == [("legacy", "DENY")]
+        assert conn.execute("SELECT count(*) FROM audit_log WHERE actor='legacy'").fetchone() == (1,)
+
+
+def test_check_does_not_leave_guardrail_tables_behind(old_scout):
+    url, _, schema, _ = old_scout
+    migrate.migrate_auth(url, check=True)
+    with psycopg.connect(url) as conn:
+        assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.guardrail_strikes",)).fetchone() == (None,)
 
 
 def test_upgrade_adds_delegated_reply_tables_without_touching_existing_rows(old_scout):
@@ -134,6 +172,7 @@ def test_registered_new_tenant_still_provisions_current_delegated_reply_schema(u
             conn.execute("INSERT INTO scout_auth.organizations(id,slug,name,schema_name) VALUES (%s,%s,'New tenant',%s)", (oid, "upgrade-" + oid.hex, schema))
             conn.execute("SELECT scout_auth.provision_organization(%s)", (oid,))
             assert_dm_schema(conn, schema)
+            assert_guardrails_schema(conn, schema)
             assert conn.execute(sql.SQL("SELECT count(*) FROM {}.transactions").format(sql.Identifier(schema))).fetchone() == (0,)
     finally:
         with psycopg.connect(upgrade_db) as conn:

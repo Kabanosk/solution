@@ -267,8 +267,46 @@ def test_no_secrets_or_public_hostnames_in_guardrails_files():
             assert not leak.search(path.read_text()), path
 
 
-def test_only_placeholder_env_in_cr(cr):
-    assert cr["spec"]["env"] == [{"name": "OPENAI_API_KEY", "value": "not-needed"}]
+def test_cr_env_is_the_placeholder_key_and_the_thread_cap_only(cr):
+    env = {e["name"]: e["value"] for e in cr["spec"]["env"]}
+    assert env == {"OPENAI_API_KEY": "not-needed", "OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2",
+                   "OPENBLAS_NUM_THREADS": "2"}
+    assert all(set(e) == {"name", "value"} for e in cr["spec"]["env"])  # no valueFrom, no secret
+
+
+def _quantity(value: str) -> float:
+    units = {"m": 1e-3, "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3}
+    for suffix, factor in units.items():
+        if str(value).endswith(suffix):
+            return float(str(value)[: -len(suffix)]) * factor
+    return float(value)
+
+
+def test_limit_range_gives_nemo_requests_and_limits_and_goes_with_the_thread_cap(rendered, cr):
+    """The CR has no resources field: the LimitRange is the only way to bound the pod, and the thread cap is only
+    right together with its CPU limit (measured: without a limit it makes bot-output slower)."""
+    (lr,) = [d for d in rendered if d["kind"] == "LimitRange"]
+    (container,) = lr["spec"]["limits"]
+    assert container["type"] == "Container"
+    assert container["defaultRequest"] == {"cpu": "100m", "memory": "1280Mi"}
+    assert container["default"] == {"cpu": "2", "memory": "2560Mi"}
+    assert _quantity(container["default"]["memory"]) >= _quantity(container["defaultRequest"]["memory"]) >= 1.1 * 1024**3
+    # both or neither
+    capped = {e["name"] for e in cr["spec"]["env"]} >= {"OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"}
+    assert capped
+    assert _quantity(container["default"]["cpu"]) >= 2  # the cap leaves each pool its two threads
+
+
+def test_check_script_uses_the_apps_model_name(check_prompts):
+    """The server caches rails per config_id + model; a second name costs ~630 MiB on the shared service."""
+    import ast
+
+    app = (REPO / "backend" / "scout" / "guardrails.py").read_text()
+    assert 'model: str = "scout"' in app
+    source = (GUARD / "check_prompts.py").read_text()
+    models = [n.values[n.keys.index(k)].value for n in ast.walk(ast.parse(source)) if isinstance(n, ast.Dict)
+              for k in n.keys if isinstance(k, ast.Constant) and k.value == "model"]
+    assert models == ["scout"]
 
 
 # --- check script ----------------------------------------------------------------------------------------------------

@@ -6,6 +6,7 @@ kind: Kustomization
 resources:
   - nemoguardrails.yaml
   - rbac.yaml
+  - limitrange.yaml
 generatorOptions:
   disableNameSuffixHash: true
   labels:

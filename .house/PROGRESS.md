@@ -82,3 +82,7 @@ Format: `- YYYY-MM-DD HH:MM · <kto> · <co jest gotowe / co się zmieniło> · 
 2026-11-21 — Naprawiono wybór banku workera: konfiguracja bunq z onboardingu także dla Amalfi; brak domyślnego bank-mock przy SCOUT_DEMO=0; jawny tryb demo czyta izolowany magazyn bez anonimowego HTTP.
 
 - 2026-11-21: Wdrożono w kodzie pętlę Strategy co 24 godziny w podzie dashboardu, konfigurację promptu i dostawcy oraz dzienniki zadań; podłączono gpt-key/API_KEY i wykonano rebase daily-ceo-strategy na aktualny main. Testy UI i jednostkowe zaliczone; integracja DB wymaga lokalnego PostgreSQL.
+
+- 2026-11-21: Naprawiono dostęp do ustawień Strategy na produkcji: dodano brakującą tabelę, dołączono instrumentation.ts do paczki wdrożeniowej i włączono harmonogram; konto właściciela zapisało prompt i wykonało zadanie SC-316 (done, 4 źródła).
+
+- 2026-11-21: Wyniki pętli Strategy korzystają ze wspólnego renderera Markdown (nagłówki, listy, wyróżnienia i linki), z zachowaniem bezpiecznego renderowania tekstu; typecheck i testy Markdown zaliczone.

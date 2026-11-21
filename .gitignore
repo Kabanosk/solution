@@ -34,3 +34,6 @@ mlflow.db
 /dashboard/private-data/
 /dashboard/data/*
 !/dashboard/data/README.md
+
+# T066 external validation data (never commit)
+/notebooks/external_data/

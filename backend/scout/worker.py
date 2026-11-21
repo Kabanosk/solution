@@ -54,6 +54,7 @@ HANDLERS: dict[str, Callable[[JobContext, Job], Any]] = {
     "bank_txn": invoicing.run, "reminder": invoicing.run, "reply": invoicing.run,
     "cost_check": cost_control.run,
     "what_if": liquidity.run, "liquidity_review": liquidity.run,
+    "chat_forecast": liquidity.run, "hiring_scenario": liquidity.run,
     "dm": chat.run,
     "dm_reply_notify": dm_replies.notify,
     "approval": _approval,

@@ -34,6 +34,9 @@ data:
   CORS_ORIGINS: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
   MLFLOW_TRACKING_URI: "http://mlflow:5000"
+  # Liquidity forecast model served by the API (the alias is re-read every 60 s). Any MLflow error, or an empty registry, falls
+  # back to the local file (FORECAST_MODEL_PATH, trained on first use). Filled by the Jobs in deploy/openshift/forecast.
+  FORECAST_MODEL_URI: "models:/liquidity-forecast@champion"
   # LLM usage and cost (T032): vLLM Prometheus metrics, scraped by Deployment usage-sampler.
   VLLM_METRICS_URL: "http://modelcar-granite-4-0-h-tiny-predictor.my-first-model.svc.cluster.local:8080/metrics"
   VLLM_METRICS_VERIFY: "/etc/llm-ca/service-ca.crt"

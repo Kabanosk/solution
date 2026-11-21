@@ -39,6 +39,7 @@ from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
 from scout.connectors import registry
 from scout.forecast_bridge import ForecastBridgeError, ForecastRequest
+from scout.hiring_bridge import HiringBridgeError, HiringRequest
 from scout.jobs import JobQueue
 from scout.loops import chat
 from scout.loops.context import HR, JobContext, LogNotifier
@@ -265,29 +266,29 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
         raise ApiError(403, "forbidden", "Only the company owner may request this forecast.")
 
     conversation = body.conversation_id or secrets.token_hex(8)
-    task = ctx.recorder.open(f"web-forecast:{requester}:{conversation}", "chat", "Dashboard chat: local forecast",
-                             requested_by=requester, owner_id=requester)
-    ctx.recorder.set_status(task.id, "in_progress")
-    ctx.recorder.step(task.id, "picked_up", "Received a structured forecast request from the external chat",
-                      source="dashboard")
+    intent = body.intent()
+    title = (f"Cash forecast: {intent.horizon_days} days" if intent.amount_eur is None else
+             f"What if: €{intent.amount_eur:,.2f} {'in' if intent.direction == 'in' else 'out'} in {intent.month}")
+    task = ctx.recorder.open(forecast_bridge.task_key(intent, requester, conversation), "liquidity", title,
+                             requested_by=requester, owner_id=requester, simulated=True,
+                             amount=(intent.amount_eur if intent.direction == "in" else -intent.amount_eur)
+                             if intent.amount_eur is not None else None)
     events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
     def run() -> None:
         try:
-            reply = forecast_bridge.run(ctx, task, body.intent(), requester,
+            reply = forecast_bridge.run(ctx, task, intent, requester,
                                         lambda text: events.put({"type": "step", "text": text}))
             reply = guardrails.screen_output(ctx, task.id, reply, requester=requester,
                                              source="local forecast reply", role=role)
-            ctx.recorder.step(task.id, "answered", "Returned forecast results directly to the dashboard",
-                              source="granite")
-            ctx.recorder.set_status(task.id, "done", outcome="Local forecast completed", resolved_via="forecast",
-                                    level="AUTO")
             events.put({"type": "delta", "text": reply})
             events.put({"type": "done", "truncated": False, "task_id": task.id})
         except Exception as error:
             log.exception("local forecast handoff failed")
             ctx.recorder.step(task.id, "error", f"Local forecast failed: {type(error).__name__}", source="granite")
-            ctx.recorder.set_status(task.id, "cancelled", outcome="Local forecast failed")
+            # A failure after enqueueing must not cancel an independently running job.
+            if not any(step.kind == "queued" for step in ctx.recorder.steps(task.id)):
+                ctx.recorder.set_status(task.id, "cancelled", outcome="Forecast handoff failed")
             events.put({"type": "error", "message": str(error) if isinstance(error, ForecastBridgeError)
                         else "The local forecast could not run. Check the scenario date and try again."})
         finally:
@@ -303,6 +304,63 @@ def forecast_endpoint(body: ForecastRequest, by: Annotated[str | None, Depends(r
                 event = events.get(timeout=TIMEOUT_S)
             except queue.Empty:
                 yield _line({"type": "error", "message": "The local forecast took too long. Try again."})
+                return
+            if event is None:
+                return
+            yield _line(event)
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "private, no-store", "X-Accel-Buffering": "no"})
+
+
+@router.post("/chat/hiring", summary="Review public hiring research with Granite and simulate recurring payroll in Liquidity")
+def hiring_endpoint(body: HiringRequest, by: Annotated[str | None, Depends(require_write_token)],
+                    settings: Annotated[ScoutSettings, Depends(get_scout_settings)],
+                    make_ctx: Annotated[ContextFactory, Depends(get_context_factory)]) -> StreamingResponse:
+    from scout import hiring_bridge
+    from scout.audit import EXEC_ROLES
+
+    try:
+        ctx = make_ctx(settings)
+    except Exception:
+        log.exception("could not build the hiring context")
+        raise ApiError(503, "scout_unavailable", "Scout could not start the hiring simulation.") from None
+    requester = by or settings.ceo_id
+    role = ctx.hr.role(requester)
+    allowed = role in EXEC_ROLES
+    ctx.audit.record("agent", "access_check", "bank", "external-chat hiring simulation",
+                     "ALLOW" if allowed else "DENY", requester=requester, role=role,
+                     policy="hiring-bridge: owner-only")
+    if not allowed:
+        raise ApiError(403, "forbidden", "Only the company owner may request a hiring simulation.")
+    conversation = body.conversation_id or secrets.token_hex(8)
+    events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def run() -> None:
+        try:
+            task, reply = hiring_bridge.run(ctx, body.intent(), requester, conversation,
+                                            lambda text: events.put({"type": "step", "text": text}))
+            reply = guardrails.screen_output(ctx, task.id, reply, requester=requester,
+                                             source="local hiring forecast reply", role=role)
+            events.put({"type": "delta", "text": reply})
+            events.put({"type": "done", "truncated": False, "task_id": task.id})
+        except Exception as error:
+            log.exception("local hiring handoff failed")
+            events.put({"type": "error", "message": str(error) if isinstance(error, HiringBridgeError)
+                        else "The hiring simulation could not run. Try again."})
+        finally:
+            events.put(None)
+
+    from contextvars import copy_context
+    bound_context = copy_context()
+    threading.Thread(target=bound_context.run, args=(run,), name="hiring-simulation", daemon=True).start()
+
+    def stream() -> Iterator[str]:
+        while True:
+            try:
+                event = events.get(timeout=TIMEOUT_S)
+            except queue.Empty:
+                yield _line({"type": "error", "message": "The hiring simulation took too long. Try again."})
                 return
             if event is None:
                 return

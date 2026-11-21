@@ -13,6 +13,7 @@ import { OwnerAvatar } from "@/components/tasks/task-list";
 import { StatusIcon } from "@/components/tasks/status-icon";
 import { clock, evidenceView, fullTimestamp, LOOP_LABEL, money, RESOLVED_VIA_LABEL, shortDate, STATUS_LABEL, type Evidence, type TaskDetail } from "@/lib/scout-model";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/markdown";
 
 const SOURCE_ICON: Record<string, LucideIcon> = {
   bank: Landmark, invoicing: Database, files: Folder, email: Mail, mail: Mail, chat: MessagesSquare, slack: Send, forecast: LineChart,
@@ -39,6 +40,7 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
   const [answering, setAnswering] = useState<"approve" | "reject" | null>(null);
   const owner = task.ownerId ? names[task.ownerId] ?? task.ownerId : null;
   const running = task.status === "in_progress";
+  const hiringReport = task.loop === "liquidity" ? [...steps].reverse().find(step => step.hiringReport)?.hiringReport : undefined;
   const evidence = [...task.evidence, ...steps.flatMap(step => step.evidence ? [step.evidence] : [])]
     .filter((item, index, all) => all.findIndex(other => evidenceView(other).label === evidenceView(item).label) === index);
   const subtitle = [
@@ -69,6 +71,10 @@ export function TaskDetailView({ detail, names, onChanged }: { detail: TaskDetai
     </header>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
+        {hiringReport && <section id={`scout-hiring-report-${task.id}`} aria-labelledby={`scout-hiring-report-title-${task.id}`} className="rounded-xl border bg-card">
+          <h2 id={`scout-hiring-report-title-${task.id}`} className="border-b px-4 py-2.5 text-[13px] font-medium">Hiring simulation</h2>
+          <Markdown source={hiringReport} className="min-w-0 px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere]" />
+        </section>}
         <section aria-labelledby="activity-title" className="rounded-xl border bg-card">
           <h2 id="activity-title" className="border-b px-4 py-2.5 text-[13px] font-medium">Activity log</h2>
           {steps.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground">No activity yet.</p> :

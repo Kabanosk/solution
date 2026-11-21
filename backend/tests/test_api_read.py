@@ -239,17 +239,17 @@ def test_forecast_year_shows_the_june_dip_and_stays_above_the_buffer(nov):
 def test_forecast_gap_appears_when_the_buffer_is_above_the_dip(nov, monkeypatch):
     from cfo.api import settings
 
-    monkeypatch.setenv("SAFETY_BUFFER_EUR", "50000")
+    monkeypatch.setenv("SAFETY_BUFFER_EUR", "100000")
     settings.get_api_settings.cache_clear()
     try:
         f = nov.get("/v1/forecast/liquidity", params={"horizon_days": 365}).json()
     finally:
         monkeypatch.undo()
         settings.get_api_settings.cache_clear()
-    assert f["safety_buffer"]["amount"] == "50000.00"
+    assert f["safety_buffer"]["amount"] == "100000.00"
     june = [g for g in f["gaps"] if g["start"] <= "2026-06-30" and g["end"] >= "2026-06-01"]
-    assert len(june) == 1  # the June dip goes below a 50k buffer
-    assert all(amount(g["lowest_balance"]) < Decimal(50000) for g in f["gaps"])
+    assert len(june) == 1  # the June dip goes below a 100k buffer (T061: 50k before the model followed the current level)
+    assert all(amount(g["lowest_balance"]) < Decimal(100000) for g in f["gaps"])
     gap = f["gaps"][0]
     assert f["lowest_point"]["date"] == gap["lowest_date"]  # the first gap holds the lowest point (start of horizon)
     assert any(p["date"] == gap["lowest_date"] for p in f["points"])  # the trough is never sampled away
@@ -257,10 +257,16 @@ def test_forecast_gap_appears_when_the_buffer_is_above_the_dip(nov, monkeypatch)
 
 def test_forecast_model_is_cached_on_disk_after_first_request(nov):
     from cfo.forecast.model import default_model_path
+    from cfo.tenancy import LEGACY_ID, LEGACY_SLUG, Tenant, bind_tenant
 
     nov.get("/v1/forecast/liquidity")
-    assert default_model_path().is_file()
-    assert default_model_path().with_name(default_model_path().name + ".meta.json").is_file()
+    # The API serves the legacy organization of the seeded schema and keeps one model file per organization
+    # (`default_model_path` appends `tenants/<id>/` while a tenant is bound); the test must ask the same way.
+    legacy = Tenant(id=LEGACY_ID, slug=LEGACY_SLUG, schema_name="public", employee_id=None, role="owner", legacy=True)
+    with bind_tenant(legacy):
+        path = default_model_path()
+    assert path.parent.name == LEGACY_ID and path.is_file()
+    assert path.with_name(path.name + ".meta.json").is_file()
 
 
 def test_forecast_validation(nov):

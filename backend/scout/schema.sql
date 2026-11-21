@@ -9,7 +9,7 @@ CREATE SEQUENCE IF NOT EXISTS agent_task_seq START 100;
 CREATE TABLE IF NOT EXISTS agent_tasks (
     id            TEXT PRIMARY KEY DEFAULT ('SC-' || nextval('agent_task_seq')),
     dedupe_key    TEXT NOT NULL UNIQUE,
-    loop          TEXT NOT NULL CHECK (loop IN ('invoicing', 'cost_control', 'liquidity', 'chat', 'expenses')),
+    loop          TEXT NOT NULL CHECK (loop IN ('invoicing', 'cost_control', 'liquidity', 'chat', 'expenses', 'strategy')),
     title         TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'in_progress'
                   CHECK (status IN ('todo', 'in_progress', 'waiting', 'escalated', 'done', 'cancelled')),

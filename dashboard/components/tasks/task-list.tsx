@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { tenantFetch } from "@/lib/tenant-browser";
+import { useMemo, useState } from "react";
+import { ChevronRight, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -58,6 +59,14 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
   tasks: AgentTask[]; names: Record<string, string>; ceo: string; filter: TaskFilter; onFilter: (filter: TaskFilter) => void;
   seen: SeenMap; onOpen: OpenTask;
 }) {
+  const [reviewState, setReviewState] = useState<"idle" | "loading" | "queued" | "error">("idle");
+  async function runReview() {
+    setReviewState("loading");
+    try {
+      const response = await tenantFetch("/api/strategy/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      setReviewState(response.ok ? "queued" : "error");
+    } catch { setReviewState("error"); }
+  }
   const owners = useMemo(() => [...new Set(tasks.map(task => task.ownerId).filter((id): id is string => !!id))], [tasks]);
   const loops = useMemo(() => [...new Set([...Object.keys(LOOP_LABEL).filter(loop => loop !== "expenses"), ...tasks.map(task => task.loop)])], [tasks]);
   const visible = filterTasks(tasks, filter, ceo);
@@ -72,8 +81,12 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0">
           <h1 className="text-[15px] font-medium">{title} <span className="ml-1 text-[13px] font-normal text-muted-foreground">{visible.length}</span></h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">{filter.scope === "inbox" ? "Waiting on or escalated to you, including pending approvals." : "Everything Scout works on, from every loop. Filter by loop, status or owner."}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{filter.loop === "strategy" ? "Daily at 07:00 Berlin time: business progress, relevant news and growth scenarios." : filter.scope === "inbox" ? "Waiting on or escalated to you, including pending approvals." : "Everything Scout works on, from every loop. Filter by loop, status or owner."}</p>
         </div>
+        {filter.loop === "strategy" && <Button size="sm" variant="outline" disabled={reviewState === "loading" || reviewState === "queued"} onClick={runReview}>
+          {reviewState === "loading" && <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />}
+          {reviewState === "queued" ? "Review queued" : "Run today's review"}
+        </Button>}
         <div className="flex rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="Scope">
           {SCOPES.map(scope => { const active = filter.scope === scope.value; const count = scopeCount(scope.value);
             return <button key={scope.label} type="button" id={`scout-task-scope-${scope.value ?? "all"}`} aria-pressed={active}
@@ -83,6 +96,7 @@ export function TaskBoard({ tasks, names, ceo, filter, onFilter, seen, onOpen }:
             </button>; })}
         </div>
       </div>
+      {filter.loop === "strategy" && reviewState !== "idle" && reviewState !== "loading" && <p role="status" className="text-xs text-muted-foreground">{reviewState === "queued" ? "Today's review is queued or already exists. The result appears here when the worker finishes." : "Could not queue the review. A workspace owner can retry when the service is available."}</p>}
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter tasks">
         <select id="scout-task-filter-loop" aria-label="Loop" className={selectClass} value={filter.loop ?? ""} onChange={event => onFilter({ ...filter, loop: event.target.value || undefined })}>
           <option value="">All loops</option>

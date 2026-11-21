@@ -119,7 +119,7 @@ export async function getDashboardData(slug?: string): Promise<DashboardData> {
       )
       SELECT to_char(q.start, 'YYYY-MM-DD') AS start, to_char(q.through, 'YYYY-MM-DD') AS through, rows.*
         FROM q LEFT JOIN rows ON true`)).rows;
-    const scout = { ...await loadScout(client), ceoId: session.employeeId, demo: false };
+    const scout = { ...await loadScout(client, session.role === "owner"), ceoId: session.employeeId, demo: false };
     await client.query("COMMIT");
     result = {
       asOf: summary.as_of, yearLabel: summary.as_of.slice(0, 4),
@@ -163,12 +163,12 @@ async function readOnly<T>(work: (client: PoolClient) => Promise<T>): Promise<T>
 
 /** One agent task with its steps, approval, audit rows and linked transaction; null when it does not exist. */
 export async function getTaskDetail(id: string): Promise<TaskDetail | null> {
-  await requireSession();
-  return readOnly(client => loadTaskDetail(client, id));
+  const session = await requireSession();
+  return readOnly(client => loadTaskDetail(client, id, session.role === "owner"));
 }
 
 /** The audit log or the transaction list, for the views that show them. */
 export async function getRecords<K extends RecordKind>(kind: K): Promise<ScoutRecords[K]> {
-  await requireSession();
-  return readOnly(client => loadRecords(client, kind));
+  const session = await requireSession();
+  return readOnly(client => loadRecords(client, kind, session.role === "owner"));
 }

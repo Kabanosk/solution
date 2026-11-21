@@ -60,7 +60,7 @@ def settings_factory():
         base = dict(database_url="postgresql://unused@localhost/unused", scout_app_origin=APP_ORIGIN,
                     connections_key=MASTER_KEY, google_client_id="google-client-id",
                     google_client_secret="google-client-secret", slack_client_id="slack-client-id",
-                    slack_client_secret="slack-client-secret")
+                    slack_client_secret="slack-client-secret", slack_app_token="xapp-test")
         base.update(overrides)
         return ScoutSettings(**base)
 

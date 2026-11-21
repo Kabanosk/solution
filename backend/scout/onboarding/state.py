@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from psycopg.types.json import Jsonb
-
 from cfo.api.errors import ApiError
 from cfo.tenancy import Tenant
+from psycopg.types.json import Jsonb
+
 from scout.config import ScoutSettings
 from scout.onboarding.catalog import (
     CONNECTION,
@@ -38,6 +38,7 @@ def missing_config(step_id: str, s: ScoutSettings) -> list[str]:
         return [n for n, v in need if not v] + key
     if step_id == "slack":
         need = [("SLACK_CLIENT_ID", s.slack_client_id), ("SLACK_CLIENT_SECRET", s.slack_client_secret),
+                ("SLACK_APP_TOKEN", s.slack_app_token),
                 ("SCOUT_APP_ORIGIN", app_origin(s.scout_app_origin))]
         return [n for n, v in need if not v] + key
     return []
@@ -85,9 +86,18 @@ def _derive(step_id: str, meta: dict[str, Any], row: dict[str, Any] | None, pend
     if step_id == "network":
         return _derive_network(out, decision, network)
     cfg = (row or {}).get("config") or {}
-    if row and row["status"] == "connected":
+    if step_id == "slack" and row and row["status"] == "connected" and not s.slack_app_token:
+        out["display"] = {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id")}
+        out.update(state="needs_configuration", message="Slack events are unavailable: configure SLACK_APP_TOKEN.")
+    elif step_id == "slack" and row and row["status"] == "connected" and not (
+            cfg.get("installer_user_id") and cfg.get("installer_employee_id")):
+        out["display"] = {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id")}
+        out.update(state="needs_configuration", message="Disconnect, then reconnect Slack to link your account and activate messages.")
+    elif row and row["status"] == "connected":
         out["state"] = "sandbox_connected" if step_id in SANDBOX_STEPS else "connected"
         out["message"], out["display"] = _connected(step_id, cfg, docs)
+        if step_id == "slack" and result and result.get("message"):
+            out["message"] = result["message"]
     elif step_id == "slack" and row and cfg.get("authorized") and row["status"] == "disconnected":
         # installed and identity-verified, but no channel is readable yet: honest prerequisite, never "connected"
         out["display"] = {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id")}
@@ -125,9 +135,12 @@ def _connected(step_id: str, cfg: dict[str, Any], docs: int) -> tuple[str, dict[
     if step_id == "email":
         return ("Mailbox authorized read-only with Google.",
                 {"mailbox": cfg.get("email"), "label": cfg.get("label"), "scope": "gmail.readonly", "read_only": True})
-    return ("Channels created later are not joined automatically. Disconnect and connect again to pick them up.",
+    channels = cfg.get("channels") or []
+    message = ("Slack DMs are enabled. No channels were joined; reconnect to add channels." if not channels else
+               "Scout can respond to linked people in these channels and DMs. Reconnect for channels created later.")
+    return (message,
             {"authorized": True, "workspace": cfg.get("team"), "team_id": cfg.get("team_id"),
-             "channels": str(len(cfg.get("channels") or [])), "channel_ids": ", ".join(cfg.get("channels") or [])})
+             "channels": str(len(channels)), "channel_ids": ", ".join(channels)})
 
 
 def _derive_network(out: dict[str, Any], decision: str | None, network: dict[str, Any] | None) -> dict[str, Any]:

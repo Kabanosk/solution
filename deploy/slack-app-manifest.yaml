@@ -25,6 +25,7 @@ oauth_config:
       - reactions:write  # the eyes reaction on an incoming DM
       - im:read  # DM channel info
       - files:read  # download the PDF someone sends in a DM
+      - files:write  # upload generated files in Slack
       - channels:read  # find the authorized channels (#finance)
       - channels:history  # read the authorized channels for payment context
       - groups:history  # same for private channels Scout is invited to

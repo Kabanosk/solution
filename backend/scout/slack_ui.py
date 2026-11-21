@@ -13,7 +13,6 @@ message with the last 8 step lines (at most one edit per second per message; `fl
 from __future__ import annotations
 
 import base64
-import re
 import logging
 import re
 import threading
@@ -52,7 +51,7 @@ def slack_names(client: Any, user_map: Mapping[str, str]) -> dict[str, str]:
             continue
         try:
             u = client.users_info(user=uid)["user"]
-        except Exception:  # noqa: BLE001 - missing users:read or a deleted user: keep the persona name
+        except Exception:
             log.warning("could not look up Slack user %s", uid, exc_info=True)
             continue
         name = u.get("real_name") or (u.get("profile") or {}).get("real_name") or u.get("name")
@@ -70,7 +69,8 @@ class SlackUI:
     def __init__(self, client: Any, user_map: Mapping[str, str], jobs: JobQueue, recorder: TaskRecorder, *,
                  conn_factory: Any = None, audit: Audit | None = None, bot_token: str = "", dashboard_url: str = "",
                  icon_url: str | None = None, username: str = "Scout", download: Callable[[str], bytes] | None = None,
-                 clock: Callable[[], float] = time.monotonic, names: Mapping[str, str] | None = None):
+                 clock: Callable[[], float] = time.monotonic, names: Mapping[str, str] | None = None,
+                 generation: str | None = None, installation_valid: Callable[[], bool] | None = None):
         self.client = client
         self._slack = dict(user_map)  # employee id -> Slack user id
         self._emp = {v: k for k, v in self._slack.items()}
@@ -79,6 +79,8 @@ class SlackUI:
                                  if n and self._slack.get(e)), key=lambda p: -len(p[0]))
         self._jobs, self._recorder, self._cf, self._audit = jobs, recorder, conn_factory, audit
         self._token, self._dash = bot_token, dashboard_url.rstrip("/")
+        self._generation = generation
+        self._installation_valid = installation_valid
         self._identity = {"username": username, **({"icon_url": icon_url} if icon_url else {})}
         self._download = download or self._http_download
         self._clock = clock
@@ -157,7 +159,7 @@ class SlackUI:
         for call, name in ((self.client.reactions_remove, "eyes"), (self.client.reactions_add, "white_check_mark")):
             try:
                 call(channel=channel, timestamp=ts, name=name)
-            except Exception:  # noqa: BLE001 - a missing reaction or scope must not fail the answer
+            except Exception:
                 log.warning("could not set the %s reaction", name, exc_info=True)
 
     def track(self, task_id: str, status_ref: str) -> None:
@@ -198,6 +200,8 @@ class SlackUI:
 
     # -- inbound --------------------------------------------------------------------------------------------
     def _http_download(self, url: str) -> bytes:
+        if self._installation_valid is not None and not self._installation_valid():
+            raise PermissionError("Slack installation is no longer active")
         with httpx.Client(timeout=10, follow_redirects=True) as http:
             r = http.get(url, headers={"Authorization": f"Bearer {self._token}"})
             r.raise_for_status()
@@ -220,7 +224,7 @@ class SlackUI:
         channel, ts = event["channel"], event["ts"]
         try:
             self.client.reactions_add(channel=channel, timestamp=ts, name="eyes")
-        except Exception:  # noqa: BLE001 - already reacted, missing scope: the status message still shows
+        except Exception:
             log.warning("could not add the eyes reaction", exc_info=True)
         res = self.client.chat_postMessage(channel=channel, thread_ts=event.get("thread_ts") or ts,
                                            text="[WORKING] Working on it…",
@@ -235,14 +239,15 @@ class SlackUI:
                 continue
             try:
                 data = self._download(url)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("could not download %s", f.get("name"))
                 continue
             files.append({"name": f.get("name") or "file", "mimetype": f.get("mimetype"),
                           "data_b64": base64.b64encode(data).decode()})
         thread = f"{channel}:{event['thread_ts']}" if event.get("thread_ts") else None
         self._jobs.enqueue("dm", {"from_id": employee, "text": event.get("text") or "", "files": files,
-                                  "channel": channel, "ts": ts, "thread": thread, "status_ref": status_ref},
+                                  "channel": channel, "ts": ts, "thread": thread, "status_ref": status_ref,
+                                  **({"_slack_generation": self._generation} if self._generation else {})},
                            f"dm:{channel}:{ts}")
 
     def _is_scout_thread(self, ref: str) -> bool:
@@ -278,7 +283,7 @@ class SlackUI:
                 text = re.sub(r"^\s*(<@[A-Z0-9_]+>\s*)+", "", text).strip()
             try:
                 self.client.reactions_add(channel=channel, timestamp=ts, name="eyes")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("could not add the eyes reaction", exc_info=True)
             res = self.client.chat_postMessage(channel=channel, thread_ts=root, text="[WORKING] Working on it…",
                                                blocks=self._blocks("Working on it…", "WORKING", None, ()), **self._identity)
@@ -286,7 +291,8 @@ class SlackUI:
             with self._lock:
                 self._origin[status_ref] = (channel, ts)
             self._jobs.enqueue("dm", {"from_id": employee, "text": text, "files": [], "channel": channel, "ts": ts,
-                                      "thread": f"{channel}:{root}", "status_ref": status_ref, "mention": True}, key)
+                                      "thread": f"{channel}:{root}", "status_ref": status_ref, "mention": True,
+                                      **({"_slack_generation": self._generation} if self._generation else {})}, key)
         finally:
             with self._lock:
                 self._handling_mentions.discard(key)
@@ -315,7 +321,9 @@ class SlackUI:
                 self.client.chat_postEphemeral(channel=channel, user=slack_user,
                                                text="[NOTIFY] Only the approver can answer this request.")
             return
-        self._jobs.enqueue("approval", {"approval_id": apr_id, "approved": approved, "by": by}, f"approval:{apr_id}")
+        self._jobs.enqueue("approval", {"approval_id": apr_id, "approved": approved, "by": by,
+                                        **({"_slack_generation": self._generation} if self._generation else {})},
+                           f"approval:{apr_id}")
         msg = body.get("message") or {}
         if channel and msg.get("ts"):
             question = (msg.get("text") or "").removeprefix("[APPROVAL] ")

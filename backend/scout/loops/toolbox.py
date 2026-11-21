@@ -57,7 +57,8 @@ SPECS: list[ToolSpec] = [
     ToolSpec(name="search_payments", description="Bank payments. Filter by counterparty, amount in EUR, days back, "
              "or only those without an invoice.",
              parameters=_p(counterparty=S, amount_eur=S, days=I, undocumented_only={"type": "boolean"})),
-    ToolSpec(name="search_invoices", description="Invoices on file, by invoice number or supplier.",
+    ToolSpec(name="search_invoices", description="Invoices on file, by invoice number or supplier, plus what the "
+             "team said about them in Slack channels.",
              parameters=_p(number=S, supplier=S)),
     ToolSpec(name="cash_position", description="Current bank balance, money in and out in the last 30 days, and "
              "expected refunds or payments.", parameters=_p()),
@@ -307,7 +308,34 @@ class Toolbox:
         if supplier:
             sql += " AND supplier ILIKE %s"
             a.append(f"%{supplier}%")
-        return {"rows": _rows(self._q(sql + " ORDER BY issue_date DESC LIMIT 10", a))}
+        found = self._q(sql + " ORDER BY issue_date DESC LIMIT 10", a)
+        out: dict[str, Any] = {"rows": _rows(found)}
+        talk = self._chat_about(number, found)  # by default: what the team said about it on Slack
+        if talk:
+            out["slack_messages"] = talk
+        return out
+
+    def _chat_about(self, number: str, invoices: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Slack channel messages (last 90 days) naming the invoice number, or its supplier with the exact amount."""
+        since = self.ctx.now() - timedelta(days=90)
+        queries = ([{"invoice_number": number}] if number else []) + [
+            {"invoice_number": r.get("number"), "supplier": r.get("supplier"),
+             "amount": _num(str(r["total"])) if r.get("total") is not None else None}
+            for r in invoices[:3]]
+        seen, out = set(), []
+        for q in queries:
+            try:
+                hits = self.ctx.connectors.chat.search(since=since, task_id=self.task.id, **q)
+            except Exception:  # Slack unreachable: the invoice answer still stands
+                log.warning("chat search for an invoice failed", exc_info=True)
+                return out
+            for h in hits:
+                if (h.channel, h.ts) in seen:
+                    continue
+                seen.add((h.channel, h.ts))
+                out.append({"channel": f"#{h.channel}", "from": h.user_name or h.user, "text": h.text[:300],
+                            **({"link": h.permalink} if h.permalink else {})})
+        return out[:MAX_ROWS]
 
     def t_cash_position(self, **_: Any) -> dict[str, Any]:
         ok, policy = self._allowed("bank", "balance")

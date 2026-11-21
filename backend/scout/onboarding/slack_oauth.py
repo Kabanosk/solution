@@ -13,7 +13,8 @@ import httpx
 from scout.onboarding import http as provider_http
 
 SCOPES = ["channels:read", "channels:history", "channels:join", "groups:read", "groups:history", "users:read",
-          "chat:write", "im:write", "im:read", "im:history"]
+          "chat:write", "im:write", "im:read", "im:history", "app_mentions:read", "reactions:write",
+          "chat:write.customize", "files:read", "files:write"]
 # Installer (user) scopes, used once to invite the bot into the installer's private channels, then revoked.
 USER_SCOPES = ["groups:read", "groups:write"]
 MAX_CHANNELS = 100
@@ -55,7 +56,7 @@ def _post(path: str, *, data: dict[str, str] | None = None, token: str | None = 
 
 
 def install(client_id: str, client_secret: str, code: str, redirect_uri: str) -> dict[str, Any]:
-    """Exchange the code, then verify the identity read-only. Returns token, team, scopes, bot user."""
+    """Exchange the code, then verify the workspace. Returns token, team, scopes, bot and installer IDs."""
     body = _post("/api/oauth.v2.access", data={"client_id": client_id, "client_secret": client_secret, "code": code,
                                                "redirect_uri": redirect_uri})
     if not body.get("ok"):
@@ -75,12 +76,15 @@ def install(client_id: str, client_secret: str, code: str, redirect_uri: str) ->
         raise SlackAuthError("unexpected", token)
     if identity.get("team_id") != team["id"]:
         raise SlackAuthError("identity_mismatch", token)
-    user = body.get("authed_user") or {}
+    user = body.get("authed_user")
+    installer_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(installer_id, str) or not installer_id.strip():
+        raise SlackAuthError("identity_mismatch", token)
     user_token = user.get("access_token") if isinstance(user.get("access_token"), str) else None
     user_granted = {s for s in str(user.get("scope", "")).split(",") if s}
     return {"token": token, "team_id": str(team["id"]), "team": str(team.get("name") or identity.get("team") or ""),
-            "scopes": sorted(granted), "bot_user_id": body.get("bot_user_id"),
-            "user_token": user_token if set(USER_SCOPES) <= user_granted else None}
+            "scopes": sorted(granted), "bot_user_id": body.get("bot_user_id"), "installer_user_id": installer_id,
+            "user_token": user_token, "user_scopes_granted": set(USER_SCOPES) <= user_granted}
 
 
 def _pages(token: str, method: str, data: dict[str, str]) -> list[dict[str, Any]]:

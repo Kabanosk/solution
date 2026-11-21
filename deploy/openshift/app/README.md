@@ -37,7 +37,7 @@ To go through NeMo Guardrails, point `LLM_BASE_URL` at the proxy instead (D-009)
 
 ## Secrets (never commit values; the repo is public)
 
-Slack tokens live in Secret `slack` (keys `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_USER_MAP`), read by the worker
+Slack app transport token lives in Secret `slack` (`SLACK_APP_TOKEN`, scope `connections:write`). Tenant bot tokens are sealed per organization during OAuth. Legacy demo bot credentials (`SLACK_BOT_TOKEN`, `SLACK_USER_MAP`) are optional and never used as a fallback for new organizations; the worker reads the app-level token
 and the api (`optional`, so pods start without it). Created once by the team, never committed:
 
 ```sh

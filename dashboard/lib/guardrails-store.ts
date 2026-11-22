@@ -1,5 +1,5 @@
 import { registeredSchema } from "./auth-crypto.ts";
-import { GUARDRAILS_DEFAULT, guardrailsAudit, type GuardrailsSettings } from "./guardrails-model.ts";
+import { GUARDRAILS_DEFAULT, guardrailUnlockAudit, guardrailsAudit, type GuardrailLock, type GuardrailsSettings } from "./guardrails-model.ts";
 
 // The slice of a pg Pool this needs (a Pool fits; the tests pass a recording stand-in).
 type Query = (text: string, values?: unknown[]) => Promise<{ rows: any[] }>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -36,4 +36,47 @@ export async function saveGuardrails(db: GuardrailsDb, owner: Owner, enabled: bo
     throw error;
   } finally { client.release(); }
   return readGuardrails(db, owner.organizationId);
+}
+
+const iso = (value: unknown) => value instanceof Date ? value.toISOString() : String(value);
+
+/** Run `work` in a transaction on the workspace's own schema (the lock and audit tables live there, not in scout_auth). */
+async function inWorkspace<T>(db: GuardrailsDb, owner: Owner, work: (client: { query: Query }) => Promise<T>): Promise<T> {
+  if (!registeredSchema(owner.organizationId, owner.schema, owner.legacy)) throw new Error("Invalid organization.");
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('search_path',$1,true)", [owner.schema]); // local: ends with this transaction
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally { client.release(); }
+}
+
+/** The people locked out of Scout right now (active = not unlocked and not expired), soonest to expire first. */
+export async function listGuardrailLocks(db: GuardrailsDb, owner: Owner): Promise<GuardrailLock[]> {
+  return inWorkspace(db, owner, async client => {
+    const { rows } = await client.query("SELECT l.id,l.person,COALESCE(e.name,l.person) AS name,l.locked_at,l.locked_until,l.rails FROM guardrail_locks l "
+      + "LEFT JOIN employees e ON e.id=l.person WHERE l.unlocked_at IS NULL AND l.locked_until > now() ORDER BY l.locked_until,l.id");
+    return rows.map(r => ({ id: Number(r.id), person: String(r.person), name: String(r.name), lockedAt: iso(r.locked_at), lockedUntil: iso(r.locked_until), rails: String(r.rails ?? "") }));
+  });
+}
+
+/** Lift the active locks of one person. One `guardrail_unlock` audit row (requester = the owner) when something was
+ * unlocked; returns how many locks were lifted. The person's strikes stay: a blocked message inside the 7 days
+ * locks again. */
+export async function unlockGuardrailPerson(db: GuardrailsDb, owner: Owner, person: string): Promise<number> {
+  const who = owner.employeeId || owner.email;
+  return inWorkspace(db, owner, async client => {
+    const { rows } = await client.query("UPDATE guardrail_locks SET unlocked_at = now(), unlocked_by = $2 WHERE person = $1 AND unlocked_at IS NULL AND locked_until > now() RETURNING id", [person, who]);
+    if (rows.length) {
+      const row = guardrailUnlockAudit(person, who);
+      await client.query("INSERT INTO audit_log(actor,requester,role,action,target,resource,decision,policy,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        [row.actor, row.requester, row.role, row.action, row.target, row.resource, row.decision, row.policy, row.reason]);
+    }
+    return rows.length;
+  });
 }

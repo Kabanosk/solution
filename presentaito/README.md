@@ -4,6 +4,7 @@ This directory contains the HTML pitch deck, its supporting assets, design conce
 
 ## View the presentation
 
+- [Pitch deck with the frog guide](pitch.html): 14 slides built on screens from the live app. Opens by double click, no server needed. Keys: arrows or a clicker move, `F` is full screen, `P` plays the film.
 - [Pitch deck](index.html)
 - [Alternate Scout deck](scout.html)
 - [Pitch / explainer video (MP4)](lantern.mp4)
@@ -24,3 +25,11 @@ The actual video file is included in this repository as [`lantern.mp4`](lantern.
 The completed export is approximately two minutes long at 1920 × 1080, with H.264 video and AAC audio. It retains the original Lantern branding; the HTML pitch deck uses Scout branding. This is the existing completed export, not a newly rendered Scout-branded refresh.
 
 The directory name `presentaito` is intentional and matches the requested repository path. Supporting files retain their original relative paths so the deck and concept pages can load them.
+
+## Rebuilding the frogs for `pitch.html`
+
+`pitch.html` loads `pitch-frogs.bundle.js`, a single-file build of `pitch-frogs.js` and `vendor/three.module.js`, so the deck also works from `file://`. After editing `pitch-frogs.js`, rebuild it:
+
+```bash
+esbuild presentaito/pitch-frogs.js --bundle --format=iife --minify --target=es2020 --outfile=presentaito/pitch-frogs.bundle.js
+```

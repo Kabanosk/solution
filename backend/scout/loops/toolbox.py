@@ -119,6 +119,15 @@ EXTERNAL_ONLY: frozenset[str] = frozenset({"search_web"})
 FILLER_WORDS = frozenset({"invoice", "invoices", "faktura", "faktury", "pdf", "pdfs", "file", "files", "all", "the",
                           "send", "sent", "me", "my", "from", "for", "and", "with", "slack", "email", "mail", "please"})
 INVOICE_FILE = re.compile(r"invoice|faktur|rachun|bill|receipt", re.I)
+# The asker talking about themself: "me", "ME", "myself", "to me", "me (Pedro)", Polish "mnie" / "sobie"...
+SELF_WORDS = frozenset({"me", "my", "i", "myself", "mine", "self", "asker", "the asker", "user", "the user",
+                        "current user", "requester", "mnie", "ja", "mi", "mój", "moja", "moje", "sobie", "siebie",
+                        "mną", "mna"})
+SELF_HEAD = frozenset({"me", "myself", "mnie", "sobie", "siebie"})
+SELF_OBJECT = re.compile(r"\b(me|myself|mnie|mi|sobie|siebie|am i)\b", re.I)  # "send me", "who am I"
+PERSON_ARG = {"send_dm": "person", "send_briefing": "person", "hand_over_task": "person", "search_files": "person",
+              "read_file": "person", "who_is": "person", "send_invoices": "to"}
+SELF_BY_DEFAULT = ("send_dm", "send_briefing", "who_is")  # person left out + "send me ...": the asker
 BRIEFING_PART = 2500  # characters per Slack message (Slack's section text limit is 3000)
 BRIEFING_PARTS = 3
 
@@ -192,11 +201,30 @@ class Toolbox:
         return invoice_number_in(self.question)
 
     # -- helpers -------------------------------------------------------------------------------------------
+    @property
+    def asker_name(self) -> str:
+        """The asker's name and surname, as tools get it when the user says "me"."""
+        return self.ctx.hr.full_name(self.requester)
+
+    @staticmethod
+    def _is_self(name: Any) -> bool:
+        """ "me", "ME", "myself", "to me", "for me", "me (Pedro)", "mnie"...: the asker."""
+        if not isinstance(name, str):
+            return False
+        n = re.sub(r"\(.*?\)", " ", name).strip(" .,!?:;\"'").casefold()
+        n = re.sub(r"^(to|for|do|dla)\s+", "", n).strip()
+        head = (n.split()[:1] or [""])[0].strip(".,!?:;-")
+        return n in SELF_WORDS or head in SELF_HEAD  # "me, Pedro", "myself - Pedro"; never "my manager"
+
     def _person(self, name: str | None) -> str | None:
-        n = (name or "").strip().casefold()
-        if not n or n in ("me", "my", "i"):
+        n = " ".join((name or "").strip().casefold().split())
+        if not n or self._is_self(n) or n in (self.requester.casefold(), self.asker_name.casefold()):
             return self.requester
         people = self.ctx.hr.all()
+        for e in people:  # an exact id or whole name first: two people may share a first name
+            if n == str(e["id"]).casefold() or n in [x.casefold() for x in (e["name"], e.get("slack_name"),
+                                                                           self.ctx.hr.full_name(e["id"])) if x]:
+                return e["id"]
         for e in people:
             names = [x.casefold() for x in (e["name"], e.get("slack_name")) if x]
             if n == e["id"] or any(n in x or x.split()[0] in n for x in names):
@@ -262,11 +290,22 @@ class Toolbox:
                 return {"error": "not_available_for_this_model", "tools": sorted(visible),
                         "hint": "Company data is only available with the on-premise model (Granite)."}
             return {"error": "unknown_tool", "tools": sorted(visible)}
-        args = repair_args(args)
+        args = self._resolve_self(name, repair_args(args))
         try:
             return getattr(self, f"t_{name}")(**{k: v for k, v in args.items() if v not in (None, "")})
         except TypeError as e:
             return {"error": "bad_arguments", "detail": str(e)[:200]}
+
+    def _resolve_self(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        """ "me" / "I" / "myself" in a person argument becomes the asker's name and surname; a person left out of
+        send_dm / send_briefing / who_is while the user said "me" is the asker too."""
+        key = PERSON_ARG.get(name)
+        if key is None or not isinstance(args, dict):
+            return args
+        value = args.get(key)
+        if self._is_self(value) or (not value and name in SELF_BY_DEFAULT and SELF_OBJECT.search(self.question or "")):
+            args = {**args, key: self.asker_name}
+        return args
 
     # -- tools ---------------------------------------------------------------------------------------------
     def t_dashboard_help(self, topic: str = "getting_started", **_: Any) -> dict[str, Any]:
@@ -620,7 +659,7 @@ class Toolbox:
         if not ok:
             return {"error": "access_denied", "policy": policy}
         recipient = self.requester
-        if (to or "").strip() and (to or "").strip().casefold() not in ("me", "my", "i", "myself"):
+        if (to or "").strip() and not self._is_self(to) and self._person(to) != self.requester:
             recipient = self._on_slack(to)
             if recipient is None:
                 return {"error": "unknown_person", "person": to}

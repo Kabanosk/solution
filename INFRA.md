@@ -181,9 +181,6 @@ All read by `backend/cfo/config.py` from the environment or `.env` (template: `.
   group-0 writable (the `Containerfile` already does this for `/app`). Do not hardcode `runAsUser`.
 - **Red Hat images:** `registry.redhat.io/rhel9/postgresql-16` uses `POSTGRESQL_USER/PASSWORD/DATABASE` and data at
   `/var/lib/pgsql/data`, not the Docker Hub `POSTGRES_*` / `/var/lib/postgresql/data`.
-- **Two schemas side by side:** `db/init.sql` (raw bank CSV → `bank_transactions_raw` + view `bank_transactions`)
-  and `backend/cfo/db/schema.sql` (`transactions`, `invoices`, … via `cfo migrate`). No name clash; the backend uses
-  its own tables.
 - **Secret/ConfigMap changes do not restart pods:** `oc rollout restart deploy/<name>`.
 - **Single node, RWO volumes:** `strategy: Recreate` for anything with a PVC, otherwise the new pod hangs on the
   volume.

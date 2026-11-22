@@ -390,13 +390,15 @@ def screen_lock(ctx: Any, person: str | None, text: str = "", *, role: str | Non
     if not active(ctx):
         return None
     who = person or "unknown"
+    row = None
     try:
         with ctx.conn_factory() as conn:
             row = conn.execute("SELECT locked_until FROM guardrail_locks WHERE person = %s AND unlocked_at IS NULL "
                                "AND locked_until > now() ORDER BY locked_until DESC LIMIT 1", (who,)).fetchone()
     except Exception:  # noqa: BLE001 - an unreadable lock table (the upgrade has not run) is the only fail-open case
         log.warning("could not read the guardrail lock", exc_info=True)
-        return None
+        if row is None:  # a lock already fetched still counts when only closing the read transaction failed
+            return None
     if row is None:
         return None
     until = row["locked_until"] if isinstance(row, dict) else row[0]

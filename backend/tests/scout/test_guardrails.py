@@ -386,6 +386,31 @@ def test_a_dm_with_no_text_and_no_files_from_a_locked_person_is_refused_before_r
     assert row["reason"] == "locked"
 
 
+def test_a_fetched_lock_still_refuses_when_closing_the_read_transaction_fails():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    until = datetime.now(timezone.utc) + timedelta(hours=2)
+
+    class Conn:
+        def execute(self, *_a, **_k):  # noqa: ANN002, ANN003, ANN202
+            return SimpleNamespace(fetchone=lambda: {"locked_until": until})
+
+        def commit(self) -> None:
+            pass
+
+    class BrokenExit:  # psycopg commits on exit; a dropped connection makes that raise after the row was read
+        def __enter__(self) -> Conn:
+            return Conn()
+
+        def __exit__(self, *_exc) -> None:  # noqa: ANN002
+            raise RuntimeError("connection lost while closing")
+
+    ctx = SimpleNamespace(guard=SimpleNamespace(enabled=True), conn_factory=BrokenExit)
+    reply = guardrails.screen_lock(ctx, "vanessa", "Hello")
+    assert reply is not None and "paused until" in reply
+
+
 def test_a_lock_that_cannot_be_read_does_not_break_the_chat(conn_factory, tmp_path):
     ctx, calls = blocked_world(conn_factory, tmp_path)
     with conn_factory() as conn:

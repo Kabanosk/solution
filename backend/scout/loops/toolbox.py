@@ -16,6 +16,7 @@ import io
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -102,12 +103,18 @@ SPECS: list[ToolSpec] = [
              "separate message.", parameters=_p(amount_eur=S, month=S, what=S, direction=S)),
     ToolSpec(name="send_briefing", description="Send the newest finished daily briefing (owner only) to a colleague's "
              "Slack DM. person = first name. You never see the briefing text.", parameters=_p(person=S)),
+    ToolSpec(name="search_web", description="Search the public web for news and current facts. query: a short public "
+             "question, nothing private. Returns an answer and sources to cite.", parameters=_p(query=S)),
 ]
 NAMES = {s.name for s in SPECS}
 # What a model outside the company's own infrastructure (OpenAI, Mistral, Groq, xAI) may call. None of these returns
 # company data to the model: `start_what_if` only queues a local forecast, `send_briefing` returns {sent, to, title,
 # date} and never the text. `Toolbox.call()` enforces this set; hiding the specs alone would not be a control.
-EXTERNAL_TOOLS: frozenset[str] = frozenset({"dashboard_help", "start_what_if", "send_dm", "send_briefing"})
+EXTERNAL_TOOLS: frozenset[str] = frozenset({"dashboard_help", "start_what_if", "send_dm", "send_briefing",
+                                            "search_web"})
+# `search_web` sends the model's query to a third party, so Granite (whose context holds company data) never gets it:
+# it is neither listed for Granite nor run when `allowed` is None.
+EXTERNAL_ONLY: frozenset[str] = frozenset({"search_web"})
 BRIEFING_PART = 2500  # characters per Slack message (Slack's section text limit is 3000)
 BRIEFING_PARTS = 3
 
@@ -168,10 +175,12 @@ class Toolbox:
     """The tools, bound to one asker and one task (for the audit log and the step log)."""
 
     def __init__(self, ctx: JobContext, requester: str, role: str, task: Task, question: str = "",
-                 allowed: frozenset[str] | set[str] | None = None):
+                 allowed: frozenset[str] | set[str] | None = None,
+                 web_search: Callable[[str], dict[str, Any]] | None = None):
         self.ctx, self.requester, self.role, self.task = ctx, requester, role, task
         self.allowed = None if allowed is None else frozenset(allowed)  # None: every tool (Granite, Slack DMs)
         self.question = question
+        self.web_search = web_search  # the external provider's search for this request; None: unavailable
         self.blocked_reply: str | None = None  # set when the output rails stop a message Scout was to send
 
     def _from_question(self) -> str | None:
@@ -242,8 +251,9 @@ class Toolbox:
 
     # -- dispatch ------------------------------------------------------------------------------------------
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
-        if name not in NAMES or (self.allowed is not None and name not in self.allowed):
-            visible = NAMES if self.allowed is None else NAMES & self.allowed
+        if (name not in NAMES or (self.allowed is not None and name not in self.allowed)
+                or (self.allowed is None and name in EXTERNAL_ONLY)):
+            visible = NAMES - EXTERNAL_ONLY if self.allowed is None else NAMES & self.allowed
             if name in NAMES:  # a real tool, but this model may not use it: nothing runs, nothing is audited as allowed
                 return {"error": "not_available_for_this_model", "tools": sorted(visible),
                         "hint": "Company data is only available with the on-premise model (Granite)."}
@@ -928,6 +938,16 @@ class Toolbox:
                         if e.get("manager_id") else None, "on_vacation_today": self.ctx.hr.on_vacation(p, today)})
         return {"people": out}
 
+    def t_search_web(self, query: str = "", **_: Any) -> dict[str, Any]:
+        if not isinstance(query, str):  # a number or list would be str()-ed into a paid search: refuse before any call
+            return {"error": "bad_arguments", "note": "query must be text"}
+        query = " ".join(query.split())
+        if not query:
+            return {"error": "missing_arguments", "note": "query is required"}
+        if self.web_search is None:
+            return {"error": "web_search_unavailable", "note": "Live web search needs OpenAI or Mistral."}
+        return self.web_search(query)
+
     def t_start_what_if(self, amount_eur: Any = None, month: str = "", what: str = "", direction: str = "",
                         **_: Any) -> dict[str, Any]:
         if self.role != "ceo":
@@ -955,6 +975,8 @@ def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
         return f"Looked at cost trends: {len(result['series'])} cost pairs"
     if result.get("started"):
         return "Started a cash forecast (what-if)"
+    if name == "search_web" and "sources" in result:
+        return f"Searched the web for \"{str((args or {}).get('query', ''))[:80]}\": {len(result['sources'])} source(s)"
     if name == "send_briefing" and result.get("sent") == "partial":
         return (f"Sent only part of the {result.get('title', 'daily briefing')} to {result.get('to')} "
                 f"({result.get('parts_delivered')} of {result.get('parts_total')} messages)")

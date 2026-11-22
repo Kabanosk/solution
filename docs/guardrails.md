@@ -189,11 +189,12 @@ The lock is a row in `guardrail_locks` (person, `locked_at`, `locked_until`, rai
 while `unlocked_at` is null and `locked_until` is in the future. While it is active every human message from that person is
 refused in `guardrails.screen_human` before NeMo and before any model or tool call, in Slack DMs (`loops/chat.on_dm`, also a
 message that only carries a file) and in the dashboard chat (`chat_api`): "Your access to Scout is paused until HH:MM UTC,
-D Mon YYYY after repeated blocked requests. Compliance has been notified." There is no new strike and no new alert, and one
+D Mon YYYY after repeated blocked requests." There is no new strike and no new alert, and one
 audit row per refused message: action `guardrail_lockout`, decision `DENY`, policy `user-input`, reason `locked` (no
 content). The lockout is part of the guardrails layer: with the workspace switch OFF (or no `GUARDRAILS_URL`) it is not
-enforced, and it applies again when the layer is back on. A lock that cannot be read (the upgrade has not run) lets
-messages through, like the strikes.
+enforced, and it applies again when the layer is back on. Only a lock that cannot be read (the upgrade has not run)
+lets messages through, like the strikes; a known lock always refuses, even if the audit row for the refusal cannot be written.
+The reply does not claim that compliance was told: the alert may have failed (`guardrail_escalation_failed`).
 
 Unlocking: the workspace owner sees the locked people on the dashboard Audit page, under the NeMo Guardrails switch (name,
 until when, rails) with an **Unlock** button (`GET`/`POST /api/guardrails/locks`, owner only; audit `guardrail_unlock`,

@@ -275,7 +275,8 @@ def test_a_locked_person_is_refused_before_nemo_and_the_model_with_no_new_strike
         out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=n))  # harmless text: still refused
         assert out.status == "cancelled"
         reply = ctx.notifier.updates[-1]["text"]
-        assert "paused until" in reply and "UTC" in reply and "Compliance has been notified" in reply
+        assert "paused until" in reply and "UTC" in reply and "after repeated blocked requests" in reply
+        assert "ompliance" not in reply  # the alert may have failed: the reply must not claim it was delivered
     assert len(ctx.guard.calls) == nemo_calls and calls == []  # neither NeMo nor any model call
     assert _strikes(conn_factory) == 3 and len(ctx.notifier.sent) == 1 and len(_locks(conn_factory)) == 1
     rows = audit_rows(conn_factory, "guardrail_lockout")
@@ -363,6 +364,26 @@ def test_the_lockout_reply_names_the_time_in_utc():
     assert guardrails.lockout_reply(until).startswith("Your access to Scout is paused until 14:05 UTC, 23 Nov 2026")
     assert "attempt 3 of 3" in guardrails.blocked_reply(3, until)
     assert "paused" not in guardrails.blocked_reply(2)
+
+
+def test_a_known_lock_still_refuses_when_its_audit_row_cannot_be_written(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    with conn_factory() as conn:  # the audit write fails, the lock read does not
+        conn.execute("ALTER TABLE audit_log ADD CONSTRAINT no_lockout_rows CHECK (action <> 'guardrail_lockout')")
+        conn.commit()
+    out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=4))
+    assert out.status == "cancelled" and "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+    assert audit_rows(conn_factory, "guardrail_lockout") == []  # nothing written, but still refused
+
+
+def test_a_dm_with_no_text_and_no_files_from_a_locked_person_is_refused_before_routing(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    out = chat.run(ctx, dm("vanessa", "", n=8))  # e.g. an attachment whose download failed
+    assert out.status == "cancelled" and "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+    (row,) = audit_rows(conn_factory, "guardrail_lockout")
+    assert row["reason"] == "locked"
 
 
 def test_a_lock_that_cannot_be_read_does_not_break_the_chat(conn_factory, tmp_path):

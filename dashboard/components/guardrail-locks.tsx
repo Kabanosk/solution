@@ -50,7 +50,7 @@ export function GuardrailLocks({ owner, onChanged }: { owner: boolean; onChanged
       <LockKeyhole className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
       <div className="min-w-0">
         <h2 id="scout-guardrail-locks-label" className="text-sm font-medium">Paused after repeated blocked requests</h2>
-        <p className="text-xs leading-5 text-muted-foreground">Three blocked messages in 7 days pause a person's access to Scout for 24 hours. Compliance was notified.</p>
+        <p className="text-xs leading-5 text-muted-foreground">Three blocked messages in 7 days pause a person's access to Scout for 24 hours.</p>
         {error && <p id="scout-guardrail-locks-error" role="alert" className="text-xs leading-5 text-danger">{error}</p>}
       </div>
     </div>

@@ -74,8 +74,7 @@ def _when(until: datetime) -> str:
 
 
 def lockout_reply(until: datetime) -> str:
-    return (f"Your access to Scout is paused until {_when(until)} after repeated blocked requests. "
-            "Compliance has been notified.")
+    return f"Your access to Scout is paused until {_when(until)} after repeated blocked requests."
 
 
 def blocked_reply(attempt: int, locked_until: datetime | None = None) -> str:
@@ -395,15 +394,19 @@ def screen_lock(ctx: Any, person: str | None, text: str = "", *, role: str | Non
         with ctx.conn_factory() as conn:
             row = conn.execute("SELECT locked_until FROM guardrail_locks WHERE person = %s AND unlocked_at IS NULL "
                                "AND locked_until > now() ORDER BY locked_until DESC LIMIT 1", (who,)).fetchone()
-            if row is None:
-                return None
-            until = row["locked_until"] if isinstance(row, dict) else row[0]
+    except Exception:  # noqa: BLE001 - an unreadable lock table (the upgrade has not run) is the only fail-open case
+        log.warning("could not read the guardrail lock", exc_info=True)
+        return None
+    if row is None:
+        return None
+    until = row["locked_until"] if isinstance(row, dict) else row[0]
+    try:  # once a lock is known the person is refused, whatever happens to the audit row
+        with ctx.conn_factory() as conn:
             _audit(conn, LOCKOUT_ACTION, f"guardrails:{USER_INPUT}", f"{USER_INPUT}: {_digest(text)}", "DENY",
                    task_id=task_id, requester=person, role=role, policy=USER_INPUT, reason="locked")
             conn.commit()
     except Exception:  # noqa: BLE001
-        log.warning("could not read or audit the guardrail lock", exc_info=True)
-        return None
+        log.exception("could not audit the lockout refusal")
     return lockout_reply(until)
 
 

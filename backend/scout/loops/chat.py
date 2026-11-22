@@ -432,9 +432,10 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     sender = p.get("from_id")
     text = (p.get("text") or "").strip()
-    if text:  # safety check of what the person wrote, before routing and before any LLM call
+    if text or p.get("files"):  # safety check of what the person wrote (and the lockout), before routing and any LLM call
         role = ctx.hr.role(sender) if sender else "staff"
-        blocked = guardrails.screen_human(ctx, sender, text, role=role)
+        blocked = (guardrails.screen_human(ctx, sender, text, role=role) if text
+                   else guardrails.screen_lock(ctx, sender, role=role))  # a file alone: only the lockout applies
         if blocked:
             # the task API is readable by anyone: a blocked prompt gets a neutral title and no preview
             task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: blocked message",

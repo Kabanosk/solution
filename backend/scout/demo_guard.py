@@ -2,7 +2,7 @@
 (`docs/guardrails-demo.md`) all read, plus `preflight` and `reset`.
 
     python -m scout.demo guard-preflight [--scenario A] [--repeat 3]   # what does NeMo say to each demo prompt?
-    python -m scout.demo guard-reset [--person vanessa ...]            # back to "attempt 1 of 3", CEO alert again,
+    python -m scout.demo guard-reset [--person vanessa ...]            # back to "attempt 1 of 3", unpaused, CEO alert again,
                                                                        # and the workspace guardrails switch ON
     python -m scout.demo plant                                         # the files of the live cases (see scout.seed)
 
@@ -298,18 +298,20 @@ def format_results(results: Sequence[Result]) -> str:
 
 # -- reset ------------------------------------------------------------------------------------------------
 def reset(conn_factory: Callable[[], Any], persons: Sequence[str] | None = None) -> dict[str, int]:
-    """Back to "attempt 1 of 3": delete the strikes of the demo personas (`persons`, default all five) and the
-    CEO-alert dedup row of the planted poisoned mail, so the suspicious-content DM fires again. Audit rows stay."""
+    """Back to "attempt 1 of 3" and unpaused: delete the strikes of `persons` (default the five demo personas; any
+    employee id is accepted), lift their active locks (the rows stay as history: `unlocked_at` set, `unlocked_by`
+    "guard-reset") and delete the CEO-alert dedup row of the planted poisoned mail, so the suspicious-content DM fires
+    again. Audit rows stay."""
     persons = list(persons or DEMO_PERSONAS)
-    unknown = [p for p in persons if p not in DEMO_PERSONAS]
-    if unknown:
-        raise ValueError(f"not demo personas: {', '.join(unknown)} (choose from {', '.join(DEMO_PERSONAS)})")
     with conn_factory() as conn:
         strikes = conn.execute("DELETE FROM guardrail_strikes WHERE person = ANY(%s)", (persons,)).rowcount
+        locks = conn.execute("UPDATE guardrail_locks SET unlocked_at = now(), unlocked_by = 'guard-reset' "
+                             "WHERE person = ANY(%s) AND unlocked_at IS NULL AND locked_until > now()",
+                             (persons,)).rowcount
         alerts = sum(conn.execute("DELETE FROM guardrail_alerts WHERE starts_with(item_key, %s)", (prefix,)).rowcount
                      for prefix in DEMO_ALERT_KEY_PREFIXES)
         conn.commit()
-    return {"strikes": strikes, "alerts": alerts}
+    return {"strikes": strikes, "alerts": alerts, "locks": locks}
 
 
 def switch_on(conn_factory: Callable[[], Any], organization_id: str) -> bool | None:

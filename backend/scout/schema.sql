@@ -172,6 +172,19 @@ CREATE TABLE IF NOT EXISTS guardrail_strikes (
 );
 CREATE INDEX IF NOT EXISTS guardrail_strikes_person_idx ON guardrail_strikes (person, ts DESC);
 
+-- The lockout after the third strike (T087): one row per lock. Active = unlocked_at IS NULL AND locked_until > now().
+-- `unlocked_by` is the person who lifted it (the owner on the dashboard) or "guard-reset" (the demo operator).
+CREATE TABLE IF NOT EXISTS guardrail_locks (
+    id            BIGSERIAL PRIMARY KEY,
+    person        TEXT NOT NULL,
+    locked_at     TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    locked_until  TIMESTAMPTZ NOT NULL,
+    rails         TEXT NOT NULL DEFAULT '',
+    unlocked_at   TIMESTAMPTZ,
+    unlocked_by   TEXT
+);
+CREATE INDEX IF NOT EXISTS guardrail_locks_person_idx ON guardrail_locks (person, locked_until DESC);
+
 -- The original of a flagged document (T052), kept so an approved invoice has a retrievable attachment. Served only
 -- with the write token (`GET /v1/documents/{id}`).
 CREATE TABLE IF NOT EXISTS flagged_documents (

@@ -173,12 +173,33 @@ Scout (`backend/scout/guardrails.py`) calls `POST {GUARDRAILS_URL}/v1/guardrail/
 too, in the same request; one request is one strike). `tool-result`: `tool` messages with a `tool_call_id`.
 `bot-output`: one `assistant` message. Status `blocked` blocks, `success` passes, anything else is fail-open.
 
-**Strikes.** A blocked human message is stored in full in the table `guardrail_strikes` (person, time, prompt, rails),
-which no API exposes. Strikes are counted per person in a rolling 7-day window. Recording, counting, the alert and the
-reset happen in one transaction under a per-person advisory lock. The 3rd open strike DMs the compliance contact
-(who, when and the rails in the message; the prompts it consumes in full as a `.txt` file sent with it, shortened to 700 characters in the message only if no file can be sent) and marks those
-strikes reported (`guardrail_escalation`). If the DM was not delivered (no Slack channel), nothing is reset and
-`guardrail_escalation_failed` is audited; the next block reports again.
+**Strikes and lockout (T087, replaces the strike reset of D-029).** A blocked human message is stored in full in the
+table `guardrail_strikes` (person, time, prompt, rails), which no API exposes. Strikes are counted per person in a
+rolling 7-day window; an alert does not reset them, they only age out. The reply counts "attempt 1 of 3", "2 of 3" and, on
+the third, "3 of 3" with the pause. The 3rd strike in the window locks the person out of Scout for 24 hours and DMs the
+compliance contact (who, when and the rails in the message; the prompts in full as a `.txt` file sent with it, shortened
+to 700 characters in the message only if no file can be sent; audit `guardrail_escalation`, plus `guardrail_locked`).
+Recording, counting, the lock and the alert happen in one transaction under a per-person advisory lock, so one lockout
+sends one alert. If the DM was not delivered (no Slack channel) the lock still stands and `guardrail_escalation_failed`
+is audited. A block after the lock has expired, while three or more strikes are still inside the 7 days, locks again at
+once (repeat offender) and alerts again, and the attempt shown stays "3 of 3".
+
+The lock is a row in `guardrail_locks` (person, `locked_at`, `locked_until`, rails, `unlocked_at`, `unlocked_by`; created by
+`backend/cfo/db/scout_guardrails.sql` and by fresh organization provisioning like the other guardrail tables). It is active
+while `unlocked_at` is null and `locked_until` is in the future. While it is active every human message from that person is
+refused in `guardrails.screen_human` before NeMo and before any model or tool call, in Slack DMs (`loops/chat.on_dm`, also a
+message that only carries a file) and in the dashboard chat (`chat_api`): "Your access to Scout is paused until HH:MM UTC,
+D Mon YYYY after repeated blocked requests. Compliance has been notified." There is no new strike and no new alert, and one
+audit row per refused message: action `guardrail_lockout`, decision `DENY`, policy `user-input`, reason `locked` (no
+content). The lockout is part of the guardrails layer: with the workspace switch OFF (or no `GUARDRAILS_URL`) it is not
+enforced, and it applies again when the layer is back on. A lock that cannot be read (the upgrade has not run) lets
+messages through, like the strikes.
+
+Unlocking: the workspace owner sees the locked people on the dashboard Audit page, under the NeMo Guardrails switch (name,
+until when, rails) with an **Unlock** button (`GET`/`POST /api/guardrails/locks`, owner only; audit `guardrail_unlock`,
+ALLOW, requester = the owner). The strikes stay, so a blocked message within the 7 days locks the person again at once.
+`python -m scout.demo guard-reset [--person ID ...]` deletes the strikes of the given employees (default the five demo
+personas; any employee id is accepted) and lifts their active locks (`unlocked_by = 'guard-reset'`, the rows stay as history).
 
 **Fail-open.** `GUARDRAILS_URL` unset: disabled, no calls. Service down, slow (5 s per check), HTTP error or `status: error`:
 the text passes, a warning is logged and an audit row `guardrail_unavailable` is written.
@@ -251,7 +272,7 @@ oc apply -k deploy/ && oc rollout restart deploy/api deploy/scout-worker
 ```
 
 After a code change rebuild the image (`oc start-build cfo-backend`), then restart both deployments. The schema
-(`guardrail_strikes`, `guardrail_alerts`, `flagged_documents`, the BLOCK decision) is no longer applied at worker start: run
+(`guardrail_strikes`, `guardrail_locks`, `guardrail_alerts`, `flagged_documents`, the BLOCK decision) is no longer applied at worker start: run
 `python -m cfo.db.migrate --migrate` (see `docs/scout-auth.md`) once per release. The poisoned invoice demo needs its mail planted:
 re-run the seed Job (`python -m scout.seed` plants `mailbox/002-invoice-AS-77666.eml`) and play it with
 `python -m scout.demo play poisoned` or the dashboard demo panel ("Poisoned invoice").

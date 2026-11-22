@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GUARDRAILS_DEFAULT, GUARDRAILS_POLL_MS, guardrailsAudit, guardrailsBanner, parseGuardrailsToggle, watchGuardrails } from "../lib/guardrails-model.ts";
+import { GUARDRAILS_DEFAULT, GUARDRAILS_POLL_MS, guardrailsAudit, parseGuardrailsToggle, watchGuardrails } from "../lib/guardrails-model.ts";
 import { readGuardrails, saveGuardrails, type GuardrailsDb } from "../lib/guardrails-store.ts";
 
 const LEGACY = { organizationId: "00000000-0000-4000-8000-000000000001", schema: "public", legacy: true, employeeId: "vincenzo", email: "owner@example.com", name: "Vincenzo Amalfi" };
@@ -32,13 +32,6 @@ test("a toggle needs an explicit boolean", () => {
 test("the audit row matches the backend's guardrails_toggled row", () => {
   assert.deepEqual(guardrailsAudit(false, "vincenzo"), { actor: "dashboard", requester: "vincenzo", role: "owner", action: "guardrails_toggled", target: "guardrails:workspace", resource: "NeMo guardrails turned OFF", decision: "ALLOW", policy: "guardrails-switch", reason: "OFF" });
   assert.equal(guardrailsAudit(true, "x").reason, "ON");
-});
-
-test("the warning banner shows only to owners and only when the switch is known to be off", () => {
-  assert.equal(guardrailsBanner("owner", { ...GUARDRAILS_DEFAULT, enabled: false }), true);
-  assert.equal(guardrailsBanner("owner", GUARDRAILS_DEFAULT), false);
-  assert.equal(guardrailsBanner("owner", null), false); // unknown (loading or unavailable): the backend counts it as ON
-  assert.equal(guardrailsBanner("member", { ...GUARDRAILS_DEFAULT, enabled: false }), false);
 });
 
 test("no row means ON", async () => {

@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ExternalProviderDialog } from "@/components/external-provider-dialog";
+import { GuardrailsSwitch } from "@/components/guardrails-switch";
 import { EXTERNAL_PROVIDERS, type ExternalConfig } from "@/lib/external-model";
 import type { PublicResearch } from "@/lib/market-research-model";
 
-export function LlmChat({ active }: { active: boolean }) {
+export function LlmChat({ active, owner = false }: { active: boolean; owner?: boolean }) {
   const router = useRouter();
   const [model, setModel] = useState<string>(CHAT_MODELS[0].id);
   const [external, setExternal] = useState<ExternalConfig | null>(null);
@@ -177,8 +178,9 @@ export function LlmChat({ active }: { active: boolean }) {
       newChat(); setExternal(value); setModel("external"); setProviderDialog(false); setNotice("Provider configured for this tab. A new chat has started.");
     }} onRemove={() => { newChat(); setExternal(null); setModel(CHAT_MODELS[0].id); setProviderDialog(false); setNotice("External provider removed."); }} />}
     {messages.length > 0 && <h1 id="scout-chat-title" className="sr-only">Scout chat</h1>}
-    <div id="scout-chat-actions" className="flex shrink-0 justify-end">
-      <Button id="scout-chat-new" variant="ghost" size="sm" onClick={newChat} disabled={messages.length === 0 && !draft && !busy} className="h-9 gap-1.5 text-muted-foreground"><SquarePen className="size-4" aria-hidden="true" /><span>New chat</span></Button>
+    <div id="scout-chat-actions" className="flex shrink-0 items-center justify-between gap-3">
+      <GuardrailsSwitch owner={owner} />
+      <Button id="scout-chat-new" variant="ghost" size="sm" onClick={newChat} disabled={messages.length === 0 && !draft && !busy} className="ml-auto h-9 shrink-0 gap-1.5 text-muted-foreground"><SquarePen className="size-4" aria-hidden="true" /><span>New chat</span></Button>
     </div>
 
     <div id="scout-chat-conversation" ref={viewport} role="region" aria-label="Conversation" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" onScroll={() => {

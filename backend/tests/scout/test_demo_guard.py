@@ -221,9 +221,17 @@ def _seed_rows(db):
         db.execute("INSERT INTO guardrail_strikes (person, prompt, rails) VALUES (%s, 'p', 'r')", (person,))
     for key in (*DEMO_KEYS, *OTHER_KEYS):
         db.execute("INSERT INTO guardrail_alerts (item_key, rails) VALUES (%s, 'check tool result')", (key,))
+    for person in ("vanessa", "grazyna", "stranger"):  # an active lock each
+        db.execute("INSERT INTO guardrail_locks (person, locked_until, rails) VALUES (%s, now() + interval '1 day', 'r')",
+                   (person,))
     db.execute("INSERT INTO audit_log (actor, action, target, resource, decision) VALUES "
                "('agent', 'guardrail_check', 't', 'r', 'BLOCK')")
     db.commit()
+
+
+def _active_locks(db):
+    return {r["person"] for r in db.execute("SELECT person FROM guardrail_locks WHERE unlocked_at IS NULL "
+                                            "AND locked_until > now()").fetchall()}
 
 
 def _left(db, table, col):
@@ -233,15 +241,17 @@ def _left(db, table, col):
 def test_reset_clears_demo_personas_and_the_poisoned_mail_alert_only_and_keeps_audit(conn_factory, db):
     _seed_rows(db)
     out = demo_guard.reset(conn_factory)
-    assert out == {"strikes": 3, "alerts": 2}
+    assert out == {"strikes": 3, "alerts": 2, "locks": 2}
     assert _left(db, "guardrail_strikes", "person") == {"stranger"}
+    assert _active_locks(db) == {"stranger"}  # the demo personas' locks are lifted, nobody else's
     assert _left(db, "guardrail_alerts", "item_key") == set(OTHER_KEYS)  # unrelated alerts are never touched
     assert db.execute("SELECT count(*) AS n FROM audit_log").fetchone()["n"] == 1
 
 
 def test_reset_person_only_touches_that_persons_strikes(conn_factory, db):
     _seed_rows(db)
-    assert demo_guard.reset(conn_factory, ["vanessa"])["strikes"] == 1
+    assert demo_guard.reset(conn_factory, ["vanessa"]) == {"strikes": 1, "alerts": 2, "locks": 1}
+    assert _active_locks(db) == {"grazyna", "stranger"}
     assert _left(db, "guardrail_strikes", "person") == {"grazyna", "vincenzo", "stranger"}
     assert _left(db, "guardrail_alerts", "item_key") == set(OTHER_KEYS)
 
@@ -271,12 +281,15 @@ def test_demo_alert_prefix_is_the_key_the_invoicing_loop_really_writes(conn_fact
 
 
 def test_reset_is_idempotent(conn_factory, db):
-    assert demo_guard.reset(conn_factory) == {"strikes": 0, "alerts": 0}
+    assert demo_guard.reset(conn_factory) == {"strikes": 0, "alerts": 0, "locks": 0}
 
 
-def test_reset_rejects_a_person_that_is_not_a_demo_persona(conn_factory):
-    with pytest.raises(ValueError):
-        demo_guard.reset(conn_factory, ["stranger"])
+def test_reset_person_accepts_any_employee_id_and_keeps_the_lock_row_as_history(conn_factory, db):
+    _seed_rows(db)
+    assert demo_guard.reset(conn_factory, ["stranger"]) == {"strikes": 1, "alerts": 2, "locks": 1}
+    row = db.execute("SELECT * FROM guardrail_locks WHERE person = 'stranger'").fetchone()
+    assert row["unlocked_by"] == "guard-reset" and row["unlocked_at"] is not None
+    assert demo_guard.reset(conn_factory, ["stranger"])["locks"] == 0  # idempotent
 
 
 def test_after_reset_scenario_a_starts_again_at_attempt_one(conn_factory, tmp_path):
@@ -284,13 +297,24 @@ def test_after_reset_scenario_a_starts_again_at_attempt_one(conn_factory, tmp_pa
     for n in range(3):
         chat.run(ctx, dm("vanessa", f"The {SALARY} please {n}", n=n))
     assert "attempt 3 of 3" in ctx.notifier.updates[-1]["text"] and len(ctx.notifier.sent) == 1
-    for n in range(2):  # a rehearsal stopped half way
-        chat.run(ctx, dm("vanessa", f"The {SALARY} once more {n}", n=10 + n))
-    assert "attempt 2 of 3" in ctx.notifier.updates[-1]["text"]
-    assert demo_guard.reset(conn_factory, ["vanessa"])["strikes"] == 5
+    assert demo_guard.reset(conn_factory, ["vanessa"]) == {"strikes": 3, "alerts": 0, "locks": 1}
     chat.run(ctx, dm("vanessa", f"The {SALARY} start", n=20))
     assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"]
     assert audit_rows(conn_factory, "guardrail_check")  # audit rows stay
+
+
+def test_after_the_third_block_the_persona_is_paused_until_guard_reset(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    for n in range(3):
+        chat.run(ctx, dm("vincenzo", f"The {SALARY} please {n}", n=n))
+    assert "paused until" in ctx.notifier.updates[-1]["text"]
+    chat.run(ctx, dm("vincenzo", "Hello", n=10))  # scenarios B and C after A without a reset: refused
+    assert "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+    assert demo_guard.reset(conn_factory, ["vincenzo"])["locks"] == 1
+    out = chat.run(ctx, dm("vincenzo", "Hello", n=11))
+    assert out.status == "done" and calls
+    chat.run(ctx, dm("vincenzo", f"The {SALARY} start", n=12))
+    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"]
 
 
 def test_after_reset_the_ceo_alert_for_the_same_item_fires_again(conn_factory, tmp_path):
@@ -310,9 +334,10 @@ def test_cli_reset_uses_the_bound_database_and_prints_counts(monkeypatch, capsys
     monkeypatch.setattr(demo, "db_factory", lambda settings: conn_factory)
     monkeypatch.setattr(demo, "organization_id", lambda settings: ORG)
     assert demo.main(["guard-reset", "--person", "vanessa", "--person", "grazyna"]) == 0
-    assert "2 strikes" in capsys.readouterr().out
-    with pytest.raises(SystemExit):  # argparse: not a demo persona
-        demo.main(["guard-reset", "--person", "stranger"])
+    out = capsys.readouterr().out
+    assert "2 strikes" in out and "2 locks" in out
+    assert demo.main(["guard-reset", "--person", "stranger"]) == 0  # any employee id, not only the five personas
+    assert "1 strikes" in capsys.readouterr().out
 
 
 def test_guard_reset_turns_the_switch_back_on_once(monkeypatch, capsys, conn_factory, switch):

@@ -432,17 +432,18 @@ def on_dm(ctx: JobContext, job: Job) -> Task:
     p = job.payload
     sender = p.get("from_id")
     text = (p.get("text") or "").strip()
-    if text:  # safety check of what the person wrote, before routing and before any LLM call
-        role = ctx.hr.role(sender) if sender else "staff"
-        blocked = guardrails.screen_human(ctx, sender, text, role=role)
-        if blocked:
-            # the task API is readable by anyone: a blocked prompt gets a neutral title and no preview
-            task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: blocked message",
-                                     requested_by=sender or "unknown", owner_id=sender)
-            if p.get("status_ref"):
-                ctx.notifier.track(task.id, p["status_ref"])
-            ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it", source="guardrails")
-            return _finish(ctx, task, p, blocked, level="NOTIFY", status="cancelled", screen=False)
+    # every DM job is screened: the lockout applies even with no text and no usable file (a failed download)
+    role = ctx.hr.role(sender) if sender else "staff"
+    blocked = (guardrails.screen_human(ctx, sender, text, role=role) if text
+               else guardrails.screen_lock(ctx, sender, role=role))  # no text: only the lockout applies
+    if blocked:
+        # the task API is readable by anyone: a blocked prompt gets a neutral title and no preview
+        task = ctx.recorder.open(f"dm:{job.dedupe_key}", LOOP, f"{ctx.hr.name(sender)}: blocked message",
+                                 requested_by=sender or "unknown", owner_id=sender)
+        if p.get("status_ref"):
+            ctx.notifier.track(task.id, p["status_ref"])
+        ctx.recorder.step(task.id, "denied", "Blocked by the safety policy before Scout read it", source="guardrails")
+        return _finish(ctx, task, p, blocked, level="NOTIFY", status="cancelled", screen=False)
     answered = dm_replies.intercept(ctx, job)  # the recipient's reply to a message Scout sent: not a new question
     if answered is not None:
         return answered

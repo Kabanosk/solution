@@ -62,7 +62,7 @@ def old_scout(upgrade_db, request):
     finally:
         with psycopg.connect(upgrade_db) as conn:
             if schema == "public":
-                for table in ("dm_replies", "dm_requests", "guardrail_strikes", "guardrail_alerts", "flagged_documents",
+                for table in ("dm_replies", "dm_requests", "guardrail_strikes", "guardrail_locks", "guardrail_alerts", "flagged_documents",
                               "slack_members", "employees", *tables):
                     conn.execute(sql.SQL("DROP TABLE IF EXISTS {}.{} CASCADE").format(sql.Identifier(schema), sql.Identifier(table)))
             else:
@@ -89,13 +89,14 @@ def assert_dm_schema(conn, schema):
     assert targets == [(schema,), (schema,)]
 
 
-GUARDRAIL_TABLES = ("guardrail_strikes", "guardrail_alerts", "flagged_documents")
+GUARDRAIL_TABLES = ("guardrail_strikes", "guardrail_locks", "guardrail_alerts", "flagged_documents")
 
 
 def assert_guardrails_schema(conn, schema):
     for table in GUARDRAIL_TABLES:
         assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.{table}",)).fetchone()[0] is not None, table
     assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.guardrail_strikes_person_idx",)).fetchone()[0] is not None
+    assert conn.execute("SELECT to_regclass(%s)", (f"{schema}.guardrail_locks_person_idx",)).fetchone()[0] is not None
     conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
     for decision in ("ALLOW", "DENY", "MASK", "BLOCK"):
         conn.execute("INSERT INTO audit_log(actor,action,target,resource,decision) VALUES ('t','a','t','r',%s)", (decision,))
@@ -239,3 +240,18 @@ def test_migrate_adds_the_guardrails_switch_and_keeps_it_on_repeat(upgrade_db):
     finally:
         with psycopg.connect(upgrade_db) as conn:
             conn.execute("DELETE FROM scout_auth.organizations WHERE id=%s", (oid,))
+
+
+def test_upgrade_adds_guardrail_locks_and_a_repeat_keeps_its_rows(old_scout):
+    url, _, schema, _ = old_scout
+    migrate.migrate_auth(url)
+    with psycopg.connect(url) as conn:
+        conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+        cols = {r[0] for r in conn.execute("SELECT column_name FROM information_schema.columns WHERE table_schema=%s "
+                                           "AND table_name='guardrail_locks'", (schema,)).fetchall()}
+        assert {"person", "locked_at", "locked_until", "rails", "unlocked_at", "unlocked_by"} <= cols
+        conn.execute("INSERT INTO guardrail_locks(person, locked_until, rails) VALUES ('vanessa', now() + interval '1 day', 'r')")
+    migrate.migrate_auth(url)  # idempotent: CREATE ... IF NOT EXISTS keeps the lock
+    with psycopg.connect(url) as conn:
+        conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+        assert conn.execute("SELECT person, unlocked_at FROM guardrail_locks").fetchall() == [("vanessa", None)]

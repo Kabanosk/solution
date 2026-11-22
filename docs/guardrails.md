@@ -197,7 +197,7 @@ enforced, and it applies again when the layer is back on. Only a lock that canno
 lets messages through, like the strikes; a known lock always refuses, even if the audit row for the refusal cannot be written.
 The reply does not claim that compliance was told: the alert may have failed (`guardrail_escalation_failed`).
 
-Unlocking: the workspace owner sees the locked people on the dashboard Audit page, under the NeMo Guardrails switch (name,
+Unlocking: the workspace owner sees the locked people on the dashboard Audit page (name,
 until when, rails) with an **Unlock** button (`GET`/`POST /api/guardrails/locks`, owner only; audit `guardrail_unlock`,
 ALLOW, requester = the owner). The strikes stay, so a blocked message within the 7 days locks the person again at once.
 `python -m scout.demo guard-reset [--person ID ...]` deletes the strikes of the given employees (default the five demo
@@ -240,10 +240,10 @@ already calls it); each job is one trace `scout.<job kind>`, guardrail checks ar
 
 ### Workspace switch (demo)
 
-An owner can turn the whole NeMo layer off and on for one workspace: Audit page, **NeMo Guardrails** switch ("Checks
-every message, tool result and reply"). It exists for the demo: show an attack passing with the switch off, then the
-same attack blocked with it on. While it is off, every owner sees a warning on every dashboard page ("Guardrails are
-off for this workspace") with a one-click **Turn back on**.
+An owner can turn the whole NeMo layer off and on for one workspace with the **Guardrails** switch at the top left of
+the dashboard chat (members do not see it). It exists for the demo: show an attack passing with the switch off, then the
+same attack blocked with it on. While it is off the switch reads "Guardrails off" in amber; its tooltip says since when
+and who turned it off.
 
 | | Switch OFF | Always on |
 |---|---|---|

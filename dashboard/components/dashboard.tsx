@@ -19,7 +19,6 @@ import { AttentionList, TaskBoard } from "@/components/tasks/task-list";
 import { TaskDetailSkeleton, TaskDetailView } from "@/components/tasks/task-detail";
 import { AuditLog } from "@/components/audit-log";
 import { GuardrailLocks } from "@/components/guardrail-locks";
-import { GuardrailsBanner, GuardrailsSwitch } from "@/components/guardrails-switch";
 import { Connections } from "@/components/connections";
 import { Onboarding } from "@/components/onboarding";
 import { canEdit, fetchSetup, shouldOpenSetup } from "@/lib/onboarding-client";
@@ -320,10 +319,9 @@ function DashboardContent({ data }: { data: DashboardData }) {
         <section id="main-content" ref={mainRef} tabIndex={-1} aria-label={title}
           className={cn("mx-auto w-full max-w-[1600px] min-w-0 px-4 outline-none md:px-8",
             chat ? "flex h-[calc(100dvh-3rem-5.5rem)] flex-col pt-4 pb-4 md:h-[calc(100dvh-3rem)] md:pt-5 md:pb-5" : "pt-6 pb-28 md:pt-7 md:pb-10")}>
-          <GuardrailsBanner role={role} />
           {data.workspace?.authNotice && <p id="scout-auth-feedback" role="status" className="mb-5 rounded-md border bg-muted/40 px-4 py-3 text-sm">{data.workspace.authNotice}</p>}
           {content}
-          <div hidden={!chat} className={cn(chat && "flex min-h-0 flex-1 flex-col")}><LlmChat active={chat} /></div>
+          <div hidden={!chat} className={cn(chat && "flex min-h-0 flex-1 flex-col")}><LlmChat active={chat} owner={role === "owner"} /></div>
         </section>
 
         <nav id="scout-mobile-navigation" aria-label="Mobile navigation" className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-3 gap-2 border-t bg-sidebar/95 px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
@@ -351,7 +349,7 @@ function TransactionsView({ tasks }: { tasks: AgentTask[] }) {
 
 function AuditView({ owner }: { owner: boolean }) {
   const { data, error, reload } = useRecords("audit");
-  return data ? <AuditLog rows={data} controls={<><GuardrailsSwitch owner={owner} onChanged={reload} /><GuardrailLocks owner={owner} onChanged={reload} /></>} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="audit" />;
+  return data ? <AuditLog rows={data} controls={<GuardrailLocks owner={owner} onChanged={reload} />} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="audit" />;
 }
 
 function CashEvents({ data }: { data: DashboardData }) {

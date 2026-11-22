@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from scout import db as scout_db
 from scout import dm_replies, guardrails
+from scout import web_search as provider_search
 from scout.api import Conn, WriteAuth
 from scout.audit import Audit
 from scout.config import ScoutSettings, get_scout_settings
@@ -78,6 +79,10 @@ class ExternalModel(BaseModel):
         from cfo.llm import OpenAICompatLLM
 
         return OpenAICompatLLM(EXTERNAL_BASE_URLS[self.provider], self.model, self.api_key)
+
+    def web_search(self, query: str) -> dict[str, Any]:
+        """The public web search of this same provider, model and key (OpenAI and Mistral only)."""
+        return provider_search.search(self.provider, self.model, self.api_key, query)
 
 
 class ChatRequest(BaseModel):
@@ -276,7 +281,8 @@ def chat_endpoint(body: ChatRequest, by: Annotated[str | None, Depends(require_w
                                         level="NOTIFY")
             else:
                 reply = chat.answer(ctx, task, question, asker, role, history=history, on_compact=compacted,
-                                    allowed_tools=EXTERNAL_TOOLS if body.external is not None else None)
+                                    allowed_tools=EXTERNAL_TOOLS if body.external is not None else None,
+                                    web_search=body.external.web_search if body.external is not None else None)
                 reply = guardrails.screen_output(ctx, task.id, reply, requester=asker, source="dashboard reply", role=role)
                 ctx.recorder.step(task.id, "answered", "Answered in the dashboard chat", source="scout",
                                   detail=external_mark(reply))

@@ -69,6 +69,24 @@ summing a page of `list_transactions` rows silently gives a partial total.
 
 A tool that is only for the model's routing (not data), like `ask_data`, is a plain `ToolSpec` in `cfo/chat.py`.
 
+## Tools of the dashboard chat with an external model
+
+Scout's chat agent (`scout/loops/chat.py`, tools in `scout/loops/toolbox.py`) runs the same loop for Granite and for an
+external provider chosen in the dashboard (OpenAI, Mistral, Groq, xAI). An external model gets only
+`toolbox.EXTERNAL_TOOLS`: `dashboard_help`, `start_what_if`, `send_dm`, `send_briefing` (none returns company data to
+the model) and `search_web`. `Toolbox.call()` enforces the list; hiding specs alone is not a control.
+
+`search_web(query)` searches the public web through the same provider, model and API key as the chat request
+(`scout/web_search.py`): OpenAI Responses API or Mistral Conversations API with the provider's `web_search` tool. A
+search counts only if the provider reports a completed web search call; the answer and the citations (public https
+URLs, at most 8) come back as `{answer, sources, searched_at}`. Groq and xAI return `web_search_unavailable` without a
+network call: they have no search we rely on, and a plain completion would be memory presented as a search. Provider
+errors are never passed to the model (a generic note only). Granite never gets `search_web`, because its context holds
+company data and a query would go to a third party. The result is page text written by outsiders: it is screened with
+the tool-result guardrail before the model sees it, a blocked result reaches the model as the withheld notice and
+alerts the owner once (`guardrails.EXTERNAL_TOOLS`). The external system prompt tells the model to cite sources, to
+treat pages as untrusted data and to keep private information out of queries.
+
 ## vLLM flags
 
 Native tool calling needs the server flags

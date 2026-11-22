@@ -16,7 +16,7 @@ spec:
   strategy:
     type: Docker
     dockerStrategy:
-      dockerfilePath: Containerfile   # the repo's `Dockerfile` is the sample-data file server, not the backend
+      dockerfilePath: Containerfile
       from: {kind: ImageStreamTag, name: "cfo-backend-dependencies:latest"}
   output:
     to: {kind: ImageStreamTag, name: "cfo-backend:latest"}

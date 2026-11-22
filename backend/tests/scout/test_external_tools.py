@@ -38,8 +38,8 @@ def link_slack(ctx) -> None:  # noqa: ANN001
     ctx.hr.link_slack({"vincenzo": "U_VIN", "grazyna": "U_GRA"}, {"vincenzo": "Wojciech Fiołka", "grazyna": "Grażyna"})
 
 
-def test_allowlist_is_the_four_safe_tools():
-    assert EXTERNAL_TOOLS == {"dashboard_help", "start_what_if", "send_dm", "send_briefing"}
+def test_allowlist_is_the_four_safe_tools_and_the_public_web_search():
+    assert EXTERNAL_TOOLS == {"dashboard_help", "start_what_if", "send_dm", "send_briefing", "search_web"}
     assert EXTERNAL_TOOLS <= {s.name for s in SPECS}
 
 
@@ -168,7 +168,7 @@ def test_external_answer_never_runs_the_invoice_fallback(conn_factory, tmp_path)
     assert not ctx.notifier.files
 
 
-def test_granite_answer_gets_every_spec(conn_factory, tmp_path):
+def test_granite_answer_gets_every_spec_but_the_external_web_search(conn_factory, tmp_path):
     seen: list[set[str]] = []
 
     def handler(messages, tools):  # noqa: ANN001
@@ -177,7 +177,7 @@ def test_granite_answer_gets_every_spec(conn_factory, tmp_path):
 
     ctx = make_world(conn_factory, tmp_path, llm=FakeLLM(handler=handler))
     assert run_chat(ctx, None, None) == "Granite answer."
-    assert seen[0] == {s.name for s in SPECS}
+    assert seen[0] == {s.name for s in SPECS} - {"search_web"}  # a query to a third party: never with company data
     system = ctx.llm.calls[0]["messages"][0].content
     assert "no access to company data" not in system.lower()
 
@@ -219,6 +219,6 @@ def test_dashboard_endpoint_restricts_external_but_not_granite(conn_factory, tmp
     assert c.post("/v1/chat", json=msgs, headers=headers).status_code == 200
     ext = {"provider": "xai", "model": "grok-4.7", "api_key": "xai-test-123456"}
     assert c.post("/v1/chat", json={**msgs, "external": ext}, headers=headers).status_code == 200
-    assert granite_tools[0] == {s.name for s in SPECS}
+    assert granite_tools[0] == {s.name for s in SPECS} - {"search_web"}
     assert external_tools[0] == EXTERNAL_TOOLS
     get_api_settings.cache_clear()

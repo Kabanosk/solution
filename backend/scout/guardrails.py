@@ -65,7 +65,8 @@ MAX_RECHECKS = 8  # per-turn rechecks after a blocked history batch; more turns 
 WITHHELD = "[content withheld: flagged by guardrail]"
 OUTPUT_REPLY = "I could not share that answer safely. Please rephrase your question."
 SLACK_ID = re.compile(r"^[UW][A-Z0-9_]{2,}$")
-EXTERNAL_TOOLS = frozenset({"search_email", "search_chat", "read_file", "search_files"})  # text written by outsiders
+EXTERNAL_TOOLS = frozenset({"search_email", "search_chat", "read_file", "search_files",
+                            "search_web"})  # text written by outsiders
 
 
 def _when(until: datetime) -> str:
@@ -542,6 +543,10 @@ def _outside_items(tool: str, result: dict[str, Any] | None) -> list[tuple[str, 
         return [(f"mail:{_sha(m.get('from'), m.get('subject'), m.get('date'))}",
                  f"mail “{str(m.get('subject'))[:80]}” from {m.get('from')}", json.dumps(m, default=str))
                 for m in r.get("mails") or []]
+    if tool == "search_web" and r.get("answer"):  # one item per answer: the sources are what the web page authors wrote
+        sources = [f"{s.get('title')} {s.get('url')}" for s in r.get("sources") or [] if isinstance(s, dict)]
+        return [(f"web:{_sha(r.get('answer'), *sources)}", "web search result",
+                 "\n".join([str(r["answer"]), *sources]))]
     if tool == "search_chat":
         return [(chat_item_key(m.get("channel"), m.get("from"), str(m.get("text"))),
                  f"Slack message in {m.get('channel')} from {m.get('from')}", str(m.get("text") or ""))

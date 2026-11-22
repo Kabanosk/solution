@@ -85,8 +85,9 @@ SPECS: list[ToolSpec] = [
              parameters=_p(words=S, days=I)),
     ToolSpec(name="search_chat", description="Search the authorized Slack channels for a supplier, invoice number "
              "or amount.", parameters=_p(supplier=S, invoice_number=S, amount_eur=S, days=I)),
-    ToolSpec(name="send_invoices", description="The ONLY way to attach invoice PDFs (on file or from email): here and in "
-             "Slack. to: a colleague to DM them to. words: supplier/number/subject words. Max 10.",
+    ToolSpec(name="send_invoices", description="The ONLY way to attach invoice PDFs: here and in Slack. Searches every "
+             "source itself: the invoicing system, email, company folders and KSeF. to: a colleague to DM them to. "
+             "words: supplier/number/subject words. Max 10.",
              parameters=_p(number=S, supplier=S, words=S, to=S, days=I, unpaid_only=B)),
     ToolSpec(name="send_dm", description="Send a colleague a short work message on Slack for the asker (signed "
              "with the asker's name). Work messages only.", parameters=_p(person=S, text=S)),
@@ -115,6 +116,9 @@ EXTERNAL_TOOLS: frozenset[str] = frozenset({"dashboard_help", "start_what_if", "
 # `search_web` sends the model's query to a third party, so Granite (whose context holds company data) never gets it:
 # it is neither listed for Granite nor run when `allowed` is None.
 EXTERNAL_ONLY: frozenset[str] = frozenset({"search_web"})
+FILLER_WORDS = frozenset({"invoice", "invoices", "faktura", "faktury", "pdf", "pdfs", "file", "files", "all", "the",
+                          "send", "sent", "me", "my", "from", "for", "and", "with", "slack", "email", "mail", "please"})
+INVOICE_FILE = re.compile(r"invoice|faktur|rachun|bill|receipt", re.I)
 BRIEFING_PART = 2500  # characters per Slack message (Slack's section text limit is 3000)
 BRIEFING_PARTS = 3
 
@@ -427,7 +431,8 @@ class Toolbox:
             mails = self._email_invoices([w for w in (number, supplier) if w], days)
             out["email_invoices"] = [{k: v for k, v in m.items() if k != "id"} for m in mails[:MAX_ROWS]]
             if not mails:
-                out["note"] = "No invoices on file or in email for that. Do not guess supplier names."
+                out["note"] = ("No invoices on file or in email for that. Do not guess supplier names. To send PDFs "
+                                "call send_invoices: it also checks company folders and KSeF.")
         talk = self._chat_about(number, found)  # by default: what the team said about it on Slack
         if talk:
             out["slack_messages"] = talk
@@ -619,23 +624,13 @@ class Toolbox:
             recipient = self._on_slack(to)
             if recipient is None:
                 return {"error": "unknown_person", "person": to}
-        number = (number or "").strip() or ("" if supplier or words else (self._from_question() or ""))
+        number = (number or "").strip() or invoice_number_in(words or "") or (
+            "" if supplier or words else (self._from_question() or ""))
+        supplier = (supplier or "").strip()
         since = (self.ctx.now() - timedelta(days=min(max(int(days or 90), 1), 3650))).date()
-        sql, a = ("SELECT id, number, supplier, issue_date, due_date, total, currency, transaction_id, category "
-                  "FROM invoices WHERE TRUE"), []
-        if number:
-            sql += " AND upper(number) = upper(%s)"
-            a.append(number)
-        else:
-            sql += " AND issue_date >= %s"
-            a.append(since)
-        if supplier:
-            sql += " AND supplier ILIKE %s"
-            a.append(f"%{supplier}%")
-        if str(unpaid_only).casefold() in ("true", "1", "yes"):
-            sql += " AND transaction_id IS NULL"
-        rows = [] if words and not (number or supplier) else self._q(
-            sql + f" ORDER BY issue_date DESC, number LIMIT {MAX_PDFS + 1}", a)
+        word_list = [w for w in re.split(r"[\s,;]+", words or "") if w]
+        unpaid = str(unpaid_only).casefold() in ("true", "1", "yes")
+        rows = self._invoice_rows(number, supplier, word_list, since, unpaid, MAX_PDFS + 1)
         more = len(rows) > MAX_PDFS
         rows = rows[:MAX_PDFS]
         originals = self._original_pdfs([r["number"] for r in rows]) if rows else {}
@@ -651,7 +646,7 @@ class Toolbox:
             listed.append({"file": name, "supplier": r["supplier"], "total": eur(Decimal(r["total"])),
                            "date": str(r["issue_date"]), "source": source})
         # PDFs that arrived by email: always looked at, so invoices nobody filed are found too
-        terms = [w for w in [number, supplier, *(words or "").split()] if w and len(w) >= 2][:4]
+        terms = [w for w in [number, supplier, *word_list] if w and len(w) >= 2 and w.casefold() not in FILLER_WORDS][:4]
         on_file = [r["number"].upper() for r in rows]
         mails = self._email_invoices(terms, days) if len(files) < MAX_PDFS else []
         for m in mails:
@@ -670,11 +665,25 @@ class Toolbox:
                     files.append((name, data))
                     listed.append({"file": name, "from": m["from"], "subject": m["subject"], "date": m["date"],
                                    "source": "email attachment"})
+        # Not on file and not in email: the other sources. Invoice numbers come from the request and from the bank
+        # references of payments to that supplier (an invoice the bank names but nobody filed).
+        checked = ["invoicing system"] + (["email"] if self.ctx.connectors.mail.available() else [])
+        if len(files) < MAX_PDFS:
+            have = {n for n, _ in files}
+            numbers = [n for n in dict.fromkeys(
+                ([number] if number else []) + self._payment_invoice_numbers(supplier, word_list, since))
+                if n and not any(n.upper() in f.upper() for f in have) and n.upper() not in on_file]
+            extra = self._other_source_pdfs(numbers, [w for w in [supplier, *word_list] if self._useful(w)],
+                                            have, MAX_PDFS - len(files), checked)
+            for name, data, item in extra:
+                files.append((name, data))
+                listed.append(item)
         if not files:
             mail_on = self.ctx.connectors.mail.available()
-            return {"invoices": 0, "attached": False, "note": "No invoices on file" + (
-                " or as PDFs in email" if mail_on else "; email is not connected (Connections)") +
-                ". Nothing was sent or attached; say exactly that."}
+            return {"invoices": 0, "attached": False, "checked": checked,
+                    "note": "No invoice PDFs found in " + ", ".join(checked) + (
+                        "" if mail_on else "; email is not connected (Connections)") +
+                    ". Nothing was sent or attached; say exactly that."}
         who = self.ctx.hr.name(self.requester)
         comment = (f"{len(files)} invoice PDF(s)" + (f" for {' '.join(terms)}" if terms else "")
                    + (f", sent by {who} via Scout" if recipient != self.requester else "") + ".")
@@ -696,6 +705,146 @@ class Toolbox:
                 "slack_recipient": self.ctx.hr.full_name(recipient), "more_not_sent": more,
                 "note": "The PDFs are attached in this chat" + (f" and in {self.ctx.hr.name(recipient)}'s Slack DM"
                                                                 if link else "") + "."}
+
+    @staticmethod
+    def _useful(word: str) -> bool:
+        return len(word) >= 3 and word.casefold() not in FILLER_WORDS
+
+    def _invoice_rows(self, number: str, supplier: str, words: list[str], since: Any, unpaid: bool,
+                      limit: int) -> list[dict[str, Any]]:
+        """Invoices on file, most specific match first: the exact number, a partial number, the supplier in the
+        period, the supplier at any time, its first word, then any of the words in a number or a supplier name."""
+        base = ("SELECT id, number, supplier, issue_date, due_date, total, currency, transaction_id, category "
+                "FROM invoices WHERE TRUE")
+        tail = (" AND transaction_id IS NULL" if unpaid else "") + f" ORDER BY issue_date DESC, number LIMIT {limit}"
+        tries: list[tuple[str, list[Any]]] = []
+        if number:
+            tries += [(" AND upper(number) = upper(%s)", [number]), (" AND number ILIKE %s", [f"%{number}%"])]
+        if supplier:
+            tries += [(" AND supplier ILIKE %s AND issue_date >= %s", [f"%{supplier}%", since]),
+                      (" AND supplier ILIKE %s", [f"%{supplier}%"])]
+            first = supplier.split()[0]
+            if first != supplier and self._useful(first):
+                tries.append((" AND supplier ILIKE %s", [f"%{first}%"]))
+        terms = [w for w in words if self._useful(w)][:4]
+        if terms:
+            ors = " OR ".join("number ILIKE %s OR supplier ILIKE %s" for _ in terms)
+            tries.append((f" AND ({ors})", [x for w in terms for x in (f"%{w}%", f"%{w}%")]))
+        if not number and not supplier and not terms:  # nothing named: the newest ones
+            tries.append((" AND issue_date >= %s", [since]))
+        for where, args in tries:
+            try:
+                rows = self._q(base + where + tail, args)
+            except Exception:  # noqa: BLE001 - the invoicing system failing must not stop the other sources
+                log.warning("invoice lookup failed", exc_info=True)
+                return []
+            if rows:
+                return rows
+        return []
+
+    def _payment_invoice_numbers(self, supplier: str, words: list[str], since: Any) -> list[str]:
+        """Invoice numbers named by outgoing payments to that supplier (the bank knows the number even when the
+        invoice was never filed). Only for askers with bank access."""
+        terms = [w for w in [supplier, *words] if self._useful(w)][:4]
+        if not terms or not self._allowed("bank", "transactions")[0]:
+            return []
+        ors = " OR ".join("counterparty ILIKE %s OR reference ILIKE %s" for _ in terms)
+        try:
+            rows = self._q("SELECT invoice_number, booking_date FROM transactions WHERE amount < 0 AND invoice_number "
+                           f"IS NOT NULL AND booking_date >= %s AND NOT {salary_sql()} AND ({ors}) "
+                           "ORDER BY booking_date DESC LIMIT 20",
+                           [since, *[x for w in terms for x in (f"%{w}%", f"%{w}%")]])
+        except Exception:  # noqa: BLE001
+            log.warning("payment lookup for invoice numbers failed", exc_info=True)
+            return []
+        return list(dict.fromkeys(r["invoice_number"] for r in rows))[:MAX_PDFS]
+
+    def _other_source_pdfs(self, numbers: list[str], terms: list[str], have: set[str], room: int,
+                           checked: list[str]) -> list[tuple[str, bytes, dict[str, Any]]]:
+        """PDFs for invoices that are neither on file nor in email: originals in company folders and the mailbox
+        (by number), KSeF e-invoices (by number), then invoice-like PDFs in company folders (by supplier words)."""
+        out: list[tuple[str, bytes, dict[str, Any]]] = []
+
+        def add(name: str, data: bytes, item: dict[str, Any]) -> None:
+            if len(out) < room and name not in have:
+                have.add(name)
+                out.append((name, data, {"file": name, **item}))
+
+        if numbers:
+            checked.append("company folders")
+            try:
+                originals = self._original_pdfs(numbers)
+            except Exception:  # noqa: BLE001
+                log.warning("original invoice lookup failed", exc_info=True)
+                originals = {}
+            for n, (data, source) in originals.items():
+                add(f"Invoice_{n}.pdf", data, {"number": n, "source": source})
+            ksef = getattr(self.ctx.connectors, "ksef", None)
+            if ksef is not None:
+                checked.append("KSeF")
+                for n in [n for n in numbers if n not in originals][:5]:
+                    if len(out) >= room:
+                        break
+                    got = self._ksef_pdf(ksef, n)
+                    if got:
+                        data, inv = got
+                        add(f"Invoice_{n}.pdf", data, {"supplier": inv.supplier, "total": eur(inv.total),
+                                                       "date": str(inv.issue_date), "source": "KSeF e-invoice"})
+        if terms and len(out) < room:
+            if "company folders" not in checked:
+                checked.append("company folders")
+            for name, data, source in self._folder_invoice_pdfs(terms, have, room - len(out)):
+                add(name, data, {"source": source})
+        return out
+
+    def _ksef_pdf(self, ksef: Any, number: str) -> tuple[bytes, Invoice] | None:
+        """The KSeF e-invoice with this number addressed to us, as a PDF copy."""
+        try:
+            hits = ksef.find(number, task_id=self.task.id, days=90, attempts=1)
+        except Exception:  # noqa: BLE001 - KSeF unreachable: the other sources still count
+            log.warning("KSeF lookup for %s failed", number, exc_info=True)
+            return None
+        for doc, ksef_number in hits:
+            if (doc.get("number") or "").upper() != number.upper() or doc.get("buyer_nip") != ksef.nip:
+                continue
+            try:
+                inv = Invoice(id=f"ksef_{ksef_number}", number=doc["number"], supplier=doc.get("supplier") or "?",
+                              issue_date=doc["issue_date"], due_date=doc.get("due_date"), total=Decimal(doc["total"]),
+                              currency=doc.get("currency") or "PLN",
+                              lines=[InvoiceLine(**ln) for ln in doc.get("lines") or []], source=f"ksef:{ksef_number}")
+                return invoice_pdf(inv, title_prefix=f"INVOICE (KSeF {ksef_number})"), inv
+            except Exception:  # noqa: BLE001
+                log.warning("could not render KSeF invoice %s", number, exc_info=True)
+        return None
+
+    def _folder_invoice_pdfs(self, terms: list[str], have: set[str], room: int) -> list[tuple[str, bytes, str]]:
+        """Invoice PDFs in the company folders the asker may see whose path names one of the terms."""
+        out: list[tuple[str, bytes, str]] = []
+        for e in self.ctx.hr.all():
+            if len(out) >= room:
+                break
+            if not self._allowed(f"laptop:{e['id']}", "company folders")[0]:
+                continue
+            try:
+                hits = self.ctx.connectors.files.search(e["id"], terms, task_id=self.task.id)
+            except Exception:  # noqa: BLE001
+                log.warning("company folder search failed", exc_info=True)
+                continue
+            for f in hits:
+                path = f.get("path") or ""
+                name = path.rsplit("/", 1)[-1]
+                if (len(out) >= room or not path.lower().endswith(".pdf") or name in have
+                        or not any(t.casefold() in path.casefold() for t in terms)
+                        or not (INVOICE_FILE.search(name) or invoice_number_in(name.upper()))):
+                    continue
+                try:
+                    data = self.ctx.connectors.files.read(e["id"], path, task_id=self.task.id)
+                except Exception:  # noqa: BLE001
+                    data = None
+                if data and data[:5] == b"%PDF-":
+                    have.add(name)
+                    out.append((name, data, f"original from {self.ctx.hr.name(e['id'])}'s company folders"))
+        return out
 
     def _original_pdfs(self, numbers: list[str]) -> dict[str, tuple[bytes, str]]:
         """Invoice number -> (the original PDF, where it was found), from company folders the asker may see and

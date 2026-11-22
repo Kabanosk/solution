@@ -40,3 +40,24 @@ export function watchGuardrails(refresh: () => void, env: WatchEnv): () => void 
     env.win.removeEventListener("focus", tick);
   };
 }
+
+// -- lockouts after the third blocked message (T087) -----------------------------------------------------------------
+/** One person who is locked out of Scout right now. */
+export type GuardrailLock = { id: number; person: string; name: string; lockedAt: string; lockedUntil: string; rails: string };
+
+/** Listing and lifting locks is for the workspace owner only (the same gate as the switch). */
+export function guardrailLocksAccess(role: string | null | undefined): { status: 403; error: string } | null {
+  return role === "owner" ? null : { status: 403, error: "Workspace owner access required." };
+}
+
+export function parseUnlock(value: unknown): string {
+  const person = value && typeof value === "object" && !Array.isArray(value) ? (value as { person?: unknown }).person : undefined;
+  if (typeof person !== "string" || !person.trim() || person.trim().length > 100) throw new Error("Choose the person to unlock.");
+  return person.trim();
+}
+
+/** The audit row of one unlock, in the shape of the backend's lockout rows (policy `user-input`). */
+export function guardrailUnlockAudit(person: string, who: string) {
+  return { actor: "dashboard", requester: who, role: "owner", action: "guardrail_unlock", target: `guardrails:${person}`,
+    resource: `access to Scout restored for ${person}`, decision: "ALLOW", policy: "user-input", reason: "unlocked by owner" } as const;
+}

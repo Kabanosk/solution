@@ -18,6 +18,7 @@ import { AppSidebar, type NavCounts } from "@/components/app-sidebar";
 import { AttentionList, TaskBoard } from "@/components/tasks/task-list";
 import { TaskDetailSkeleton, TaskDetailView } from "@/components/tasks/task-detail";
 import { AuditLog } from "@/components/audit-log";
+import { GuardrailLocks } from "@/components/guardrail-locks";
 import { GuardrailsBanner, GuardrailsSwitch } from "@/components/guardrails-switch";
 import { Connections } from "@/components/connections";
 import { Onboarding } from "@/components/onboarding";
@@ -350,7 +351,7 @@ function TransactionsView({ tasks }: { tasks: AgentTask[] }) {
 
 function AuditView({ owner }: { owner: boolean }) {
   const { data, error, reload } = useRecords("audit");
-  return data ? <AuditLog rows={data} controls={<GuardrailsSwitch owner={owner} onChanged={reload} />} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="audit" />;
+  return data ? <AuditLog rows={data} controls={<><GuardrailsSwitch owner={owner} onChanged={reload} /><GuardrailLocks owner={owner} onChanged={reload} /></>} /> : error ? <RecordsError onRetry={reload} /> : <ViewSkeleton view="audit" />;
 }
 
 function CashEvents({ data }: { data: DashboardData }) {

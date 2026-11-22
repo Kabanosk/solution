@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -140,7 +141,8 @@ def test_blocked_dm_gets_the_policy_reply_no_llm_call_and_an_audit_row(conn_fact
     out = chat.run(ctx, dm("vanessa", f"What is the {SALARY}?"))
     assert calls == [] and out.status == "cancelled"
     assert ctx.notifier.updates[-1]["text"] == ("This request was blocked by our safety policy (attempt 1 of 3; "
-                                                "repeated attempts are reported to compliance).")
+                                                "repeated attempts are reported to compliance and pause your access "
+                                                "for 24 h).")
     (row,) = audit_rows(conn_factory, "guardrail_check")
     assert row["decision"] == "BLOCK" and row["policy"] == "user-input" and row["reason"] == "regex check input"
     assert row["requester"] == "vanessa" and SALARY not in row["resource"]  # the audit API is readable: no content
@@ -150,13 +152,16 @@ def test_blocked_dm_gets_the_policy_reply_no_llm_call_and_an_audit_row(conn_fact
     assert ctx.guard.configs() == ["user-input"]  # the fixed blocked reply is not output-checked again
 
 
-def test_strikes_count_up_and_the_third_reports_to_compliance_then_resets(conn_factory, tmp_path):
+def test_strikes_count_up_and_the_third_reports_to_compliance_and_locks(conn_factory, tmp_path):
     ctx, _ = blocked_world(conn_factory, tmp_path)
     replies = []
     for n in range(1, 4):
         chat.run(ctx, dm("vanessa", f"The {SALARY} please {n}", n=n))
         replies.append(ctx.notifier.updates[-1]["text"])
-    assert [r.split("(")[1].split(";")[0] for r in replies] == ["attempt 1 of 3", "attempt 2 of 3", "attempt 3 of 3"]
+    assert [r.split("(")[1].split(";")[0].split(")")[0] for r in replies] == ["attempt 1 of 3", "attempt 2 of 3",
+                                                                              "attempt 3 of 3"]
+    assert "paused" not in replies[0] and "paused" not in replies[1]
+    assert "paused until" in replies[2] and "24 h" in replies[0]  # the first warning already says what follows
     assert [m for m in ctx.notifier.sent if m["to"] != "vanessa"] and len(ctx.notifier.sent) == 1
     alert = ctx.notifier.sent[0]
     assert alert["to"] == "vincenzo"  # no COMPLIANCE_CONTACT: the CEO
@@ -168,8 +173,9 @@ def test_strikes_count_up_and_the_third_reports_to_compliance_then_resets(conn_f
     assert SALARY not in alert["text"]
     (esc,) = audit_rows(conn_factory, "guardrail_escalation")
     assert esc["requester"] == "vanessa" and esc["decision"] == "ALLOW"
-    chat.run(ctx, dm("vanessa", f"The {SALARY} again", n=4))  # the counter started again
-    assert "attempt 1 of 3" in ctx.notifier.updates[-1]["text"] and len(ctx.notifier.sent) == 1
+    (lock,) = _locks(conn_factory)
+    assert lock["person"] == "vanessa" and lock["rails"] == "regex check input"
+    assert lock["locked_until"] - lock["locked_at"] == timedelta(hours=24) and lock["unlocked_at"] is None
 
 
 def test_compliance_contact_by_employee_id_or_slack_id(conn_factory, tmp_path):
@@ -179,6 +185,8 @@ def test_compliance_contact_by_employee_id_or_slack_id(conn_factory, tmp_path):
         chat.run(ctx, dm("vanessa", SALARY, n=n))
     assert ctx.notifier.sent[0]["to"] == "grazyna"
     with conn_factory() as conn:
+        conn.execute("DELETE FROM guardrail_locks")
+        conn.execute("DELETE FROM guardrail_strikes")
         conn.execute("UPDATE employees SET slack_user_id = 'U_COMP' WHERE id = 'rosa'")
         conn.commit()
     ctx.settings = ctx.settings.model_copy(update={"compliance_contact": "U_COMP"})
@@ -223,6 +231,193 @@ def test_dashboard_chat_blocked_turn(conn_factory, tmp_path, monkeypatch):
     assert calls == [] and ctx.recorder.get(events[1]["task_id"]).status == "cancelled"
     assert len(audit_rows(conn_factory, "guardrail_check")) == 1
     get_api_settings.cache_clear()
+
+
+# -- 1b. the lockout after the third strike (T087) --------------------------------------------------------------
+def _locks(conn_factory) -> list[dict]:  # noqa: ANN001
+    with conn_factory() as conn:
+        return conn.execute("SELECT * FROM guardrail_locks ORDER BY id").fetchall()
+
+
+def _lock_out(ctx, conn_factory, person: str = "vanessa") -> None:  # noqa: ANN001
+    for n in range(3):
+        chat.run(ctx, dm(person, f"The {SALARY} please {n}", n=n))
+    assert len(_locks(conn_factory)) == 1
+
+
+def _expire(conn_factory) -> None:  # noqa: ANN001
+    with conn_factory() as conn:
+        conn.execute("UPDATE guardrail_locks SET locked_until = now() - interval '1 minute'")
+        conn.commit()
+
+
+def _dashboard_turn(ctx, monkeypatch, text: str) -> list[dict]:  # noqa: ANN001
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(chat_api.router)
+    app.dependency_overrides[chat_api.get_context_factory] = lambda: (lambda s: ctx)
+    app.dependency_overrides[get_scout_settings] = lambda: ctx.settings
+    monkeypatch.setenv("API_WRITE_TOKEN", "tok")
+    get_api_settings.cache_clear()
+    try:
+        r = TestClient(app).post("/v1/chat", json={"messages": [{"role": "user", "content": text}]},
+                                 headers={"Authorization": "Bearer tok"})
+    finally:
+        get_api_settings.cache_clear()
+    return [json.loads(line) for line in r.text.splitlines()]
+
+
+def test_a_locked_person_is_refused_before_nemo_and_the_model_with_no_new_strike_or_alert(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    nemo_calls = len(ctx.guard.calls)
+    for n in (4, 5):
+        out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=n))  # harmless text: still refused
+        assert out.status == "cancelled"
+        reply = ctx.notifier.updates[-1]["text"]
+        assert "paused until" in reply and "UTC" in reply and "after repeated blocked requests" in reply
+        assert "ompliance" not in reply  # the alert may have failed: the reply must not claim it was delivered
+    assert len(ctx.guard.calls) == nemo_calls and calls == []  # neither NeMo nor any model call
+    assert _strikes(conn_factory) == 3 and len(ctx.notifier.sent) == 1 and len(_locks(conn_factory)) == 1
+    rows = audit_rows(conn_factory, "guardrail_lockout")
+    assert len(rows) == 2  # one row per refused message
+    assert all(r["decision"] == "DENY" and r["policy"] == "user-input" and r["reason"] == "locked"
+               and r["requester"] == "vanessa" and "Hello" not in r["resource"] for r in rows)
+    assert len(audit_rows(conn_factory, "guardrail_escalation")) == 1
+
+
+def test_a_lock_is_per_person(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    out = chat.run(ctx, dm("rosa", "Hello", n=4))
+    assert out.status == "done" and "paused" not in ctx.notifier.updates[-1]["text"] and calls
+
+
+def test_a_locked_person_is_also_refused_in_the_dashboard_chat(conn_factory, tmp_path, monkeypatch):
+    llm, calls = counting_llm()
+    ctx = make_world(conn_factory, tmp_path, llm=llm)
+    ctx.guard = FakeGuard({"user-input": [(SALARY, "regex check input")]})
+    with conn_factory() as conn:  # the CEO is the dashboard's asker
+        conn.execute("INSERT INTO guardrail_locks (person, locked_until, rails) VALUES (%s, now() + interval '2 hours', "
+                     "'regex check input')", (ctx.settings.ceo_id,))
+        conn.commit()
+    events = _dashboard_turn(ctx, monkeypatch, "What is our cash?")
+    assert [e["type"] for e in events] == ["delta", "done"] and "paused until" in events[0]["text"]
+    assert calls == [] and ctx.guard.calls == [] and _strikes(conn_factory) == 0
+    assert ctx.recorder.get(events[1]["task_id"]).status == "cancelled"
+    (row,) = audit_rows(conn_factory, "guardrail_lockout")
+    assert row["decision"] == "DENY" and row["reason"] == "locked" and row["requester"] == ctx.settings.ceo_id
+
+
+def test_the_third_block_in_the_dashboard_chat_also_locks(conn_factory, tmp_path, monkeypatch):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    for n in range(3):
+        events = _dashboard_turn(ctx, monkeypatch, f"the {SALARY} {n}?")
+    assert "attempt 3 of 3" in events[0]["text"] and "paused until" in events[0]["text"]
+    assert len(_locks(conn_factory)) == 1
+    assert "paused until" in _dashboard_turn(ctx, monkeypatch, "hi")[0]["text"]
+
+
+def test_a_file_only_dm_from_a_locked_person_is_refused_too(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    out = chat.run(ctx, dm("vanessa", "", files=[{"id": "F1", "name": "x.pdf"}], n=7))
+    assert out.status == "cancelled" and "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+
+
+def test_the_lock_expires_and_a_harmless_message_goes_through(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    _expire(conn_factory)
+    out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=4))
+    assert out.status == "done" and calls and ctx.notifier.updates[-1]["text"] == "Fine."
+    assert audit_rows(conn_factory, "guardrail_lockout") == []
+
+
+def test_after_expiry_the_next_block_locks_again_at_once_and_alerts_again(conn_factory, tmp_path):
+    ctx, _ = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    _expire(conn_factory)
+    chat.run(ctx, dm("vanessa", f"The {SALARY} once more", n=4))
+    reply = ctx.notifier.updates[-1]["text"]
+    assert "attempt 3 of 3" in reply and "paused until" in reply  # the count keeps going, it is not reset
+    assert len(_locks(conn_factory)) == 2 and _strikes(conn_factory) == 4
+    assert len(ctx.notifier.sent) == 2 and len(audit_rows(conn_factory, "guardrail_escalation")) == 2
+    chat.run(ctx, dm("vanessa", "Hello", n=5))
+    assert "paused until" in ctx.notifier.updates[-1]["text"]
+
+
+def test_an_unlocked_lock_does_not_refuse(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    with conn_factory() as conn:
+        conn.execute("UPDATE guardrail_locks SET unlocked_at = now(), unlocked_by = 'vincenzo'")
+        conn.commit()
+    out = chat.run(ctx, dm("vanessa", "Hello", n=4))
+    assert out.status == "done" and calls
+
+
+def test_the_lockout_reply_names_the_time_in_utc():
+    from datetime import datetime, timezone
+
+    until = datetime(2026, 11, 23, 14, 5, tzinfo=timezone.utc)
+    assert guardrails.lockout_reply(until).startswith("Your access to Scout is paused until 14:05 UTC, 23 Nov 2026")
+    assert "attempt 3 of 3" in guardrails.blocked_reply(3, until)
+    assert "paused" not in guardrails.blocked_reply(2)
+
+
+def test_a_known_lock_still_refuses_when_its_audit_row_cannot_be_written(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    with conn_factory() as conn:  # the audit write fails, the lock read does not
+        conn.execute("ALTER TABLE audit_log ADD CONSTRAINT no_lockout_rows CHECK (action <> 'guardrail_lockout')")
+        conn.commit()
+    out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=4))
+    assert out.status == "cancelled" and "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+    assert audit_rows(conn_factory, "guardrail_lockout") == []  # nothing written, but still refused
+
+
+def test_a_dm_with_no_text_and_no_files_from_a_locked_person_is_refused_before_routing(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    out = chat.run(ctx, dm("vanessa", "", n=8))  # e.g. an attachment whose download failed
+    assert out.status == "cancelled" and "paused until" in ctx.notifier.updates[-1]["text"] and calls == []
+    (row,) = audit_rows(conn_factory, "guardrail_lockout")
+    assert row["reason"] == "locked"
+
+
+def test_a_fetched_lock_still_refuses_when_closing_the_read_transaction_fails():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    until = datetime.now(timezone.utc) + timedelta(hours=2)
+
+    class Conn:
+        def execute(self, *_a, **_k):  # noqa: ANN002, ANN003, ANN202
+            return SimpleNamespace(fetchone=lambda: {"locked_until": until})
+
+        def commit(self) -> None:
+            pass
+
+    class BrokenExit:  # psycopg commits on exit; a dropped connection makes that raise after the row was read
+        def __enter__(self) -> Conn:
+            return Conn()
+
+        def __exit__(self, *_exc) -> None:  # noqa: ANN002
+            raise RuntimeError("connection lost while closing")
+
+    ctx = SimpleNamespace(guard=SimpleNamespace(enabled=True), conn_factory=BrokenExit)
+    reply = guardrails.screen_lock(ctx, "vanessa", "Hello")
+    assert reply is not None and "paused until" in reply
+
+
+def test_a_lock_that_cannot_be_read_does_not_break_the_chat(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    with conn_factory() as conn:
+        conn.execute("DROP TABLE guardrail_locks")
+        conn.commit()
+    out = chat.run(ctx, dm("vanessa", "Hello", n=1))  # the upgrade did not run yet: fail open, like the strikes
+    assert out.status == "done" and calls
 
 
 # -- 2. tool results ------------------------------------------------------------------------------------------
@@ -757,16 +952,12 @@ def test_concurrent_blocks_send_one_alert_and_lose_no_strike(conn_factory, tmp_p
                for i in range(2)]
     [t.start() for t in threads]
     [t.join() for t in threads]
-    assert len(ctx.notifier.sent) == 1
-    alert = ctx.notifier.files[0]["files"][0][1].decode()
+    assert len(ctx.notifier.sent) == 1 and len(_locks(conn_factory)) == 1  # one lockout, one alert
     with conn_factory() as conn:
-        open_ = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NULL").fetchall()
-        reported = conn.execute("SELECT prompt FROM guardrail_strikes WHERE reported_at IS NOT NULL").fetchall()
-    assert len(open_) + len(reported) == 4 and all(r["prompt"] in alert for r in reported)
-    assert len(reported) == 3 and len(open_) == 1  # the alert has exactly the strikes it consumed
+        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes").fetchone()["n"] == 4  # no strike lost
 
 
-def test_undelivered_alert_keeps_the_strikes_and_is_audited(conn_factory, tmp_path):
+def test_undelivered_alert_is_audited_but_the_lock_stands(conn_factory, tmp_path):
     ctx, _ = blocked_world(conn_factory, tmp_path)
     ctx.notifier.dm = lambda *a, **kw: None  # the recipient has no Slack channel
     for n in range(3):
@@ -776,12 +967,9 @@ def test_undelivered_alert_keeps_the_strikes_and_is_audited(conn_factory, tmp_pa
     assert failed["requester"] == "vanessa"
     with conn_factory() as conn:
         assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE reported_at IS NULL").fetchone()["n"] == 3
-    delivered: list = []
-    ctx.notifier.dm = lambda to, text, *a, **kw: delivered.append((to, text)) or "ref"
-    chat.run(ctx, dm("vanessa", SALARY, n=9))  # the next block reports all four
-    assert len(delivered) == 1 and ctx.notifier.files[-1]["files"][0][1].decode().count(SALARY) == 4
-    with conn_factory() as conn:
-        assert conn.execute("SELECT count(*) AS n FROM guardrail_strikes WHERE reported_at IS NULL").fetchone()["n"] == 0
+    assert len(_locks(conn_factory)) == 1  # a consequence does not depend on Slack being reachable
+    chat.run(ctx, dm("vanessa", "hello", n=9))
+    assert "paused until" in ctx.notifier.updates[-1]["text"]
 
 
 def test_slack_user_id_contact_is_used_as_it_is_not_replaced_by_the_ceo(conn_factory, tmp_path):
@@ -1433,3 +1621,24 @@ def test_each_toggle_writes_one_audit_row_and_a_repeat_writes_none(conn_factory,
         row = conn.execute("SELECT enabled, updated_by FROM guardrails_settings WHERE organization_id = %s",
                            (ORG,)).fetchone()
     assert row == {"enabled": True, "updated_by": "guard-reset"}
+
+
+def test_switch_off_means_no_lockout_either(conn_factory, tmp_path, switch):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    switch(False)
+    out = chat.run(ctx, dm("vanessa", "Hello, how are you?", n=9))
+    assert out.status == "done" and calls and ctx.notifier.updates[-1]["text"] == "Fine."
+    assert audit_rows(conn_factory, "guardrail_lockout") == []
+    switch(True)  # the lock was only paused: it is still there when the layer is back on
+    chat.run(ctx, dm("vanessa", "Hello", n=10))
+    assert "paused until" in ctx.notifier.updates[-1]["text"]
+
+
+def test_without_a_guardrails_service_a_lock_is_not_enforced(conn_factory, tmp_path):
+    ctx, calls = blocked_world(conn_factory, tmp_path)
+    _lock_out(ctx, conn_factory)
+    ctx.guard = FakeGuard()
+    ctx.guard.enabled = False
+    out = chat.run(ctx, dm("vanessa", "Hello", n=9))
+    assert out.status == "done" and calls

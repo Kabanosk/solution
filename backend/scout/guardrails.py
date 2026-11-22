@@ -4,14 +4,15 @@
     tool-result  a tool result in the chat loop, or the text of a document Scout is about to read (invoice)
     bot-output   the text Scout sends back (DM reply, dashboard reply, send_dm message)
 
-The service only judges text; everything that follows is code here: strikes and the compliance DM for blocked
-human messages, `[content withheld]` for flagged tool results, the CEO approval card for a flagged invoice (see
+The service only judges text; everything that follows is code here: strikes, the compliance DM and the 24 h lockout
+(table `guardrail_locks`, T087) for blocked human messages, `[content withheld]` for flagged tool results, the CEO approval card for a flagged invoice (see
 `loops/invoicing.py`) and the audit rows. `GUARDRAILS_URL` unset means disabled: nothing is sent, everything passes.
 The service down, slow or answering `error` means fail-open: the text passes, a warning is logged and an audit row
 `guardrail_unavailable` is written.
 
 Audit rows use the existing `audit_log`: action `guardrail_check` (decision DENY = blocked, policy = config id,
-reason = the rails that fired), `guardrail_unavailable`, `guardrail_escalation` and `guardrail_escalation_failed`.
+reason = the rails that fired), `guardrail_unavailable`, `guardrail_escalation`, `guardrail_escalation_failed`, `guardrail_locked` (the third strike)
+and `guardrail_lockout` (a message refused while locked, DENY, reason `locked`).
 The checked content itself never goes into `audit_log` (the audit API is readable): a row holds the config id, the
 rails and the length and a short hash of the text. The full blocked prompts of people live in `guardrail_strikes`,
 which no API exposes; the compliance DM is built from it.
@@ -34,6 +35,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -49,6 +51,8 @@ FINANCE_ROLES = frozenset({"ceo", "office_manager"})  # HR role codes that may s
 DASHBOARD_PLACEHOLDER = "http://dashboard.svc.cluster.local"  # an allow-listed host that stands for the real one
 MAX_STRIKES = 3
 WINDOW_DAYS = 7
+LOCK_HOURS = 24  # the third strike in the window pauses the person's access to Scout for this long
+LOCKOUT_ACTION = "guardrail_lockout"
 TIMEOUT_S = 5.0
 WARMUP_TIMEOUT_S = 30.0
 WARMUP_MIN_INTERVAL_S = 60.0  # a check that fails open on a timeout starts a background warm-up, at most this often
@@ -64,9 +68,21 @@ SLACK_ID = re.compile(r"^[UW][A-Z0-9_]{2,}$")
 EXTERNAL_TOOLS = frozenset({"search_email", "search_chat", "read_file", "search_files"})  # text written by outsiders
 
 
-def blocked_reply(attempt: int) -> str:
+def _when(until: datetime) -> str:
+    until = until.astimezone(timezone.utc)
+    return f"{until:%H:%M} UTC, {until.day} {until:%b %Y}"
+
+
+def lockout_reply(until: datetime) -> str:
+    return f"Your access to Scout is paused until {_when(until)} after repeated blocked requests."
+
+
+def blocked_reply(attempt: int, locked_until: datetime | None = None) -> str:
+    if locked_until is not None:
+        return (f"This request was blocked by our safety policy (attempt {attempt} of {MAX_STRIKES}). "
+                f"{lockout_reply(locked_until)}")
     return (f"This request was blocked by our safety policy (attempt {attempt} of {MAX_STRIKES}; repeated attempts "
-            "are reported to compliance).")
+            f"are reported to compliance and pause your access for {LOCK_HOURS} h).")
 
 
 @dataclass(frozen=True)
@@ -365,28 +381,67 @@ def _audit(conn: Any, action: str, target: str, resource: str, decision: str, *,
                  (task_id, requester, role, action, target, resource[:500], decision, policy, reason))
 
 
-# -- 1. human messages: strikes and compliance ------------------------------------------------------------
+# -- 1. human messages: strikes, compliance and the lockout ----------------------------------------------
+def screen_lock(ctx: Any, person: str | None, text: str = "", *, role: str | None = None,
+                task_id: str | None = None) -> str | None:
+    """The lockout reply when the person has an active lock (and the layer is active for this workspace), else None.
+    Runs before NeMo and before any model or tool call; one audit row per refused message, no strike, no alert. A
+    lock that cannot be read (the upgrade has not run yet) lets the message through, like the strikes."""
+    if not active(ctx):
+        return None
+    who = person or "unknown"
+    row = None
+    try:
+        with ctx.conn_factory() as conn:
+            row = conn.execute("SELECT locked_until FROM guardrail_locks WHERE person = %s AND unlocked_at IS NULL "
+                               "AND locked_until > now() ORDER BY locked_until DESC LIMIT 1", (who,)).fetchone()
+    except Exception:  # noqa: BLE001 - an unreadable lock table (the upgrade has not run) is the only fail-open case
+        log.warning("could not read the guardrail lock", exc_info=True)
+        if row is None:  # a lock already fetched still counts when only closing the read transaction failed
+            return None
+    if row is None:
+        return None
+    until = row["locked_until"] if isinstance(row, dict) else row[0]
+    try:  # once a lock is known the person is refused, whatever happens to the audit row
+        with ctx.conn_factory() as conn:
+            _audit(conn, LOCKOUT_ACTION, f"guardrails:{USER_INPUT}", f"{USER_INPUT}: {_digest(text)}", "DENY",
+                   task_id=task_id, requester=person, role=role, policy=USER_INPUT, reason="locked")
+            conn.commit()
+    except Exception:  # noqa: BLE001
+        log.exception("could not audit the lockout refusal")
+    return lockout_reply(until)
+
+
 def screen_human(ctx: Any, person: str | None, text: str, *, role: str | None = None, task_id: str | None = None,
                  ) -> str | None:
     """Check the current human message, on its own. None when it may go on; else the reply that tells the person
-    it was blocked. One block is one strike; the third in 7 days reaches the compliance contact. (Earlier turns of
-    a resent dashboard history never add strikes: see `screen_history`.)"""
+    it was blocked or paused. A person with an active lock is refused first (`screen_lock`), before NeMo. One block
+    is one strike; the third in 7 days reaches the compliance contact and locks the person out for 24 hours (a
+    block while three or more strikes are still in the window locks again). (Earlier turns of a resent dashboard
+    history never add strikes: see `screen_history`.)"""
+    locked = screen_lock(ctx, person, text, role=role, task_id=task_id)
+    if locked:
+        return locked
     texts = [text]
     v = check(ctx, USER_INPUT, texts, task_id=task_id, requester=person, record_block=False)
     if not v.blocked:
         return None
+    until = None
     try:
-        n = _strike(ctx, person, role, "\n---\n".join(t for t in texts if t.strip()), v.rails, task_id)
+        n, until = _strike(ctx, person, role, "\n---\n".join(t for t in texts if t.strip()), v.rails, task_id)
     except Exception:  # noqa: BLE001 - e.g. the tables are not there yet: the message is still blocked
         log.exception("could not record the strike")
         n = 1
-    return blocked_reply(min(n, MAX_STRIKES))
+    return blocked_reply(min(n, MAX_STRIKES), until)
 
 
-def _strike(ctx: Any, person: str | None, role: str | None, prompt: str, rails: str, task_id: str | None) -> int:
-    """Record the block, count the person's open strikes and, at three, report them: all in one transaction
-    under a per-person lock, so two blocks at once cannot send two alerts or lose a strike. The counter only
-    resets (strikes marked reported) when the alert was delivered."""
+def _strike(ctx: Any, person: str | None, role: str | None, prompt: str, rails: str, task_id: str | None,
+            ) -> tuple[int, datetime | None]:
+    """Record the block, count the person's strikes in the window and, from the third on, lock the person out and
+    report them: all in one transaction under a per-person lock, so two blocks at once cannot send two alerts or lose
+    a strike. Strikes are never reset by an alert; they leave the count after WINDOW_DAYS. A lock is created even if
+    the compliance DM could not be delivered (audited as `guardrail_escalation_failed`). Returns the strike count and
+    the end of the lock (None below the third strike)."""
     who = person or "unknown"
     with ctx.conn_factory() as conn:
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"guardrail-strikes:{who}",))
@@ -395,12 +450,24 @@ def _strike(ctx: Any, person: str | None, role: str | None, prompt: str, rails: 
         _audit(conn, "guardrail_check", f"guardrails:{USER_INPUT}", f"{USER_INPUT}: {_digest(prompt)}", "BLOCK",
                task_id=task_id, requester=person, role=role, policy=USER_INPUT, reason=rails)
         strikes = conn.execute(
-            "SELECT id, ts, prompt, rails FROM guardrail_strikes WHERE person = %s AND reported_at IS NULL "
+            "SELECT id, ts, prompt, rails FROM guardrail_strikes WHERE person = %s "
             "AND ts > now() - %s * interval '1 day' ORDER BY id", (who, WINDOW_DAYS)).fetchall()
+        until = None
         if len(strikes) >= MAX_STRIKES:
-            _report(ctx, conn, person, who, role, strikes, task_id)
+            held = conn.execute("SELECT locked_until FROM guardrail_locks WHERE person = %s AND unlocked_at IS NULL "
+                                "AND locked_until > now() ORDER BY locked_until DESC LIMIT 1", (who,)).fetchone()
+            if held is not None:  # a block that raced in behind the one that locked: no second lock, no second alert
+                until = held["locked_until"]
+            else:
+                all_rails = ", ".join(sorted({r for s in strikes for r in (s["rails"] or "").split(", ") if r}))
+                until = conn.execute(
+                    "INSERT INTO guardrail_locks (person, locked_at, locked_until, rails) VALUES (%s, now(), "
+                    "now() + %s * interval '1 hour', %s) RETURNING locked_until", (who, LOCK_HOURS, all_rails)).fetchone()["locked_until"]
+                _audit(conn, "guardrail_locked", f"guardrails:{USER_INPUT}", f"{who} locked out for {LOCK_HOURS} h",
+                       "DENY", task_id=task_id, requester=person, role=role, policy=USER_INPUT, reason=all_rails)
+                _report(ctx, conn, person, who, role, strikes, task_id)
         conn.commit()
-    return len(strikes)
+    return len(strikes), until
 
 
 def _compliance_target(ctx: Any) -> str:
@@ -440,7 +507,7 @@ def _report(ctx: Any, conn: Any, person: str | None, who: str, role: str | None,
         ref = ctx.notifier.dm(target, text, "NOTIFY", task_id=task_id)
     except Exception:  # noqa: BLE001
         log.exception("could not send the compliance alert")
-    if ref is None:  # nobody was told: keep the strikes, so the next block reports again
+    if ref is None:  # nobody was told: the lock stands, the strikes stay unreported
         log.warning("the compliance alert for %s to %s was not delivered", who, target)
         _audit(conn, "guardrail_escalation_failed", f"slack:{target}", f"{len(strikes)} blocked prompts of {who} not "
                "delivered to compliance", "DENY", task_id=task_id, requester=person, role=role, policy=USER_INPUT,

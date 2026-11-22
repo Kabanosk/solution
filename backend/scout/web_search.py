@@ -207,12 +207,19 @@ def _shorten(text: str, limit: int) -> str:
 def _fit(result: dict[str, Any]) -> dict[str, Any]:
     """The whole serialized result within RESULT_CHARS, so the model never gets cut-off JSON: the answer stays, whole
     citations are dropped from the end (one is always kept), and the answer is shortened only if that is not enough."""
+    full = result["answer"] = _shorten(result["answer"], ANSWER_CHARS)  # capped first: citations are judged against it
     sources = result["sources"]
     while _size(result) > RESULT_CHARS and len(sources) > 1:
         sources.pop()
-    full = result["answer"] = _shorten(result["answer"], ANSWER_CHARS)
-    limit = len(full)
-    while _size(result) > RESULT_CHARS and limit > 50:
-        limit -= max(1, _size(result) - RESULT_CHARS)
-        result["answer"] = _shorten(full, limit)
+    if _size(result) <= RESULT_CHARS:
+        return result
+    lo, hi = 0, len(full)  # the longest shortened answer that still fits (JSON escaping makes size non-linear)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        result["answer"] = _shorten(full, mid)
+        if _size(result) <= RESULT_CHARS:
+            lo = mid
+        else:
+            hi = mid - 1
+    result["answer"] = _shorten(full, lo)
     return result

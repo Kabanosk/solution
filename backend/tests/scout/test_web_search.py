@@ -120,6 +120,24 @@ def test_a_long_answer_is_shortened_only_as_far_as_the_budget_needs():
     assert len(out["answer"]) > 500
 
 
+def test_a_very_long_answer_with_one_short_source_keeps_the_full_capped_answer():
+    from scout.loops.toolbox import dumps
+
+    ann = [{"type": "url_citation", "url": "https://news.example.org/a", "title": "A"}]
+    out = web_search.search("openai", "m", KEY, "q", client=client(
+        lambda r: httpx.Response(200, json=openai_body(text="word " * 1200, annotations=ann))))
+    assert len(dumps(out)) <= 3500 and len(out["answer"]) >= web_search.ANSWER_CHARS - 10  # not cut down to "…"
+
+
+def test_citations_that_fit_next_to_the_capped_answer_are_kept():
+    from scout.loops.toolbox import dumps
+
+    ann = [{"type": "url_citation", "url": f"https://news{i}.example.org/a", "title": f"N{i}"} for i in range(3)]
+    out = web_search.search("openai", "m", KEY, "q", client=client(
+        lambda r: httpx.Response(200, json=openai_body(text="word " * 1200, annotations=ann))))
+    assert len(dumps(out)) <= 3500 and len(out["sources"]) == 3
+
+
 @pytest.mark.parametrize("status", [400, 401, 429, 500])
 def test_http_errors_are_generic_and_leak_neither_key_nor_provider_text(status):
     def handler(req: httpx.Request) -> httpx.Response:

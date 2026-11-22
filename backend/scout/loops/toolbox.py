@@ -939,7 +939,9 @@ class Toolbox:
         return {"people": out}
 
     def t_search_web(self, query: str = "", **_: Any) -> dict[str, Any]:
-        query = " ".join(str(query).split())
+        if not isinstance(query, str):  # a number or list would be str()-ed into a paid search: refuse before any call
+            return {"error": "bad_arguments", "note": "query must be text"}
+        query = " ".join(query.split())
         if not query:
             return {"error": "missing_arguments", "note": "query is required"}
         if self.web_search is None:
@@ -974,7 +976,7 @@ def summarize(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
     if result.get("started"):
         return "Started a cash forecast (what-if)"
     if name == "search_web" and "sources" in result:
-        return f"Searched the web for \"{(args or {}).get('query', '')[:80]}\": {len(result['sources'])} source(s)"
+        return f"Searched the web for \"{str((args or {}).get('query', ''))[:80]}\": {len(result['sources'])} source(s)"
     if name == "send_briefing" and result.get("sent") == "partial":
         return (f"Sent only part of the {result.get('title', 'daily briefing')} to {result.get('to')} "
                 f"({result.get('parts_delivered')} of {result.get('parts_total')} messages)")

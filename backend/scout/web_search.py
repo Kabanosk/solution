@@ -25,7 +25,9 @@ log = logging.getLogger(__name__)
 ENDPOINTS = {"openai": "https://api.openai.com/v1/responses", "mistral": "https://api.mistral.ai/v1/conversations"}
 TIMEOUT_S = 60.0
 MAX_BYTES = 512 * 1024  # provider response; anything larger is dropped unparsed
-ANSWER_CHARS = 2400  # the whole tool result must fit the 3,500 characters a tool result is cut to
+ANSWER_CHARS = 3000
+RESULT_CHARS = 3500  # `toolbox.dumps()` cuts a tool result here: the serialized result is made to fit, never cut
+MAX_URL_CHARS = 1000  # a longer citation address is dropped, not truncated
 MAX_SOURCES = 8
 QUERY_CHARS = 300
 UNAVAILABLE = {"error": "web_search_unavailable", "note": "Live web search needs OpenAI or Mistral."}
@@ -59,7 +61,7 @@ def _list(v: Any) -> list[Any]:
 
 def public_url(value: Any) -> str | None:
     """`value` when it is a public https page address (no credentials, port, bare IP or internal host name)."""
-    if not isinstance(value, str) or len(value) > 2000 or re.search(r"[\x00-\x20\x7f]", value):
+    if not isinstance(value, str) or len(value) > MAX_URL_CHARS or re.search(r"[\x00-\x20\x7f]", value):
         return None
     try:
         u = urlsplit(value)
@@ -188,8 +190,29 @@ def search(provider: str, model: str, api_key: str, query: str, *, client: httpx
     answer = answer.strip()
     if not answer or not sources:
         return _failed("The provider returned no answer with public sources. Try a narrower question.")
-    if len(answer) > ANSWER_CHARS:
-        cut = answer[:ANSWER_CHARS - 1]
-        answer = (cut.rsplit(" ", 1)[0] if " " in cut[-200:] else cut) + "…"
-    # answer last: if a result is ever cut for length, the sources survive
-    return {"searched_at": today, "sources": sources, "answer": answer}
+    return _fit({"searched_at": today, "sources": sources, "answer": answer})
+
+
+def _size(result: dict[str, Any]) -> int:
+    return len(json.dumps(result, default=str, ensure_ascii=False))
+
+
+def _shorten(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:max(limit - 1, 0)]
+    return (cut.rsplit(" ", 1)[0] if " " in cut[-200:] else cut) + "…"
+
+
+def _fit(result: dict[str, Any]) -> dict[str, Any]:
+    """The whole serialized result within RESULT_CHARS, so the model never gets cut-off JSON: the answer stays, whole
+    citations are dropped from the end (one is always kept), and the answer is shortened only if that is not enough."""
+    sources = result["sources"]
+    while _size(result) > RESULT_CHARS and len(sources) > 1:
+        sources.pop()
+    full = result["answer"] = _shorten(result["answer"], ANSWER_CHARS)
+    limit = len(full)
+    while _size(result) > RESULT_CHARS and limit > 50:
+        limit -= max(1, _size(result) - RESULT_CHARS)
+        result["answer"] = _shorten(full, limit)
+    return result

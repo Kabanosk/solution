@@ -96,6 +96,30 @@ def test_answer_is_trimmed():
     assert len(out["answer"]) <= web_search.ANSWER_CHARS
 
 
+def test_the_whole_result_fits_the_tool_result_budget_with_the_answer_intact():
+    from scout.loops.toolbox import dumps
+
+    ann = [{"type": "url_citation", "url": f"https://site{i}.example.org/" + "p" * 900, "title": "T" * 300}
+           for i in range(8)]
+    out = web_search.search("openai", "m", KEY, "q", client=client(
+        lambda r: httpx.Response(200, json=openai_body(text="Short answer about the topic.", annotations=ann))))
+    text = dumps(out)
+    assert len(text) < 3500 and json.loads(text)["answer"] == "Short answer about the topic."  # not cut, still valid JSON
+    assert 1 <= len(out["sources"]) < 8  # whole citations were dropped, none cut in half
+    assert all(s["url"].endswith("p" * 900) for s in out["sources"])
+
+
+def test_a_long_answer_is_shortened_only_as_far_as_the_budget_needs():
+    from scout.loops.toolbox import dumps
+
+    ann = [{"type": "url_citation", "url": f"https://site{i}.example.org/" + "p" * 900, "title": "T"} for i in range(8)]
+    out = web_search.search("openai", "m", KEY, "q", client=client(
+        lambda r: httpx.Response(200, json=openai_body(text="word " * 2000, annotations=ann))))
+    text = dumps(out)
+    assert json.loads(text)["answer"] == out["answer"] and len(text) <= 3500 and out["answer"].endswith("…")
+    assert len(out["answer"]) > 500
+
+
 @pytest.mark.parametrize("status", [400, 401, 429, 500])
 def test_http_errors_are_generic_and_leak_neither_key_nor_provider_text(status):
     def handler(req: httpx.Request) -> httpx.Response:
@@ -170,6 +194,23 @@ def test_external_toolbox_lists_and_runs_search_web(conn_factory, tmp_path):
     assert queries == ["latest Polish news"]
     assert box.call("search_web", {})["error"] == "missing_arguments"
     assert len(queries) == 1
+
+
+@pytest.mark.parametrize("query", [123, 4.5, True, ["a"], {"q": "a"}, "   ", "\n\t"])
+def test_malformed_queries_never_reach_the_provider_or_break_the_step_log(conn_factory, tmp_path, query):
+    ctx = make_world(conn_factory, tmp_path)
+    called: list[str] = []
+    box = Toolbox(ctx, "vincenzo", "ceo", task_of(ctx), allowed=EXTERNAL_TOOLS,
+                  web_search=lambda q: called.append(q) or {})
+    out = box.call("search_web", {"query": query})
+    assert out["error"] in ("bad_arguments", "missing_arguments") and not called
+    assert summarize("search_web", {"query": query}, out)  # never raises on odd arguments
+
+
+def test_summarize_survives_odd_search_arguments():
+    ok = {"searched_at": "d", "sources": [{"title": "t", "url": "https://a.example.org/"}], "answer": "a"}
+    for q in (None, 5, ["x"], {"a": 1}):
+        assert summarize("search_web", {"query": q}, ok).startswith("Searched the web for")
 
 
 def test_search_web_without_a_configured_provider_is_unavailable(conn_factory, tmp_path):

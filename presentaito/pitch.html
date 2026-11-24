@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scout · Pitch</title>
+<style>
+/* Scout pitch deck. One fixed 1600x900 stage scaled to the window.
+   Keys: arrows / space / PageUp / PageDown move, F is full screen, P plays the film.
+   The frogs come from pitch-frogs.bundle.js; the deck works without them. */
+@font-face { font-family: "Inter Variable"; src: url(pitch/Inter.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url(pitch/Mono.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --paper: #F5F6F1; --paper-2: #ECEFE6; --surface: #FFFFFF;
+  --ink: #131614; --ink-2: #343B36; --muted: #667068; --line: #DEE3D8; --line-2: #C9D1C2;
+  --accent: #1F6B47; --accent-soft: #E2F0E5; --amber: #8F5400; --amber-soft: #FBF0DA; --amber-bar: #D08A1A; --red: #D01829;
+  --sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --card-shadow: 0 1px 2px rgba(20,30,22,.05), 0 26px 60px -30px rgba(20,45,28,.38);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--paper); overflow: hidden; }
+body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+h1, h2, h3, p, ul { margin: 0; padding: 0; }
+svg.i { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; overflow: hidden; background: var(--paper);
+  transform: translate(-50%, -50%) scale(var(--s, 1)); transform-origin: center; }
+.slide { position: absolute; inset: 0; padding: 76px 96px 136px; display: flex; flex-direction: column; background: var(--paper);
+  opacity: 0; visibility: hidden; transition: opacity .32s ease, visibility 0s .32s; }
+.slide.on { opacity: 1; visibility: visible; transition: opacity .32s ease; }
+.slide.alt { background: var(--paper-2); }
+
+/* Staged entrance: every .r rises in, in document order. */
+.r { opacity: 0; }
+.slide.on .r { animation: rise .62s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 70ms + 140ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* Type scale: 15 mono / 20 / 24 / 58 / 128 */
+.eyebrow { font: 500 15px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+.eyebrow .n { color: var(--muted); }
+h2 { font-size: 58px; line-height: 1.06; letter-spacing: -.035em; font-weight: 620; margin-top: 20px; max-width: 1280px; text-wrap: balance; }
+h2 .dim { color: var(--muted); }
+.lede { font-size: 24px; line-height: 1.42; color: var(--ink-2); max-width: 900px; }
+.small { font-size: 20px; line-height: 1.42; color: var(--ink-2); }
+.cap { font: 400 14px/1.4 var(--mono); color: var(--muted); letter-spacing: .01em; }
+.grow { flex: 1; }
+
+/* Level pills, as in the app */
+.lv { display: inline-flex; align-items: center; font: 600 14px/1 var(--mono); letter-spacing: .07em; padding: 7px 11px 6px; border-radius: 7px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.lv.auto { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.lv.notify { background: var(--amber-soft); border-color: transparent; color: var(--amber); }
+.lv.approval { background: var(--ink); border-color: var(--ink); color: #F5F6F1; }
+.lv.sim { border-style: dashed; border-color: var(--ink-2); }
+.lvrow { display: flex; align-items: center; gap: 12px; font-size: 20px; color: var(--ink-2); }
+
+/* Real screenshots */
+.shot { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: var(--card-shadow); }
+.shot img { display: block; width: 100%; height: auto; }
+.shot.cut { border-right: 0; border-radius: 14px 0 0 14px; -webkit-mask-image: linear-gradient(90deg, #000 72%, transparent 99%); mask-image: linear-gradient(90deg, #000 72%, transparent 99%); box-shadow: none; }
+
+/* ---------- 1 · cover, 14 · close ---------- */
+.cover, .close { align-items: center; text-align: center; padding-top: 0;
+  background: radial-gradient(880px 400px at 50% 76%, #E2EDDA 0%, rgba(226,237,218,0) 72%), var(--paper); }
+.wordmark { display: flex; align-items: center; gap: 30px; margin-top: 150px; }
+.wordmark svg { width: 132px; height: 132px; border-radius: 30px; box-shadow: 0 24px 50px -24px rgba(10,20,12,.55); }
+.wordmark h1 { font-size: 196px; line-height: 1; letter-spacing: -.04em; font-weight: 660; }
+.cover .tag { font-size: 36px; letter-spacing: -.015em; color: var(--ink-2); margin-top: 22px; }
+.verbs-row { display: flex; gap: 12px; margin-top: 34px; }
+.verbs-row span { font: 500 17px/1 var(--mono); letter-spacing: .05em; padding: 11px 16px 10px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255,255,255,.7); color: var(--ink-2); }
+.foot { position: absolute; left: 96px; right: 96px; bottom: 44px; display: flex; justify-content: space-between; align-items: center; font: 400 15px/1 var(--mono); letter-spacing: .04em; color: var(--muted); }
+.foot b { font-weight: 500; color: var(--ink-2); }
+.foot .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--red); margin-right: 10px; vertical-align: 0; }
+.close h2 { font-size: 104px; letter-spacing: -.05em; line-height: 1; margin-top: 118px; max-width: none; }
+.close .wordmark { margin-top: 44px; gap: 16px; }
+.close .wordmark svg { width: 52px; height: 52px; border-radius: 12px; box-shadow: none; }
+.close .wordmark p { font-size: 30px; letter-spacing: -.02em; font-weight: 600; }
+.close .wordmark p span { font-weight: 400; color: var(--muted); }
+.team { margin-top: 22px; font: 400 17px/1 var(--mono); letter-spacing: .02em; color: var(--ink-2); display: flex; gap: 28px; }
+
+/* ---------- 2 · problem ---------- */
+.sources { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 46px; }
+.src { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 10px; }
+.src .ic { width: 44px; height: 44px; border-radius: 11px; background: var(--paper-2); color: var(--accent); display: grid; place-items: center; font-size: 22px; margin-bottom: 6px; }
+.src h3 { font-size: 23px; letter-spacing: -.015em; font-weight: 620; }
+.src p { font-size: 19px; line-height: 1.36; color: var(--muted); }
+.costs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 44px; border-top: 1px solid var(--line-2); padding-top: 26px; }
+.costs h3 { font: 500 15px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--amber); margin-bottom: 12px; }
+.costs p { font-size: 22px; line-height: 1.36; color: var(--ink-2); }
+
+/* ---------- 3 · four verbs ---------- */
+.verbs { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 58px; border-top: 1px solid var(--line-2); }
+.verbs > div { padding: 30px 28px 0 0; }
+.verbs > div + div { padding-left: 28px; border-left: 1px solid var(--line); }
+.verbs .ic { font-size: 28px; color: var(--accent); }
+.verbs .no { font: 500 15px/1 var(--mono); letter-spacing: .09em; color: var(--muted); margin: 22px 0 10px; }
+.verbs h3 { font-size: 78px; letter-spacing: -.05em; line-height: 1; font-weight: 650; }
+.verbs p { font-size: 22px; line-height: 1.38; color: var(--ink-2); margin-top: 18px; }
+.strap { display: flex; align-items: center; gap: 14px; font-size: 22px; color: var(--ink-2); }
+.strap .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); flex: none; }
+
+/* ---------- 4 · levels ---------- */
+.stairs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: end; margin-top: 36px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px 24px 26px; display: flex; flex-direction: column; gap: 12px; }
+.step:nth-child(1) { min-height: 176px; } .step:nth-child(2) { min-height: 222px; } .step:nth-child(3) { min-height: 268px; } .step:nth-child(4) { min-height: 314px; }
+.step .lv { align-self: flex-start; }
+.step h3 { font-size: 28px; letter-spacing: -.025em; line-height: 1.12; font-weight: 620; margin-top: auto; }
+.step p { font-size: 19px; line-height: 1.36; color: var(--muted); }
+.rule { display: flex; align-items: center; gap: 20px; }
+.rule .q { font-size: 23px; background: var(--ink); color: #F5F6F1; padding: 13px 20px; border-radius: 16px 16px 16px 4px; letter-spacing: -.01em; }
+.rule svg { font-size: 24px; color: var(--muted); }
+
+/* ---------- 5 · film ---------- */
+.film { align-self: center; margin-top: 26px; width: 1010px; height: 568px; border-radius: 16px; overflow: hidden; background: #141416; box-shadow: var(--card-shadow); position: relative; }
+.film video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.film button { position: absolute; right: 44px; top: 44px; width: 84px; height: 84px; border-radius: 50%; border: 0; background: rgba(245,246,241,.94); color: var(--ink); font-size: 32px; display: grid; place-items: center; cursor: pointer; padding-left: 6px; }
+.film.playing button { display: none; }
+
+/* ---------- 6-10 · one verb, one proof ---------- */
+.proof { display: grid; grid-template-columns: 500px 1fr; gap: 68px; flex: 1; min-height: 0; }
+.proof .say { display: flex; flex-direction: column; }
+.verb i, .close h2 i { font-style: normal; color: var(--accent); }
+.verb { font-size: 128px; letter-spacing: -.055em; line-height: 1; font-weight: 660; margin: 26px 0 30px -5px; }
+.proof .lede { font-size: 25px; }
+.proof .lvrow { margin-top: 34px; }
+.proof .see { position: relative; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.finds .see .cut { margin-top: 8px; -webkit-mask-image: linear-gradient(90deg, #000 80%, transparent 100%); mask-image: linear-gradient(90deg, #000 80%, transparent 100%); }
+.finds .side { position: absolute; right: 0; top: 306px; width: 300px; }
+.finds .see .cap { position: absolute; left: 0; top: 420px; width: 500px; }
+.facts { display: grid; grid-template-columns: 300px 1fr; gap: 40px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 34px; box-shadow: var(--card-shadow); }
+.bars { display: flex; align-items: flex-end; gap: 34px; height: 236px; border-bottom: 1.5px solid var(--ink); }
+.bars > div { width: 118px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.bars b { font-size: 42px; letter-spacing: -.04em; font-weight: 640; line-height: 1; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+.bars i { display: block; width: 100%; border-radius: 6px 6px 0 0; transform-origin: bottom; }
+.slide.on .bars i { animation: grow .9s cubic-bezier(.2,.7,.2,1) both .55s; }
+@keyframes grow { from { transform: scaleY(0); } }
+.barlabels { display: flex; gap: 34px; margin-top: 12px; }
+.barlabels span { width: 118px; text-align: center; font-size: 18px; color: var(--ink-2); line-height: 1.25; }
+.drivers { display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+.drivers h3 { font: 500 14px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+.drivers p { font-size: 27px; letter-spacing: -.02em; font-weight: 560; font-variant-numeric: tabular-nums; }
+.drivers p span { color: var(--muted); font-weight: 400; }
+.flags .see .cut { width: 720px; }
+.why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.why > div { padding: 22px 24px 24px; }
+.why > div + div { border-left: 1px solid var(--line); }
+.why b { display: block; font-size: 34px; letter-spacing: -.035em; font-weight: 640; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.why span { display: block; font-size: 18px; line-height: 1.35; color: var(--muted); margin-top: 9px; }
+.decide { display: grid; grid-template-columns: 880px 1fr; gap: 44px; align-items: center; margin-top: 24px; }
+.decide .lvrow { flex-wrap: wrap; }
+.decide .small { margin-top: 16px; }
+.layers { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.layer { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 24px; }
+.layer h3 { font-size: 23px; letter-spacing: -.02em; font-weight: 620; }
+.layer p { font-size: 18.5px; line-height: 1.4; color: var(--muted); margin-top: 8px; }
+.layer p b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- 11 · Slack ---------- */
+.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 44px; }
+.three h3 { font-size: 24px; letter-spacing: -.02em; font-weight: 620; display: flex; align-items: center; gap: 12px; }
+.three h3 svg { color: var(--accent); font-size: 24px; }
+.three p { font-size: 19.5px; line-height: 1.4; color: var(--muted); margin-top: 9px; }
+
+/* ---------- 12 · architecture ---------- */
+.arch { display: grid; grid-template-columns: 236px 30px 1fr; align-items: stretch; margin-top: 30px; }
+.outside { display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px 16px; }
+.node h3 { font-size: 19px; letter-spacing: -.015em; font-weight: 620; display: flex; align-items: center; gap: 9px; }
+.node h3 svg { color: var(--accent); font-size: 19px; }
+.node p { font: 400 14px/1.45 var(--mono); color: var(--muted); margin-top: 7px; }
+.wire { display: grid; place-items: center; color: var(--muted); font-size: 22px; }
+.cluster { border: 1.5px solid var(--ink); border-radius: 18px; padding: 50px 20px 20px; position: relative; display: grid; grid-template-columns: 1fr 30px 330px; background: rgba(255,255,255,.45); }
+.cluster > .label { position: absolute; left: 20px; top: 17px; font: 500 15px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.cluster > .label i { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+.cluster > .label span { color: var(--muted); text-transform: none; letter-spacing: .02em; }
+.proj { border: 1px dashed var(--line-2); border-radius: 14px; padding: 38px 14px 14px; position: relative; }
+.proj > .label { position: absolute; left: 15px; top: 14px; font: 500 13.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.proj .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.model { background: var(--ink); color: #F5F6F1; border-radius: 12px; padding: 22px 22px 24px; height: 100%; display: flex; flex-direction: column; }
+.model h3 { font-size: 34px; letter-spacing: -.035em; line-height: 1.05; font-weight: 640; }
+.model p { font: 400 14.5px/1.6 var(--mono); color: #AEB8AF; margin-top: 14px; }
+.model .ow { margin-top: auto; align-self: flex-start; font: 600 13.5px/1 var(--mono); letter-spacing: .08em; padding: 8px 11px 7px; border-radius: 7px; background: #F5F6F1; color: var(--ink); }
+.proj.m { display: flex; flex-direction: column; }
+.chips { display: flex; align-items: center; gap: 10px; font-size: 19px; color: var(--ink-2); }
+.chips .chip { font: 500 15px/1 var(--mono); letter-spacing: .03em; padding: 9px 13px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); display: inline-flex; align-items: center; gap: 7px; }
+.chips .chip svg { font-size: 15px; stroke-width: 2.4; }
+.chips .sep { flex: 1; }
+
+/* ---------- 13 · proof numbers ---------- */
+.nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 44px; }
+.num { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 30px 28px 32px; }
+.num b { display: block; font-size: 82px; letter-spacing: -.055em; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.num b span { color: var(--muted); font-weight: 500; }
+.num b.pair { font-size: 47px; line-height: 82px; letter-spacing: -.045em; }
+.num h3 { font-size: 21px; letter-spacing: -.015em; font-weight: 620; margin-top: 20px; }
+.num p { font-size: 18px; line-height: 1.38; color: var(--muted); margin-top: 6px; }
+.honest { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; border-top: 1px solid var(--line-2); padding-top: 26px; }
+.honest h3 { font: 500 15px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--amber); margin-bottom: 12px; }
+.honest p { font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+
+/* ---------- frogs and chrome ---------- */
+canvas.frogs { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; pointer-events: none; opacity: 0; transition: opacity .45s ease; }
+#stage[data-frogs="herd"] #herd, #stage[data-frogs="guide"] #guide { opacity: 1; }
+.chrome { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .35s ease; }
+#stage[data-frogs="guide"] .chrome { opacity: 1; }
+.track { position: absolute; left: 96px; top: 854px; width: 1250px; height: 2px; background: var(--line-2); border-radius: 2px; }
+.track i { position: absolute; top: -3px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--paper); border: 2px solid var(--line-2); transition: background .3s, border-color .3s; }
+.track i.done { background: var(--accent); border-color: var(--accent); }
+.track .fill { position: absolute; left: 0; top: 0; height: 2px; background: var(--accent); border-radius: 2px; transition: width .7s cubic-bezier(.3,.7,.2,1); }
+.count { position: absolute; right: 96px; top: 846px; font: 500 15px/1 var(--mono); letter-spacing: .06em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--ink); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  .r { opacity: 1; } .slide.on .r, .slide.on .bars i { animation: none; }
+  .slide, .slide.on, canvas.frogs { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="hat" viewBox="0 0 512 512"><rect width="512" height="512" rx="112.64" fill="#141416"/><g transform="translate(56.32 56.32) scale(16.64)"><path fill="#fff" fill-rule="evenodd" transform="translate(1.5 2.7) scale(.26)" d="M16 43l3-19c1-6 5-9 9-9 5-1 9 3 13 2 5-1 6-6 12-6 4 0 6 3 7 6l8 18 7-2c3-1 5 2 3 5-7 11-23 19-43 21-11 1-23 0-30-5-3-2-3-5 0-7l11-4Zm9 2c11 5 28 1 39-7-5 9-28 15-39 7Z"/></g></symbol>
+  <symbol id="i-bank" viewBox="0 0 24 24"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-filecheck" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></symbol>
+  <symbol id="i-ask" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-arrows" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" fill="currentColor"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+</svg>
+
+<div id="stage" data-frogs="herd">
+
+  <!-- 1 -->
+  <section class="slide cover on" data-frogs="herd">
+    <div class="wordmark r"><svg aria-hidden="true"><use href="#hat"/></svg><h1>Scout</h1></div>
+    <p class="tag r">The AI CFO for small business</p>
+    <div class="verbs-row r"><span>FINDS</span><span>FLAGS</span><span>ASKS</span><span>GUARDS</span></div>
+    <div class="foot"><span>Collabothon 2026 · <b>Autonomous CFO</b></span><span><i class="dot"></i>Runs on <b>Red Hat OpenShift AI</b> · open-weights Granite</span></div>
+  </section>
+
+  <!-- 2 -->
+  <section class="slide">
+    <p class="eyebrow r">The problem</p>
+    <h2 class="r">A small business keeps its money data in five places. <span class="dim">Nobody’s job is to join them up.</span></h2>
+    <div class="sources">
+      <div class="src r"><span class="ic"><svg class="i"><use href="#i-bank"/></svg></span><h3>Bank</h3><p>A payment went out. The statement does not say why.</p></div>
+      <div class="src r"><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><h3>Invoicing</h3><p>No invoice on file matches the payment.</p></div>
+      <div class="src r"><span class="ic"><svg class="i"><use href="#i-filecheck"/></svg></span><h3>KSeF</h3><p>The national e-invoice register is one more place to check.</p></div>
+      <div class="src r"><span class="ic"><svg class="i"><use href="#i-chat"/></svg></span><h3>Slack</h3><p>Someone explained it once, in a thread.</p></div>
+      <div class="src r"><span class="ic"><svg class="i"><use href="#i-laptop"/></svg></span><h3>Laptops</h3><p>The PDF sits in an employee’s Downloads folder.</p></div>
+    </div>
+    <div class="grow"></div>
+    <div class="costs">
+      <div class="r"><h3>Tax risk</h3><p>A paid transfer with no document on file.</p></div>
+      <div class="r"><h3>Blind spots</h3><p>The cloud bill grows and nobody compares it with orders.</p></div>
+      <div class="r"><h3>Guesswork</h3><p>Cash for next summer is a guess.</p></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="slide alt">
+    <p class="eyebrow r">The solution</p>
+    <h2 class="r">Scout is one agent that reads all five, and does four things.</h2>
+    <div class="verbs">
+      <div class="r"><svg class="i ic"><use href="#i-search"/></svg><p class="no">01</p><h3>Finds</h3><p>the missing invoice, wherever it is hiding.</p></div>
+      <div class="r"><svg class="i ic"><use href="#i-flag"/></svg><p class="no">02</p><h3>Flags</h3><p>cost spikes that orders do not explain.</p></div>
+      <div class="r"><svg class="i ic"><use href="#i-ask"/></svg><p class="no">03</p><h3>Asks</h3><p>the owner before anything that matters.</p></div>
+      <div class="r"><svg class="i ic"><use href="#i-shield"/></svg><p class="no">04</p><h3>Guards</h3><p>every message, tool result and reply.</p></div>
+    </div>
+    <div class="grow"></div>
+    <p class="strap r"><i class="dot"></i>An open-weights model on Red Hat OpenShift AI. Company data stays on the cluster.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="slide">
+    <p class="eyebrow r">The owner stays in control</p>
+    <h2 class="r">Every action shows how far Scout went.</h2>
+    <div class="stairs">
+      <div class="step r"><span class="lv auto">AUTO</span><h3>Does it alone</h3><p>Matching, searching, filing.</p></div>
+      <div class="step r"><span class="lv notify">NOTIFY</span><h3>Does it, then tells the owner</h3><p>Alerts with the reason attached.</p></div>
+      <div class="step r"><span class="lv approval">APPROVAL</span><h3>Waits for a yes</h3><p>Decisions that matter, like a credit line. Scout pauses until the owner answers.</p></div>
+      <div class="step r"><span class="lv sim">SIMULATED</span><h3>Execution, without moving money</h3><p>The bank request is prepared and logged. In this prototype no transfer is sent.</p></div>
+    </div>
+    <div class="grow"></div>
+    <div class="rule r"><span class="q">“I always approve equipment myself.”</span><svg class="i"><use href="#i-arrow"/></svg><span class="small">One sentence in chat becomes a rule Scout follows.</span></div>
+  </section>
+
+  <!-- 5 -->
+  <section class="slide alt">
+    <p class="eyebrow r">Live app, real screens</p>
+    <h2 class="r">Scout in 66 seconds</h2>
+    <div class="film r"><video id="film" src="pitch/scout-promo.mp4" poster="pitch/film-poster.jpg" preload="metadata" playsinline></video><button type="button" aria-label="Play the film"><svg class="i"><use href="#i-play"/></svg></button></div>
+  </section>
+
+  <!-- 6 -->
+  <section class="slide finds">
+    <div class="proof">
+      <div class="say">
+        <p class="eyebrow r"><span>Verb 1</span><span class="n">of 4</span></p>
+        <p class="verb r">Finds<i>.</i></p>
+        <p class="lede r">A payment of €1,286.40 left the account and no invoice matched it. Scout searched the office manager’s company folders, found the PDF, checked the amount and filed it.</p>
+        <p class="lvrow r"><span class="lv auto">AUTO</span>Nobody had to do anything.</p>
+      </div>
+      <div class="see">
+        <div class="shot cut r"><img src="pitch/finds-log.jpg" alt="Activity log of task SC-101: searched the invoicing system, 0 matches; checked Grazyna’s company folders, found Invoice_AS-77012.pdf; amounts match; filed invoice AS-77012."></div>
+        <div class="shot side r"><img src="pitch/finds-side.jpg" alt="Task panel: status Resolved, level AUTO, evidence Invoice_AS-77012.pdf from Grazyna’s Downloads."></div>
+        <p class="cap r">Task SC-101 · Pizzeria Amalfi demo workspace · files reached through MCP</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="slide flags">
+    <div class="proof">
+      <div class="say">
+        <p class="eyebrow r"><span>Verb 2</span><span class="n">of 4</span></p>
+        <p class="verb r">Flags<i>.</i></p>
+        <p class="lede r">The cloud bill for the ordering app rose by half in a month. Orders barely moved. Scout compared the two, named the line that grew, and told the owner.</p>
+        <p class="lvrow r"><span class="lv notify">NOTIFY</span>Done, and the owner knows why.</p>
+      </div>
+      <div class="see">
+        <div class="facts r">
+          <div>
+            <div class="bars"><div><b>+50%</b><i style="height:150px;background:var(--amber-bar)"></i></div><div><b>+3%</b><i style="height:9px;background:var(--accent)"></i></div></div>
+            <div class="barlabels"><span>Cloud cost</span><span>Online orders</span></div>
+          </div>
+          <div class="drivers">
+            <div><h3>Biggest driver · log ingestion and retention</h3><p>€26.95 <span>→</span> €147.23</p></div>
+            <div><h3>Cloud cost per online order</h3><p>€0.88 <span>→</span> €1.28</p></div>
+          </div>
+        </div>
+        <div class="shot cut r"><img src="pitch/flags-log.jpg" alt="Activity log of task SC-100: compared cloud cost with online orders, +50% vs +3%; biggest driver log ingestion and retention; alerted Vincenzo."></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="slide asks">
+    <div class="proof">
+      <div class="say">
+        <p class="eyebrow r"><span>Verb 3</span><span class="n">of 4</span></p>
+        <p class="verb r">Asks<i>.</i></p>
+        <p class="lede r">The owner types: what if we buy a €30,000 pizza oven in March? Scout forecasts the cash, sees it fall below the safety buffer, and explains the dip before it proposes anything.</p>
+        <p class="lvrow r"><span class="lv approval">APPROVAL</span>Scout stops here.</p>
+      </div>
+      <div class="see">
+        <div class="shot r"><img src="pitch/asks-forecast.jpg" alt="Cash forecast chart, 12 months: the what-if line with the pizza oven drops below the dashed safety buffer of €17,955 in spring 2027; the base case stays above it."></div>
+        <div class="why r">
+          <div><b>3 weeks</b><span>the restaurant is closed in May 2027</span></div>
+          <div><b>−€27,300</b><span>revenue against a normal month</span></div>
+          <div><b>€17,955</b><span>fixed costs a month continue</span></div>
+        </div>
+        <p class="cap r">XGBoost forecast, tracked in MLflow · reasons from SHAP · numbers as Scout stated them in the approval</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="slide alt">
+    <p class="eyebrow r"><span>Verb 3</span><span class="n">of 4 · the answer</span></p>
+    <h2 class="r">The owner approves a €23,000 credit line. <span class="dim">No money moves.</span></h2>
+    <div class="shot r" style="margin-top:34px"><img src="pitch/asks-approval.jpg" alt="Approval card, pending: Scout explains the May 2027 shortfall and proposes a credit line of €23,000 for Feb 15 to Jul 29, with Approve and Reject buttons."></div>
+    <div class="decide">
+      <div class="shot r"><img src="pitch/asks-done.jpg" alt="Activity log after the answer: Asked Vincenzo to approve; Vincenzo approved; Resolved, credit line of €23,000, SIMULATED: no money moved, the bank request is prepared for Vincenzo."></div>
+      <div class="r">
+        <p class="lvrow"><span class="lv approval">APPROVAL</span><svg class="i" style="color:var(--muted)"><use href="#i-arrow"/></svg><span class="lv sim">SIMULATED</span></p>
+        <p class="small">The request is prepared for the owner and the decision is in the audit log.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide guards">
+    <div class="proof">
+      <div class="say">
+        <p class="eyebrow r"><span>Verb 4</span><span class="n">of 4</span></p>
+        <p class="verb r">Guards<i>.</i></p>
+        <p class="lede r">NeMo Guardrails check every message, every tool result and every reply. A poisoned invoice is a tool result, so it gets its own check. Blocks land in the audit log.</p>
+        <p class="lvrow r"><span class="lv">26 / 26</span>demo-kit checks, verdict as expected.</p>
+      </div>
+      <div class="see">
+        <div class="shot r"><img src="pitch/guards-audit.jpg" alt="Audit log rows: action guardrail_check, target guardrails:user-input, decision BLOCK, policy user-input."></div>
+        <div class="layers">
+          <div class="layer r"><h3>Hard rules, in code</h3><p><b>Salary access by role</b>, the <b>approval gate</b> and <b>audit logging</b> do not depend on a model.</p></div>
+          <div class="layer r"><h3>NeMo Guardrails, via TrustyAI</h3><p>Three configs: <b>user input</b>, <b>tool result</b>, <b>bot output</b>. If NeMo is down, Scout lets messages through and logs it.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide alt">
+    <p class="eyebrow r">Innovations for all generations</p>
+    <h2 class="r">No finance vocabulary. <span class="dim">Scout asks in Slack, in plain words.</span></h2>
+    <div class="shot r" style="margin-top:36px"><img src="pitch/slack-dm.jpg" alt="Slack direct message from Scout: We paid €869.62 to Fattoria La Vino GmbH on Nov 21. I checked the invoicing system, company folders, company email and chat history but couldn’t find invoice FLV-42026. Could you send me the PDF or tell me what it was for? Just reply in this thread."></div>
+    <div class="grow"></div>
+    <div class="three">
+      <div class="r"><h3><svg class="i"><use href="#i-chat"/></svg>Where people already are</h3><p>A direct message, or the chat in the dashboard.</p></div>
+      <div class="r"><h3><svg class="i"><use href="#i-search"/></svg>It says what it checked</h3><p>Every place it already looked, before it bothers anyone.</p></div>
+      <div class="r"><h3><svg class="i"><use href="#i-check"/></svg>The answer is a reply</h3><p>Send the PDF or say what it was for, in the same thread.</p></div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="slide">
+    <p class="eyebrow r">Behind the build</p>
+    <h2 class="r">Everything runs on Red Hat OpenShift AI.</h2>
+    <div class="arch r">
+      <div class="outside">
+        <div class="node"><h3><svg class="i"><use href="#i-users"/></svg>Owner and staff</h3><p>Slack · dashboard chat</p></div>
+        <div class="node"><h3><svg class="i"><use href="#i-globe"/></svg>Outside systems</h3><p>bank API (mock)<br>KSeF 2.0 (test env)<br>Slack</p></div>
+      </div>
+      <div class="wire"><svg class="i"><use href="#i-arrows"/></svg></div>
+      <div class="cluster">
+        <p class="label"><i></i>Red Hat OpenShift AI <span>one node · one NVIDIA L4</span></p>
+        <div class="proj">
+          <p class="label">Project · Scout</p>
+          <div class="grid">
+            <div class="node"><h3>Dashboard</h3><p>Next.js</p></div>
+            <div class="node"><h3>API</h3><p>FastAPI</p></div>
+            <div class="node"><h3>Scout worker</h3><p>LangGraph agent, pauses for approval</p></div>
+            <div class="node"><h3>MCP servers × 3</h3><p>company DB · workstations · HR</p></div>
+            <div class="node"><h3>NeMo Guardrails</h3><p>TrustyAI resource, 3 configs</p></div>
+            <div class="node"><h3>Forecast</h3><p>XGBoost + SHAP</p></div>
+            <div class="node"><h3>Postgres</h3><p>invoices · tasks · audit</p></div>
+            <div class="node" style="grid-column:span 2"><h3>MLflow</h3><p>one trace per agent event · agent evaluation · forecast runs</p></div>
+          </div>
+        </div>
+        <div class="wire"><svg class="i"><use href="#i-arrows"/></svg></div>
+        <div class="proj m">
+          <p class="label">Project · model</p>
+          <div class="model"><h3>Granite 4.0<br>H Tiny</h3><p>vLLM<br>KServe InferenceService<br>tool calling on<br>cluster network only</p><span class="ow">OPEN WEIGHTS</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="grow"></div>
+    <div class="chips r"><span>Red Hat extras in use</span><span class="chip"><svg class="i"><use href="#i-check"/></svg>vLLM</span><span class="chip"><svg class="i"><use href="#i-check"/></svg>MCP</span><span class="chip"><svg class="i"><use href="#i-check"/></svg>NeMo Guardrails</span><span class="chip"><svg class="i"><use href="#i-check"/></svg>MLflow tracing + evaluation</span></div>
+  </section>
+
+  <!-- 13 -->
+  <section class="slide alt">
+    <p class="eyebrow r">Results</p>
+    <h2 class="r">Checked, and not only in the demo.</h2>
+    <div class="nums">
+      <div class="num r"><b>26<span>/26</span></b><h3>Guardrail demo-kit checks</h3><p>Expected verdict against live NeMo.</p></div>
+      <div class="num r"><b>14<span>/15</span></b><h3>Agent evaluation scenarios</h3><p>Run with the real Granite model.</p></div>
+      <div class="num r"><b>1,000<span>+</span></b><h3>Backend tests pass</h3><p>A few failures remain; they also fail on unchanged main.</p></div>
+      <div class="num r"><b class="pair">€23.7k <span>→</span> €9.2k</b><h3>90-day balance error</h3><p>Our forecast on 2025 data, before and after.</p></div>
+    </div>
+    <div class="grow"></div>
+    <div class="honest">
+      <div class="r"><h3>Simulated or partial today</h3><p>The bank is a mock API and no money moves. KSeF runs on the Ministry’s test environment. Email is not connected in the demo workspace.</p></div>
+      <div class="r"><h3>The check we ran against ourselves</h3><p>On a public two-year retail series the same forecast method lost to a calendar-only model. We report that.</p></div>
+    </div>
+  </section>
+
+  <!-- 14 -->
+  <section class="slide close" data-frogs="herd">
+    <h2 class="r">Finds<i>.</i> Flags<i>.</i> Asks<i>.</i> Guards<i>.</i></h2>
+    <div class="wordmark r"><svg aria-hidden="true"><use href="#hat"/></svg><p>Scout <span>· the AI CFO for small business</span></p></div>
+    <p class="team r"><span>Wojciech Fiołka</span><span>Piotr Warząchowski</span><span>Paweł Kojma</span><span>Grzegorz Kodrzycki</span></p>
+    <div class="foot"><span>Collabothon 2026 · <b>Autonomous CFO</b></span><span><i class="dot"></i>Live on <b>Red Hat OpenShift AI</b></span></div>
+  </section>
+
+  <canvas class="frogs" id="herd" aria-hidden="true"></canvas>
+  <canvas class="frogs" id="guide" aria-hidden="true"></canvas>
+  <div class="chrome" aria-hidden="true">
+    <div class="track"><span class="fill"></span></div>
+    <div class="count"><b id="count-now">01</b> / <span id="count-all">14</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const slides = [...stage.querySelectorAll('.slide')];
+  const track = stage.querySelector('.track'), fill = track.querySelector('.fill');
+  const film = document.getElementById('film'), filmBox = film.closest('.film');
+  const pad = n => String(n).padStart(2, '0');
+  const mode = s => s.dataset.frogs || 'guide';
+  // The track has one tick per slide the red-hat frog walks through.
+  const guided = slides.map((s, i) => i).filter(i => mode(slides[i]) === 'guide');
+  const TRACK = { left: 96, top: 855, width: 1250 };
+  const tickX = k => TRACK.left + (guided.length > 1 ? TRACK.width * k / (guided.length - 1) : 0);
+  const ticks = guided.map((_, k) => {
+    const dot = document.createElement('i');
+    dot.style.left = TRACK.width * k / (guided.length - 1) + 'px';
+    track.append(dot);
+    return dot;
+  });
+  slides.forEach(s => [...s.querySelectorAll('.r')].forEach((el, i) => el.style.setProperty('--i', i)));
+  document.getElementById('count-all').textContent = pad(slides.length);
+
+  let cur = 0, prev = 0, scale = 1;
+  const state = () => {
+    const k = guided.indexOf(cur);
+    return { index: cur, prev, count: slides.length, frogs: mode(slides[cur]), tick: { x: tickX(Math.max(0, k)), y: TRACK.top + 4 } };
+  };
+  function go(n, quiet) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    if (n === cur && !quiet) return;
+    prev = cur; cur = n;
+    slides.forEach((s, i) => s.classList.toggle('on', i === n));
+    stage.dataset.frogs = mode(slides[n]);
+    const k = guided.indexOf(n);
+    if (k >= 0) {
+      ticks.forEach((dot, j) => dot.classList.toggle('done', j <= k));
+      fill.style.width = TRACK.width * k / (guided.length - 1) + 'px';
+    }
+    document.getElementById('count-now').textContent = pad(n + 1);
+    if (!slides[n].contains(film)) film.pause();
+    try { history.replaceState(null, '', '#' + (n + 1)); } catch (e) {}
+    dispatchEvent(new CustomEvent('deck:slide', { detail: state() }));
+  }
+  function fit() {
+    scale = Math.min(innerWidth / 1600, innerHeight / 900);
+    stage.style.setProperty('--s', scale);
+    dispatchEvent(new CustomEvent('deck:fit', { detail: { scale } }));
+  }
+  const toggleFilm = () => film.paused ? film.play() : film.pause();
+  film.addEventListener('play', () => filmBox.classList.add('playing'));
+  film.addEventListener('pause', () => filmBox.classList.remove('playing'));
+  filmBox.addEventListener('click', e => { e.stopPropagation(); toggleFilm(); });
+
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'Enter') go(cur + 1);
+    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace') go(cur - 1);
+    else if (k === 'Home') go(0);
+    else if (k === 'End') go(slides.length - 1);
+    else if (k === 'f' || k === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    else if ((k === 'p' || k === 'P') && slides[cur].contains(film)) toggleFilm();
+    else return;
+    e.preventDefault();
+  });
+  // Click the right two thirds to go on, the left third to go back.
+  addEventListener('click', e => go(cur + (e.clientX < innerWidth / 3 ? -1 : 1)));
+  addEventListener('resize', fit);
+  window.deck = { state, go, scale: () => scale, count: slides.length };
+  fit();
+  go(Math.max(1, parseInt(location.hash.slice(1), 10) || 1) - 1, true);
+})();
+</script>
+<script src="pitch-frogs.bundle.js" defer></script>
+</body>
+</html>

@@ -109,11 +109,11 @@ Use a **separate Scout Google Cloud project**, not an existing project's shared 
 5. Authorized JavaScript origins (the app uses server-side OAuth; these are the matching browser origins):
    - `http://127.0.0.1:3000`
    - `http://localhost:3000` only if running the app with that exact `SCOUT_APP_ORIGIN`
-   - `https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com`
+   - `https://dashboard-cfo-agent-uwur.apps.<cluster-domain>`
 6. Authorized redirect URIs (exact, no wildcard or organization slug):
    - `http://127.0.0.1:3000/api/auth/google/callback`
    - `http://localhost:3000/api/auth/google/callback` only when using that exact local origin
-   - `https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com/api/auth/google/callback`
+   - `https://dashboard-cfo-agent-uwur.apps.<cluster-domain>/api/auth/google/callback`
    - For the isolated verification server only: `http://127.0.0.1:3017/api/auth/google/callback`
 7. Download the client JSON directly into a new private directory. Save the canonical copy outside the git worktree with directory mode 0700 and file mode 0600. Never print the secret or commit it. Place its ID/secret in the protected local environment file and in OpenShift Secret `scout-login` using file inputs, not command-line secret literals. Update only those keys after inspecting any existing Secret; do not overwrite unrelated values.
 

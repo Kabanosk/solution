@@ -1,4 +1,4 @@
-# INFRA.md: infrastructure cheat sheet
+# Infrastructure cheat sheet
 
 One page with everything infra: what runs where, the commands we keep typing, env vars, ports, gotchas.
 

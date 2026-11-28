@@ -1,7 +1,7 @@
 // Frogs for pitch.html. The herd on the cover and the close is the one from
 // frogs.js; the red-hat frog that walks the progress track is built like the
 // guide in scout-guide.js. Bundle for file:// use:
-//   esbuild presentaito/pitch-frogs.js --bundle --format=iife --minify --outfile=presentaito/pitch-frogs.bundle.js
+//   esbuild presentation/pitch-frogs.js --bundle --format=iife --minify --outfile=presentation/pitch-frogs.bundle.js
 import * as THREE from './vendor/three.module.js';
 
 const stage = document.getElementById('stage');

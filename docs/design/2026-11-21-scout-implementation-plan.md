@@ -613,7 +613,7 @@ Outcomes as in the spec:
   - `deploy/openshift/db/seed-job.yaml`: `cfo seed`;
   - `deploy/slack-app-manifest.yaml`: the new scopes;
   - `.env.example`;
-  - `INFRA.md`: remove the simulator.
+  - `docs/infra.md`: remove the simulator.
 
 **Requirements:**
 - `python -m scout.demo seed-slack` posts the chat-refund message and Vanessa's ads approval to `#finance`, joining

@@ -15,8 +15,8 @@ Runs are serialized (`concurrency: deploy-openshift`). The seed job (`deploy/ope
 ```sh
 oc project cfo-agent-uwur
 oc apply -f deploy/openshift/ci/rbac.yaml
-gh secret set OPENSHIFT_SERVER --repo Kabanosk/solution --body "$(oc whoami --show-server)"
-oc create token github-deployer --duration=96h | gh secret set OPENSHIFT_TOKEN --repo Kabanosk/solution
+gh secret set OPENSHIFT_SERVER --repo Kabanosk/collabothon-2026 --body "$(oc whoami --show-server)"
+oc create token github-deployer --duration=96h | gh secret set OPENSHIFT_TOKEN --repo Kabanosk/collabothon-2026
 ```
 
 The token expires after 96 h (past the contest); renew with the last line. Revoke at once:
@@ -25,11 +25,11 @@ The token expires after 96 h (past the contest); renew with the last line. Revok
 ## Day to day
 
 ```sh
-gh run list --workflow deploy.yml --repo Kabanosk/solution          # recent deploys
-gh run watch --repo Kabanosk/solution                                # follow the current one
-gh workflow run deploy.yml --repo Kabanosk/solution -f targets=all   # redeploy everything by hand
-gh workflow disable deploy.yml --repo Kabanosk/solution              # freeze before the live demo
-gh workflow enable deploy.yml --repo Kabanosk/solution
+gh run list --workflow deploy.yml --repo Kabanosk/collabothon-2026          # recent deploys
+gh run watch --repo Kabanosk/collabothon-2026                                # follow the current one
+gh workflow run deploy.yml --repo Kabanosk/collabothon-2026 -f targets=all   # redeploy everything by hand
+gh workflow disable deploy.yml --repo Kabanosk/collabothon-2026              # freeze before the live demo
+gh workflow enable deploy.yml --repo Kabanosk/collabothon-2026
 ```
 
 Manual builds (`oc start-build ...`) still work; the BuildConfigs are `Serial`, so a manual build and a workflow build

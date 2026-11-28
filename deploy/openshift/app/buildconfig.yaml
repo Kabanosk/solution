@@ -11,7 +11,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/Kabanosk/solution
+      uri: https://github.com/Kabanosk/collabothon-2026
       ref: main
   strategy:
     type: Docker
@@ -38,7 +38,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/Kabanosk/solution
+      uri: https://github.com/Kabanosk/collabothon-2026
       ref: main
   strategy:
     type: Docker

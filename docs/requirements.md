@@ -23,7 +23,7 @@ as "in progress"; their content was not reviewed for this document.
 
 Sources: `challenge/*.txt` and `challenge/sample-data/` (organizer material, git-excluded), `.house/`
 (`spec.yaml`, `DECISIONS.md` D-001 to D-015, `QUESTIONS.md`, `demo-flow.md`, `tasks/`, `reports/`), the code
-under `backend/cfo`, `deploy/`, `docs/`, `INFRA.md`, and the remote branch `origin/feature/dashboard`.
+under `backend/cfo`, `deploy/`, `docs/`, `docs/infra.md`, and the remote branch `origin/feature/dashboard`.
 
 ---
 
@@ -146,7 +146,7 @@ Eleven items on the deck; Red Hat advises two to four. We target four (D-009, D-
 
 | Bonus | Target | Status |
 |---|---|---|
-| vLLM serving | yes | model reported as running on the cluster (INFRA.md); endpoint and runtime **unverified** |
+| vLLM serving | yes | model reported as running on the cluster (docs/infra.md); endpoint and runtime **unverified** |
 | NeMo Guardrails (or OpenShell) | yes | research only (`.house/reports/guardrails-research.md`), owner Wojtek, nothing built |
 | MLflow for tracing and evaluating the agents | yes | forecast logging code and server manifests on main, not applied; tracing in progress (T027); evaluation not started (T028) |
 | Jupyter Notebooks on OpenShift AI | yes | notebook written, unmerged (T017, in review); no workbench yet |
@@ -576,14 +576,14 @@ forecast and cost checks scheduled; a protected test drives demo steps 1 to 7.
 **FR-32 Deployment on OpenShift.**
 - Source: hard criteria H-1.
 - Implemented by: Grzesiu (`deploy/postgres.yaml`, `deploy/files.yaml`), T021 (`Containerfile`), T022, T023.
-- Status: Postgres and the file server are reported running (INFRA.md; **unverified** from here). All our
+- Status: Postgres and the file server are reported running (docs/infra.md; **unverified** from here). All our
   manifests are written and render with kustomize; none has been applied, not even as a server-side dry run.
   The deploy guide (T025) is not started.
 
 **FR-33 Model on OpenShift AI, used by the app.**
 - Source: hard criteria H-2; D-008.
 - Status: Llama 3.2 3B is reported as served by vLLM on the L4. The endpoint URL and served model name are
-  placeholders in `deploy/openshift/app/configmap.yaml` and "TODO" in INFRA.md section 6. No code of ours has
+  placeholders in `deploy/openshift/app/configmap.yaml` and "TODO" in docs/infra.md section 6. No code of ours has
   called it.
 
 **FR-34 Submission.**
@@ -860,12 +860,12 @@ green T011 still proves nothing about the cluster.
 **G-02 Nothing of ours has touched the cluster.**
 Manifests render but were never applied, not even with a server-side dry run. Known unknowns: the Secret key
 names; a database password with URL-special characters breaks the composed `DATABASE_URL` in app pods; the
-seed Job needs the image and the PVC first; the in-cluster build of a 2.14 GB image has never run. INFRA.md section 6 (console URL,
+seed Job needs the image and the PVC first; the in-cluster build of a 2.14 GB image has never run. docs/infra.md section 6 (console URL,
 API server, LLM endpoint, model name, Route) is all "TODO", and its status table still shows the seed Job
 and MLflow as planned although T022 and T024 are done.
 - Cheapest fix: today, before more features: `oc apply --dry-run=server -k deploy`, apply,
   build, run the seed Job, open `/docs` on the Route. Deploy the unfinished product now and redeploy often.
-  Fill INFRA.md section 6.
+  Fill docs/infra.md section 6.
 
 **G-03 The model has never been called, and it is a 3B model.**
 Every LLM use was tested only with `FakeLLM`. Unverified on the real endpoint: tool calling (needs vLLM
@@ -1109,7 +1109,7 @@ deployed. Stop adding features at Sunday 07:00.
 **Friday, until midnight**
 
 1. Grzesiu: server-side dry run; apply; first image build; seed Job; `/docs` reachable on the
-   Route; fill INFRA.md section 6 with the vLLM URL and model name (G-02).
+   Route; fill docs/infra.md section 6 with the vLLM URL and model name (G-02).
 2. Wojtek: model smoke test from a pod (G-03). Slack workspace and tokens, egress test (G-05).
 3. Coordinator and coders: finish and merge T011, as one process with `InProcessToolBox`, the notifier
    adapter and a console notifier fallback; the protected golden-path test in the data's real order (G-01,

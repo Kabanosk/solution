@@ -6,7 +6,7 @@ Part of `oc apply -k deploy/` (the root kustomization lists this directory). Use
 
 | File | What |
 |---|---|
-| `imagestream.yaml`, `buildconfig.yaml` | Image `cfo-backend:latest`, built in the cluster from `https://github.com/Kabanosk/solution` (`main`, `Containerfile`) |
+| `imagestream.yaml`, `buildconfig.yaml` | Image `cfo-backend:latest`, built in the cluster from `https://github.com/Kabanosk/collabothon-2026` (`main`, `Containerfile`) |
 | `configmap.yaml` | `cfo-config`: `LLM_BASE_URL`, `LLM_MODEL` (placeholders), MCP URLs, `BANK_API_URL`, `SCOUT_WORKERS`, `CORS_ORIGINS` |
 | `pvc.yaml` | `cfo-data` (1Gi), mounted at `/app/data` by `api`, `scout-worker`, `mcp-workstations` (read-only) and by the seed Job (T022, writes) |
 | `api.yaml` | Deployment + Service + edge TLS Route `api` (`cfo api`, port 8000) |

@@ -80,7 +80,7 @@ rebuild the agent core in real time.** Judges will see the slides and the produc
 - **Slack:** the scopes are updated, per Pedro: `channels:history`, `groups:history`, `files:read` and
   `reactions:write` are added on top of the existing ones. The bot must be invited to `#finance`.
 - **Gmail:** read-only scope `gmail.readonly`. The OAuth client must be of type *Web application*, with redirect
-  URI `https://api-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com/v1/connections/google/callback`. The client
+  URI `https://api-cfo-agent-uwur.apps.<cluster-domain>/v1/connections/google/callback`. The client
   id and secret go in Secret `google-oauth`.
 - **Deadline:** feature freeze 2026-11-22 07:00. The scope is prioritised P0, P1 and P2 (see "Order of work").
 

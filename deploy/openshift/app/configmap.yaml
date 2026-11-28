@@ -28,12 +28,12 @@ data:
   SCOUT_LEGACY_CONNECTORS_ORGANIZATION: "00000000-0000-4000-8000-000000000001"
   DATA_DIR: "/app/data/generated"
   WORKSTATIONS_ROOT: "/app/data/generated/workstations"
-  DASHBOARD_URL: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"  # task links; Slack icon at /scout-icon.png
-  SCOUT_APP_ORIGIN: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"
-  GOOGLE_REDIRECT_URI: "https://api-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com/v1/connections/google/callback"
+  DASHBOARD_URL: "https://dashboard-cfo-agent-uwur.apps.<cluster-domain>"  # task links; Slack icon at /scout-icon.png
+  SCOUT_APP_ORIGIN: "https://dashboard-cfo-agent-uwur.apps.<cluster-domain>"
+  GOOGLE_REDIRECT_URI: "https://api-cfo-agent-uwur.apps.<cluster-domain>/v1/connections/google/callback"
   SCOUT_DEMO: "0"  # demo/connection mutation endpoints remain closed under organization auth
   # CORS is not authorization; every data route independently verifies the session and membership.
-  CORS_ORIGINS: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"
+  CORS_ORIGINS: "https://dashboard-cfo-agent-uwur.apps.<cluster-domain>"
   # MLflow tracking server (self-hosted, deploy/openshift/mlflow); in-cluster Service URL.
   MLFLOW_TRACKING_URI: "http://mlflow:5000"
   # Liquidity forecast model served by the API (the alias is re-read every 60 s). Any MLflow error, or an empty registry, falls

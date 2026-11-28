@@ -1,11 +1,9 @@
-# Push to main -> build and roll out only what changed. Manifests are applied only on a manual run.
-# Freeze before a live demo: gh workflow disable deploy.yml
-# Setup (secrets OPENSHIFT_SERVER, OPENSHIFT_TOKEN): deploy/openshift/ci/README.md
+# Builds and rolls out to OpenShift. Manual only: the hackathon cluster was deleted after the event,
+# so a push to main no longer deploys anything. Setup (secrets OPENSHIFT_SERVER, OPENSHIFT_TOKEN):
+# deploy/openshift/ci/README.md
 name: deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       backend:

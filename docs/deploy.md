@@ -7,7 +7,7 @@ links to them instead of repeating them:
 [`deploy/openshift/app/README.md`](../deploy/openshift/app/README.md) (app manifests, LLM endpoint, secrets),
 [`deploy/openshift/dashboard/README.md`](../deploy/openshift/dashboard/README.md),
 [`deploy/openshift/mlflow/README.md`](../deploy/openshift/mlflow/README.md),
-[`docs/slack-setup.md`](slack-setup.md), [`INFRA.md`](../INFRA.md) (cheat sheet, env vars, gotchas).
+[`docs/slack-setup.md`](slack-setup.md), [`infra.md`](infra.md) (cheat sheet, env vars, gotchas).
 
 ## OpenShift in Kubernetes terms
 
@@ -115,7 +115,7 @@ oc describe pod <pod>                            # why it does not start (events
 oc get events --sort-by=.lastTimestamp | tail -20
 oc debug deploy/<name>                           # shell in a copy of a crash-looping pod
 ```
-More in `INFRA.md` §4.
+More in `infra.md` §4.
 
 ## 8. Updating
 

@@ -44,7 +44,7 @@ spec:
             # Shared across replicas/restarts; values stay in the cluster Secret.
             - name: SCOUT_CHAT_CONTEXT_SECRET
               valueFrom: {secretKeyRef: {name: scout-chat-context, key: signing-key, optional: true}}
-            - {name: SCOUT_APP_ORIGIN, value: "https://dashboard-cfo-agent-uwur.apps.ocp.mwpzc.sandbox39.opentlc.com"}
+            - {name: SCOUT_APP_ORIGIN, value: "https://dashboard-cfo-agent-uwur.apps.<cluster-domain>"}
             - {name: SCOUT_TRUSTED_CLIENT_IP_HEADER, value: "x-forwarded-for"}
             - name: SCOUT_GOOGLE_CLIENT_ID
               valueFrom: {secretKeyRef: {name: scout-login, key: client-id, optional: true}}

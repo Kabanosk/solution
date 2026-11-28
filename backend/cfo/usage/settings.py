@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cfo.config import REPO_ROOT
 
-# One NVIDIA L4 (the GPU of the RHOAI cluster, INFRA.md) on demand. Reference: AWS EC2 g6.xlarge (1x L4, 4 vCPU,
+# One NVIDIA L4 (the GPU of the RHOAI cluster, docs/infra.md) on demand. Reference: AWS EC2 g6.xlarge (1x L4, 4 vCPU,
 # 16 GiB) is USD 0.8048 per hour in us-east-1 (https://instances.vantage.sh/aws/ec2/g6.xlarge, read 2026-11-20,
 # an aggregator, not AWS's own page). Converted at an ASSUMED 0.87 EUR per USD and rounded: 0.70 EUR per hour.
 DEFAULT_GPU_HOURLY_COST_EUR = Decimal("0.70")
